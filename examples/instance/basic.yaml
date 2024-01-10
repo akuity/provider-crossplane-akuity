@@ -1,0 +1,13 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Instance
+metadata:
+  name: my-instance
+spec:
+  forProvider:
+    name: my-instance
+    argocd:
+      spec:
+        version: "v2.9.3"
+  providerConfigRef:
+    name: akuity

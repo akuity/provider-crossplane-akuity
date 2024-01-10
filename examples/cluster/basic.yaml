@@ -1,0 +1,15 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Cluster
+metadata:
+  name: my-cluster
+spec:
+  forProvider:
+    # The instance ID can be hardcoded or determined from an Instance resource
+    # on the same cluster.
+    # instanceId: "my-instance-id"
+    instanceRef:
+      name: "my-instance"
+    name: "my-cluster"
+  providerConfigRef:
+    name: akuity

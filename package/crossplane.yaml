@@ -1,0 +1,10 @@
+apiVersion: meta.pkg.crossplane.io/v1alpha1
+kind: Provider
+metadata:
+  name: provider-crossplane-akuity
+  annotations:
+    meta.crossplane.io/maintainer: Akuity <info@akuity.io>
+    meta.crossplane.io/source: github.com/akuityio/provider-crossplane-akuity
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      A Crossplane provider that can be used to manage Akuity resources.

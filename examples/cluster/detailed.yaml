@@ -1,0 +1,65 @@
+# ---
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: kubeconfig
+#   namespace: default
+# type: Opaque
+# data:
+#   kubeconfig: REPLACE_ME_WITH_BASE64_ENCODED_KUBECONFIG
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Cluster
+metadata:
+  name: my-cluster
+spec:
+  forProvider:
+    # The instance ID can be hardcoded or determined from an Instance resource
+    # on the same cluster.
+    # instanceId: "my-instance-id"
+    instanceRef:
+      name: "my-instance"
+    name: "my-cluster"
+    namespace: "my-namespace"
+    labels:
+      test-label: "true"
+    annotations:
+      test-annotation: "false"
+    clusterSpec:
+      namespaceScoped: true
+      description: "The my-cluster cluster contains ArgoCD Applications for my project."
+      data:
+        size: "small"
+        autoUpgradeDisabled: true
+        targetVersion: "0.5.0"
+        kustomization: |
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          patches:
+          - patch: |-
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: argocd-repo-server
+              spec:
+                template:
+                  spec:
+                    containers:
+                    - name: argocd-repo-server
+                      resources:
+                        limits:
+                          memory: 2Gi
+                        requests:
+                          cpu: 750m
+                          memory: 1Gi
+            target:
+              kind: Deployment
+              name: argocd-repo-server
+    # Use the example Kubernetes Secret above to pass a kubeconfig to the
+    # provider.
+    # kubeconfigSecretRef:
+    #   name: kubeconfig
+    #   namespace: default
+    removeAgentResourcesOnDestroy: false
+  providerConfigRef:
+    name: akuity
