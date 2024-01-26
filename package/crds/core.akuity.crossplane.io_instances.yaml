@@ -82,23 +82,6 @@ spec:
                             type: string
                           instanceSpec:
                             properties:
-                              agentPermissionsRules:
-                                items:
-                                  properties:
-                                    apiGroups:
-                                      items:
-                                        type: string
-                                      type: array
-                                    resources:
-                                      items:
-                                        type: string
-                                      type: array
-                                    verbs:
-                                      items:
-                                        type: string
-                                      type: array
-                                  type: object
-                                type: array
                               appSetDelegate:
                                 properties:
                                   managedCluster:
@@ -532,23 +515,6 @@ spec:
                             type: string
                           instanceSpec:
                             properties:
-                              agentPermissionsRules:
-                                items:
-                                  properties:
-                                    apiGroups:
-                                      items:
-                                        type: string
-                                      type: array
-                                    resources:
-                                      items:
-                                        type: string
-                                      type: array
-                                    verbs:
-                                      items:
-                                        type: string
-                                      type: array
-                                  type: object
-                                type: array
                               appSetDelegate:
                                 properties:
                                   managedCluster:

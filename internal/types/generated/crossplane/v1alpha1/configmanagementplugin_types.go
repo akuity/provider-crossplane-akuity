@@ -13,11 +13,6 @@ type ConfigManagementPlugin struct {
 }
 
 // +kubebuilder:object:generate=true
-type ConfigManagementPluginList struct {
-	Items []ConfigManagementPlugin `json:"items"`
-}
-
-// +kubebuilder:object:generate=true
 type PluginSpec struct {
 	Version          string      `json:"version,omitempty"`
 	Init             *Command    `json:"init,omitempty"`

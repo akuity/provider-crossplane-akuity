@@ -11,11 +11,6 @@ type ArgoCD struct {
 }
 
 // +kubebuilder:object:generate=true
-type ArgoCDList struct {
-	Items []ArgoCD `json:"items"`
-}
-
-// +kubebuilder:object:generate=true
 type ArgoCDSpec struct {
 	Description  string       `json:"description,omitempty"`
 	Version      string       `json:"version"`
@@ -30,23 +25,16 @@ type ArgoCDExtensionInstallEntry struct {
 
 // +kubebuilder:object:generate=true
 type ClusterCustomization struct {
-	AutoUpgradeDisabled bool   `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization       string `json:"kustomization,omitempty"`
-	AppReplication      bool   `json:"appReplication,omitempty"`
-	RedisTunneling      bool   `json:"redisTunneling,omitempty"`
+	AutoUpgradeDisabled bool                 `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization       string               `json:"kustomization,omitempty"`
+	AppReplication      bool                 `json:"appReplication,omitempty"`
+	RedisTunneling      bool                 `json:"redisTunneling,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
 type AppsetPolicy struct {
 	Policy         string `json:"policy,omitempty"`
 	OverridePolicy bool   `json:"overridePolicy,omitempty"`
-}
-
-// +kubebuilder:object:generate=true
-type AgentPermissionsRule struct {
-	ApiGroups []string `json:"apiGroups,omitempty"`
-	Resources []string `json:"resources,omitempty"`
-	Verbs     []string `json:"verbs,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -66,7 +54,6 @@ type InstanceSpec struct {
 	AssistantExtensionEnabled    bool                           `json:"assistantExtensionEnabled,omitempty"`
 	AppsetPolicy                 *AppsetPolicy                  `json:"appsetPolicy,omitempty"`
 	HostAliases                  []*HostAliases                 `json:"hostAliases,omitempty"`
-	AgentPermissionsRules        []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
