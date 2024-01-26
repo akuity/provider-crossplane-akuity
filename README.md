@@ -56,6 +56,13 @@ you would like to see supported by opening an issue for this repository.
 For general Crossplane getting started guides, installation, deployment, and administration, see
 the Crossplane [Documentation](https://crossplane.io/docs).
 
+### Initialize Git Submodules
+
+Upbound provides a build submodule that is used for most of the Makefile targets. To initialize the
+submodule run:
+
+`git submodule update --init`
+
 ### Generating the Akuity resource CRDs
 
 To generate the CRDs used by Crossplane for Akuity resources:
