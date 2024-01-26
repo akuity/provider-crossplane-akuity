@@ -172,7 +172,7 @@ func (in *ClusterObservationStatus) DeepCopy() *ClusterObservationStatus {
 func (in *ClusterParameters) DeepCopyInto(out *ClusterParameters) {
 	*out = *in
 	out.InstanceRef = in.InstanceRef
-	out.ClusterSpec = in.ClusterSpec
+	in.ClusterSpec.DeepCopyInto(&out.ClusterSpec)
 	if in.Annotations != nil {
 		in, out := &in.Annotations, &out.Annotations
 		*out = make(map[string]string, len(*in))
