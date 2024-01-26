@@ -7,16 +7,9 @@ package v1alpha1
 
 type ClusterSize string
 
-type DirectClusterType string
-
 // +kubebuilder:object:generate=true
 type Cluster struct {
 	Spec ClusterSpec `json:"spec,omitempty"`
-}
-
-// +kubebuilder:object:generate=true
-type ClusterList struct {
-	Items []Cluster `json:"items"`
 }
 
 // +kubebuilder:object:generate=true
@@ -27,20 +20,11 @@ type ClusterSpec struct {
 }
 
 // +kubebuilder:object:generate=true
-type DirectClusterSpec struct {
-	ClusterType     DirectClusterType `json:"clusterType,omitempty"`
-	KargoInstanceId *string           `json:"kargoInstanceId,omitempty"`
-	Server          *string           `json:"server,omitempty"`
-	Token           *string           `json:"token,omitempty"`
-}
-
-// +kubebuilder:object:generate=true
 type ClusterData struct {
-	Size                ClusterSize        `json:"size,omitempty"`
-	AutoUpgradeDisabled bool               `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization       string             `json:"kustomization,omitempty"`
-	AppReplication      bool               `json:"appReplication,omitempty"`
-	TargetVersion       string             `json:"targetVersion,omitempty"`
-	RedisTunneling      bool               `json:"redisTunneling,omitempty"`
-	DirectClusterSpec   *DirectClusterSpec `json:"directClusterSpec,omitempty"`
+	Size                ClusterSize `json:"size,omitempty"`
+	AutoUpgradeDisabled bool        `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization       string      `json:"kustomization,omitempty"`
+	AppReplication      bool        `json:"appReplication,omitempty"`
+	TargetVersion       string      `json:"targetVersion,omitempty"`
+	RedisTunneling      bool        `json:"redisTunneling,omitempty"`
 }
