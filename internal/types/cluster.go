@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
@@ -81,7 +82,7 @@ func AkuityAPIToClusterObservationAgentState(agentState *argocdv1.AgentState) v1
 	return observedState
 }
 
-func AkuityAPIToClusterObservationAgentStateStatus(agentHealthStatuses map[string]*argocdv1.AgentHealthStatus) map[string]v1alpha1.ClusterObservationAgentHealthStatus {
+func AkuityAPIToClusterObservationAgentStateStatus(agentHealthStatuses map[string]*health.AgentHealthStatus) map[string]v1alpha1.ClusterObservationAgentHealthStatus {
 	statuses := make(map[string]v1alpha1.ClusterObservationAgentHealthStatus)
 	for agentID, healthStatus := range agentHealthStatuses {
 		statuses[agentID] = v1alpha1.ClusterObservationAgentHealthStatus{

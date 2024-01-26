@@ -134,24 +134,24 @@ patches:
 		},
 	}
 
-	ArgocdAgentHealthStatuses = map[string]*argocdv1.AgentHealthStatus{
+	ArgocdAgentHealthStatuses = map[string]*health.AgentHealthStatus{
 		"agent1": {
-			Status:  argocdv1.TenantPhase_TENANT_PHASE_HEALTHY,
+			Status:  health.TenantPhase_TENANT_PHASE_HEALTHY,
 			Message: "Agent 1 is healthy",
 		},
 		"agent2": {
-			Status:  argocdv1.TenantPhase_TENANT_PHASE_DEGRADED,
+			Status:  health.TenantPhase_TENANT_PHASE_DEGRADED,
 			Message: "Agent 2 is degraded",
 		},
 	}
 
 	CrossplaneClusterObservationAgentHealthStatuses = map[string]v1alpha1.ClusterObservationAgentHealthStatus{
 		"agent1": {
-			Code:    int32(argocdv1.TenantPhase_TENANT_PHASE_HEALTHY),
+			Code:    int32(health.TenantPhase_TENANT_PHASE_HEALTHY),
 			Message: "Agent 1 is healthy",
 		},
 		"agent2": {
-			Code:    int32(argocdv1.TenantPhase_TENANT_PHASE_DEGRADED),
+			Code:    int32(health.TenantPhase_TENANT_PHASE_DEGRADED),
 			Message: "Agent 2 is degraded",
 		},
 	}
@@ -159,17 +159,17 @@ patches:
 	ArgocdAgentState = &argocdv1.AgentState{
 		Version:       "1.0.0",
 		ArgoCdVersion: "2.0.0",
-		Status: &argocdv1.AgentAggregatedHealthResponse{
-			Healthy: map[string]*argocdv1.AgentHealthStatus{
+		Status: &health.AgentAggregatedHealthResponse{
+			Healthy: map[string]*health.AgentHealthStatus{
 				"agent1": {
-					Status:  argocdv1.TenantPhase_TENANT_PHASE_HEALTHY,
+					Status:  health.TenantPhase_TENANT_PHASE_HEALTHY,
 					Message: "Agent 1 is healthy",
 				},
 			},
 			Progressing: nil,
-			Degraded: map[string]*argocdv1.AgentHealthStatus{
+			Degraded: map[string]*health.AgentHealthStatus{
 				"agent2": {
-					Status:  argocdv1.TenantPhase_TENANT_PHASE_DEGRADED,
+					Status:  health.TenantPhase_TENANT_PHASE_DEGRADED,
 					Message: "Agent 2 is degraded",
 				},
 			},
