@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/akuity/grpc-gateway-client v0.0.0-20231116134900-80c401329778
 	github.com/avast/retry-go/v4 v4.5.1
-	github.com/crossplane/crossplane-runtime v1.14.3
+	github.com/crossplane/crossplane-runtime v1.14.4
 	github.com/crossplane/crossplane-tools v0.0.0-20230925130601-628280f8bf79
 	github.com/google/go-cmp v0.6.0
 	github.com/pkg/errors v0.9.1
