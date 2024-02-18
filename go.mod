@@ -13,9 +13,9 @@ require (
 	go.uber.org/mock v0.4.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240125205218-1f4bbc51befe
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
-	k8s.io/apimachinery v0.29.1
-	k8s.io/client-go v0.29.1
-	k8s.io/kubectl v0.29.1
+	k8s.io/apimachinery v0.29.2
+	k8s.io/client-go v0.29.2
+	k8s.io/kubectl v0.29.2
 	sigs.k8s.io/controller-runtime v0.16.3
 	sigs.k8s.io/controller-tools v0.14.0
 )
@@ -90,9 +90,9 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.29.1
+	k8s.io/api v0.29.2
 	k8s.io/apiextensions-apiserver v0.29.1 // indirect
-	k8s.io/component-base v0.29.1 // indirect
+	k8s.io/component-base v0.29.2 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240117194847-208609032b15 // indirect
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e // indirect
