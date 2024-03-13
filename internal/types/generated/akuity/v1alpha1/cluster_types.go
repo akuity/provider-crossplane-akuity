@@ -23,6 +23,8 @@ type Cluster struct {
 
 type ClusterSize string
 
+type DirectClusterType string
+
 //+kubebuilder:object:root=true
 
 // ClusterList contains a list of Cluster
@@ -42,6 +44,13 @@ type ClusterSpec struct {
 	Data            ClusterData `json:"data,omitempty"`
 }
 
+type DirectClusterSpec struct {
+	ClusterType     DirectClusterType `json:"clusterType,omitempty"`
+	KargoInstanceId *string           `json:"kargoInstanceId,omitempty"`
+	Server          *string           `json:"server,omitempty"`
+	Token           *string           `json:"token,omitempty"`
+}
+
 type ClusterData struct {
 	Size                ClusterSize          `json:"size,omitempty"`
 	AutoUpgradeDisabled *bool                `json:"autoUpgradeDisabled,omitempty"`
@@ -49,4 +58,5 @@ type ClusterData struct {
 	AppReplication      *bool                `json:"appReplication,omitempty"`
 	TargetVersion       string               `json:"targetVersion,omitempty"`
 	RedisTunneling      *bool                `json:"redisTunneling,omitempty"`
+	DirectClusterSpec   *DirectClusterSpec   `json:"directClusterSpec,omitempty"`
 }

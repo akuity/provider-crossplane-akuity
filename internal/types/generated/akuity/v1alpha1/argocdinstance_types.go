@@ -58,6 +58,12 @@ type AppsetPolicy struct {
 	OverridePolicy bool   `json:"overridePolicy,omitempty"`
 }
 
+type AgentPermissionsRule struct {
+	ApiGroups []string `json:"apiGroups,omitempty"`
+	Resources []string `json:"resources,omitempty"`
+	Verbs     []string `json:"verbs,omitempty"`
+}
+
 type InstanceSpec struct {
 	IpAllowList                  []*IPAllowListEntry            `json:"ipAllowList,omitempty"`
 	Subdomain                    string                         `json:"subdomain,omitempty"`
@@ -74,6 +80,7 @@ type InstanceSpec struct {
 	AssistantExtensionEnabled    bool                           `json:"assistantExtensionEnabled,omitempty"`
 	AppsetPolicy                 *AppsetPolicy                  `json:"appsetPolicy,omitempty"`
 	HostAliases                  []*HostAliases                 `json:"hostAliases,omitempty"`
+	AgentPermissionsRules        []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
 }
 
 type ManagedCluster struct {
