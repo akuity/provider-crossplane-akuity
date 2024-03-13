@@ -88,6 +88,17 @@ spec:
                             type: boolean
                           autoUpgradeDisabled:
                             type: boolean
+                          directClusterSpec:
+                            properties:
+                              clusterType:
+                                type: string
+                              kargoInstanceId:
+                                type: string
+                              server:
+                                type: string
+                              token:
+                                type: string
+                            type: object
                           kustomization:
                             type: string
                           redisTunneling:
