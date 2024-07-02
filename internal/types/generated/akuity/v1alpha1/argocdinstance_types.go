@@ -58,6 +58,20 @@ type AppsetPolicy struct {
 	OverridePolicy bool   `json:"overridePolicy,omitempty"`
 }
 
+type AgentPermissionsRule struct {
+	ApiGroups []string `json:"apiGroups,omitempty"`
+	Resources []string `json:"resources,omitempty"`
+	Verbs     []string `json:"verbs,omitempty"`
+}
+
+type CrossplaneExtensionResource struct {
+	Group string `json:"group,omitempty"`
+}
+
+type CrossplaneExtension struct {
+	Resources []*CrossplaneExtensionResource `json:"resources,omitempty"`
+}
+
 type InstanceSpec struct {
 	IpAllowList                  []*IPAllowListEntry            `json:"ipAllowList,omitempty"`
 	Subdomain                    string                         `json:"subdomain,omitempty"`
@@ -69,11 +83,14 @@ type InstanceSpec struct {
 	RepoServerDelegate           *RepoServerDelegate            `json:"repoServerDelegate,omitempty"`
 	AuditExtensionEnabled        bool                           `json:"auditExtensionEnabled,omitempty"`
 	SyncHistoryExtensionEnabled  bool                           `json:"syncHistoryExtensionEnabled,omitempty"`
+	CrossplaneExtension          *CrossplaneExtension           `json:"crossplaneExtension,omitempty"`
 	ImageUpdaterDelegate         *ImageUpdaterDelegate          `json:"imageUpdaterDelegate,omitempty"`
 	AppSetDelegate               *AppSetDelegate                `json:"appSetDelegate,omitempty"`
 	AssistantExtensionEnabled    bool                           `json:"assistantExtensionEnabled,omitempty"`
 	AppsetPolicy                 *AppsetPolicy                  `json:"appsetPolicy,omitempty"`
 	HostAliases                  []*HostAliases                 `json:"hostAliases,omitempty"`
+	AgentPermissionsRules        []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
+	Fqdn                         string                         `json:"fqdn,omitempty"`
 }
 
 type ManagedCluster struct {
