@@ -515,11 +515,14 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		RepoServerDelegate:           CrossplaneToAkuityAPIRepoServerDelegate(instanceSpec.RepoServerDelegate),
 		AuditExtensionEnabled:        instanceSpec.AuditExtensionEnabled,
 		SyncHistoryExtensionEnabled:  instanceSpec.SyncHistoryExtensionEnabled,
+		CrossplaneExtension:          CrossplaneToAkuityAPICrossplaneExtension(instanceSpec.CrossplaneExtension),
 		ImageUpdaterDelegate:         CrossplaneToAkuityAPIImageUpdaterDelegate(instanceSpec.ImageUpdaterDelegate),
 		AppSetDelegate:               CrossplaneToAkuityAPIAppSetDelegate(instanceSpec.AppSetDelegate),
 		AssistantExtensionEnabled:    instanceSpec.AssistantExtensionEnabled,
 		AppsetPolicy:                 CrossplaneToAkuityAPIAppsetPolicy(instanceSpec.AppsetPolicy),
 		HostAliases:                  CrossplaneToAkuityAPIHostAliases(instanceSpec.HostAliases),
+		AgentPermissionsRules:        CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
+		Fqdn:                         instanceSpec.Fqdn,
 	}, nil
 }
 
@@ -580,6 +583,21 @@ func CrossplaneToAkuityAPIRepoServerDelegate(repoServerDelegate *crossplanetypes
 	}
 }
 
+func CrossplaneToAkuityAPICrossplaneExtension(extension *crossplanetypes.CrossplaneExtension) *akuitytypes.CrossplaneExtension {
+	if extension == nil {
+		return nil
+	}
+
+	resources := make([]*akuitytypes.CrossplaneExtensionResource, 0, len(extension.Resources))
+	for _, resource := range extension.Resources {
+		resources = append(resources, &akuitytypes.CrossplaneExtensionResource{
+			Group: resource.Group,
+		})
+	}
+	return &akuitytypes.CrossplaneExtension{Resources: resources}
+
+}
+
 func CrossplaneToAkuityAPIImageUpdaterDelegate(imageUpdaterDelegate *crossplanetypes.ImageUpdaterDelegate) *akuitytypes.ImageUpdaterDelegate {
 	if imageUpdaterDelegate == nil {
 		return nil
@@ -627,6 +645,19 @@ func CrossplaneToAkuityAPIHostAliases(hostAliasesList []*crossplanetypes.HostAli
 	}
 
 	return AkuityHostAliasesList
+}
+
+func CrossplaneToAkuityAPIAgentPermissionsRules(agentPermissionsRules []*crossplanetypes.AgentPermissionsRule) []*akuitytypes.AgentPermissionsRule {
+	akuityAgentPermissionsRules := make([]*akuitytypes.AgentPermissionsRule, 0, len(agentPermissionsRules))
+	for _, a := range agentPermissionsRules {
+		copied := a.DeepCopy()
+		akuityAgentPermissionsRules = append(akuityAgentPermissionsRules, &akuitytypes.AgentPermissionsRule{
+			ApiGroups: copied.ApiGroups,
+			Resources: copied.Resources,
+			Verbs:     copied.Verbs,
+		})
+	}
+	return akuityAgentPermissionsRules
 }
 
 func CrossplaneToAkuityAPIConfigMap(name string, configMapData map[string]string) (*structpb.Struct, error) {
