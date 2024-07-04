@@ -21,6 +21,7 @@ require (
 )
 
 require (
+	github.com/akuity/api-client-go v0.14.0 // indirect
 	github.com/alevinval/sse v1.0.2 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/go-resty/resty/v2 v2.11.0 // indirect
@@ -33,7 +34,6 @@ require (
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
-	github.com/akuity/api-client-go v0.10.0
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20231202071711-9a357b53e9c9 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
