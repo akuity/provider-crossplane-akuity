@@ -3,6 +3,7 @@ module github.com/akuityio/provider-crossplane-akuity
 go 1.21
 
 require (
+	github.com/akuity/api-client-go v0.15.0
 	github.com/akuity/grpc-gateway-client v0.0.0-20231116134900-80c401329778
 	github.com/avast/retry-go/v4 v4.5.1
 	github.com/crossplane/crossplane-runtime v1.14.3
@@ -21,7 +22,6 @@ require (
 )
 
 require (
-	github.com/akuity/api-client-go v0.15.0 // indirect
 	github.com/alevinval/sse v1.0.2 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/go-resty/resty/v2 v2.11.0 // indirect
