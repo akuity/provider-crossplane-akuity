@@ -21,7 +21,7 @@ require (
 )
 
 require (
-	github.com/akuity/api-client-go v0.14.0 // indirect
+	github.com/akuity/api-client-go v0.15.0 // indirect
 	github.com/alevinval/sse v1.0.2 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/go-resty/resty/v2 v2.11.0 // indirect
