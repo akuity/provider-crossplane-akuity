@@ -100,12 +100,12 @@ func AkuityAPIToCrossplaneDirectClusterSpec(directClusterSpec *argocdv1.DirectCl
 	}
 
 	return &generated.DirectClusterSpec{
-		ClusterType:     generated.DirectClusterType(directClusterSpec.ClusterType),
-		KargoInstanceId: pointer.CopyString(directClusterSpec.KargoInstanceId),
-		Server:          pointer.CopyString(directClusterSpec.Server),
-		Organization:    pointer.CopyString(directClusterSpec.Organization),
-		Token:           pointer.CopyString(directClusterSpec.Token),
-		CaData:          pointer.CopyString(directClusterSpec.CaData),
+		ClusterType:     generated.DirectClusterType(directClusterSpec.GetClusterType()),
+		KargoInstanceId: pointer.ToPointer(directClusterSpec.GetKargoInstanceId()),
+		Server:          pointer.ToPointer(directClusterSpec.GetServer()),
+		Organization:    pointer.ToPointer(directClusterSpec.GetOrganization()),
+		Token:           pointer.ToPointer(directClusterSpec.GetToken()),
+		CaData:          pointer.ToPointer(directClusterSpec.GetCaData()),
 	}
 }
 
@@ -130,8 +130,8 @@ func AkuityAPIToCrossplaneManagedClusterConfig(managedClusterConfig *argocdv1.Ma
 	}
 
 	return &generated.ManagedClusterConfig{
-		SecretName: managedClusterConfig.SecretName,
-		SecretKey:  managedClusterConfig.SecretKey,
+		SecretName: managedClusterConfig.GetSecretName(),
+		SecretKey:  managedClusterConfig.GetSecretKey(),
 	}
 }
 
