@@ -325,7 +325,7 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		RepoServerDelegate:              AkuityAPIToCrossplaneRepoServerDelegate(instanceSpec.GetRepoServerDelegate()),
 		AuditExtensionEnabled:           instanceSpec.GetAuditExtensionEnabled(),
 		SyncHistoryExtensionEnabled:     instanceSpec.GetSyncHistoryExtensionEnabled(),
-		CrossplaneExtension:             AkuityAPIToCrossplaneCrossplaneExtension(instanceSpec.CrossplaneExtension),
+		CrossplaneExtension:             AkuityAPIToCrossplaneCrossplaneExtension(instanceSpec.GetCrossplaneExtension()),
 		ImageUpdaterDelegate:            AkuityAPIToCrossplaneImageUpdaterDelegate(instanceSpec.GetImageUpdaterDelegate()),
 		AppSetDelegate:                  AkuityAPIToCrossplaneAppSetDelegate(instanceSpec.GetAppSetDelegate()),
 		AssistantExtensionEnabled:       instanceSpec.GetAssistantExtensionEnabled(),
@@ -425,10 +425,10 @@ func AkuityAPIToCrossplaneCrossplaneExtension(crossplaneExtension *argocdv1.Cros
 		return nil
 	}
 
-	resources := make([]*crossplanetypes.CrossplaneExtensionResource, 0, len(crossplaneExtension.Resources))
-	for _, r := range crossplaneExtension.Resources {
+	resources := make([]*crossplanetypes.CrossplaneExtensionResource, 0, len(crossplaneExtension.GetResources()))
+	for _, r := range crossplaneExtension.GetResources() {
 		resource := &crossplanetypes.CrossplaneExtensionResource{
-			Group: r.Group,
+			Group: r.GetGroup(),
 		}
 		resources = append(resources, resource)
 	}
@@ -496,17 +496,11 @@ func AkuityAPIToCrossplaneAgentPermissionsRules(agentPermissionsRules []*argocdv
 	crossplaneAgentPermissionsRules := make([]*crossplanetypes.AgentPermissionsRule, 0, len(agentPermissionsRules))
 	for _, rule := range agentPermissionsRules {
 		var apiGroups []string
-		for _, apiGroup := range rule.ApiGroups {
-			apiGroups = append(apiGroups, apiGroup)
-		}
+		apiGroups = append(apiGroups, rule.GetApiGroups()...)
 		var resources []string
-		for _, resource := range rule.Resources {
-			resources = append(resources, resource)
-		}
+		resources = append(resources, rule.GetResources()...)
 		var verbs []string
-		for _, verb := range rule.Verbs {
-			verbs = append(verbs, verb)
-		}
+		verbs = append(verbs, rule.GetVerbs()...)
 		crossplaneAgentPermissionsRules = append(crossplaneAgentPermissionsRules, &crossplanetypes.AgentPermissionsRule{
 			ApiGroups: apiGroups,
 			Resources: resources,
