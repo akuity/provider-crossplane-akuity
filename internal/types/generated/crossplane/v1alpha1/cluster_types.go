@@ -44,15 +44,16 @@ type ManagedClusterConfig struct {
 
 // +kubebuilder:object:generate=true
 type ClusterData struct {
-	Size                      ClusterSize           `json:"size,omitempty"`
-	AutoUpgradeDisabled       bool                  `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization             string                `json:"kustomization,omitempty"`
-	AppReplication            bool                  `json:"appReplication,omitempty"`
-	TargetVersion             string                `json:"targetVersion,omitempty"`
-	RedisTunneling            bool                  `json:"redisTunneling,omitempty"`
-	DirectClusterSpec         *DirectClusterSpec    `json:"directClusterSpec,omitempty"`
-	DatadogAnnotationsEnabled *bool                 `json:"datadogAnnotationsEnabled,omitempty"`
-	EksAddonEnabled           *bool                 `json:"eksAddonEnabled,omitempty"`
-	ManagedClusterConfig      *ManagedClusterConfig `json:"managedClusterConfig,omitempty"`
-	MaintenanceMode           *bool                 `json:"maintenanceMode,omitempty"`
+	Size                            ClusterSize           `json:"size,omitempty"`
+	AutoUpgradeDisabled             bool                  `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization                   string                `json:"kustomization,omitempty"`
+	AppReplication                  bool                  `json:"appReplication,omitempty"`
+	TargetVersion                   string                `json:"targetVersion,omitempty"`
+	RedisTunneling                  bool                  `json:"redisTunneling,omitempty"`
+	DirectClusterSpec               *DirectClusterSpec    `json:"directClusterSpec,omitempty"`
+	DatadogAnnotationsEnabled       *bool                 `json:"datadogAnnotationsEnabled,omitempty"`
+	EksAddonEnabled                 *bool                 `json:"eksAddonEnabled,omitempty"`
+	ManagedClusterConfig            *ManagedClusterConfig `json:"managedClusterConfig,omitempty"`
+	MaintenanceMode                 *bool                 `json:"maintenanceMode,omitempty"`
+	MultiClusterK8SDashboardEnabled *bool                 `json:"multiClusterK8sDashboardEnabled,omitempty"`
 }
