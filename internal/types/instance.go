@@ -690,6 +690,10 @@ func CrossplaneToAkuityAPIHostAliases(hostAliasesList []*crossplanetypes.HostAli
 }
 
 func CrossplaneToAkuityAPIAgentPermissionsRules(agentPermissionsRules []*crossplanetypes.AgentPermissionsRule) []*akuitytypes.AgentPermissionsRule {
+	if len(agentPermissionsRules) == 0 {
+		return nil
+	}
+
 	akuityAgentPermissionsRules := make([]*akuitytypes.AgentPermissionsRule, 0, len(agentPermissionsRules))
 	for _, a := range agentPermissionsRules {
 		copied := a.DeepCopy()
