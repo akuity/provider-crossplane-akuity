@@ -158,12 +158,12 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		c.logger.Debug("As we are not able to differentiate PermissionDenied/NotFound when calling GetCluster, we simply treat as not found here", "error", err)
 		return managed.ExternalObservation{ResourceExists: false}, nil
 
-		//if reason.IsNotFound(err) {
-		//	return managed.ExternalObservation{ResourceExists: false}, nil
-		//}
+		// if reason.IsNotFound(err) {
+		// 	return managed.ExternalObservation{ResourceExists: false}, nil
+		// }
 		//
-		//managedCluster.SetConditions(xpv1.ReconcileError(err))
-		//return managed.ExternalObservation{}, err
+		// managedCluster.SetConditions(xpv1.ReconcileError(err))
+		// return managed.ExternalObservation{}, err
 	}
 
 	actualCluster, err := types.AkuityAPIToCrossplaneCluster(instanceID, managedCluster.Spec.ForProvider, akuityCluster)
