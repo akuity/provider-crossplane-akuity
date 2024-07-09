@@ -13,7 +13,6 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
 func AkuityAPIToCrossplaneClusterObservation(cluster *argocdv1.Cluster) (v1alpha1.ClusterObservation, error) {
@@ -94,36 +93,6 @@ func AkuityAPIToClusterObservationAgentStateStatus(agentHealthStatuses map[strin
 	return statuses
 }
 
-func AkuityAPIToCrossplaneDirectClusterSpec(directClusterSpec *argocdv1.DirectClusterSpec) *generated.DirectClusterSpec {
-	if directClusterSpec == nil {
-		return nil
-	}
-
-	return &generated.DirectClusterSpec{
-		ClusterType:     generated.DirectClusterType(directClusterSpec.GetClusterType()),
-		KargoInstanceId: pointer.ToPointer(directClusterSpec.GetKargoInstanceId()),
-		Server:          pointer.ToPointer(directClusterSpec.GetServer()),
-		Organization:    pointer.ToPointer(directClusterSpec.GetOrganization()),
-		Token:           pointer.ToPointer(directClusterSpec.GetToken()),
-		CaData:          pointer.ToPointer(directClusterSpec.GetCaData()),
-	}
-}
-
-func CrossplaneToAkuityAPIDirectClusterSpec(directClusterSpec *generated.DirectClusterSpec) *akuitytypes.DirectClusterSpec {
-	if directClusterSpec == nil {
-		return nil
-	}
-
-	return &akuitytypes.DirectClusterSpec{
-		ClusterType:     akuitytypes.DirectClusterType(directClusterSpec.ClusterType),
-		KargoInstanceId: pointer.CopyString(directClusterSpec.KargoInstanceId),
-		Server:          pointer.CopyString(directClusterSpec.Server),
-		Organization:    pointer.CopyString(directClusterSpec.Organization),
-		Token:           pointer.CopyString(directClusterSpec.Token),
-		CaData:          pointer.CopyString(directClusterSpec.CaData),
-	}
-}
-
 func AkuityAPIToCrossplaneManagedClusterConfig(managedClusterConfig *argocdv1.ManagedClusterConfig) *generated.ManagedClusterConfig {
 	if managedClusterConfig == nil {
 		return nil
@@ -180,18 +149,15 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 			Description:     cluster.GetDescription(),
 			NamespaceScoped: cluster.GetData().GetNamespaceScoped(),
 			Data: generated.ClusterData{
-				Size:                            generated.ClusterSize(size),
-				AutoUpgradeDisabled:             cluster.GetData().GetAutoUpgradeDisabled(),
-				Kustomization:                   string(kustomizationYAML),
-				AppReplication:                  cluster.GetData().GetAppReplication(),
-				TargetVersion:                   cluster.GetData().GetTargetVersion(),
-				RedisTunneling:                  cluster.GetData().GetRedisTunneling(),
-				DirectClusterSpec:               AkuityAPIToCrossplaneDirectClusterSpec(cluster.GetData().GetDirectClusterSpec()),
-				DatadogAnnotationsEnabled:       cluster.GetData().DatadogAnnotationsEnabled, //nolint:all
-				EksAddonEnabled:                 cluster.GetData().EksAddonEnabled,           //nolint:all
-				ManagedClusterConfig:            AkuityAPIToCrossplaneManagedClusterConfig(cluster.GetData().GetManagedClusterConfig()),
-				MaintenanceMode:                 cluster.GetData().MaintenanceMode,                 //nolint:all
-				MultiClusterK8SDashboardEnabled: cluster.GetData().MultiClusterK8SDashboardEnabled, //nolint:all
+				Size:                      generated.ClusterSize(size),
+				AutoUpgradeDisabled:       cluster.GetData().GetAutoUpgradeDisabled(),
+				Kustomization:             string(kustomizationYAML),
+				AppReplication:            cluster.GetData().GetAppReplication(),
+				TargetVersion:             cluster.GetData().GetTargetVersion(),
+				RedisTunneling:            cluster.GetData().GetRedisTunneling(),
+				DatadogAnnotationsEnabled: cluster.GetData().DatadogAnnotationsEnabled, //nolint:all
+				EksAddonEnabled:           cluster.GetData().EksAddonEnabled,           //nolint:all
+				ManagedClusterConfig:      AkuityAPIToCrossplaneManagedClusterConfig(cluster.GetData().GetManagedClusterConfig()),
 			},
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
@@ -228,18 +194,15 @@ func CrossplaneToAkuityAPICluster(cluster v1alpha1.ClusterParameters) (akuitytyp
 			Description:     cluster.ClusterSpec.Description,
 			NamespaceScoped: cluster.ClusterSpec.NamespaceScoped,
 			Data: akuitytypes.ClusterData{
-				Size:                            akuitytypes.ClusterSize(cluster.ClusterSpec.Data.Size),
-				AutoUpgradeDisabled:             &cluster.ClusterSpec.Data.AutoUpgradeDisabled,
-				Kustomization:                   kustomization,
-				AppReplication:                  &cluster.ClusterSpec.Data.AppReplication,
-				TargetVersion:                   cluster.ClusterSpec.Data.TargetVersion,
-				RedisTunneling:                  &cluster.ClusterSpec.Data.RedisTunneling,
-				DirectClusterSpec:               CrossplaneToAkuityAPIDirectClusterSpec(cluster.ClusterSpec.Data.DirectClusterSpec),
-				DatadogAnnotationsEnabled:       cluster.ClusterSpec.Data.DatadogAnnotationsEnabled,
-				EksAddonEnabled:                 cluster.ClusterSpec.Data.EksAddonEnabled,
-				ManagedClusterConfig:            CrossplaneToAkuityAPIManagedClusterConfig(cluster.ClusterSpec.Data.ManagedClusterConfig),
-				MaintenanceMode:                 cluster.ClusterSpec.Data.MaintenanceMode,
-				MultiClusterK8SDashboardEnabled: cluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
+				Size:                      akuitytypes.ClusterSize(cluster.ClusterSpec.Data.Size),
+				AutoUpgradeDisabled:       &cluster.ClusterSpec.Data.AutoUpgradeDisabled,
+				Kustomization:             kustomization,
+				AppReplication:            &cluster.ClusterSpec.Data.AppReplication,
+				TargetVersion:             cluster.ClusterSpec.Data.TargetVersion,
+				RedisTunneling:            &cluster.ClusterSpec.Data.RedisTunneling,
+				DatadogAnnotationsEnabled: cluster.ClusterSpec.Data.DatadogAnnotationsEnabled,
+				EksAddonEnabled:           cluster.ClusterSpec.Data.EksAddonEnabled,
+				ManagedClusterConfig:      CrossplaneToAkuityAPIManagedClusterConfig(cluster.ClusterSpec.Data.ManagedClusterConfig),
 			},
 		},
 	}, nil
