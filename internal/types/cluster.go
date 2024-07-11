@@ -39,8 +39,8 @@ func AkuityAPIToCrossplaneClusterObservation(cluster *argocdv1.Cluster) (v1alpha
 		ID:                  cluster.GetId(),
 		Name:                cluster.GetName(),
 		Description:         cluster.GetDescription(),
-		Namespace:           cluster.GetNamespace(),
-		NamespaceScoped:     cluster.GetNamespaceScoped(),
+		Namespace:           cluster.GetData().GetNamespace(),
+		NamespaceScoped:     cluster.GetData().GetNamespaceScoped(),
 		Labels:              cluster.GetData().GetLabels(),
 		Annotations:         cluster.GetData().GetAnnotations(),
 		AutoUpgradeDisabled: cluster.GetData().GetAutoUpgradeDisabled(),
@@ -93,6 +93,28 @@ func AkuityAPIToClusterObservationAgentStateStatus(agentHealthStatuses map[strin
 	return statuses
 }
 
+func AkuityAPIToCrossplaneManagedClusterConfig(managedClusterConfig *argocdv1.ManagedClusterConfig) *generated.ManagedClusterConfig {
+	if managedClusterConfig == nil {
+		return nil
+	}
+
+	return &generated.ManagedClusterConfig{
+		SecretName: managedClusterConfig.GetSecretName(),
+		SecretKey:  managedClusterConfig.GetSecretKey(),
+	}
+}
+
+func CrossplaneToAkuityAPIManagedClusterConfig(managedClusterConfig *generated.ManagedClusterConfig) *akuitytypes.ManagedClusterConfig {
+	if managedClusterConfig == nil {
+		return nil
+	}
+
+	return &akuitytypes.ManagedClusterConfig{
+		SecretName: managedClusterConfig.SecretName,
+		SecretKey:  managedClusterConfig.SecretKey,
+	}
+}
+
 func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.ClusterParameters, cluster *argocdv1.Cluster) (v1alpha1.ClusterParameters, error) {
 	kustomizationYAML, err := AkuityAPIKustomizationToCrossplaneKustomization(cluster.GetData().GetKustomization())
 	if err != nil {
@@ -120,19 +142,22 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 			Name: managedCluster.InstanceRef.Name,
 		},
 		Name:        cluster.GetName(),
-		Namespace:   cluster.GetNamespace(),
+		Namespace:   cluster.GetData().GetNamespace(),
 		Labels:      cluster.GetData().GetLabels(),
 		Annotations: cluster.GetData().GetAnnotations(),
 		ClusterSpec: generated.ClusterSpec{
 			Description:     cluster.GetDescription(),
-			NamespaceScoped: cluster.GetNamespaceScoped(),
+			NamespaceScoped: cluster.GetData().GetNamespaceScoped(),
 			Data: generated.ClusterData{
-				Size:                generated.ClusterSize(size),
-				AutoUpgradeDisabled: cluster.GetData().GetAutoUpgradeDisabled(),
-				Kustomization:       string(kustomizationYAML),
-				AppReplication:      cluster.GetData().GetAppReplication(),
-				TargetVersion:       cluster.GetData().GetTargetVersion(),
-				RedisTunneling:      cluster.GetData().GetRedisTunneling(),
+				Size:                      generated.ClusterSize(size),
+				AutoUpgradeDisabled:       cluster.GetData().GetAutoUpgradeDisabled(),
+				Kustomization:             string(kustomizationYAML),
+				AppReplication:            cluster.GetData().GetAppReplication(),
+				TargetVersion:             cluster.GetData().GetTargetVersion(),
+				RedisTunneling:            cluster.GetData().GetRedisTunneling(),
+				DatadogAnnotationsEnabled: cluster.GetData().DatadogAnnotationsEnabled, //nolint:all
+				EksAddonEnabled:           cluster.GetData().EksAddonEnabled,           //nolint:all
+				ManagedClusterConfig:      AkuityAPIToCrossplaneManagedClusterConfig(cluster.GetData().GetManagedClusterConfig()),
 			},
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
@@ -169,12 +194,15 @@ func CrossplaneToAkuityAPICluster(cluster v1alpha1.ClusterParameters) (akuitytyp
 			Description:     cluster.ClusterSpec.Description,
 			NamespaceScoped: cluster.ClusterSpec.NamespaceScoped,
 			Data: akuitytypes.ClusterData{
-				Size:                akuitytypes.ClusterSize(cluster.ClusterSpec.Data.Size),
-				AutoUpgradeDisabled: &cluster.ClusterSpec.Data.AutoUpgradeDisabled,
-				Kustomization:       kustomization,
-				AppReplication:      &cluster.ClusterSpec.Data.AppReplication,
-				TargetVersion:       cluster.ClusterSpec.Data.TargetVersion,
-				RedisTunneling:      &cluster.ClusterSpec.Data.RedisTunneling,
+				Size:                      akuitytypes.ClusterSize(cluster.ClusterSpec.Data.Size),
+				AutoUpgradeDisabled:       &cluster.ClusterSpec.Data.AutoUpgradeDisabled,
+				Kustomization:             kustomization,
+				AppReplication:            &cluster.ClusterSpec.Data.AppReplication,
+				TargetVersion:             cluster.ClusterSpec.Data.TargetVersion,
+				RedisTunneling:            &cluster.ClusterSpec.Data.RedisTunneling,
+				DatadogAnnotationsEnabled: cluster.ClusterSpec.Data.DatadogAnnotationsEnabled,
+				EksAddonEnabled:           cluster.ClusterSpec.Data.EksAddonEnabled,
+				ManagedClusterConfig:      CrossplaneToAkuityAPIManagedClusterConfig(cluster.ClusterSpec.Data.ManagedClusterConfig),
 			},
 		},
 	}, nil

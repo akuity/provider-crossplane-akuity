@@ -88,8 +88,19 @@ spec:
                             type: boolean
                           autoUpgradeDisabled:
                             type: boolean
+                          datadogAnnotationsEnabled:
+                            type: boolean
+                          eksAddonEnabled:
+                            type: boolean
                           kustomization:
                             type: string
+                          managedClusterConfig:
+                            properties:
+                              secretKey:
+                                type: string
+                              secretName:
+                                type: string
+                            type: object
                           redisTunneling:
                             type: boolean
                           size:

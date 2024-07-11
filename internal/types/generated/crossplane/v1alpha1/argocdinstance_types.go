@@ -25,16 +25,33 @@ type ArgoCDExtensionInstallEntry struct {
 
 // +kubebuilder:object:generate=true
 type ClusterCustomization struct {
-	AutoUpgradeDisabled bool                 `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization       string               `json:"kustomization,omitempty"`
-	AppReplication      bool                 `json:"appReplication,omitempty"`
-	RedisTunneling      bool                 `json:"redisTunneling,omitempty"`
+	AutoUpgradeDisabled bool   `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization       string `json:"kustomization,omitempty"`
+	AppReplication      bool   `json:"appReplication,omitempty"`
+	RedisTunneling      bool   `json:"redisTunneling,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
 type AppsetPolicy struct {
 	Policy         string `json:"policy,omitempty"`
 	OverridePolicy bool   `json:"overridePolicy,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
+type AgentPermissionsRule struct {
+	ApiGroups []string `json:"apiGroups,omitempty"`
+	Resources []string `json:"resources,omitempty"`
+	Verbs     []string `json:"verbs,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
+type CrossplaneExtensionResource struct {
+	Group string `json:"group,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
+type CrossplaneExtension struct {
+	Resources []*CrossplaneExtensionResource `json:"resources,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -49,11 +66,14 @@ type InstanceSpec struct {
 	RepoServerDelegate           *RepoServerDelegate            `json:"repoServerDelegate,omitempty"`
 	AuditExtensionEnabled        bool                           `json:"auditExtensionEnabled,omitempty"`
 	SyncHistoryExtensionEnabled  bool                           `json:"syncHistoryExtensionEnabled,omitempty"`
+	CrossplaneExtension          *CrossplaneExtension           `json:"crossplaneExtension,omitempty"`
 	ImageUpdaterDelegate         *ImageUpdaterDelegate          `json:"imageUpdaterDelegate,omitempty"`
 	AppSetDelegate               *AppSetDelegate                `json:"appSetDelegate,omitempty"`
 	AssistantExtensionEnabled    bool                           `json:"assistantExtensionEnabled,omitempty"`
 	AppsetPolicy                 *AppsetPolicy                  `json:"appsetPolicy,omitempty"`
 	HostAliases                  []*HostAliases                 `json:"hostAliases,omitempty"`
+	AgentPermissionsRules        []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
+	Fqdn                         string                         `json:"fqdn,omitempty"`
 }
 
 // +kubebuilder:object:generate=true

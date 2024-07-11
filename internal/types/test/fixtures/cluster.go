@@ -87,6 +87,8 @@ patches:
 		Name:      ClusterName,
 		Namespace: "test-namespace",
 		Data: &argocdv1.ClusterData{
+			Namespace:           "test-namespace",
+			NamespaceScoped:     true,
 			Labels:              Labels,
 			Annotations:         Annotations,
 			Size:                argocdv1.ClusterSize_CLUSTER_SIZE_MEDIUM,

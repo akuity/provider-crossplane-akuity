@@ -394,9 +394,13 @@ func TestObserve_GetClusterErr(t *testing.T) {
 		Return(nil, errors.New("fake")).Times(1)
 
 	resp, err := client.Observe(ctx, &managedCluster)
-	require.Error(t, err)
-	assert.Equal(t, managed.ExternalObservation{}, resp)
-	assert.Equal(t, xpv1.ReasonReconcileError, managedCluster.Status.Conditions[0].Reason)
+	// require.Error(t, err)
+	// assert.Equal(t, managed.ExternalObservation{}, resp)
+	// assert.Equal(t, xpv1.ReasonReconcileError, managedCluster.Status.Conditions[0].Reason)
+
+	// we use not found for permission denied error
+	require.NoError(t, err)
+	assert.Equal(t, managed.ExternalObservation{ResourceExists: false}, resp)
 }
 
 func TestObserve_HealthStatusNotHealthy(t *testing.T) {

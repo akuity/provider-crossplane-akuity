@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -325,11 +326,14 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		RepoServerDelegate:           AkuityAPIToCrossplaneRepoServerDelegate(instanceSpec.GetRepoServerDelegate()),
 		AuditExtensionEnabled:        instanceSpec.GetAuditExtensionEnabled(),
 		SyncHistoryExtensionEnabled:  instanceSpec.GetSyncHistoryExtensionEnabled(),
+		CrossplaneExtension:          AkuityAPIToCrossplaneCrossplaneExtension(instanceSpec.GetCrossplaneExtension()),
 		ImageUpdaterDelegate:         AkuityAPIToCrossplaneImageUpdaterDelegate(instanceSpec.GetImageUpdaterDelegate()),
 		AppSetDelegate:               AkuityAPIToCrossplaneAppSetDelegate(instanceSpec.GetAppSetDelegate()),
 		AssistantExtensionEnabled:    instanceSpec.GetAssistantExtensionEnabled(),
 		AppsetPolicy:                 AkuityAPIToCrossplaneAppsetPolicy(instanceSpec.GetAppsetPolicy()),
 		HostAliases:                  AkuityAPIToCrossplaneHostAliases(instanceSpec.GetHostAliases()),
+		AgentPermissionsRules:        AkuityAPIToCrossplaneAgentPermissionsRules(instanceSpec.GetAgentPermissionsRules()),
+		Fqdn:                         instanceSpec.GetFqdn(),
 	}, nil
 }
 
@@ -416,6 +420,21 @@ func AkuityAPIToCrossplaneRepoServerDelegate(repoServerDelegate *argocdv1.RepoSe
 	}
 }
 
+func AkuityAPIToCrossplaneCrossplaneExtension(crossplaneExtension *argocdv1.CrossplaneExtension) *crossplanetypes.CrossplaneExtension {
+	if crossplaneExtension == nil {
+		return nil
+	}
+
+	resources := make([]*crossplanetypes.CrossplaneExtensionResource, 0, len(crossplaneExtension.GetResources()))
+	for _, r := range crossplaneExtension.GetResources() {
+		resource := &crossplanetypes.CrossplaneExtensionResource{
+			Group: r.GetGroup(),
+		}
+		resources = append(resources, resource)
+	}
+	return &crossplanetypes.CrossplaneExtension{Resources: resources}
+}
+
 func AkuityAPIToCrossplaneImageUpdaterDelegate(imageUpdaterDelegate *argocdv1.ImageUpdaterDelegate) *crossplanetypes.ImageUpdaterDelegate {
 	if imageUpdaterDelegate == nil {
 		return nil
@@ -469,6 +488,28 @@ func AkuityAPIToCrossplaneHostAliases(hostAliasesList []*argocdv1.HostAliases) [
 	return crossplaneHostAliasesList
 }
 
+func AkuityAPIToCrossplaneAgentPermissionsRules(agentPermissionsRules []*argocdv1.AgentPermissionsRule) []*crossplanetypes.AgentPermissionsRule {
+	if len(agentPermissionsRules) == 0 {
+		return nil
+	}
+
+	crossplaneAgentPermissionsRules := make([]*crossplanetypes.AgentPermissionsRule, 0, len(agentPermissionsRules))
+	for _, rule := range agentPermissionsRules {
+		var apiGroups []string
+		apiGroups = append(apiGroups, rule.GetApiGroups()...)
+		var resources []string
+		resources = append(resources, rule.GetResources()...)
+		var verbs []string
+		verbs = append(verbs, rule.GetVerbs()...)
+		crossplaneAgentPermissionsRules = append(crossplaneAgentPermissionsRules, &crossplanetypes.AgentPermissionsRule{
+			ApiGroups: apiGroups,
+			Resources: resources,
+			Verbs:     verbs,
+		})
+	}
+	return crossplaneAgentPermissionsRules
+}
+
 func CrossplaneToAkuityAPIArgoCD(name string, instance *crossplanetypes.ArgoCD) (*structpb.Struct, error) {
 	instanceSpec, err := CrossplaneToAkuityAPIInstanceSpec(instance.Spec.InstanceSpec)
 	if err != nil {
@@ -507,19 +548,22 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 	return akuitytypes.InstanceSpec{
 		IpAllowList:                  CrossplaneToAkuityAPIIPAllowListEntry(instanceSpec.IpAllowList),
 		Subdomain:                    instanceSpec.Subdomain,
-		DeclarativeManagementEnabled: instanceSpec.DeclarativeManagementEnabled,
+		DeclarativeManagementEnabled: ptr.To(instanceSpec.DeclarativeManagementEnabled),
 		Extensions:                   CrossplaneToAkuityAPIArgoCDExtensionInstallEntry(instanceSpec.Extensions),
 		ClusterCustomizationDefaults: clusterCustomization,
-		ImageUpdaterEnabled:          instanceSpec.ImageUpdaterEnabled,
-		BackendIpAllowListEnabled:    instanceSpec.BackendIpAllowListEnabled,
+		ImageUpdaterEnabled:          ptr.To(instanceSpec.ImageUpdaterEnabled),
+		BackendIpAllowListEnabled:    ptr.To(instanceSpec.BackendIpAllowListEnabled),
 		RepoServerDelegate:           CrossplaneToAkuityAPIRepoServerDelegate(instanceSpec.RepoServerDelegate),
-		AuditExtensionEnabled:        instanceSpec.AuditExtensionEnabled,
-		SyncHistoryExtensionEnabled:  instanceSpec.SyncHistoryExtensionEnabled,
+		AuditExtensionEnabled:        ptr.To(instanceSpec.AuditExtensionEnabled),
+		SyncHistoryExtensionEnabled:  ptr.To(instanceSpec.SyncHistoryExtensionEnabled),
+		CrossplaneExtension:          CrossplaneToAkuityAPICrossplaneExtension(instanceSpec.CrossplaneExtension),
 		ImageUpdaterDelegate:         CrossplaneToAkuityAPIImageUpdaterDelegate(instanceSpec.ImageUpdaterDelegate),
 		AppSetDelegate:               CrossplaneToAkuityAPIAppSetDelegate(instanceSpec.AppSetDelegate),
-		AssistantExtensionEnabled:    instanceSpec.AssistantExtensionEnabled,
+		AssistantExtensionEnabled:    ptr.To(instanceSpec.AssistantExtensionEnabled),
 		AppsetPolicy:                 CrossplaneToAkuityAPIAppsetPolicy(instanceSpec.AppsetPolicy),
 		HostAliases:                  CrossplaneToAkuityAPIHostAliases(instanceSpec.HostAliases),
+		AgentPermissionsRules:        CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
+		Fqdn:                         ptr.To(instanceSpec.Fqdn),
 	}, nil
 }
 
@@ -560,10 +604,10 @@ func CrossplaneToAkuityAPIClusterCustomization(clusterCustomization *crossplanet
 	}
 
 	return &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: clusterCustomization.AutoUpgradeDisabled,
+		AutoUpgradeDisabled: ptr.To(clusterCustomization.AutoUpgradeDisabled),
 		Kustomization:       kustomization,
-		AppReplication:      clusterCustomization.AppReplication,
-		RedisTunneling:      clusterCustomization.RedisTunneling,
+		AppReplication:      ptr.To(clusterCustomization.AppReplication),
+		RedisTunneling:      ptr.To(clusterCustomization.RedisTunneling),
 	}, nil
 }
 
@@ -573,11 +617,26 @@ func CrossplaneToAkuityAPIRepoServerDelegate(repoServerDelegate *crossplanetypes
 	}
 
 	return &akuitytypes.RepoServerDelegate{
-		ControlPlane: repoServerDelegate.ControlPlane,
+		ControlPlane: ptr.To(repoServerDelegate.ControlPlane),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: repoServerDelegate.ManagedCluster.ClusterName,
 		},
 	}
+}
+
+func CrossplaneToAkuityAPICrossplaneExtension(extension *crossplanetypes.CrossplaneExtension) *akuitytypes.CrossplaneExtension {
+	if extension == nil {
+		return nil
+	}
+
+	resources := make([]*akuitytypes.CrossplaneExtensionResource, 0, len(extension.Resources))
+	for _, resource := range extension.Resources {
+		resources = append(resources, &akuitytypes.CrossplaneExtensionResource{
+			Group: resource.Group,
+		})
+	}
+	return &akuitytypes.CrossplaneExtension{Resources: resources}
+
 }
 
 func CrossplaneToAkuityAPIImageUpdaterDelegate(imageUpdaterDelegate *crossplanetypes.ImageUpdaterDelegate) *akuitytypes.ImageUpdaterDelegate {
@@ -586,7 +645,7 @@ func CrossplaneToAkuityAPIImageUpdaterDelegate(imageUpdaterDelegate *crossplanet
 	}
 
 	return &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: imageUpdaterDelegate.ControlPlane,
+		ControlPlane: ptr.To(imageUpdaterDelegate.ControlPlane),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: imageUpdaterDelegate.ManagedCluster.ClusterName,
 		},
@@ -612,7 +671,7 @@ func CrossplaneToAkuityAPIAppsetPolicy(appsetPolicy *crossplanetypes.AppsetPolic
 
 	return &akuitytypes.AppsetPolicy{
 		Policy:         appsetPolicy.Policy,
-		OverridePolicy: appsetPolicy.OverridePolicy,
+		OverridePolicy: ptr.To(appsetPolicy.OverridePolicy),
 	}
 }
 
@@ -627,6 +686,23 @@ func CrossplaneToAkuityAPIHostAliases(hostAliasesList []*crossplanetypes.HostAli
 	}
 
 	return AkuityHostAliasesList
+}
+
+func CrossplaneToAkuityAPIAgentPermissionsRules(agentPermissionsRules []*crossplanetypes.AgentPermissionsRule) []*akuitytypes.AgentPermissionsRule {
+	if len(agentPermissionsRules) == 0 {
+		return nil
+	}
+
+	akuityAgentPermissionsRules := make([]*akuitytypes.AgentPermissionsRule, 0, len(agentPermissionsRules))
+	for _, a := range agentPermissionsRules {
+		copied := a.DeepCopy()
+		akuityAgentPermissionsRules = append(akuityAgentPermissionsRules, &akuitytypes.AgentPermissionsRule{
+			ApiGroups: copied.ApiGroups,
+			Resources: copied.Resources,
+			Verbs:     copied.Verbs,
+		})
+	}
+	return akuityAgentPermissionsRules
 }
 
 func CrossplaneToAkuityAPIConfigMap(name string, configMapData map[string]string) (*structpb.Struct, error) {

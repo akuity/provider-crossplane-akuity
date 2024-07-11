@@ -82,6 +82,23 @@ spec:
                             type: string
                           instanceSpec:
                             properties:
+                              agentPermissionsRules:
+                                items:
+                                  properties:
+                                    apiGroups:
+                                      items:
+                                        type: string
+                                      type: array
+                                    resources:
+                                      items:
+                                        type: string
+                                      type: array
+                                    verbs:
+                                      items:
+                                        type: string
+                                      type: array
+                                  type: object
+                                type: array
                               appSetDelegate:
                                 properties:
                                   managedCluster:
@@ -114,6 +131,16 @@ spec:
                                   redisTunneling:
                                     type: boolean
                                 type: object
+                              crossplaneExtension:
+                                properties:
+                                  resources:
+                                    items:
+                                      properties:
+                                        group:
+                                          type: string
+                                      type: object
+                                    type: array
+                                type: object
                               declarativeManagementEnabled:
                                 type: boolean
                               extensions:
@@ -125,6 +152,8 @@ spec:
                                       type: string
                                   type: object
                                 type: array
+                              fqdn:
+                                type: string
                               hostAliases:
                                 items:
                                   properties:
@@ -515,6 +544,23 @@ spec:
                             type: string
                           instanceSpec:
                             properties:
+                              agentPermissionsRules:
+                                items:
+                                  properties:
+                                    apiGroups:
+                                      items:
+                                        type: string
+                                      type: array
+                                    resources:
+                                      items:
+                                        type: string
+                                      type: array
+                                    verbs:
+                                      items:
+                                        type: string
+                                      type: array
+                                  type: object
+                                type: array
                               appSetDelegate:
                                 properties:
                                   managedCluster:
@@ -547,6 +593,16 @@ spec:
                                   redisTunneling:
                                     type: boolean
                                 type: object
+                              crossplaneExtension:
+                                properties:
+                                  resources:
+                                    items:
+                                      properties:
+                                        group:
+                                          type: string
+                                      type: object
+                                    type: array
+                                type: object
                               declarativeManagementEnabled:
                                 type: boolean
                               extensions:
@@ -558,6 +614,8 @@ spec:
                                       type: string
                                   type: object
                                 type: array
+                              fqdn:
+                                type: string
                               hostAliases:
                                 items:
                                   properties:
