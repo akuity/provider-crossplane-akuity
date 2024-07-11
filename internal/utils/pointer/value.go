@@ -4,17 +4,10 @@ func ToPointer[T any](value T) *T {
 	return &value
 }
 
-func ToValue[T any](value *T, defaultValue T) T {
+func ToValue[T any](value *T) T {
+	var zero T
 	if value == nil {
-		return defaultValue
+		return zero
 	}
 	return *value
-}
-
-func CopyString(s *string) *string {
-	if s == nil {
-		return nil
-	}
-
-	return ToPointer(ToValue(s, ""))
 }
