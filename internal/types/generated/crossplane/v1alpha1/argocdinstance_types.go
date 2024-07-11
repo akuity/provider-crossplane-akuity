@@ -11,11 +11,6 @@ type ArgoCD struct {
 }
 
 // +kubebuilder:object:generate=true
-type ArgoCDList struct {
-	Items []ArgoCD `json:"items"`
-}
-
-// +kubebuilder:object:generate=true
 type ArgoCDSpec struct {
 	Description  string       `json:"description,omitempty"`
 	Version      string       `json:"version"`
