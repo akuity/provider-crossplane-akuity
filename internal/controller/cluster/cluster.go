@@ -158,6 +158,9 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		c.logger.Debug("As we are not able to differentiate PermissionDenied/NotFound when calling GetCluster, we simply treat as not found here", "error", err)
 		return managed.ExternalObservation{ResourceExists: false}, nil
 
+		// As mentioned above, we simply treat PermissionDenied/NotFound as not found error here, otherwise, the provider
+		// is not able to create cluster.
+		
 		// if reason.IsNotFound(err) {
 		// 	return managed.ExternalObservation{ResourceExists: false}, nil
 		// }
