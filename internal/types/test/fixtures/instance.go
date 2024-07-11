@@ -2,6 +2,7 @@ package fixtures
 
 import (
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -47,7 +48,7 @@ var (
 
 	AkuityAppsetPolicy = &akuitytypes.AppsetPolicy{
 		Policy:         "policy",
-		OverridePolicy: true,
+		OverridePolicy: pointer.ToPointer(true),
 	}
 
 	ArgocdAppsetPolicy = &argocdv1.AppsetPolicy{
@@ -79,7 +80,7 @@ var (
 	}
 
 	AkuityImageUpdaterDelegate = &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: true,
+		ControlPlane: pointer.ToPointer(true),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -100,7 +101,7 @@ var (
 	}
 
 	AkuityRepoServerDelegate = &akuitytypes.RepoServerDelegate{
-		ControlPlane: true,
+		ControlPlane: pointer.ToPointer(true),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -187,10 +188,10 @@ var (
 	}
 
 	AkuityClusterCustomization = &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: true,
+		AutoUpgradeDisabled: pointer.ToPointer(true),
 		Kustomization:       Kustomization,
-		AppReplication:      true,
-		RedisTunneling:      true,
+		AppReplication:      pointer.ToPointer(true),
+		RedisTunneling:      pointer.ToPointer(true),
 	}
 
 	ArgocdClusterCustomization = &argocdv1.ClusterCustomization{
@@ -210,19 +211,20 @@ var (
 	AkuityInstanceSpec = akuitytypes.InstanceSpec{
 		IpAllowList:                  AkuityIpAllowList,
 		Subdomain:                    "example.com",
-		DeclarativeManagementEnabled: true,
+		DeclarativeManagementEnabled: pointer.ToPointer(true),
 		Extensions:                   AkuityInstallEntryList,
 		ClusterCustomizationDefaults: AkuityClusterCustomization,
-		ImageUpdaterEnabled:          true,
-		BackendIpAllowListEnabled:    true,
+		ImageUpdaterEnabled:          pointer.ToPointer(true),
+		BackendIpAllowListEnabled:    pointer.ToPointer(true),
 		RepoServerDelegate:           AkuityRepoServerDelegate,
-		AuditExtensionEnabled:        true,
-		SyncHistoryExtensionEnabled:  true,
+		AuditExtensionEnabled:        pointer.ToPointer(true),
+		SyncHistoryExtensionEnabled:  pointer.ToPointer(true),
 		ImageUpdaterDelegate:         AkuityImageUpdaterDelegate,
 		AppSetDelegate:               AkuityAppSetDelegate,
-		AssistantExtensionEnabled:    true,
+		AssistantExtensionEnabled:    pointer.ToPointer(true),
 		AppsetPolicy:                 AkuityAppsetPolicy,
 		HostAliases:                  AkuityHostAliasesList,
+		Fqdn:                         pointer.ToPointer(""),
 	}
 
 	ArgocdInstanceSpec = &argocdv1.InstanceSpec{

@@ -2,10 +2,10 @@ package types
 
 import (
 	"fmt"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 	"strconv"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 	"google.golang.org/protobuf/types/known/structpb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
