@@ -2,7 +2,7 @@ package fixtures
 
 import (
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -48,7 +48,7 @@ var (
 
 	AkuityAppsetPolicy = &akuitytypes.AppsetPolicy{
 		Policy:         "policy",
-		OverridePolicy: pointer.ToPointer(true),
+		OverridePolicy: ptr.To(true),
 	}
 
 	ArgocdAppsetPolicy = &argocdv1.AppsetPolicy{
@@ -80,7 +80,7 @@ var (
 	}
 
 	AkuityImageUpdaterDelegate = &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: pointer.ToPointer(true),
+		ControlPlane: ptr.To(true),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -101,7 +101,7 @@ var (
 	}
 
 	AkuityRepoServerDelegate = &akuitytypes.RepoServerDelegate{
-		ControlPlane: pointer.ToPointer(true),
+		ControlPlane: ptr.To(true),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -188,10 +188,10 @@ var (
 	}
 
 	AkuityClusterCustomization = &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: pointer.ToPointer(true),
+		AutoUpgradeDisabled: ptr.To(true),
 		Kustomization:       Kustomization,
-		AppReplication:      pointer.ToPointer(true),
-		RedisTunneling:      pointer.ToPointer(true),
+		AppReplication:      ptr.To(true),
+		RedisTunneling:      ptr.To(true),
 	}
 
 	ArgocdClusterCustomization = &argocdv1.ClusterCustomization{
@@ -211,20 +211,20 @@ var (
 	AkuityInstanceSpec = akuitytypes.InstanceSpec{
 		IpAllowList:                  AkuityIpAllowList,
 		Subdomain:                    "example.com",
-		DeclarativeManagementEnabled: pointer.ToPointer(true),
+		DeclarativeManagementEnabled: ptr.To(true),
 		Extensions:                   AkuityInstallEntryList,
 		ClusterCustomizationDefaults: AkuityClusterCustomization,
-		ImageUpdaterEnabled:          pointer.ToPointer(true),
-		BackendIpAllowListEnabled:    pointer.ToPointer(true),
+		ImageUpdaterEnabled:          ptr.To(true),
+		BackendIpAllowListEnabled:    ptr.To(true),
 		RepoServerDelegate:           AkuityRepoServerDelegate,
-		AuditExtensionEnabled:        pointer.ToPointer(true),
-		SyncHistoryExtensionEnabled:  pointer.ToPointer(true),
+		AuditExtensionEnabled:        ptr.To(true),
+		SyncHistoryExtensionEnabled:  ptr.To(true),
 		ImageUpdaterDelegate:         AkuityImageUpdaterDelegate,
 		AppSetDelegate:               AkuityAppSetDelegate,
-		AssistantExtensionEnabled:    pointer.ToPointer(true),
+		AssistantExtensionEnabled:    ptr.To(true),
 		AppsetPolicy:                 AkuityAppsetPolicy,
 		HostAliases:                  AkuityHostAliasesList,
-		Fqdn:                         pointer.ToPointer(""),
+		Fqdn:                         ptr.To(""),
 	}
 
 	ArgocdInstanceSpec = &argocdv1.InstanceSpec{

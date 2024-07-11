@@ -5,11 +5,11 @@ import (
 	"strconv"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 	"google.golang.org/protobuf/types/known/structpb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -548,22 +548,22 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 	return akuitytypes.InstanceSpec{
 		IpAllowList:                  CrossplaneToAkuityAPIIPAllowListEntry(instanceSpec.IpAllowList),
 		Subdomain:                    instanceSpec.Subdomain,
-		DeclarativeManagementEnabled: pointer.ToPointer(instanceSpec.DeclarativeManagementEnabled),
+		DeclarativeManagementEnabled: ptr.To(instanceSpec.DeclarativeManagementEnabled),
 		Extensions:                   CrossplaneToAkuityAPIArgoCDExtensionInstallEntry(instanceSpec.Extensions),
 		ClusterCustomizationDefaults: clusterCustomization,
-		ImageUpdaterEnabled:          pointer.ToPointer(instanceSpec.ImageUpdaterEnabled),
-		BackendIpAllowListEnabled:    pointer.ToPointer(instanceSpec.BackendIpAllowListEnabled),
+		ImageUpdaterEnabled:          ptr.To(instanceSpec.ImageUpdaterEnabled),
+		BackendIpAllowListEnabled:    ptr.To(instanceSpec.BackendIpAllowListEnabled),
 		RepoServerDelegate:           CrossplaneToAkuityAPIRepoServerDelegate(instanceSpec.RepoServerDelegate),
-		AuditExtensionEnabled:        pointer.ToPointer(instanceSpec.AuditExtensionEnabled),
-		SyncHistoryExtensionEnabled:  pointer.ToPointer(instanceSpec.SyncHistoryExtensionEnabled),
+		AuditExtensionEnabled:        ptr.To(instanceSpec.AuditExtensionEnabled),
+		SyncHistoryExtensionEnabled:  ptr.To(instanceSpec.SyncHistoryExtensionEnabled),
 		CrossplaneExtension:          CrossplaneToAkuityAPICrossplaneExtension(instanceSpec.CrossplaneExtension),
 		ImageUpdaterDelegate:         CrossplaneToAkuityAPIImageUpdaterDelegate(instanceSpec.ImageUpdaterDelegate),
 		AppSetDelegate:               CrossplaneToAkuityAPIAppSetDelegate(instanceSpec.AppSetDelegate),
-		AssistantExtensionEnabled:    pointer.ToPointer(instanceSpec.AssistantExtensionEnabled),
+		AssistantExtensionEnabled:    ptr.To(instanceSpec.AssistantExtensionEnabled),
 		AppsetPolicy:                 CrossplaneToAkuityAPIAppsetPolicy(instanceSpec.AppsetPolicy),
 		HostAliases:                  CrossplaneToAkuityAPIHostAliases(instanceSpec.HostAliases),
 		AgentPermissionsRules:        CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
-		Fqdn:                         pointer.ToPointer(instanceSpec.Fqdn),
+		Fqdn:                         ptr.To(instanceSpec.Fqdn),
 	}, nil
 }
 
@@ -604,10 +604,10 @@ func CrossplaneToAkuityAPIClusterCustomization(clusterCustomization *crossplanet
 	}
 
 	return &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: pointer.ToPointer(clusterCustomization.AutoUpgradeDisabled),
+		AutoUpgradeDisabled: ptr.To(clusterCustomization.AutoUpgradeDisabled),
 		Kustomization:       kustomization,
-		AppReplication:      pointer.ToPointer(clusterCustomization.AppReplication),
-		RedisTunneling:      pointer.ToPointer(clusterCustomization.RedisTunneling),
+		AppReplication:      ptr.To(clusterCustomization.AppReplication),
+		RedisTunneling:      ptr.To(clusterCustomization.RedisTunneling),
 	}, nil
 }
 
@@ -617,7 +617,7 @@ func CrossplaneToAkuityAPIRepoServerDelegate(repoServerDelegate *crossplanetypes
 	}
 
 	return &akuitytypes.RepoServerDelegate{
-		ControlPlane: pointer.ToPointer(repoServerDelegate.ControlPlane),
+		ControlPlane: ptr.To(repoServerDelegate.ControlPlane),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: repoServerDelegate.ManagedCluster.ClusterName,
 		},
@@ -645,7 +645,7 @@ func CrossplaneToAkuityAPIImageUpdaterDelegate(imageUpdaterDelegate *crossplanet
 	}
 
 	return &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: pointer.ToPointer(imageUpdaterDelegate.ControlPlane),
+		ControlPlane: ptr.To(imageUpdaterDelegate.ControlPlane),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: imageUpdaterDelegate.ManagedCluster.ClusterName,
 		},
@@ -671,7 +671,7 @@ func CrossplaneToAkuityAPIAppsetPolicy(appsetPolicy *crossplanetypes.AppsetPolic
 
 	return &akuitytypes.AppsetPolicy{
 		Policy:         appsetPolicy.Policy,
-		OverridePolicy: pointer.ToPointer(appsetPolicy.OverridePolicy),
+		OverridePolicy: ptr.To(appsetPolicy.OverridePolicy),
 	}
 }
 
