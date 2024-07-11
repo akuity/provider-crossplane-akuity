@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 	"strconv"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -547,22 +548,22 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 	return akuitytypes.InstanceSpec{
 		IpAllowList:                  CrossplaneToAkuityAPIIPAllowListEntry(instanceSpec.IpAllowList),
 		Subdomain:                    instanceSpec.Subdomain,
-		DeclarativeManagementEnabled: instanceSpec.DeclarativeManagementEnabled,
+		DeclarativeManagementEnabled: pointer.ToPointer(instanceSpec.DeclarativeManagementEnabled),
 		Extensions:                   CrossplaneToAkuityAPIArgoCDExtensionInstallEntry(instanceSpec.Extensions),
 		ClusterCustomizationDefaults: clusterCustomization,
-		ImageUpdaterEnabled:          instanceSpec.ImageUpdaterEnabled,
-		BackendIpAllowListEnabled:    instanceSpec.BackendIpAllowListEnabled,
+		ImageUpdaterEnabled:          pointer.ToPointer(instanceSpec.ImageUpdaterEnabled),
+		BackendIpAllowListEnabled:    pointer.ToPointer(instanceSpec.BackendIpAllowListEnabled),
 		RepoServerDelegate:           CrossplaneToAkuityAPIRepoServerDelegate(instanceSpec.RepoServerDelegate),
-		AuditExtensionEnabled:        instanceSpec.AuditExtensionEnabled,
-		SyncHistoryExtensionEnabled:  instanceSpec.SyncHistoryExtensionEnabled,
+		AuditExtensionEnabled:        pointer.ToPointer(instanceSpec.AuditExtensionEnabled),
+		SyncHistoryExtensionEnabled:  pointer.ToPointer(instanceSpec.SyncHistoryExtensionEnabled),
 		CrossplaneExtension:          CrossplaneToAkuityAPICrossplaneExtension(instanceSpec.CrossplaneExtension),
 		ImageUpdaterDelegate:         CrossplaneToAkuityAPIImageUpdaterDelegate(instanceSpec.ImageUpdaterDelegate),
 		AppSetDelegate:               CrossplaneToAkuityAPIAppSetDelegate(instanceSpec.AppSetDelegate),
-		AssistantExtensionEnabled:    instanceSpec.AssistantExtensionEnabled,
+		AssistantExtensionEnabled:    pointer.ToPointer(instanceSpec.AssistantExtensionEnabled),
 		AppsetPolicy:                 CrossplaneToAkuityAPIAppsetPolicy(instanceSpec.AppsetPolicy),
 		HostAliases:                  CrossplaneToAkuityAPIHostAliases(instanceSpec.HostAliases),
 		AgentPermissionsRules:        CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
-		Fqdn:                         instanceSpec.Fqdn,
+		Fqdn:                         pointer.ToPointer(instanceSpec.Fqdn),
 	}, nil
 }
 
@@ -603,10 +604,10 @@ func CrossplaneToAkuityAPIClusterCustomization(clusterCustomization *crossplanet
 	}
 
 	return &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: clusterCustomization.AutoUpgradeDisabled,
+		AutoUpgradeDisabled: pointer.ToPointer(clusterCustomization.AutoUpgradeDisabled),
 		Kustomization:       kustomization,
-		AppReplication:      clusterCustomization.AppReplication,
-		RedisTunneling:      clusterCustomization.RedisTunneling,
+		AppReplication:      pointer.ToPointer(clusterCustomization.AppReplication),
+		RedisTunneling:      pointer.ToPointer(clusterCustomization.RedisTunneling),
 	}, nil
 }
 
@@ -616,7 +617,7 @@ func CrossplaneToAkuityAPIRepoServerDelegate(repoServerDelegate *crossplanetypes
 	}
 
 	return &akuitytypes.RepoServerDelegate{
-		ControlPlane: repoServerDelegate.ControlPlane,
+		ControlPlane: pointer.ToPointer(repoServerDelegate.ControlPlane),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: repoServerDelegate.ManagedCluster.ClusterName,
 		},
@@ -644,7 +645,7 @@ func CrossplaneToAkuityAPIImageUpdaterDelegate(imageUpdaterDelegate *crossplanet
 	}
 
 	return &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: imageUpdaterDelegate.ControlPlane,
+		ControlPlane: pointer.ToPointer(imageUpdaterDelegate.ControlPlane),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: imageUpdaterDelegate.ManagedCluster.ClusterName,
 		},
@@ -670,7 +671,7 @@ func CrossplaneToAkuityAPIAppsetPolicy(appsetPolicy *crossplanetypes.AppsetPolic
 
 	return &akuitytypes.AppsetPolicy{
 		Policy:         appsetPolicy.Policy,
-		OverridePolicy: appsetPolicy.OverridePolicy,
+		OverridePolicy: pointer.ToPointer(appsetPolicy.OverridePolicy),
 	}
 }
 
