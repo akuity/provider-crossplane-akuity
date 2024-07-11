@@ -186,8 +186,6 @@ spec:
                                       type: string
                                   type: object
                                 type: array
-                              multiClusterK8sDashboardEnabled:
-                                type: boolean
                               repoServerDelegate:
                                 properties:
                                   controlPlane:
@@ -650,8 +648,6 @@ spec:
                                       type: string
                                   type: object
                                 type: array
-                              multiClusterK8sDashboardEnabled:
-                                type: boolean
                               repoServerDelegate:
                                 properties:
                                   controlPlane:

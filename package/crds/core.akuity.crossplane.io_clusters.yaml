@@ -90,27 +90,10 @@ spec:
                             type: boolean
                           datadogAnnotationsEnabled:
                             type: boolean
-                          directClusterSpec:
-                            properties:
-                              caData:
-                                type: string
-                              clusterType:
-                                type: string
-                              kargoInstanceId:
-                                type: string
-                              organization:
-                                type: string
-                              server:
-                                type: string
-                              token:
-                                type: string
-                            type: object
                           eksAddonEnabled:
                             type: boolean
                           kustomization:
                             type: string
-                          maintenanceMode:
-                            type: boolean
                           managedClusterConfig:
                             properties:
                               secretKey:
@@ -118,8 +101,6 @@ spec:
                               secretName:
                                 type: string
                             type: object
-                          multiClusterK8sDashboardEnabled:
-                            type: boolean
                           redisTunneling:
                             type: boolean
                           size:
