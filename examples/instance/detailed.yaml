@@ -27,9 +27,9 @@ spec:
                 - test.example.com
               ip: "1.2.3.4"
           agentPermissionsRules:
-            - apiGroups: ["batch"]
-            - resources: ["jobs"]
-            - verbs: ["create"]
+            - apiGroups: [ "batch" ]
+              resources: [ "jobs" ]
+              verbs: [ "create" ]
           fqdn: "instance.example.com"
     argocdConfigMap:
       # When configuring the `argocdConfigMap`, make sure to specify the following keys (from "exec.enabled", to "users.anonymous.enabled") 
