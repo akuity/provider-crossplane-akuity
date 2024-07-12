@@ -55,6 +55,11 @@ spec:
             target:
               kind: Deployment
               name: argocd-repo-server
+        eksAddonEnabled: true
+        datadogAnnotationsEnabled: true
+        managedClusterConfig:
+          secretName: "secretName"
+          secretKey: "secretKey"
     # Use the example Kubernetes Secret above to pass a kubeconfig to the
     # provider.
     # kubeconfigSecretRef:
