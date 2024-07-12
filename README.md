@@ -12,8 +12,8 @@ desired state captured in the CRDs they create
 ## Installation
 
 ### Configure an API Key
-The Akuity Crossplane provider needs to be configured with Akuity API credentials. Documentation 
-Please check how to create an API key on  [Akuity Platform API Key Documentation](https://docs.akuity.io/organizations/api-keys).
+The Akuity Crossplane provider needs to be configured with Akuity API credentials. Please check how to create an API key on  [Akuity Platform API Key Documentation](https://docs.akuity.io/organizations/api-keys). 
+
 Once you have an API key and secret, create a JSON file with the following contents (replace the placeholders for API key 
 ID and secret with the credentials generated above):
 
@@ -35,7 +35,9 @@ navigating to your organization page. The organization ID is displayed on the to
 Once you have completed the steps above to replace the placeholders for API credentials, organization ID in
 [examples/provider/config.yaml](./examples/provider/config.yaml), you can install the provider by applying the `Provider` resources to your cluster:
 
-`kubectl apply -f examples/provider/config.yaml`
+```
+kubectl apply -f examples/provider/config.yaml
+```
 
 Now you can start managing Akuity instances and clusters using Crossplane. You can view minimal examples of these resources
 in:
