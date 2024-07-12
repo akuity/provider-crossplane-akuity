@@ -9,7 +9,7 @@ following new functionality:
 * Controllers to provision these resources in Akuity Cloud based on users 
 desired state captured in the CRDs they create
 
-## Provider Configuration
+## Installation
 
 The Akuity Crossplane provider needs to be configured with Akuity API credentials. Documentation 
 for how to create Akuity API credentials for an organization can be found in [https://docs.akuity.io/organizations/api-keys](https://docs.akuity.io/organizations/api-keys).

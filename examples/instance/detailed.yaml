@@ -9,7 +9,7 @@ spec:
     argocd:
       spec:
         description: "My ArgoCD instance used for my project."
-        version: "v2.9.3"
+        version: "v2.11.4"
         instanceSpec:
           declarativeManagementEnabled: false
           backendIpAllowListEnabled: true
