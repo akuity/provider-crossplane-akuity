@@ -26,6 +26,9 @@ spec:
             - hostnames:
                 - test.example.com
               ip: "1.2.3.4"
+          crossplaneExtension:
+            resources:
+              - group: "*.example.crossplane.*"
           agentPermissionsRules:
             - apiGroups: [ "batch" ]
               resources: [ "jobs" ]
