@@ -30,15 +30,12 @@ The `ProviderConfig` resource in [examples/provider/config.yaml](./examples/prov
 Akuity organization ID. Your organization ID can be found by logging in to [https://akuity.cloud](https://akuity.cloud) and
 navigating to your organization page. The organization ID is displayed on the top right corner of the screen.
 
-The `Provider` resource in [examples/provider/config.yaml](./examples/provider/config.yaml) needs to be updated with the desired
-image tag of the provider you would like to run. Images are available for all tags on the GitHub repository.
-
-Once you have completed the steps above to replace the placeholders for API credentials, organization ID and image tag in
-[examples/provider/config.yaml](./examples/provider/config.yaml), you can apply the `Provider` resources to your cluster!
+Once you have completed the steps above to replace the placeholders for API credentials, organization ID in
+[examples/provider/config.yaml](./examples/provider/config.yaml), you can install the provider by applying the `Provider` resources to your cluster:
 
 `kubectl apply -f examples/provider/config.yaml`
 
-You can now start managing Akuity instances and clusters using Crossplane. You can view minimal examples of these resources
+Now you can start managing Akuity instances and clusters using Crossplane. You can view minimal examples of these resources
 in [examples/instance/basic.yaml](./examples/instance/basic.yaml) and [examples/cluster/basic.yaml](./examples/cluster/basic.yaml).
 You can view detailed examples of these resources in [examples/instance/detailed.yaml](./examples/instance/detailed.yaml) and
 [examples/cluster/detailed.yaml](./examples/cluster/detailed.yaml).
