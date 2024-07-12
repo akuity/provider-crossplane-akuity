@@ -27,13 +27,19 @@ Next, base64 encode the above content before pasting it in the Kubernetes `Secre
 cat myfile.json | base64
 ```
 
+Install the provider by applying the [examples/provider/provider.yaml](./examples/provider/provider.yaml) in your cluster:
+
+```
+kubectl apply -f examples/provider/provider.yaml
+```
+
 ### Configure the Organization ID
-The `ProviderConfig` resource in [examples/provider/config.yaml](./examples/provider/config.yaml) needs to be updated with your
+Once the provider is ready, update the `ProviderConfig` resource in [examples/provider/config.yaml](./examples/provider/config.yaml) with your
 Akuity organization ID. Your organization ID can be found by logging in to [https://akuity.cloud](https://akuity.cloud) and
 navigating to your organization page. The organization ID is displayed on the top right corner of the screen.
 
 Once you have completed the steps above to replace the placeholders for API credentials, organization ID in
-[examples/provider/config.yaml](./examples/provider/config.yaml), you can install the provider by applying the `Provider` resources to your cluster:
+[examples/provider/config.yaml](./examples/provider/config.yaml), you can configure the provider by applying the `ProviderConfig` resources to your cluster:
 
 ```
 kubectl apply -f examples/provider/config.yaml

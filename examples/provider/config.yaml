@@ -1,32 +1,4 @@
 ---
-apiVersion: pkg.crossplane.io/v1
-kind: Provider
-metadata:
-  name: akuity
-spec:
-  package: us-docker.pkg.dev/akuity/crossplane/provider:v0.2.0
-  controllerConfigRef:
-    name: akuity
----
-apiVersion: pkg.crossplane.io/v1alpha1
-kind: ControllerConfig
-metadata:
-  name: akuity
-spec:
-  args:
-    - --debug
-  podSecurityContext:
-    fsGroup: 2000
----
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: crossplane-system
-  name: akuity-provider-secret
-type: Opaque
-data:
-  credentials: REPLACE_ME
----
 apiVersion: akuity.crossplane.io/v1alpha1
 kind: ProviderConfig
 metadata:
