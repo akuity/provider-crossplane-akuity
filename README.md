@@ -44,7 +44,7 @@ in:
 - [Argo CD Instance](./examples/instance/basic.yaml)
 - [Cluster](./examples/cluster/basic.yaml)
 
-for detailed examples of these resources in:
+For detailed examples of these resources in:
 - [Argo CD Instance](./examples/instance/detailed.yaml)
 - [Cluster](./examples/cluster/detailed.yaml)
 
