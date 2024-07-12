@@ -1,18 +1,19 @@
 # provider-akuity
 
 The `provider-akuity` repository is the Crossplane infrastucture provider for
-[Akuity](https://docs.akuity.io). The provider that is built from the source code
+[Akuity Platform](https://akuity.io/akuity-platform/). The provider that is built from the source code
 in this repository can be installed into a Crossplane control plane and adds the 
 following new functionality:
 
-* Custom Resource Definitions (CRDs) that model Akuity services
+* Custom Resource Definitions (CRDs) that model Akuity services(e.g, Argo CD instances and clusters)
 * Controllers to provision these resources in Akuity Cloud based on users 
 desired state captured in the CRDs they create
 
-## Provider Configuration
+## Installation
 
-The Akuity Crossplane provider needs to be configured with Akuity API credentials. Documentation 
-for how to create Akuity API credentials for an organization can be found in [https://docs.akuity.io/organizations/api-keys](https://docs.akuity.io/organizations/api-keys).
+### Configure an API Key
+The Akuity Crossplane provider needs to be configured with Akuity API credentials. Please check how to create an API key on  [Akuity Platform API Key Documentation](https://docs.akuity.io/organizations/api-keys). 
+
 Once you have an API key and secret, create a JSON file with the following contents (replace the placeholders for API key 
 ID and secret with the credentials generated above):
 
@@ -26,24 +27,34 @@ Next, base64 encode the above content before pasting it in the Kubernetes `Secre
 cat myfile.json | base64
 ```
 
-The `ProviderConfig` resource in [examples/provider/config.yaml](./examples/provider/config.yaml) needs to be updated with your
+Install the provider by applying the [examples/provider/provider.yaml](./examples/provider/provider.yaml) in your cluster:
+
+```
+kubectl apply -f examples/provider/provider.yaml
+```
+
+### Configure the Organization ID
+Once the provider is ready, update the `ProviderConfig` resource in [examples/provider/config.yaml](./examples/provider/config.yaml) with your
 Akuity organization ID. Your organization ID can be found by logging in to [https://akuity.cloud](https://akuity.cloud) and
 navigating to your organization page. The organization ID is displayed on the top right corner of the screen.
 
-The `Provider` resource in [examples/provider/config.yaml](./examples/provider/config.yaml) needs to be updated with the desired
-image tag of the provider you would like to run. Images are available for all tags on the GitHub repository.
+Once you have completed the steps above to replace the placeholders for API credentials, organization ID in
+[examples/provider/config.yaml](./examples/provider/config.yaml), you can configure the provider by applying the `ProviderConfig` resources to your cluster:
 
-Once you have completed the steps above to replace the placeholders for API credentials, organization ID and image tag in
-[examples/provider/config.yaml](./examples/provider/config.yaml), you can apply the `Provider` resources to your cluster!
+```
+kubectl apply -f examples/provider/config.yaml
+```
 
-`kubectl apply -f examples/provider/config.yaml`
+Now you can start managing Akuity instances and clusters using Crossplane. You can view minimal examples of these resources
+in:
+- [Argo CD Instance](./examples/instance/basic.yaml)
+- [Cluster](./examples/cluster/basic.yaml)
 
-You can now start managing Akuity instances and clusters using Crossplane. You can view minimal examples of these resources
-in [examples/instance/basic.yaml](./examples/instance/basic.yaml) and [examples/cluster/basic.yaml](./examples/cluster/basic.yaml).
-You can view detailed examples of these resources in [examples/instance/detailed.yaml](./examples/instance/detailed.yaml) and
-[examples/cluster/detailed.yaml](./examples/cluster/detailed.yaml).
+For detailed examples of these resources in:
+- [Argo CD Instance](./examples/instance/detailed.yaml)
+- [Cluster](./examples/cluster/detailed.yaml)
 
-You can view documentation for all supported fields for Akuity resources using [https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity/).
+For all supported fields for Akuity resources, please check [https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity/).
 
 **Note** - Managing ArgoCD secrets for instances using the Crossplane provider is not supported. The Akuity API does not currently support exporting
 secret values, which makes it impossible to compare the desired and actual state of the secrets in a reconciliation loop. Please let us know if this is something
