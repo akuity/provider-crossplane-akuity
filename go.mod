@@ -10,7 +10,7 @@ require (
 	github.com/crossplane/crossplane-tools v0.0.0-20230925130601-628280f8bf79
 	github.com/google/go-cmp v0.6.0
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/mock v0.4.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240125205218-1f4bbc51befe
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
