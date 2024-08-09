@@ -10,6 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+
+// ArgoCD is the Schema for the argocd API
 type ArgoCD struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -17,10 +21,23 @@ type ArgoCD struct {
 	Spec ArgoCDSpec `json:"spec,omitempty"`
 }
 
-type ArgoCDSpec struct {
-	Description string `json:"description"`
-	Version     string `json:"version"`
+//+kubebuilder:object:root=true
 
+// ArgoCDList contains a list of ArgoCD
+type ArgoCDList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ArgoCD `json:"items"`
+}
+
+func init() {
+	SchemeBuilder.Register(&ArgoCD{}, &ArgoCDList{})
+}
+
+type ArgoCDSpec struct {
+	Description  string       `json:"description"`
+	Version      string       `json:"version"`
+	Shard        string       `json:"shard"`
 	InstanceSpec InstanceSpec `json:"instanceSpec,omitempty"`
 }
 
@@ -30,15 +47,15 @@ type ArgoCDExtensionInstallEntry struct {
 }
 
 type ClusterCustomization struct {
-	AutoUpgradeDisabled *bool                `json:"autoUpgradeDisabled,omitempty"`
+	AutoUpgradeDisabled bool                 `json:"autoUpgradeDisabled,omitempty"`
 	Kustomization       runtime.RawExtension `json:"kustomization,omitempty"`
-	AppReplication      *bool                `json:"appReplication,omitempty"`
-	RedisTunneling      *bool                `json:"redisTunneling,omitempty"`
+	AppReplication      bool                 `json:"appReplication,omitempty"`
+	RedisTunneling      bool                 `json:"redisTunneling,omitempty"`
 }
 
 type AppsetPolicy struct {
 	Policy         string `json:"policy,omitempty"`
-	OverridePolicy *bool  `json:"overridePolicy,omitempty"`
+	OverridePolicy bool   `json:"overridePolicy,omitempty"`
 }
 
 type AgentPermissionsRule struct {
@@ -56,24 +73,25 @@ type CrossplaneExtension struct {
 }
 
 type InstanceSpec struct {
-	IpAllowList                  []*IPAllowListEntry            `json:"ipAllowList,omitempty"`
-	Subdomain                    string                         `json:"subdomain,omitempty"`
-	DeclarativeManagementEnabled *bool                          `json:"declarativeManagementEnabled,omitempty"`
-	Extensions                   []*ArgoCDExtensionInstallEntry `json:"extensions,omitempty"`
-	ClusterCustomizationDefaults *ClusterCustomization          `json:"clusterCustomizationDefaults,omitempty"`
-	ImageUpdaterEnabled          *bool                          `json:"imageUpdaterEnabled,omitempty"`
-	BackendIpAllowListEnabled    *bool                          `json:"backendIpAllowListEnabled,omitempty"`
-	RepoServerDelegate           *RepoServerDelegate            `json:"repoServerDelegate,omitempty"`
-	AuditExtensionEnabled        *bool                          `json:"auditExtensionEnabled,omitempty"`
-	SyncHistoryExtensionEnabled  *bool                          `json:"syncHistoryExtensionEnabled,omitempty"`
-	CrossplaneExtension          *CrossplaneExtension           `json:"crossplaneExtension,omitempty"`
-	ImageUpdaterDelegate         *ImageUpdaterDelegate          `json:"imageUpdaterDelegate,omitempty"`
-	AppSetDelegate               *AppSetDelegate                `json:"appSetDelegate,omitempty"`
-	AssistantExtensionEnabled    *bool                          `json:"assistantExtensionEnabled,omitempty"`
-	AppsetPolicy                 *AppsetPolicy                  `json:"appsetPolicy,omitempty"`
-	HostAliases                  []*HostAliases                 `json:"hostAliases,omitempty"`
-	AgentPermissionsRules        []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
-	Fqdn                         *string                        `json:"fqdn,omitempty"`
+	IpAllowList                     []*IPAllowListEntry            `json:"ipAllowList,omitempty"`
+	Subdomain                       string                         `json:"subdomain,omitempty"`
+	DeclarativeManagementEnabled    bool                           `json:"declarativeManagementEnabled,omitempty"`
+	Extensions                      []*ArgoCDExtensionInstallEntry `json:"extensions,omitempty"`
+	ClusterCustomizationDefaults    *ClusterCustomization          `json:"clusterCustomizationDefaults,omitempty"`
+	ImageUpdaterEnabled             bool                           `json:"imageUpdaterEnabled,omitempty"`
+	BackendIpAllowListEnabled       bool                           `json:"backendIpAllowListEnabled,omitempty"`
+	RepoServerDelegate              *RepoServerDelegate            `json:"repoServerDelegate,omitempty"`
+	AuditExtensionEnabled           bool                           `json:"auditExtensionEnabled,omitempty"`
+	SyncHistoryExtensionEnabled     bool                           `json:"syncHistoryExtensionEnabled,omitempty"`
+	CrossplaneExtension             *CrossplaneExtension           `json:"crossplaneExtension,omitempty"`
+	ImageUpdaterDelegate            *ImageUpdaterDelegate          `json:"imageUpdaterDelegate,omitempty"`
+	AppSetDelegate                  *AppSetDelegate                `json:"appSetDelegate,omitempty"`
+	AssistantExtensionEnabled       bool                           `json:"assistantExtensionEnabled,omitempty"`
+	AppsetPolicy                    *AppsetPolicy                  `json:"appsetPolicy,omitempty"`
+	HostAliases                     []*HostAliases                 `json:"hostAliases,omitempty"`
+	AgentPermissionsRules           []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
+	Fqdn                            string                         `json:"fqdn,omitempty"`
+	MultiClusterK8SDashboardEnabled bool                           `json:"multiClusterK8sDashboardEnabled,omitempty"`
 }
 
 type ManagedCluster struct {
@@ -81,12 +99,12 @@ type ManagedCluster struct {
 }
 
 type RepoServerDelegate struct {
-	ControlPlane   *bool           `json:"controlPlane,omitempty"`
+	ControlPlane   bool            `json:"controlPlane,omitempty"`
 	ManagedCluster *ManagedCluster `json:"managedCluster,omitempty"`
 }
 
 type ImageUpdaterDelegate struct {
-	ControlPlane   *bool           `json:"controlPlane,omitempty"`
+	ControlPlane   bool            `json:"controlPlane,omitempty"`
 	ManagedCluster *ManagedCluster `json:"managedCluster,omitempty"`
 }
 
