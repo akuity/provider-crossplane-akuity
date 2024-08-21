@@ -2,8 +2,9 @@ package kube_test
 
 import (
 	"context"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"testing"
+
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 
 	"github.com/stretchr/testify/require"
 	dynamic "k8s.io/client-go/dynamic/fake"
@@ -13,9 +14,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 )
 
-var (
-	ctx = context.TODO()
-)
+var ctx = context.TODO()
 
 func TestApplyClient_EmptyManifests(t *testing.T) {
 	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset(), logging.NewNopLogger())
