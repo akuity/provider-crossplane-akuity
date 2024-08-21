@@ -2,6 +2,7 @@ package kube_test
 
 import (
 	"context"
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ var (
 )
 
 func TestApplyClient_EmptyManifests(t *testing.T) {
-	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset())
+	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset(), logging.NewNopLogger())
 	require.NoError(t, err)
 
 	err = applyClient.ApplyManifests(ctx, "", false)
@@ -25,7 +26,7 @@ func TestApplyClient_EmptyManifests(t *testing.T) {
 }
 
 func TestApplyClient_ApplyManifestsInvalidKindErr(t *testing.T) {
-	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset())
+	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset(), logging.NewNopLogger())
 	require.NoError(t, err)
 
 	err = applyClient.ApplyManifests(ctx, "apiVersion: v1\nkind: InvalidKind\nmetadata:\n  name: test-pod", false)
