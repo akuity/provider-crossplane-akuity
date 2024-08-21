@@ -218,11 +218,17 @@ func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	}
 
 	if managedCluster.Spec.ForProvider.EnableInClusterKubeConfig || managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
+		c.logger.Debug("Retrieving cluster manifests....")
 		clusterManifests, err := c.client.GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name)
 		if err != nil {
 			return managed.ExternalCreation{}, fmt.Errorf("could not get cluster manifests to apply: %w", err)
 		}
 
+		c.logger.Debug("Applying cluster manifests",
+			"clusterName", managedCluster.Name,
+			"instanceID", managedCluster.Spec.ForProvider.InstanceID,
+		)
+		c.logger.Debug(clusterManifests)
 		err = c.applyClusterManifests(ctx, *managedCluster, clusterManifests, false)
 		if err != nil {
 			return managed.ExternalCreation{}, fmt.Errorf("could not apply cluster manifests: %w", err)
@@ -358,7 +364,7 @@ func (c *External) applyClusterManifests(ctx context.Context, managedCluster v1a
 		return fmt.Errorf("error creating typed client: %w", err)
 	}
 
-	applyClient, err := kube.NewApplyClient(dynamicClient, clientset)
+	applyClient, err := kube.NewApplyClient(dynamicClient, clientset, c.logger)
 	if err != nil {
 		return fmt.Errorf("error creating apply client: %w", err)
 	}

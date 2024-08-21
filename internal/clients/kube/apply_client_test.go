@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+
 	"github.com/stretchr/testify/require"
 	dynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
@@ -12,12 +14,10 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 )
 
-var (
-	ctx = context.TODO()
-)
+var ctx = context.TODO()
 
 func TestApplyClient_EmptyManifests(t *testing.T) {
-	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset())
+	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset(), logging.NewNopLogger())
 	require.NoError(t, err)
 
 	err = applyClient.ApplyManifests(ctx, "", false)
@@ -25,7 +25,7 @@ func TestApplyClient_EmptyManifests(t *testing.T) {
 }
 
 func TestApplyClient_ApplyManifestsInvalidKindErr(t *testing.T) {
-	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset())
+	applyClient, err := kube.NewApplyClient(dynamic.NewSimpleDynamicClient(scheme.Scheme), fake.NewSimpleClientset(), logging.NewNopLogger())
 	require.NoError(t, err)
 
 	err = applyClient.ApplyManifests(ctx, "apiVersion: v1\nkind: InvalidKind\nmetadata:\n  name: test-pod", false)
