@@ -77,7 +77,9 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-		managed.WithConnectionPublishers(cps...))
+		managed.WithConnectionPublishers(cps...),
+		managed.WithInitializers(),
+	)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -140,18 +142,18 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotCluster)
 	}
 
-	if meta.GetExternalName(managedCluster) == "" {
-		return managed.ExternalObservation{
-			ResourceExists: false,
-		}, nil
-	}
-
 	instanceID, err := c.getInstanceID(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.InstanceRef)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
 
 	managedCluster.Spec.ForProvider.InstanceID = instanceID
+
+	if meta.GetExternalName(managedCluster) == "" {
+		return managed.ExternalObservation{
+			ResourceExists: false,
+		}, nil
+	}
 
 	akuityCluster, err := c.client.GetCluster(ctx, instanceID, meta.GetExternalName(managedCluster))
 	if err != nil {
@@ -234,6 +236,7 @@ func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 			return managed.ExternalCreation{}, fmt.Errorf("could not apply cluster manifests: %w", err)
 		}
 	}
+	meta.SetExternalName(managedCluster, akuityAPICluster.Name)
 
 	return managed.ExternalCreation{}, err
 }
