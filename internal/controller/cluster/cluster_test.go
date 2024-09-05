@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/reconciler/managed"
@@ -32,6 +31,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubectl/pkg/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
@@ -303,7 +304,13 @@ func TestObserve_EmptyExternalName(t *testing.T) {
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
 	client := cluster.NewExternal(mockAkuityClient, fake.NewClientBuilder().Build(), logging.NewNopLogger())
 
-	resp, err := client.Observe(ctx, &v1alpha1.Cluster{})
+	resp, err := client.Observe(ctx, &v1alpha1.Cluster{
+		Spec: v1alpha1.ClusterSpec{
+			ForProvider: v1alpha1.ClusterParameters{
+				InstanceID: "test",
+			},
+		},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: false}, resp)
 }
