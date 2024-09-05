@@ -197,7 +197,7 @@ func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	}
 
 	err = c.client.ApplyInstance(ctx, request)
-	meta.SetExternalName(managedInstance, request.Id)
+	meta.SetExternalName(managedInstance, request.GetId())
 
 	return managed.ExternalCreation{}, err
 }
