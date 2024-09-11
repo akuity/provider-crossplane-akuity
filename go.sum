@@ -2,8 +2,8 @@ buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.31.0-2023110619213
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.31.0-20231106192134-1baebb0a1518.2/go.mod h1:xafc+XIsTxTy76GJQ1TKgvJWsSugFBqMaN27WhUblew=
 dario.cat/mergo v1.0.0 h1:AGCNq9Evsj31mOgNPcLyXc+4PNABt905YmuqPYYpBWk=
 dario.cat/mergo v1.0.0/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
-github.com/akuity/api-client-go v0.15.0 h1:w9OPnQGiAMiXIZN0+eqN7Fph/u/g15H8Ug3/PCE/esA=
-github.com/akuity/api-client-go v0.15.0/go.mod h1:ziHCeqFmAytZZ6lZbwvmq9hFG42bLV8iHnz13/SdMoo=
+github.com/akuity/api-client-go v0.16.0 h1:TjfMFzegvIZxuYtFpltIDKnL1QzXAu4PWYyXtlw2kUM=
+github.com/akuity/api-client-go v0.16.0/go.mod h1:ziHCeqFmAytZZ6lZbwvmq9hFG42bLV8iHnz13/SdMoo=
 github.com/akuity/grpc-gateway-client v0.0.0-20231116134900-80c401329778 h1:qj3+B4PU5AR2mBffDVXvP2d3hLCNDot28KKPWvQnOxs=
 github.com/akuity/grpc-gateway-client v0.0.0-20231116134900-80c401329778/go.mod h1:0MZqOxL+zq+hGedAjYhkm1tOKuZyjUmE/xA8nqXa9q0=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 h1:JYp7IbQjafoB+tBA3gMyHYHrpOtNuDiK/uB5uXxq5wM=
