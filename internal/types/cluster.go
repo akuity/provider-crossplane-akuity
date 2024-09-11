@@ -158,7 +158,7 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 				DatadogAnnotationsEnabled:       cluster.GetData().DatadogAnnotationsEnabled, //nolint:all
 				EksAddonEnabled:                 cluster.GetData().EksAddonEnabled,           //nolint:all
 				ManagedClusterConfig:            AkuityAPIToCrossplaneManagedClusterConfig(cluster.GetData().GetManagedClusterConfig()),
-				MultiClusterK8SDashboardEnabled: cluster.GetData().GetMultiClusterK8SDashboardEnabled(),
+				MultiClusterK8SDashboardEnabled: cluster.GetData().MultiClusterK8SDashboardEnabled, //nolint:all
 			},
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
