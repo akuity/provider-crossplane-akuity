@@ -31,6 +31,9 @@ func AkuityAPIToCrossplaneClusterObservation(cluster *argocdv1.Cluster) (v1alpha
 		agentSize = "large"
 	case argocdv1.ClusterSize_CLUSTER_SIZE_UNSPECIFIED:
 		agentSize = "unspecified"
+	case argocdv1.ClusterSize_CLUSTER_SIZE_AUTO:
+		agentSize = "auto"
+
 	default:
 		agentSize = "unspecified"
 	}
