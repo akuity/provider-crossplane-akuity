@@ -34,6 +34,7 @@ spec:
               resources: [ "jobs" ]
               verbs: [ "create" ]
           fqdn: "instance.example.com"
+          multiClusterK8sDashboardEnabled: true
     argocdConfigMap:
       # When configuring the `argocdConfigMap`, make sure to specify the following keys (from "exec.enabled", to "users.anonymous.enabled") 
       # since these keys are added by Akuity Platform by default. If they are not defined, you may see inconsistent results and errors from the provider.
