@@ -101,6 +101,8 @@ spec:
                               secretName:
                                 type: string
                             type: object
+                          multiClusterK8sDashboardEnabled:
+                            type: boolean
                           redisTunneling:
                             type: boolean
                           size:
