@@ -162,3 +162,11 @@ akuity-publish:
 		us-docker.pkg.dev/akuity/crossplane/provider:$(VERSION)
 
 .PHONY: crossplane.help help-special
+
+.PHONY: generate-kubetypes
+generate-kubetypes:
+	# https://pkg.go.dev/sigs.k8s.io/controller-tools/cmd/controller-gen
+	GOBIN=`pwd`/dist go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+	./dist/controller-gen object paths="./internal/types/generated/akuity/v1alpha1/..."
+	./dist/controller-gen object paths="./internal/types/generated/argocd/v1alpha1/..."
+	./dist/controller-gen object paths="./internal/types/generated/crossplane/v1alpha1/..."

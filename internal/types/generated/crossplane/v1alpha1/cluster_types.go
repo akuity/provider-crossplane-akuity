@@ -13,6 +13,11 @@ type Cluster struct {
 }
 
 // +kubebuilder:object:generate=true
+type ClusterList struct {
+	Items []Cluster `json:"items"`
+}
+
+// +kubebuilder:object:generate=true
 type ClusterSpec struct {
 	Description     string      `json:"description,omitempty"`
 	NamespaceScoped bool        `json:"namespaceScoped,omitempty"`
