@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/avast/retry-go/v4"
+
 	"github.com/akuity/api-client-go/pkg/api/gateway/accesscontrol"
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
@@ -21,7 +23,6 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/protobuf"
-	"github.com/avast/retry-go/v4"
 )
 
 const (
@@ -228,7 +229,7 @@ func (c client) DeleteInstance(ctx context.Context, name string) error {
 }
 
 func (c client) BuildApplyInstanceRequest(instance crossplanetypes.Instance) (*argocdv1.ApplyInstanceRequest, error) {
-	argocdPB, err := types.CrossplaneToAkuityAPIArgoCD(instance.Name, instance.Spec.ForProvider.ArgoCD)
+	argocdPB, err := types.CrossplaneToAkuityAPIArgoCD(instance.Spec.ForProvider.Name, instance.Spec.ForProvider.ArgoCD)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal instance argocd spec to protobuf: %w", err)
 	}
@@ -276,7 +277,7 @@ func (c client) BuildApplyInstanceRequest(instance crossplanetypes.Instance) (*a
 	request := &argocdv1.ApplyInstanceRequest{
 		OrganizationId:            c.organizationID,
 		IdType:                    idv1.Type_NAME,
-		Id:                        instance.Name,
+		Id:                        instance.Spec.ForProvider.Name,
 		Argocd:                    argocdPB,
 		ArgocdConfigmap:           argocdConfigMapPB,
 		ArgocdRbacConfigmap:       argocdRbacConfigMapPB,

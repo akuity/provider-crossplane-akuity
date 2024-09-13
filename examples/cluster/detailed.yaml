@@ -60,6 +60,7 @@ spec:
         managedClusterConfig:
           secretName: "secretName"
           secretKey: "secretKey"
+        multiClusterK8sDashboardEnabled: true
     # Use the example Kubernetes Secret above to pass a kubeconfig to the
     # provider.
     # kubeconfigSecretRef:

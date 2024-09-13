@@ -95,7 +95,7 @@ running cluster:
 
 ```
 make generate
-kubectl apply -f packages/crds/
+kubectl apply -f package/crds/
 ```
 
 If you need to make changes to the provider Go code, you can Ctrl-C to quit the binary

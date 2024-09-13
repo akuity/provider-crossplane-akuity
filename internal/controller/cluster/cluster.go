@@ -77,7 +77,9 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-		managed.WithConnectionPublishers(cps...))
+		managed.WithConnectionPublishers(cps...),
+		managed.WithInitializers(),
+	)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -140,18 +142,18 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotCluster)
 	}
 
-	if meta.GetExternalName(managedCluster) == "" {
-		return managed.ExternalObservation{
-			ResourceExists: false,
-		}, nil
-	}
-
 	instanceID, err := c.getInstanceID(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.InstanceRef)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
 
 	managedCluster.Spec.ForProvider.InstanceID = instanceID
+
+	if meta.GetExternalName(managedCluster) == "" {
+		return managed.ExternalObservation{
+			ResourceExists: false,
+		}, nil
+	}
 
 	akuityCluster, err := c.client.GetCluster(ctx, instanceID, meta.GetExternalName(managedCluster))
 	if err != nil {
@@ -218,16 +220,23 @@ func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	}
 
 	if managedCluster.Spec.ForProvider.EnableInClusterKubeConfig || managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
+		c.logger.Debug("Retrieving cluster manifests....")
 		clusterManifests, err := c.client.GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name)
 		if err != nil {
 			return managed.ExternalCreation{}, fmt.Errorf("could not get cluster manifests to apply: %w", err)
 		}
 
+		c.logger.Debug("Applying cluster manifests",
+			"clusterName", managedCluster.Name,
+			"instanceID", managedCluster.Spec.ForProvider.InstanceID,
+		)
+		c.logger.Debug(clusterManifests)
 		err = c.applyClusterManifests(ctx, *managedCluster, clusterManifests, false)
 		if err != nil {
 			return managed.ExternalCreation{}, fmt.Errorf("could not apply cluster manifests: %w", err)
 		}
 	}
+	meta.SetExternalName(managedCluster, akuityAPICluster.Name)
 
 	return managed.ExternalCreation{}, err
 }
@@ -358,7 +367,7 @@ func (c *External) applyClusterManifests(ctx context.Context, managedCluster v1a
 		return fmt.Errorf("error creating typed client: %w", err)
 	}
 
-	applyClient, err := kube.NewApplyClient(dynamicClient, clientset)
+	applyClient, err := kube.NewApplyClient(dynamicClient, clientset, c.logger)
 	if err != nil {
 		return fmt.Errorf("error creating apply client: %w", err)
 	}

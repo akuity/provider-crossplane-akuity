@@ -2,8 +2,12 @@ package kube
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"k8s.io/apimachinery/pkg/types"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -21,6 +25,7 @@ type ApplyClient struct {
 	dynamicClient       dynamic.Interface
 	clientset           kubernetes.Interface
 	discoveryRestMapper meta.RESTMapper
+	logger              logging.Logger
 }
 
 type applyObject struct {
@@ -29,7 +34,7 @@ type applyObject struct {
 	unstructuredObj map[string]interface{}
 }
 
-func NewApplyClient(dynamicClient dynamic.Interface, clientset kubernetes.Interface) (*ApplyClient, error) {
+func NewApplyClient(dynamicClient dynamic.Interface, clientset kubernetes.Interface, logger logging.Logger) (*ApplyClient, error) {
 	groupResources, err := restmapper.GetAPIGroupResources(clientset.Discovery())
 	if err != nil {
 		return &ApplyClient{}, fmt.Errorf("error setting up API discovery for dynamic client: %w", err)
@@ -38,6 +43,7 @@ func NewApplyClient(dynamicClient dynamic.Interface, clientset kubernetes.Interf
 	return &ApplyClient{
 		dynamicClient:       dynamicClient,
 		clientset:           clientset,
+		logger:              logger,
 		discoveryRestMapper: restmapper.NewDiscoveryRESTMapper(groupResources),
 	}, nil
 }
@@ -61,6 +67,8 @@ func (a ApplyClient) ApplyManifests(ctx context.Context, manifests string, delet
 		if err != nil {
 			return err
 		}
+
+		a.logger.Debug("Applying k8s object", "name", applyObject.name, "gvk", gvk)
 
 		if delete {
 			err = a.deleteObject(ctx, mapping, applyObject)
@@ -132,19 +140,37 @@ func (a ApplyClient) deleteObject(ctx context.Context, mapping *meta.RESTMapping
 
 func (a ApplyClient) applyObject(ctx context.Context, mapping *meta.RESTMapping, applyObject applyObject) error {
 	if isClusterScopedResource(mapping.Resource.Resource) {
+		// Don't risk overwriting a namespace if it already exists
+		if mapping.Resource.Resource == "namespaces" {
+			_, err := a.dynamicClient.Resource(mapping.Resource).Get(ctx, applyObject.name, v1.GetOptions{})
+			if err != nil {
+				if errors.IsNotFound(err) {
+					_, err = a.dynamicClient.Resource(mapping.Resource).Apply(ctx, applyObject.name, &unstructured.Unstructured{Object: applyObject.unstructuredObj}, v1.ApplyOptions{FieldManager: "application/apply-patch"})
+					return err
+				}
+
+				return err
+			}
+
+			// Object already exists, just patch the namespace metadata.
+			metadata := applyObject.unstructuredObj["metadata"]
+			patchBytes, err := json.Marshal(metadata)
+			if err != nil {
+				return err
+			}
+
+			_, err = a.dynamicClient.Resource(mapping.Resource).Patch(ctx, applyObject.name, types.StrategicMergePatchType, patchBytes, v1.PatchOptions{FieldManager: "application/apply-patch"})
+			return err
+		}
+
 		_, err := a.dynamicClient.Resource(mapping.Resource).Apply(ctx, applyObject.name, &unstructured.Unstructured{Object: applyObject.unstructuredObj}, v1.ApplyOptions{FieldManager: "application/apply-patch"})
 		return err
 	}
 
 	_, err := a.dynamicClient.Resource(mapping.Resource).Namespace(applyObject.namespace).Apply(ctx, applyObject.name, &unstructured.Unstructured{Object: applyObject.unstructuredObj}, v1.ApplyOptions{FieldManager: "application/apply-patch"})
-
 	return err
 }
 
 func isClusterScopedResource(resource string) bool {
-	if resource == "namespaces" || resource == "clusterroles" || resource == "clusterrolebindings" {
-		return true
-	}
-
-	return false
+	return resource == "namespaces" || resource == "clusterroles" || resource == "clusterrolebindings"
 }

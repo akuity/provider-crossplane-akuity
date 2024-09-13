@@ -7,8 +7,6 @@ package v1alpha1
 
 type ClusterSize string
 
-type DirectClusterType string
-
 // +kubebuilder:object:generate=true
 type Cluster struct {
 	Spec ClusterSpec `json:"spec,omitempty"`
@@ -27,16 +25,6 @@ type ClusterSpec struct {
 }
 
 // +kubebuilder:object:generate=true
-type DirectClusterSpec struct {
-	ClusterType     DirectClusterType `json:"clusterType,omitempty"`
-	KargoInstanceId *string           `json:"kargoInstanceId,omitempty"`
-	Server          *string           `json:"server,omitempty"`
-	Organization    *string           `json:"organization,omitempty"`
-	Token           *string           `json:"token,omitempty"`
-	CaData          *string           `json:"caData,omitempty"`
-}
-
-// +kubebuilder:object:generate=true
 type ManagedClusterConfig struct {
 	SecretName string `json:"secretName,omitempty"`
 	SecretKey  string `json:"secretKey,omitempty"`
@@ -50,10 +38,8 @@ type ClusterData struct {
 	AppReplication                  bool                  `json:"appReplication,omitempty"`
 	TargetVersion                   string                `json:"targetVersion,omitempty"`
 	RedisTunneling                  bool                  `json:"redisTunneling,omitempty"`
-	DirectClusterSpec               *DirectClusterSpec    `json:"directClusterSpec,omitempty"`
 	DatadogAnnotationsEnabled       *bool                 `json:"datadogAnnotationsEnabled,omitempty"`
 	EksAddonEnabled                 *bool                 `json:"eksAddonEnabled,omitempty"`
 	ManagedClusterConfig            *ManagedClusterConfig `json:"managedClusterConfig,omitempty"`
-	MaintenanceMode                 *bool                 `json:"maintenanceMode,omitempty"`
 	MultiClusterK8SDashboardEnabled *bool                 `json:"multiClusterK8sDashboardEnabled,omitempty"`
 }
