@@ -60,6 +60,13 @@ type CrossplaneExtension struct {
 }
 
 // +kubebuilder:object:generate=true
+type KubeVisionArgoExtension struct {
+	Enabled          bool     `json:"enabled,omitempty"`
+	AllowedUsernames []string `json:"allowedUsernames,omitempty"`
+	AllowedGroups    []string `json:"allowedGroups,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
 type InstanceSpec struct {
 	IpAllowList                     []*IPAllowListEntry            `json:"ipAllowList,omitempty"`
 	Subdomain                       string                         `json:"subdomain,omitempty"`
@@ -80,6 +87,8 @@ type InstanceSpec struct {
 	AgentPermissionsRules           []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
 	Fqdn                            string                         `json:"fqdn,omitempty"`
 	MultiClusterK8SDashboardEnabled bool                           `json:"multiClusterK8sDashboardEnabled,omitempty"`
+	KubeVisionArgoExtension         *KubeVisionArgoExtension       `json:"kubeVisionArgoExtension,omitempty"`
+	ImageUpdaterVersion             string                         `json:"imageUpdaterVersion,omitempty"`
 }
 
 // +kubebuilder:object:generate=true

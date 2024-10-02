@@ -177,6 +177,8 @@ spec:
                                 type: object
                               imageUpdaterEnabled:
                                 type: boolean
+                              imageUpdaterVersion:
+                                type: string
                               ipAllowList:
                                 items:
                                   properties:
@@ -186,6 +188,19 @@ spec:
                                       type: string
                                   type: object
                                 type: array
+                              kubeVisionArgoExtension:
+                                properties:
+                                  allowedGroups:
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    type: boolean
+                                type: object
                               multiClusterK8sDashboardEnabled:
                                 type: boolean
                               repoServerDelegate:
@@ -641,6 +656,8 @@ spec:
                                 type: object
                               imageUpdaterEnabled:
                                 type: boolean
+                              imageUpdaterVersion:
+                                type: string
                               ipAllowList:
                                 items:
                                   properties:
@@ -650,6 +667,19 @@ spec:
                                       type: string
                                   type: object
                                 type: array
+                              kubeVisionArgoExtension:
+                                properties:
+                                  allowedGroups:
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    type: boolean
+                                type: object
                               multiClusterK8sDashboardEnabled:
                                 type: boolean
                               repoServerDelegate:
