@@ -99,6 +99,16 @@ spec:
                                       type: array
                                   type: object
                                 type: array
+                              aiSupportEngineerExtension:
+                                properties:
+                                  enabled:
+                                    type: boolean
+                                type: object
+                              appInAnyNamespaceConfig:
+                                properties:
+                                  enabled:
+                                    type: boolean
+                                type: object
                               appSetDelegate:
                                 properties:
                                   managedCluster:
@@ -114,12 +124,16 @@ spec:
                                   policy:
                                     type: string
                                 type: object
+                              appsetProgressiveSyncsEnabled:
+                                type: boolean
                               assistantExtensionEnabled:
                                 type: boolean
                               auditExtensionEnabled:
                                 type: boolean
                               backendIpAllowListEnabled:
                                 type: boolean
+                              basepath:
+                                type: string
                               clusterCustomizationDefaults:
                                 properties:
                                   appReplication:
@@ -141,6 +155,19 @@ spec:
                                       type: object
                                     type: array
                                 type: object
+                              customDeprecatedApis:
+                                items:
+                                  properties:
+                                    apiVersion:
+                                      type: string
+                                    deprecatedInKubernetesVersion:
+                                      type: string
+                                    newApiVersion:
+                                      type: string
+                                    unavailableInKubernetesVersion:
+                                      type: string
+                                  type: object
+                                type: array
                               declarativeManagementEnabled:
                                 type: boolean
                               extensions:
@@ -177,6 +204,8 @@ spec:
                                 type: object
                               imageUpdaterEnabled:
                                 type: boolean
+                              imageUpdaterVersion:
+                                type: string
                               ipAllowList:
                                 items:
                                   properties:
@@ -186,6 +215,29 @@ spec:
                                       type: string
                                   type: object
                                 type: array
+                              kubeVisionArgoExtension:
+                                properties:
+                                  allowedGroups:
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    type: boolean
+                                type: object
+                              kubeVisionConfig:
+                                properties:
+                                  cveScanConfig:
+                                    properties:
+                                      rescanInterval:
+                                        type: string
+                                      scanEnabled:
+                                        type: boolean
+                                    type: object
+                                type: object
                               multiClusterK8sDashboardEnabled:
                                 type: boolean
                               repoServerDelegate:
@@ -197,6 +249,99 @@ spec:
                                       clusterName:
                                         type: string
                                     type: object
+                                type: object
+                              secrets:
+                                properties:
+                                  destinations:
+                                    items:
+                                      properties:
+                                        clusters:
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    type: string
+                                                  operator:
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              type: object
+                                          type: object
+                                        secrets:
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    type: string
+                                                  operator:
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              type: object
+                                          type: object
+                                      type: object
+                                    type: array
+                                  sources:
+                                    items:
+                                      properties:
+                                        clusters:
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    type: string
+                                                  operator:
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              type: object
+                                          type: object
+                                        secrets:
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    type: string
+                                                  operator:
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              type: object
+                                          type: object
+                                      type: object
+                                    type: array
                                 type: object
                               subdomain:
                                 type: string
@@ -563,6 +708,16 @@ spec:
                                       type: array
                                   type: object
                                 type: array
+                              aiSupportEngineerExtension:
+                                properties:
+                                  enabled:
+                                    type: boolean
+                                type: object
+                              appInAnyNamespaceConfig:
+                                properties:
+                                  enabled:
+                                    type: boolean
+                                type: object
                               appSetDelegate:
                                 properties:
                                   managedCluster:
@@ -578,12 +733,16 @@ spec:
                                   policy:
                                     type: string
                                 type: object
+                              appsetProgressiveSyncsEnabled:
+                                type: boolean
                               assistantExtensionEnabled:
                                 type: boolean
                               auditExtensionEnabled:
                                 type: boolean
                               backendIpAllowListEnabled:
                                 type: boolean
+                              basepath:
+                                type: string
                               clusterCustomizationDefaults:
                                 properties:
                                   appReplication:
@@ -605,6 +764,19 @@ spec:
                                       type: object
                                     type: array
                                 type: object
+                              customDeprecatedApis:
+                                items:
+                                  properties:
+                                    apiVersion:
+                                      type: string
+                                    deprecatedInKubernetesVersion:
+                                      type: string
+                                    newApiVersion:
+                                      type: string
+                                    unavailableInKubernetesVersion:
+                                      type: string
+                                  type: object
+                                type: array
                               declarativeManagementEnabled:
                                 type: boolean
                               extensions:
@@ -641,6 +813,8 @@ spec:
                                 type: object
                               imageUpdaterEnabled:
                                 type: boolean
+                              imageUpdaterVersion:
+                                type: string
                               ipAllowList:
                                 items:
                                   properties:
@@ -650,6 +824,29 @@ spec:
                                       type: string
                                   type: object
                                 type: array
+                              kubeVisionArgoExtension:
+                                properties:
+                                  allowedGroups:
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    type: boolean
+                                type: object
+                              kubeVisionConfig:
+                                properties:
+                                  cveScanConfig:
+                                    properties:
+                                      rescanInterval:
+                                        type: string
+                                      scanEnabled:
+                                        type: boolean
+                                    type: object
+                                type: object
                               multiClusterK8sDashboardEnabled:
                                 type: boolean
                               repoServerDelegate:
@@ -661,6 +858,99 @@ spec:
                                       clusterName:
                                         type: string
                                     type: object
+                                type: object
+                              secrets:
+                                properties:
+                                  destinations:
+                                    items:
+                                      properties:
+                                        clusters:
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    type: string
+                                                  operator:
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              type: object
+                                          type: object
+                                        secrets:
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    type: string
+                                                  operator:
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              type: object
+                                          type: object
+                                      type: object
+                                    type: array
+                                  sources:
+                                    items:
+                                      properties:
+                                        clusters:
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    type: string
+                                                  operator:
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              type: object
+                                          type: object
+                                        secrets:
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    type: string
+                                                  operator:
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              type: object
+                                          type: object
+                                      type: object
+                                    type: array
                                 type: object
                               subdomain:
                                 type: string

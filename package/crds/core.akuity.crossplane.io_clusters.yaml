@@ -88,12 +88,77 @@ spec:
                             type: boolean
                           autoUpgradeDisabled:
                             type: boolean
+                          autoscalerConfig:
+                            properties:
+                              applicationController:
+                                properties:
+                                  resourceMaximum:
+                                    properties:
+                                      cpu:
+                                        type: string
+                                      mem:
+                                        type: string
+                                    type: object
+                                  resourceMinimum:
+                                    properties:
+                                      cpu:
+                                        type: string
+                                      mem:
+                                        type: string
+                                    type: object
+                                type: object
+                              repoServer:
+                                properties:
+                                  replicaMaximum:
+                                    format: int32
+                                    type: integer
+                                  replicaMinimum:
+                                    format: int32
+                                    type: integer
+                                  resourceMaximum:
+                                    properties:
+                                      cpu:
+                                        type: string
+                                      mem:
+                                        type: string
+                                    type: object
+                                  resourceMinimum:
+                                    properties:
+                                      cpu:
+                                        type: string
+                                      mem:
+                                        type: string
+                                    type: object
+                                type: object
+                            type: object
+                          compatibility:
+                            properties:
+                              ipv6Only:
+                                type: boolean
+                            type: object
                           datadogAnnotationsEnabled:
                             type: boolean
+                          directClusterSpec:
+                            properties:
+                              caData:
+                                type: string
+                              clusterType:
+                                type: string
+                              kargoInstanceId:
+                                type: string
+                              organization:
+                                type: string
+                              server:
+                                type: string
+                              token:
+                                type: string
+                            type: object
                           eksAddonEnabled:
                             type: boolean
                           kustomization:
                             type: string
+                          maintenanceMode:
+                            type: boolean
                           managedClusterConfig:
                             properties:
                               secretKey:
@@ -103,6 +168,8 @@ spec:
                             type: object
                           multiClusterK8sDashboardEnabled:
                             type: boolean
+                          project:
+                            type: string
                           redisTunneling:
                             type: boolean
                           size:
