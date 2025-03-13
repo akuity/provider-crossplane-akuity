@@ -178,6 +178,8 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		managedInstance.SetConditions(xpv1.Available())
 	}
 
+	syncDefaultValues(managedInstance, &actualInstance)
+
 	c.logger.Debug("Comparing managed instance to external instance", "diff", cmp.Diff(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider))
 
 	return managed.ExternalObservation{
@@ -296,4 +298,15 @@ func lateInitializeInstanceConfigMaps(in *v1alpha1.InstanceParameters, exportedI
 	}
 
 	return nil
+}
+
+// syncDefaultValues synchronizes default values from the actual instance to the managed instance
+// when they are not explicitly set in the CR. This ensures consistency with API defaults.
+func syncDefaultValues(managedInstance, actualInstance *v1alpha1.Instance) {
+	// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
+	if managedInstance.Spec.ForProvider.ArgoCD != nil {
+		if managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
+			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
+		}
+	}
 }
