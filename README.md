@@ -26,7 +26,7 @@ ID and secret with the credentials generated above):
 {"apiKeyId": "MY_AKUITY_API_KEY_ID", "apiKeySecret": "MY_AKUITY_API_KEY_SECRET"}
 ```
 
-Next, base64 encode the above content before pasting it in the Kubernetes `Secret` in [examples/provider/provider.yaml](./examples/provider/config.yaml):
+Next, base64 encode the above content before pasting it in the Kubernetes `Secret` in [examples/provider/provider.yaml](./examples/provider/provider.yaml):
 
 ```
 cat myfile.json | base64
