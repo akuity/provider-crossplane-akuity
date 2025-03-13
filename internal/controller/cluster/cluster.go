@@ -196,6 +196,8 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		managedCluster.SetConditions(xpv1.Available())
 	}
 
+	syncDefaultValues(managedCluster, &actualCluster)
+
 	c.logger.Debug("Comparing managed cluster to external cluster", "diff", cmp.Diff(managedCluster.Spec.ForProvider, actualCluster))
 
 	return managed.ExternalObservation{
@@ -374,4 +376,18 @@ func (c *External) applyClusterManifests(ctx context.Context, managedCluster v1a
 	}
 
 	return applyClient.ApplyManifests(ctx, clusterManifests, delete)
+}
+
+// syncDefaultValues synchronizes default values from the actual cluster to the managed cluster
+// when they are not explicitly set in the CR. This ensures consistency with API defaults.
+func syncDefaultValues(managedCluster *v1alpha1.Cluster, actualCluster *v1alpha1.ClusterParameters) {
+	if managedCluster == nil || actualCluster == nil {
+		return
+	}
+
+	// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
+	if managedCluster.Spec.ForProvider.ClusterSpec.Data.MultiClusterK8SDashboardEnabled == nil {
+		managedCluster.Spec.ForProvider.ClusterSpec.Data.MultiClusterK8SDashboardEnabled =
+			actualCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
+	}
 }

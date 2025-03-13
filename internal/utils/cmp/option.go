@@ -29,6 +29,9 @@ func isZeroValue(x any) bool {
 		if v.Elem().Kind() == reflect.Struct {
 			return isZeroValue(v.Elem().Interface())
 		}
+		if v.Elem().Kind() == reflect.Bool {
+			return v.Elem().Bool() == false
+		}
 		return false
 	case reflect.Slice, reflect.Map, reflect.Chan:
 		return v.IsNil() || v.Len() == 0

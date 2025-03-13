@@ -303,10 +303,25 @@ func lateInitializeInstanceConfigMaps(in *v1alpha1.InstanceParameters, exportedI
 // syncDefaultValues synchronizes default values from the actual instance to the managed instance
 // when they are not explicitly set in the CR. This ensures consistency with API defaults.
 func syncDefaultValues(managedInstance, actualInstance *v1alpha1.Instance) {
-	// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
+	if managedInstance == nil || actualInstance == nil {
+		return
+	}
 	if managedInstance.Spec.ForProvider.ArgoCD != nil {
+		// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
 		if managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
 			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
 		}
+
+		// only one of Fqdn and Subdomain should be set, so we sync them if both are set
+		if managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn != "" && managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain != "" {
+			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain
+			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn
+		}
 	}
+
+	// Secrets are not returned by the API, so we set them the same to managed instance.
+	managedInstance.Spec.ForProvider.ArgoCDSSHKnownHostsConfigMap = actualInstance.Spec.ForProvider.ArgoCDSSHKnownHostsConfigMap
+	managedInstance.Spec.ForProvider.ArgoCDRBACConfigMap = actualInstance.Spec.ForProvider.ArgoCDRBACConfigMap
+	managedInstance.Spec.ForProvider.ArgoCDTLSCertsConfigMap = actualInstance.Spec.ForProvider.ArgoCDTLSCertsConfigMap
+	managedInstance.Spec.ForProvider.ArgoCDImageUpdaterSSHConfigMap = actualInstance.Spec.ForProvider.ArgoCDImageUpdaterSSHConfigMap
 }
