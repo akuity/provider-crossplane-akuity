@@ -11,6 +11,11 @@ desired state captured in the CRDs they create
 
 ## Installation
 
+### Prerequisites
+
+- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+- [Crossplane](https://docs.crossplane.io/latest/software/install/)
+
 ### Configure an API Key
 The Akuity Crossplane provider needs to be configured with Akuity API credentials. Please check how to create an API key on  [Akuity Platform API Key Documentation](https://docs.akuity.io/organizations/api-keys). 
 
@@ -21,7 +26,7 @@ ID and secret with the credentials generated above):
 {"apiKeyId": "MY_AKUITY_API_KEY_ID", "apiKeySecret": "MY_AKUITY_API_KEY_SECRET"}
 ```
 
-Next, base64 encode the above content before pasting it in the Kubernetes `Secret` in [examples/provider/config.yaml](./examples/provider/config.yaml):
+Next, base64 encode the above content before pasting it in the Kubernetes `Secret` in [examples/provider/provider.yaml](./examples/provider/provider.yaml):
 
 ```
 cat myfile.json | base64

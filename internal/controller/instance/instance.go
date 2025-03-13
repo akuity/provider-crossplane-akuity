@@ -36,6 +36,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
@@ -177,11 +178,13 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		managedInstance.SetConditions(xpv1.Available())
 	}
 
+	syncDefaultValues(managedInstance, &actualInstance)
+
 	c.logger.Debug("Comparing managed instance to external instance", "diff", cmp.Diff(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider))
 
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: cmp.Equal(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider),
+		ResourceUpToDate: cmp.Equal(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider, utilcmp.EquateEmpty()...),
 	}, nil
 }
 
@@ -295,4 +298,30 @@ func lateInitializeInstanceConfigMaps(in *v1alpha1.InstanceParameters, exportedI
 	}
 
 	return nil
+}
+
+// syncDefaultValues synchronizes default values from the actual instance to the managed instance
+// when they are not explicitly set in the CR. This ensures consistency with API defaults.
+func syncDefaultValues(managedInstance, actualInstance *v1alpha1.Instance) {
+	if managedInstance == nil || actualInstance == nil {
+		return
+	}
+	if managedInstance.Spec.ForProvider.ArgoCD != nil {
+		// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
+		if managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
+			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
+		}
+
+		// only one of Fqdn and Subdomain should be set, so we sync them if both are set
+		if managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn != "" && managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain != "" {
+			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain
+			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn
+		}
+	}
+
+	// Secrets are not returned by the API, so we set them the same to managed instance.
+	managedInstance.Spec.ForProvider.ArgoCDSSHKnownHostsConfigMap = actualInstance.Spec.ForProvider.ArgoCDSSHKnownHostsConfigMap
+	managedInstance.Spec.ForProvider.ArgoCDRBACConfigMap = actualInstance.Spec.ForProvider.ArgoCDRBACConfigMap
+	managedInstance.Spec.ForProvider.ArgoCDTLSCertsConfigMap = actualInstance.Spec.ForProvider.ArgoCDTLSCertsConfigMap
+	managedInstance.Spec.ForProvider.ArgoCDImageUpdaterSSHConfigMap = actualInstance.Spec.ForProvider.ArgoCDImageUpdaterSSHConfigMap
 }

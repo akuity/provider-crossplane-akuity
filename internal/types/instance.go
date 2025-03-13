@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strconv"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
+
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -334,7 +335,7 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		HostAliases:                     AkuityAPIToCrossplaneHostAliases(instanceSpec.GetHostAliases()),
 		AgentPermissionsRules:           AkuityAPIToCrossplaneAgentPermissionsRules(instanceSpec.GetAgentPermissionsRules()),
 		Fqdn:                            instanceSpec.GetFqdn(),
-		MultiClusterK8SDashboardEnabled: instanceSpec.GetMultiClusterK8SDashboardEnabled(),
+		MultiClusterK8SDashboardEnabled: &instanceSpec.MultiClusterK8SDashboardEnabled,
 	}, nil
 }
 
@@ -565,7 +566,7 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		HostAliases:                     CrossplaneToAkuityAPIHostAliases(instanceSpec.HostAliases),
 		AgentPermissionsRules:           CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
 		Fqdn:                            ptr.To(instanceSpec.Fqdn),
-		MultiClusterK8SDashboardEnabled: ptr.To(instanceSpec.MultiClusterK8SDashboardEnabled),
+		MultiClusterK8SDashboardEnabled: instanceSpec.MultiClusterK8SDashboardEnabled,
 	}, nil
 }
 
