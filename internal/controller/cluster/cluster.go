@@ -48,6 +48,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/features"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
+	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
@@ -199,7 +200,7 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: cmp.Equal(managedCluster.Spec.ForProvider, actualCluster),
+		ResourceUpToDate: cmp.Equal(managedCluster.Spec.ForProvider, actualCluster, utilcmp.EquateEmpty()...),
 	}, nil
 }
 

@@ -36,6 +36,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
@@ -181,7 +182,7 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: cmp.Equal(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider),
+		ResourceUpToDate: cmp.Equal(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider, utilcmp.EquateEmpty()...),
 	}, nil
 }
 
