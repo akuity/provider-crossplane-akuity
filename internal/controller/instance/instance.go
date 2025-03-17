@@ -19,11 +19,13 @@ package instance
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/connection"
@@ -36,8 +38,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
-
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
@@ -45,6 +45,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/features"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
+	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
@@ -178,13 +179,15 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		managedInstance.SetConditions(xpv1.Available())
 	}
 
-	syncDefaultValues(managedInstance, &actualInstance)
+	isUpToDate := checkInstanceUpToDate(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider)
 
-	c.logger.Debug("Comparing managed instance to external instance", "diff", cmp.Diff(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider))
+	if !isUpToDate {
+		c.logger.Debug("Comparing managed instance to external instance", "diff", cmp.Diff(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider))
+	}
 
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: cmp.Equal(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider, utilcmp.EquateEmpty()...),
+		ResourceUpToDate: isUpToDate,
 	}, nil
 }
 
@@ -300,28 +303,71 @@ func lateInitializeInstanceConfigMaps(in *v1alpha1.InstanceParameters, exportedI
 	return nil
 }
 
-// syncDefaultValues synchronizes default values from the actual instance to the managed instance
-// when they are not explicitly set in the CR. This ensures consistency with API defaults.
-func syncDefaultValues(managedInstance, actualInstance *v1alpha1.Instance) {
+type ResourceCustomization struct {
+	Group             string `yaml:"-"`
+	Kind              string `yaml:"-"`
+	Health            string `yaml:"health.lua,omitempty"`
+	Actions           string `yaml:"actions,omitempty"`
+	IgnoreDifferences string `yaml:"ignoreDifferences,omitempty"`
+	KnownTypeFields   string `yaml:"knownTypeFields,omitempty"`
+}
+
+// normalizeInstanceParameters synchronizes default values from the actual instance to the managed instance,
+// and normalize fields that have same values as the actual instance. This ensures consistency with API defaults.
+func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.InstanceParameters) {
 	if managedInstance == nil || actualInstance == nil {
 		return
 	}
-	if managedInstance.Spec.ForProvider.ArgoCD != nil {
+	if managedInstance.ArgoCD != nil {
 		// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
-		if managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
-			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
+		if managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
+			managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
 		}
 
 		// only one of Fqdn and Subdomain should be set, so we sync them if both are set
-		if managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn != "" && managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain != "" {
-			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain
-			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn = actualInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Fqdn
+		if managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn != "" && managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain != "" {
+			managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain = actualInstance.ArgoCD.Spec.InstanceSpec.Subdomain
+			managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn = actualInstance.ArgoCD.Spec.InstanceSpec.Fqdn
 		}
 	}
 
-	// Secrets are not returned by the API, so we set them the same to managed instance.
-	managedInstance.Spec.ForProvider.ArgoCDSSHKnownHostsConfigMap = actualInstance.Spec.ForProvider.ArgoCDSSHKnownHostsConfigMap
-	managedInstance.Spec.ForProvider.ArgoCDRBACConfigMap = actualInstance.Spec.ForProvider.ArgoCDRBACConfigMap
-	managedInstance.Spec.ForProvider.ArgoCDTLSCertsConfigMap = actualInstance.Spec.ForProvider.ArgoCDTLSCertsConfigMap
-	managedInstance.Spec.ForProvider.ArgoCDImageUpdaterSSHConfigMap = actualInstance.Spec.ForProvider.ArgoCDImageUpdaterSSHConfigMap
+	// some configmap values have stable orders which may not be the same as user input
+	for k, v := range managedInstance.ArgoCDConfigMap {
+		if strings.Contains(k, "accounts.") {
+			value := ""
+			if strings.Contains(v, "apiKey") {
+				value = "apiKey"
+			}
+			if strings.Contains(v, "login") {
+				if value != "" {
+					value += ",login"
+				} else {
+					value = "login"
+				}
+			}
+			if value != "" {
+				managedInstance.ArgoCDConfigMap[k] = value
+			}
+		}
+
+		if k == "resource.customizations" {
+			customizations := make(map[string]*ResourceCustomization)
+			if err := yaml.Unmarshal([]byte(v), &customizations); err != nil {
+				return
+			}
+			actualCustomizations := make(map[string]*ResourceCustomization)
+			if err := yaml.Unmarshal([]byte(actualInstance.ArgoCDConfigMap[k]), &actualCustomizations); err != nil {
+				return
+			}
+			if !cmp.Equal(customizations, actualCustomizations, utilcmp.EquateEmpty()...) {
+				return
+			}
+			managedInstance.ArgoCDConfigMap[k] = actualInstance.ArgoCDConfigMap[k]
+		}
+	}
+}
+
+func checkInstanceUpToDate(managedInstance, actualInstance v1alpha1.InstanceParameters) bool {
+	normalizeInstanceParameters(&managedInstance, &actualInstance)
+	return cmp.Equal(managedInstance, actualInstance, utilcmp.EquateEmpty()...)
 }
