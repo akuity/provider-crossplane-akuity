@@ -123,7 +123,7 @@ func NewExternal(client akuity.Client, logger logging.Logger) *External {
 	}
 }
 
-func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
+func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) { //nolint:gocyclo
 	managedInstance, ok := mg.(*v1alpha1.Instance)
 	if !ok {
 		return managed.ExternalObservation{}, errors.New(errNotInstance)
@@ -314,7 +314,7 @@ type ResourceCustomization struct {
 
 // normalizeInstanceParameters synchronizes default values from the actual instance to the managed instance,
 // and normalize fields that have same values as the actual instance. This ensures consistency with API defaults.
-func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.InstanceParameters) {
+func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.InstanceParameters) { //nolint:gocyclo
 	if managedInstance == nil || actualInstance == nil {
 		return
 	}

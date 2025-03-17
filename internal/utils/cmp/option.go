@@ -16,12 +16,12 @@ func EquateEmpty() []cmp.Option {
 	}
 }
 
-func isZeroValue(x any) bool {
+func isZeroValue(x any) bool { //nolint:gocyclo
 	if x == nil {
 		return true
 	}
 	v := reflect.ValueOf(x)
-	switch v.Kind() {
+	switch v.Kind() { //nolint:exhaustive
 	case reflect.Ptr, reflect.Interface:
 		if v.IsNil() {
 			return true
@@ -30,7 +30,7 @@ func isZeroValue(x any) bool {
 			return isZeroValue(v.Elem().Interface())
 		}
 		if v.Elem().Kind() == reflect.Bool {
-			return v.Elem().Bool() == false
+			return !v.Elem().Bool()
 		}
 		return false
 	case reflect.Slice, reflect.Map, reflect.Chan:
