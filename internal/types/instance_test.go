@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
@@ -426,7 +427,7 @@ func TestAkuityAPIToCrossplaneParameters(t *testing.T) {
 				Name:           "param1",
 				Title:          "Parameter 1",
 				Tooltip:        "Tooltip 1",
-				Required:       true,
+				Required:       ptr.To(true),
 				ItemType:       "item1",
 				CollectionType: "collection1",
 				String_:        "string1",
@@ -437,7 +438,7 @@ func TestAkuityAPIToCrossplaneParameters(t *testing.T) {
 				Name:           "param2",
 				Title:          "Parameter 2",
 				Tooltip:        "Tooltip 2",
-				Required:       false,
+				Required:       ptr.To(false),
 				ItemType:       "item2",
 				CollectionType: "collection2",
 				String_:        "string2",
