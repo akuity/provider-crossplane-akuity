@@ -30,16 +30,16 @@ type ArgoCDExtensionInstallEntry struct {
 
 // +kubebuilder:object:generate=true
 type ClusterCustomization struct {
-	AutoUpgradeDisabled bool   `json:"autoUpgradeDisabled,omitempty"`
+	AutoUpgradeDisabled *bool  `json:"autoUpgradeDisabled,omitempty"`
 	Kustomization       string `json:"kustomization,omitempty"`
-	AppReplication      bool   `json:"appReplication,omitempty"`
-	RedisTunneling      bool   `json:"redisTunneling,omitempty"`
+	AppReplication      *bool  `json:"appReplication,omitempty"`
+	RedisTunneling      *bool  `json:"redisTunneling,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
 type AppsetPolicy struct {
 	Policy         string `json:"policy,omitempty"`
-	OverridePolicy bool   `json:"overridePolicy,omitempty"`
+	OverridePolicy *bool  `json:"overridePolicy,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -61,7 +61,7 @@ type CrossplaneExtension struct {
 
 // +kubebuilder:object:generate=true
 type KubeVisionArgoExtension struct {
-	Enabled          bool     `json:"enabled,omitempty"`
+	Enabled          *bool    `json:"enabled,omitempty"`
 	AllowedUsernames []string `json:"allowedUsernames,omitempty"`
 	AllowedGroups    []string `json:"allowedGroups,omitempty"`
 }
@@ -73,7 +73,7 @@ type KubeVisionConfig struct {
 
 // +kubebuilder:object:generate=true
 type AppInAnyNamespaceConfig struct {
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -86,7 +86,7 @@ type CustomDeprecatedAPI struct {
 
 // +kubebuilder:object:generate=true
 type CveScanConfig struct {
-	ScanEnabled    bool   `json:"scanEnabled,omitempty"`
+	ScanEnabled    *bool  `json:"scanEnabled,omitempty"`
 	RescanInterval string `json:"rescanInterval,omitempty"`
 }
 
@@ -117,37 +117,37 @@ type SecretsManagementConfig struct {
 
 // +kubebuilder:object:generate=true
 type AISupportEngineerExtension struct {
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
 type InstanceSpec struct {
 	IpAllowList                     []*IPAllowListEntry            `json:"ipAllowList,omitempty"`
 	Subdomain                       string                         `json:"subdomain,omitempty"`
-	DeclarativeManagementEnabled    bool                           `json:"declarativeManagementEnabled,omitempty"`
+	DeclarativeManagementEnabled    *bool                          `json:"declarativeManagementEnabled,omitempty"`
 	Extensions                      []*ArgoCDExtensionInstallEntry `json:"extensions,omitempty"`
 	ClusterCustomizationDefaults    *ClusterCustomization          `json:"clusterCustomizationDefaults,omitempty"`
-	ImageUpdaterEnabled             bool                           `json:"imageUpdaterEnabled,omitempty"`
-	BackendIpAllowListEnabled       bool                           `json:"backendIpAllowListEnabled,omitempty"`
+	ImageUpdaterEnabled             *bool                          `json:"imageUpdaterEnabled,omitempty"`
+	BackendIpAllowListEnabled       *bool                          `json:"backendIpAllowListEnabled,omitempty"`
 	RepoServerDelegate              *RepoServerDelegate            `json:"repoServerDelegate,omitempty"`
-	AuditExtensionEnabled           bool                           `json:"auditExtensionEnabled,omitempty"`
-	SyncHistoryExtensionEnabled     bool                           `json:"syncHistoryExtensionEnabled,omitempty"`
+	AuditExtensionEnabled           *bool                          `json:"auditExtensionEnabled,omitempty"`
+	SyncHistoryExtensionEnabled     *bool                          `json:"syncHistoryExtensionEnabled,omitempty"`
 	CrossplaneExtension             *CrossplaneExtension           `json:"crossplaneExtension,omitempty"`
 	ImageUpdaterDelegate            *ImageUpdaterDelegate          `json:"imageUpdaterDelegate,omitempty"`
 	AppSetDelegate                  *AppSetDelegate                `json:"appSetDelegate,omitempty"`
-	AssistantExtensionEnabled       bool                           `json:"assistantExtensionEnabled,omitempty"`
+	AssistantExtensionEnabled       *bool                          `json:"assistantExtensionEnabled,omitempty"`
 	AppsetPolicy                    *AppsetPolicy                  `json:"appsetPolicy,omitempty"`
 	HostAliases                     []*HostAliases                 `json:"hostAliases,omitempty"`
 	AgentPermissionsRules           []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
 	Fqdn                            string                         `json:"fqdn,omitempty"`
-	MultiClusterK8SDashboardEnabled bool                           `json:"multiClusterK8sDashboardEnabled,omitempty"`
+	MultiClusterK8SDashboardEnabled *bool                          `json:"multiClusterK8sDashboardEnabled,omitempty"`
 	KubeVisionArgoExtension         *KubeVisionArgoExtension       `json:"kubeVisionArgoExtension,omitempty"`
 	ImageUpdaterVersion             string                         `json:"imageUpdaterVersion,omitempty"`
 	CustomDeprecatedApis            []*CustomDeprecatedAPI         `json:"customDeprecatedApis,omitempty"`
 	KubeVisionConfig                *KubeVisionConfig              `json:"kubeVisionConfig,omitempty"`
 	AppInAnyNamespaceConfig         *AppInAnyNamespaceConfig       `json:"appInAnyNamespaceConfig,omitempty"`
 	Basepath                        string                         `json:"basepath,omitempty"`
-	AppsetProgressiveSyncsEnabled   bool                           `json:"appsetProgressiveSyncsEnabled,omitempty"`
+	AppsetProgressiveSyncsEnabled   *bool                          `json:"appsetProgressiveSyncsEnabled,omitempty"`
 	AiSupportEngineerExtension      *AISupportEngineerExtension    `json:"aiSupportEngineerExtension,omitempty"`
 	Secrets                         *SecretsManagementConfig       `json:"secrets,omitempty"`
 }
@@ -159,13 +159,13 @@ type ManagedCluster struct {
 
 // +kubebuilder:object:generate=true
 type RepoServerDelegate struct {
-	ControlPlane   bool            `json:"controlPlane,omitempty"`
+	ControlPlane   *bool           `json:"controlPlane,omitempty"`
 	ManagedCluster *ManagedCluster `json:"managedCluster,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
 type ImageUpdaterDelegate struct {
-	ControlPlane   bool            `json:"controlPlane,omitempty"`
+	ControlPlane   *bool           `json:"controlPlane,omitempty"`
 	ManagedCluster *ManagedCluster `json:"managedCluster,omitempty"`
 }
 
