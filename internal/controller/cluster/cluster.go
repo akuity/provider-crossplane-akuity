@@ -204,7 +204,7 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: cmp.Equal(managedCluster.Spec.ForProvider, actualCluster, utilcmp.EquateEmpty()...),
+		ResourceUpToDate: isUpToDate,
 	}, nil
 }
 
@@ -302,6 +302,7 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 	in.ClusterSpec.Data.RedisTunneling = pointer.LateInitialize(in.ClusterSpec.Data.RedisTunneling, actual.ClusterSpec.Data.RedisTunneling)
 	in.ClusterSpec.Data.Size = pointer.LateInitialize(in.ClusterSpec.Data.Size, actual.ClusterSpec.Data.Size)
 	in.ClusterSpec.Data.Kustomization = pointer.LateInitialize(in.ClusterSpec.Data.Kustomization, actual.ClusterSpec.Data.Kustomization)
+	in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled = pointer.LateInitialize(in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled, actual.ClusterSpec.Data.MultiClusterK8SDashboardEnabled)
 }
 
 func (c *External) getInstanceID(ctx context.Context, instanceID string, instanceRef v1alpha1.NameRef) (string, error) {
@@ -392,7 +393,7 @@ func normalizeClusterParameters(managedCluster, actualCluster *v1alpha1.ClusterP
 	}
 }
 
-func checkClusterUpToDate(managedCluster v1alpha1.ClusterParameters, actualCluster v1alpha1.ClusterParameters) bool {
+func checkClusterUpToDate(managedCluster, actualCluster v1alpha1.ClusterParameters) bool {
 	normalizeClusterParameters(&managedCluster, &actualCluster)
 	return cmp.Equal(managedCluster, actualCluster, utilcmp.EquateEmpty()...)
 }
