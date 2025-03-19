@@ -335,6 +335,7 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		AgentPermissionsRules:           AkuityAPIToCrossplaneAgentPermissionsRules(instanceSpec.GetAgentPermissionsRules()),
 		Fqdn:                            instanceSpec.GetFqdn(),
 		MultiClusterK8SDashboardEnabled: ptr.To(instanceSpec.GetMultiClusterK8SDashboardEnabled()),
+		KubeVisionArgoExtension:         AkuityAPIToCrossplaneKubeVisionArgoExtension(instanceSpec.GetKubeVisionArgoExtension()),
 	}, nil
 }
 
@@ -511,6 +512,18 @@ func AkuityAPIToCrossplaneAgentPermissionsRules(agentPermissionsRules []*argocdv
 	return crossplaneAgentPermissionsRules
 }
 
+func AkuityAPIToCrossplaneKubeVisionArgoExtension(kubeVisionArgoExtension *argocdv1.KubeVisionArgoExtension) *crossplanetypes.KubeVisionArgoExtension {
+	if kubeVisionArgoExtension == nil {
+		return nil
+	}
+
+	return &crossplanetypes.KubeVisionArgoExtension{
+		Enabled:          ptr.To(kubeVisionArgoExtension.GetEnabled()),
+		AllowedUsernames: kubeVisionArgoExtension.GetAllowedUsernames(),
+		AllowedGroups:    kubeVisionArgoExtension.GetAllowedGroups(),
+	}
+}
+
 func CrossplaneToAkuityAPIArgoCD(name string, instance *crossplanetypes.ArgoCD) (*structpb.Struct, error) {
 	instanceSpec, err := CrossplaneToAkuityAPIInstanceSpec(instance.Spec.InstanceSpec)
 	if err != nil {
@@ -566,6 +579,7 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		AgentPermissionsRules:           CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
 		Fqdn:                            instanceSpec.Fqdn,
 		MultiClusterK8SDashboardEnabled: ptr.Deref(instanceSpec.MultiClusterK8SDashboardEnabled, false),
+		KubeVisionArgoExtension:         CrossplaneToAkuityAPIKubeVisionArgoExtension(instanceSpec.KubeVisionArgoExtension),
 	}, nil
 }
 
@@ -787,4 +801,16 @@ func CrossplaneToAkuityAPIConfigManagementPlugins(configManagementPlugins map[st
 	}
 
 	return akConfigManagementPluginsPB, nil
+}
+
+func CrossplaneToAkuityAPIKubeVisionArgoExtension(kubeVisionArgoExtension *crossplanetypes.KubeVisionArgoExtension) *akuitytypes.KubeVisionArgoExtension {
+	if kubeVisionArgoExtension == nil {
+		return nil
+	}
+
+	return &akuitytypes.KubeVisionArgoExtension{
+		Enabled:          ptr.Deref(kubeVisionArgoExtension.Enabled, false),
+		AllowedUsernames: kubeVisionArgoExtension.AllowedUsernames,
+		AllowedGroups:    kubeVisionArgoExtension.AllowedGroups,
+	}
 }
