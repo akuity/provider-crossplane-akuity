@@ -340,6 +340,9 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		CustomDeprecatedApis:            AkuityAPIToCrossplaneCustomDeprecatedApis(instanceSpec.GetCustomDeprecatedApis()),
 		KubeVisionConfig:                AkuityAPIToCrossplaneKubeVisionConfig(instanceSpec.GetKubeVisionConfig()),
 		AppInAnyNamespaceConfig:         AkuityAPIToCrossplaneAppInAnyNamespaceConfig(instanceSpec.GetAppInAnyNamespaceConfig()),
+		Basepath:                        instanceSpec.GetBasepath(),
+		AppsetProgressiveSyncsEnabled:   ptr.To(instanceSpec.GetAppsetProgressiveSyncsEnabled()),
+		AiSupportEngineerExtension:      AkuityAPIToCrossplaneAiSupportEngineerExtension(instanceSpec.GetAiSupportEngineerExtension()),
 	}, nil
 }
 
@@ -569,6 +572,16 @@ func AkuityAPIToCrossplaneAppInAnyNamespaceConfig(appInAnyNamespaceConfig *argoc
 	}
 }
 
+func AkuityAPIToCrossplaneAiSupportEngineerExtension(aiSupportEngineerExtension *argocdv1.AISupportEngineerExtension) *crossplanetypes.AISupportEngineerExtension {
+	if aiSupportEngineerExtension == nil {
+		return nil
+	}
+
+	return &crossplanetypes.AISupportEngineerExtension{
+		Enabled: ptr.To(aiSupportEngineerExtension.GetEnabled()),
+	}
+}
+
 func CrossplaneToAkuityAPIArgoCD(name string, instance *crossplanetypes.ArgoCD) (*structpb.Struct, error) {
 	instanceSpec, err := CrossplaneToAkuityAPIInstanceSpec(instance.Spec.InstanceSpec)
 	if err != nil {
@@ -629,6 +642,9 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		CustomDeprecatedApis:            CrossplaneToAkuityAPICustomDeprecatedApis(instanceSpec.CustomDeprecatedApis),
 		KubeVisionConfig:                CrossplaneToAkuityAPIKubeVisionConfig(instanceSpec.KubeVisionConfig),
 		AppInAnyNamespaceConfig:         CrossplaneToAkuityAPIAppInAnyNamespaceConfig(instanceSpec.AppInAnyNamespaceConfig),
+		Basepath:                        instanceSpec.Basepath,
+		AppsetProgressiveSyncsEnabled:   ptr.Deref(instanceSpec.AppsetProgressiveSyncsEnabled, false),
+		AiSupportEngineerExtension:      CrossplaneToAkuityAPIAiSupportEngineerExtension(instanceSpec.AiSupportEngineerExtension),
 	}, nil
 }
 
@@ -902,5 +918,15 @@ func CrossplaneToAkuityAPIAppInAnyNamespaceConfig(appInAnyNamespaceConfig *cross
 
 	return &akuitytypes.AppInAnyNamespaceConfig{
 		Enabled: ptr.Deref(appInAnyNamespaceConfig.Enabled, false),
+	}
+}
+
+func CrossplaneToAkuityAPIAiSupportEngineerExtension(aiSupportEngineerExtension *crossplanetypes.AISupportEngineerExtension) *akuitytypes.AISupportEngineerExtension {
+	if aiSupportEngineerExtension == nil {
+		return nil
+	}
+
+	return &akuitytypes.AISupportEngineerExtension{
+		Enabled: ptr.Deref(aiSupportEngineerExtension.Enabled, false),
 	}
 }
