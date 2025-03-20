@@ -79,7 +79,7 @@ type InstanceSpec struct {
 	HostAliases                     []*HostAliases                 `json:"hostAliases,omitempty"`
 	AgentPermissionsRules           []*AgentPermissionsRule        `json:"agentPermissionsRules,omitempty"`
 	Fqdn                            string                         `json:"fqdn,omitempty"`
-	MultiClusterK8SDashboardEnabled bool                           `json:"multiClusterK8sDashboardEnabled,omitempty"`
+	MultiClusterK8SDashboardEnabled *bool                          `json:"multiClusterK8sDashboardEnabled,omitempty"`
 }
 
 // +kubebuilder:object:generate=true

@@ -1,8 +1,9 @@
 package fixtures
 
 import (
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"k8s.io/utils/ptr"
+
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -247,6 +248,7 @@ var (
 		MultiClusterK8SDashboardEnabled: true,
 	}
 
+	trueValue              = true
 	CrossplaneInstanceSpec = crossplanetypes.InstanceSpec{
 		ClusterCustomizationDefaults:    CrossplaneClusterCustomization,
 		IpAllowList:                     CrossplaneIpAllowList,
@@ -263,7 +265,7 @@ var (
 		AssistantExtensionEnabled:       true,
 		AppsetPolicy:                    CrossplaneAppsetPolicy,
 		HostAliases:                     CrossplaneHostAliasesList,
-		MultiClusterK8SDashboardEnabled: true,
+		MultiClusterK8SDashboardEnabled: &trueValue,
 	}
 
 	AkuityInstance = &argocdv1.Instance{
