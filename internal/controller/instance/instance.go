@@ -365,9 +365,21 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 			managedInstance.ArgoCDConfigMap[k] = actualInstance.ArgoCDConfigMap[k]
 		}
 	}
+	for _, k := range ignoredArgocdCMKeys {
+		delete(managedInstance.ArgoCDConfigMap, k)
+	}
+}
+
+// some values are not able to be configured, and we ignore them if they are set
+var ignoredArgocdCMKeys = []string{
+	"cluster.inClusterEnabled",
+	"resource.respectRBAC",
+	"application.resourceTrackingMethod",
+	"url",
 }
 
 func checkInstanceUpToDate(managedInstance, actualInstance v1alpha1.InstanceParameters) bool {
-	normalizeInstanceParameters(&managedInstance, &actualInstance)
-	return cmp.Equal(managedInstance, actualInstance, utilcmp.EquateEmpty()...)
+	mc, ac := managedInstance.DeepCopy(), actualInstance.DeepCopy()
+	normalizeInstanceParameters(mc, ac)
+	return cmp.Equal(mc, ac, utilcmp.EquateEmpty()...)
 }
