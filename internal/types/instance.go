@@ -336,6 +336,7 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		Fqdn:                            instanceSpec.GetFqdn(),
 		MultiClusterK8SDashboardEnabled: ptr.To(instanceSpec.GetMultiClusterK8SDashboardEnabled()),
 		KubeVisionArgoExtension:         AkuityAPIToCrossplaneKubeVisionArgoExtension(instanceSpec.GetKubeVisionArgoExtension()),
+		ImageUpdaterVersion:             instanceSpec.GetImageUpdaterVersion(),
 	}, nil
 }
 
@@ -580,6 +581,7 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		Fqdn:                            instanceSpec.Fqdn,
 		MultiClusterK8SDashboardEnabled: ptr.Deref(instanceSpec.MultiClusterK8SDashboardEnabled, false),
 		KubeVisionArgoExtension:         CrossplaneToAkuityAPIKubeVisionArgoExtension(instanceSpec.KubeVisionArgoExtension),
+		ImageUpdaterVersion:             instanceSpec.ImageUpdaterVersion,
 	}, nil
 }
 
