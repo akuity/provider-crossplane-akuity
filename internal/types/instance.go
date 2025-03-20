@@ -337,6 +337,7 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		MultiClusterK8SDashboardEnabled: ptr.To(instanceSpec.GetMultiClusterK8SDashboardEnabled()),
 		KubeVisionArgoExtension:         AkuityAPIToCrossplaneKubeVisionArgoExtension(instanceSpec.GetKubeVisionArgoExtension()),
 		ImageUpdaterVersion:             instanceSpec.GetImageUpdaterVersion(),
+		CustomDeprecatedApis:            AkuityAPIToCrossplaneCustomDeprecatedApis(instanceSpec.GetCustomDeprecatedApis()),
 	}, nil
 }
 
@@ -525,6 +526,24 @@ func AkuityAPIToCrossplaneKubeVisionArgoExtension(kubeVisionArgoExtension *argoc
 	}
 }
 
+func AkuityAPIToCrossplaneCustomDeprecatedApis(customDeprecatedApis []*argocdv1.CustomDeprecatedAPI) []*crossplanetypes.CustomDeprecatedAPI {
+	if len(customDeprecatedApis) == 0 {
+		return nil
+	}
+
+	crossplaneCustomDeprecatedApis := make([]*crossplanetypes.CustomDeprecatedAPI, 0, len(customDeprecatedApis))
+	for _, c := range customDeprecatedApis {
+		crossplaneCustomDeprecatedApis = append(crossplaneCustomDeprecatedApis, &crossplanetypes.CustomDeprecatedAPI{
+			ApiVersion:                     c.ApiVersion,
+			NewApiVersion:                  c.NewApiVersion,
+			DeprecatedInKubernetesVersion:  c.DeprecatedInKubernetesVersion,
+			UnavailableInKubernetesVersion: c.UnavailableInKubernetesVersion,
+		})
+	}
+
+	return crossplaneCustomDeprecatedApis
+}
+
 func CrossplaneToAkuityAPIArgoCD(name string, instance *crossplanetypes.ArgoCD) (*structpb.Struct, error) {
 	instanceSpec, err := CrossplaneToAkuityAPIInstanceSpec(instance.Spec.InstanceSpec)
 	if err != nil {
@@ -582,6 +601,7 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		MultiClusterK8SDashboardEnabled: ptr.Deref(instanceSpec.MultiClusterK8SDashboardEnabled, false),
 		KubeVisionArgoExtension:         CrossplaneToAkuityAPIKubeVisionArgoExtension(instanceSpec.KubeVisionArgoExtension),
 		ImageUpdaterVersion:             instanceSpec.ImageUpdaterVersion,
+		CustomDeprecatedApis:            CrossplaneToAkuityAPICustomDeprecatedApis(instanceSpec.CustomDeprecatedApis),
 	}, nil
 }
 
@@ -815,4 +835,22 @@ func CrossplaneToAkuityAPIKubeVisionArgoExtension(kubeVisionArgoExtension *cross
 		AllowedUsernames: kubeVisionArgoExtension.AllowedUsernames,
 		AllowedGroups:    kubeVisionArgoExtension.AllowedGroups,
 	}
+}
+
+func CrossplaneToAkuityAPICustomDeprecatedApis(customDeprecatedApis []*crossplanetypes.CustomDeprecatedAPI) []*akuitytypes.CustomDeprecatedAPI {
+	if len(customDeprecatedApis) == 0 {
+		return nil
+	}
+
+	akuityCustomDeprecatedApis := make([]*akuitytypes.CustomDeprecatedAPI, 0, len(customDeprecatedApis))
+	for _, c := range customDeprecatedApis {
+		akuityCustomDeprecatedApis = append(akuityCustomDeprecatedApis, &akuitytypes.CustomDeprecatedAPI{
+			ApiVersion:                     c.ApiVersion,
+			NewApiVersion:                  c.NewApiVersion,
+			DeprecatedInKubernetesVersion:  c.DeprecatedInKubernetesVersion,
+			UnavailableInKubernetesVersion: c.UnavailableInKubernetesVersion,
+		})
+	}
+
+	return akuityCustomDeprecatedApis
 }
