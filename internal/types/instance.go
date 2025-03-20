@@ -338,6 +338,7 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		KubeVisionArgoExtension:         AkuityAPIToCrossplaneKubeVisionArgoExtension(instanceSpec.GetKubeVisionArgoExtension()),
 		ImageUpdaterVersion:             instanceSpec.GetImageUpdaterVersion(),
 		CustomDeprecatedApis:            AkuityAPIToCrossplaneCustomDeprecatedApis(instanceSpec.GetCustomDeprecatedApis()),
+		KubeVisionConfig:                AkuityAPIToCrossplaneKubeVisionConfig(instanceSpec.GetKubeVisionConfig()),
 	}, nil
 }
 
@@ -544,6 +545,19 @@ func AkuityAPIToCrossplaneCustomDeprecatedApis(customDeprecatedApis []*argocdv1.
 	return crossplaneCustomDeprecatedApis
 }
 
+func AkuityAPIToCrossplaneKubeVisionConfig(kubeVisionConfig *argocdv1.KubeVisionConfig) *crossplanetypes.KubeVisionConfig {
+	if kubeVisionConfig == nil {
+		return nil
+	}
+
+	return &crossplanetypes.KubeVisionConfig{
+		CveScanConfig: &crossplanetypes.CveScanConfig{
+			ScanEnabled:    ptr.To(kubeVisionConfig.GetCveScanConfig().GetScanEnabled()),
+			RescanInterval: kubeVisionConfig.GetCveScanConfig().GetRescanInterval(),
+		},
+	}
+}
+
 func CrossplaneToAkuityAPIArgoCD(name string, instance *crossplanetypes.ArgoCD) (*structpb.Struct, error) {
 	instanceSpec, err := CrossplaneToAkuityAPIInstanceSpec(instance.Spec.InstanceSpec)
 	if err != nil {
@@ -602,6 +616,7 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		KubeVisionArgoExtension:         CrossplaneToAkuityAPIKubeVisionArgoExtension(instanceSpec.KubeVisionArgoExtension),
 		ImageUpdaterVersion:             instanceSpec.ImageUpdaterVersion,
 		CustomDeprecatedApis:            CrossplaneToAkuityAPICustomDeprecatedApis(instanceSpec.CustomDeprecatedApis),
+		KubeVisionConfig:                CrossplaneToAkuityAPIKubeVisionConfig(instanceSpec.KubeVisionConfig),
 	}, nil
 }
 
@@ -853,4 +868,17 @@ func CrossplaneToAkuityAPICustomDeprecatedApis(customDeprecatedApis []*crossplan
 	}
 
 	return akuityCustomDeprecatedApis
+}
+
+func CrossplaneToAkuityAPIKubeVisionConfig(kubeVisionConfig *crossplanetypes.KubeVisionConfig) *akuitytypes.KubeVisionConfig {
+	if kubeVisionConfig == nil {
+		return nil
+	}
+
+	return &akuitytypes.KubeVisionConfig{
+		CveScanConfig: &akuitytypes.CveScanConfig{
+			ScanEnabled:    ptr.Deref(kubeVisionConfig.CveScanConfig.ScanEnabled, false),
+			RescanInterval: kubeVisionConfig.CveScanConfig.RescanInterval,
+		},
+	}
 }
