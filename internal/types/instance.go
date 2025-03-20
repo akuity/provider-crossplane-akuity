@@ -339,6 +339,7 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		ImageUpdaterVersion:             instanceSpec.GetImageUpdaterVersion(),
 		CustomDeprecatedApis:            AkuityAPIToCrossplaneCustomDeprecatedApis(instanceSpec.GetCustomDeprecatedApis()),
 		KubeVisionConfig:                AkuityAPIToCrossplaneKubeVisionConfig(instanceSpec.GetKubeVisionConfig()),
+		AppInAnyNamespaceConfig:         AkuityAPIToCrossplaneAppInAnyNamespaceConfig(instanceSpec.GetAppInAnyNamespaceConfig()),
 	}, nil
 }
 
@@ -558,6 +559,16 @@ func AkuityAPIToCrossplaneKubeVisionConfig(kubeVisionConfig *argocdv1.KubeVision
 	}
 }
 
+func AkuityAPIToCrossplaneAppInAnyNamespaceConfig(appInAnyNamespaceConfig *argocdv1.AppInAnyNamespaceConfig) *crossplanetypes.AppInAnyNamespaceConfig {
+	if appInAnyNamespaceConfig == nil {
+		return nil
+	}
+
+	return &crossplanetypes.AppInAnyNamespaceConfig{
+		Enabled: ptr.To(appInAnyNamespaceConfig.GetEnabled()),
+	}
+}
+
 func CrossplaneToAkuityAPIArgoCD(name string, instance *crossplanetypes.ArgoCD) (*structpb.Struct, error) {
 	instanceSpec, err := CrossplaneToAkuityAPIInstanceSpec(instance.Spec.InstanceSpec)
 	if err != nil {
@@ -617,6 +628,7 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		ImageUpdaterVersion:             instanceSpec.ImageUpdaterVersion,
 		CustomDeprecatedApis:            CrossplaneToAkuityAPICustomDeprecatedApis(instanceSpec.CustomDeprecatedApis),
 		KubeVisionConfig:                CrossplaneToAkuityAPIKubeVisionConfig(instanceSpec.KubeVisionConfig),
+		AppInAnyNamespaceConfig:         CrossplaneToAkuityAPIAppInAnyNamespaceConfig(instanceSpec.AppInAnyNamespaceConfig),
 	}, nil
 }
 
@@ -880,5 +892,15 @@ func CrossplaneToAkuityAPIKubeVisionConfig(kubeVisionConfig *crossplanetypes.Kub
 			ScanEnabled:    ptr.Deref(kubeVisionConfig.CveScanConfig.ScanEnabled, false),
 			RescanInterval: kubeVisionConfig.CveScanConfig.RescanInterval,
 		},
+	}
+}
+
+func CrossplaneToAkuityAPIAppInAnyNamespaceConfig(appInAnyNamespaceConfig *crossplanetypes.AppInAnyNamespaceConfig) *akuitytypes.AppInAnyNamespaceConfig {
+	if appInAnyNamespaceConfig == nil {
+		return nil
+	}
+
+	return &akuitytypes.AppInAnyNamespaceConfig{
+		Enabled: ptr.Deref(appInAnyNamespaceConfig.Enabled, false),
 	}
 }
