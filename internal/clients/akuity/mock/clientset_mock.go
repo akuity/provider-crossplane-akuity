@@ -23,6 +23,7 @@ import (
 type MockClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockClientMockRecorder
+	isgomock struct{}
 }
 
 // MockClientMockRecorder is the mock recorder for MockClient.
@@ -43,132 +44,132 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // ApplyCluster mocks base method.
-func (m *MockClient) ApplyCluster(arg0 context.Context, arg1 string, arg2 v1alpha10.Cluster) error {
+func (m *MockClient) ApplyCluster(ctx context.Context, instanceID string, cluster v1alpha10.Cluster) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyCluster", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ApplyCluster", ctx, instanceID, cluster)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ApplyCluster indicates an expected call of ApplyCluster.
-func (mr *MockClientMockRecorder) ApplyCluster(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockClientMockRecorder) ApplyCluster(ctx, instanceID, cluster any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyCluster", reflect.TypeOf((*MockClient)(nil).ApplyCluster), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyCluster", reflect.TypeOf((*MockClient)(nil).ApplyCluster), ctx, instanceID, cluster)
 }
 
 // ApplyInstance mocks base method.
-func (m *MockClient) ApplyInstance(arg0 context.Context, arg1 *argocdv1.ApplyInstanceRequest) error {
+func (m *MockClient) ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyInstance", arg0, arg1)
+	ret := m.ctrl.Call(m, "ApplyInstance", ctx, request)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ApplyInstance indicates an expected call of ApplyInstance.
-func (mr *MockClientMockRecorder) ApplyInstance(arg0, arg1 any) *gomock.Call {
+func (mr *MockClientMockRecorder) ApplyInstance(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyInstance", reflect.TypeOf((*MockClient)(nil).ApplyInstance), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyInstance", reflect.TypeOf((*MockClient)(nil).ApplyInstance), ctx, request)
 }
 
 // BuildApplyInstanceRequest mocks base method.
-func (m *MockClient) BuildApplyInstanceRequest(arg0 v1alpha1.Instance) (*argocdv1.ApplyInstanceRequest, error) {
+func (m *MockClient) BuildApplyInstanceRequest(instance v1alpha1.Instance) (*argocdv1.ApplyInstanceRequest, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BuildApplyInstanceRequest", arg0)
+	ret := m.ctrl.Call(m, "BuildApplyInstanceRequest", instance)
 	ret0, _ := ret[0].(*argocdv1.ApplyInstanceRequest)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // BuildApplyInstanceRequest indicates an expected call of BuildApplyInstanceRequest.
-func (mr *MockClientMockRecorder) BuildApplyInstanceRequest(arg0 any) *gomock.Call {
+func (mr *MockClientMockRecorder) BuildApplyInstanceRequest(instance any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildApplyInstanceRequest", reflect.TypeOf((*MockClient)(nil).BuildApplyInstanceRequest), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildApplyInstanceRequest", reflect.TypeOf((*MockClient)(nil).BuildApplyInstanceRequest), instance)
 }
 
 // DeleteCluster mocks base method.
-func (m *MockClient) DeleteCluster(arg0 context.Context, arg1, arg2 string) error {
+func (m *MockClient) DeleteCluster(ctx context.Context, instanceID, name string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteCluster", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "DeleteCluster", ctx, instanceID, name)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteCluster indicates an expected call of DeleteCluster.
-func (mr *MockClientMockRecorder) DeleteCluster(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockClientMockRecorder) DeleteCluster(ctx, instanceID, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCluster", reflect.TypeOf((*MockClient)(nil).DeleteCluster), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCluster", reflect.TypeOf((*MockClient)(nil).DeleteCluster), ctx, instanceID, name)
 }
 
 // DeleteInstance mocks base method.
-func (m *MockClient) DeleteInstance(arg0 context.Context, arg1 string) error {
+func (m *MockClient) DeleteInstance(ctx context.Context, name string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteInstance", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteInstance", ctx, name)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteInstance indicates an expected call of DeleteInstance.
-func (mr *MockClientMockRecorder) DeleteInstance(arg0, arg1 any) *gomock.Call {
+func (mr *MockClientMockRecorder) DeleteInstance(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInstance", reflect.TypeOf((*MockClient)(nil).DeleteInstance), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInstance", reflect.TypeOf((*MockClient)(nil).DeleteInstance), ctx, name)
 }
 
 // ExportInstance mocks base method.
-func (m *MockClient) ExportInstance(arg0 context.Context, arg1 string) (*argocdv1.ExportInstanceResponse, error) {
+func (m *MockClient) ExportInstance(ctx context.Context, name string) (*argocdv1.ExportInstanceResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ExportInstance", arg0, arg1)
+	ret := m.ctrl.Call(m, "ExportInstance", ctx, name)
 	ret0, _ := ret[0].(*argocdv1.ExportInstanceResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ExportInstance indicates an expected call of ExportInstance.
-func (mr *MockClientMockRecorder) ExportInstance(arg0, arg1 any) *gomock.Call {
+func (mr *MockClientMockRecorder) ExportInstance(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportInstance", reflect.TypeOf((*MockClient)(nil).ExportInstance), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportInstance", reflect.TypeOf((*MockClient)(nil).ExportInstance), ctx, name)
 }
 
 // GetCluster mocks base method.
-func (m *MockClient) GetCluster(arg0 context.Context, arg1, arg2 string) (*argocdv1.Cluster, error) {
+func (m *MockClient) GetCluster(ctx context.Context, instanceID, name string) (*argocdv1.Cluster, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCluster", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetCluster", ctx, instanceID, name)
 	ret0, _ := ret[0].(*argocdv1.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCluster indicates an expected call of GetCluster.
-func (mr *MockClientMockRecorder) GetCluster(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockClientMockRecorder) GetCluster(ctx, instanceID, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCluster", reflect.TypeOf((*MockClient)(nil).GetCluster), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCluster", reflect.TypeOf((*MockClient)(nil).GetCluster), ctx, instanceID, name)
 }
 
 // GetClusterManifests mocks base method.
-func (m *MockClient) GetClusterManifests(arg0 context.Context, arg1, arg2 string) (string, error) {
+func (m *MockClient) GetClusterManifests(ctx context.Context, instanceID, clusterName string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetClusterManifests", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetClusterManifests", ctx, instanceID, clusterName)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetClusterManifests indicates an expected call of GetClusterManifests.
-func (mr *MockClientMockRecorder) GetClusterManifests(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockClientMockRecorder) GetClusterManifests(ctx, instanceID, clusterName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterManifests", reflect.TypeOf((*MockClient)(nil).GetClusterManifests), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterManifests", reflect.TypeOf((*MockClient)(nil).GetClusterManifests), ctx, instanceID, clusterName)
 }
 
 // GetInstance mocks base method.
-func (m *MockClient) GetInstance(arg0 context.Context, arg1 string) (*argocdv1.Instance, error) {
+func (m *MockClient) GetInstance(ctx context.Context, name string) (*argocdv1.Instance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetInstance", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetInstance", ctx, name)
 	ret0, _ := ret[0].(*argocdv1.Instance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetInstance indicates an expected call of GetInstance.
-func (mr *MockClientMockRecorder) GetInstance(arg0, arg1 any) *gomock.Call {
+func (mr *MockClientMockRecorder) GetInstance(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstance", reflect.TypeOf((*MockClient)(nil).GetInstance), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstance", reflect.TypeOf((*MockClient)(nil).GetInstance), ctx, name)
 }

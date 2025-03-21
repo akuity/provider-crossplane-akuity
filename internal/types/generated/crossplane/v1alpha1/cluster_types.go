@@ -22,7 +22,7 @@ type ClusterList struct {
 // +kubebuilder:object:generate=true
 type ClusterSpec struct {
 	Description     string      `json:"description,omitempty"`
-	NamespaceScoped bool        `json:"namespaceScoped,omitempty"`
+	NamespaceScoped *bool       `json:"namespaceScoped,omitempty"`
 	Data            ClusterData `json:"data,omitempty"`
 }
 
@@ -70,17 +70,17 @@ type RepoServerAutoScalingConfig struct {
 
 // +kubebuilder:object:generate=true
 type ClusterCompatibility struct {
-	Ipv6Only bool `json:"ipv6Only,omitempty"`
+	Ipv6Only *bool `json:"ipv6Only,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
 type ClusterData struct {
 	Size                            ClusterSize           `json:"size,omitempty"`
-	AutoUpgradeDisabled             bool                  `json:"autoUpgradeDisabled,omitempty"`
+	AutoUpgradeDisabled             *bool                 `json:"autoUpgradeDisabled,omitempty"`
 	Kustomization                   string                `json:"kustomization,omitempty"`
-	AppReplication                  bool                  `json:"appReplication,omitempty"`
+	AppReplication                  *bool                 `json:"appReplication,omitempty"`
 	TargetVersion                   string                `json:"targetVersion,omitempty"`
-	RedisTunneling                  bool                  `json:"redisTunneling,omitempty"`
+	RedisTunneling                  *bool                 `json:"redisTunneling,omitempty"`
 	DirectClusterSpec               *DirectClusterSpec    `json:"directClusterSpec,omitempty"`
 	DatadogAnnotationsEnabled       *bool                 `json:"datadogAnnotationsEnabled,omitempty"`
 	EksAddonEnabled                 *bool                 `json:"eksAddonEnabled,omitempty"`
