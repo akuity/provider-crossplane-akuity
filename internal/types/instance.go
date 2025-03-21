@@ -203,7 +203,7 @@ func AkuityAPIToCrossplaneConfigManagementPlugins(pbConfigManagementPlugins []*s
 				Generate:         AkuityAPIToCrossplaneCommand(configManagementPlugin.Spec.Generate),
 				Discover:         AkuityAPIToCrossplaneDiscover(configManagementPlugin.Spec.Discover),
 				Parameters:       AkuityAPIToCrossplaneParameters(configManagementPlugin.Spec.Parameters),
-				PreserveFileMode: configManagementPlugin.Spec.PreserveFileMode,
+				PreserveFileMode: ptr.To(configManagementPlugin.Spec.PreserveFileMode),
 			},
 		}
 	}
@@ -257,7 +257,7 @@ func AkuityAPIToCrossplaneParameters(parameters *argocdtypes.Parameters) *crossp
 				Name:           static.Name,
 				Title:          static.Title,
 				Tooltip:        static.Tooltip,
-				Required:       static.Required,
+				Required:       ptr.To(static.Required),
 				ItemType:       static.ItemType,
 				CollectionType: static.CollectionType,
 				String_:        static.String_,
@@ -319,18 +319,18 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 	return crossplanetypes.InstanceSpec{
 		IpAllowList:                     AkuityAPIToCrossplaneIPAllowListEntry(instanceSpec.GetIpAllowList()),
 		Subdomain:                       instanceSpec.GetSubdomain(),
-		DeclarativeManagementEnabled:    instanceSpec.GetDeclarativeManagementEnabled(),
+		DeclarativeManagementEnabled:    ptr.To(instanceSpec.GetDeclarativeManagementEnabled()),
 		Extensions:                      AkuityAPIToCrossplaneArgoCDExtensionInstallEntry(instanceSpec.GetExtensions()),
 		ClusterCustomizationDefaults:    clusterCustomization,
-		ImageUpdaterEnabled:             instanceSpec.GetImageUpdaterEnabled(),
-		BackendIpAllowListEnabled:       instanceSpec.GetBackendIpAllowListEnabled(),
+		ImageUpdaterEnabled:             ptr.To(instanceSpec.GetImageUpdaterEnabled()),
+		BackendIpAllowListEnabled:       ptr.To(instanceSpec.GetBackendIpAllowListEnabled()),
 		RepoServerDelegate:              AkuityAPIToCrossplaneRepoServerDelegate(instanceSpec.GetRepoServerDelegate()),
-		AuditExtensionEnabled:           instanceSpec.GetAuditExtensionEnabled(),
-		SyncHistoryExtensionEnabled:     instanceSpec.GetSyncHistoryExtensionEnabled(),
+		AuditExtensionEnabled:           ptr.To(instanceSpec.GetAuditExtensionEnabled()),
+		SyncHistoryExtensionEnabled:     ptr.To(instanceSpec.GetSyncHistoryExtensionEnabled()),
 		CrossplaneExtension:             AkuityAPIToCrossplaneCrossplaneExtension(instanceSpec.GetCrossplaneExtension()),
 		ImageUpdaterDelegate:            AkuityAPIToCrossplaneImageUpdaterDelegate(instanceSpec.GetImageUpdaterDelegate()),
 		AppSetDelegate:                  AkuityAPIToCrossplaneAppSetDelegate(instanceSpec.GetAppSetDelegate()),
-		AssistantExtensionEnabled:       instanceSpec.GetAssistantExtensionEnabled(),
+		AssistantExtensionEnabled:       ptr.To(instanceSpec.GetAssistantExtensionEnabled()),
 		AppsetPolicy:                    AkuityAPIToCrossplaneAppsetPolicy(instanceSpec.GetAppsetPolicy()),
 		HostAliases:                     AkuityAPIToCrossplaneHostAliases(instanceSpec.GetHostAliases()),
 		AgentPermissionsRules:           AkuityAPIToCrossplaneAgentPermissionsRules(instanceSpec.GetAgentPermissionsRules()),
@@ -402,10 +402,10 @@ func AkuityAPIToCrossplaneClusterCustomization(clusterCustomization *argocdv1.Cl
 	}
 
 	return &crossplanetypes.ClusterCustomization{
-		AutoUpgradeDisabled: clusterCustomization.GetAutoUpgradeDisabled(),
+		AutoUpgradeDisabled: ptr.To(clusterCustomization.GetAutoUpgradeDisabled()),
 		Kustomization:       string(kustomizationYAML),
-		AppReplication:      clusterCustomization.GetAppReplication(),
-		RedisTunneling:      clusterCustomization.GetRedisTunneling(),
+		AppReplication:      ptr.To(clusterCustomization.GetAppReplication()),
+		RedisTunneling:      ptr.To(clusterCustomization.GetRedisTunneling()),
 	}, nil
 }
 
@@ -415,7 +415,7 @@ func AkuityAPIToCrossplaneRepoServerDelegate(repoServerDelegate *argocdv1.RepoSe
 	}
 
 	return &crossplanetypes.RepoServerDelegate{
-		ControlPlane: repoServerDelegate.GetControlPlane(),
+		ControlPlane: ptr.To(repoServerDelegate.GetControlPlane()),
 		ManagedCluster: &crossplanetypes.ManagedCluster{
 			ClusterName: repoServerDelegate.GetManagedCluster().GetClusterName(),
 		},
@@ -443,7 +443,7 @@ func AkuityAPIToCrossplaneImageUpdaterDelegate(imageUpdaterDelegate *argocdv1.Im
 	}
 
 	return &crossplanetypes.ImageUpdaterDelegate{
-		ControlPlane: imageUpdaterDelegate.GetControlPlane(),
+		ControlPlane: ptr.To(imageUpdaterDelegate.GetControlPlane()),
 		ManagedCluster: &crossplanetypes.ManagedCluster{
 			ClusterName: imageUpdaterDelegate.GetManagedCluster().GetClusterName(),
 		},
@@ -469,7 +469,7 @@ func AkuityAPIToCrossplaneAppsetPolicy(appsetPolicy *argocdv1.AppsetPolicy) *cro
 
 	return &crossplanetypes.AppsetPolicy{
 		Policy:         appsetPolicy.GetPolicy(),
-		OverridePolicy: appsetPolicy.GetOverridePolicy(),
+		OverridePolicy: ptr.To(appsetPolicy.GetOverridePolicy()),
 	}
 }
 
@@ -550,23 +550,23 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 	return akuitytypes.InstanceSpec{
 		IpAllowList:                     CrossplaneToAkuityAPIIPAllowListEntry(instanceSpec.IpAllowList),
 		Subdomain:                       instanceSpec.Subdomain,
-		DeclarativeManagementEnabled:    ptr.To(instanceSpec.DeclarativeManagementEnabled),
+		DeclarativeManagementEnabled:    ptr.Deref(instanceSpec.DeclarativeManagementEnabled, false),
 		Extensions:                      CrossplaneToAkuityAPIArgoCDExtensionInstallEntry(instanceSpec.Extensions),
 		ClusterCustomizationDefaults:    clusterCustomization,
-		ImageUpdaterEnabled:             ptr.To(instanceSpec.ImageUpdaterEnabled),
-		BackendIpAllowListEnabled:       ptr.To(instanceSpec.BackendIpAllowListEnabled),
+		ImageUpdaterEnabled:             ptr.Deref(instanceSpec.ImageUpdaterEnabled, false),
+		BackendIpAllowListEnabled:       ptr.Deref(instanceSpec.BackendIpAllowListEnabled, false),
 		RepoServerDelegate:              CrossplaneToAkuityAPIRepoServerDelegate(instanceSpec.RepoServerDelegate),
-		AuditExtensionEnabled:           ptr.To(instanceSpec.AuditExtensionEnabled),
-		SyncHistoryExtensionEnabled:     ptr.To(instanceSpec.SyncHistoryExtensionEnabled),
+		AuditExtensionEnabled:           ptr.Deref(instanceSpec.AuditExtensionEnabled, false),
+		SyncHistoryExtensionEnabled:     ptr.Deref(instanceSpec.SyncHistoryExtensionEnabled, false),
 		CrossplaneExtension:             CrossplaneToAkuityAPICrossplaneExtension(instanceSpec.CrossplaneExtension),
 		ImageUpdaterDelegate:            CrossplaneToAkuityAPIImageUpdaterDelegate(instanceSpec.ImageUpdaterDelegate),
 		AppSetDelegate:                  CrossplaneToAkuityAPIAppSetDelegate(instanceSpec.AppSetDelegate),
-		AssistantExtensionEnabled:       ptr.To(instanceSpec.AssistantExtensionEnabled),
+		AssistantExtensionEnabled:       ptr.Deref(instanceSpec.AssistantExtensionEnabled, false),
 		AppsetPolicy:                    CrossplaneToAkuityAPIAppsetPolicy(instanceSpec.AppsetPolicy),
 		HostAliases:                     CrossplaneToAkuityAPIHostAliases(instanceSpec.HostAliases),
 		AgentPermissionsRules:           CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
-		Fqdn:                            ptr.To(instanceSpec.Fqdn),
-		MultiClusterK8SDashboardEnabled: instanceSpec.MultiClusterK8SDashboardEnabled,
+		Fqdn:                            instanceSpec.Fqdn,
+		MultiClusterK8SDashboardEnabled: ptr.Deref(instanceSpec.MultiClusterK8SDashboardEnabled, false),
 	}, nil
 }
 
@@ -607,10 +607,10 @@ func CrossplaneToAkuityAPIClusterCustomization(clusterCustomization *crossplanet
 	}
 
 	return &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: ptr.To(clusterCustomization.AutoUpgradeDisabled),
+		AutoUpgradeDisabled: ptr.Deref(clusterCustomization.AutoUpgradeDisabled, false),
 		Kustomization:       kustomization,
-		AppReplication:      ptr.To(clusterCustomization.AppReplication),
-		RedisTunneling:      ptr.To(clusterCustomization.RedisTunneling),
+		AppReplication:      ptr.Deref(clusterCustomization.AppReplication, false),
+		RedisTunneling:      ptr.Deref(clusterCustomization.RedisTunneling, false),
 	}, nil
 }
 
@@ -620,7 +620,7 @@ func CrossplaneToAkuityAPIRepoServerDelegate(repoServerDelegate *crossplanetypes
 	}
 
 	return &akuitytypes.RepoServerDelegate{
-		ControlPlane: ptr.To(repoServerDelegate.ControlPlane),
+		ControlPlane: ptr.Deref(repoServerDelegate.ControlPlane, false),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: repoServerDelegate.ManagedCluster.ClusterName,
 		},
@@ -648,7 +648,7 @@ func CrossplaneToAkuityAPIImageUpdaterDelegate(imageUpdaterDelegate *crossplanet
 	}
 
 	return &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: ptr.To(imageUpdaterDelegate.ControlPlane),
+		ControlPlane: ptr.Deref(imageUpdaterDelegate.ControlPlane, false),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: imageUpdaterDelegate.ManagedCluster.ClusterName,
 		},
@@ -674,7 +674,7 @@ func CrossplaneToAkuityAPIAppsetPolicy(appsetPolicy *crossplanetypes.AppsetPolic
 
 	return &akuitytypes.AppsetPolicy{
 		Policy:         appsetPolicy.Policy,
-		OverridePolicy: ptr.To(appsetPolicy.OverridePolicy),
+		OverridePolicy: ptr.Deref(appsetPolicy.OverridePolicy, false),
 	}
 }
 
@@ -742,7 +742,7 @@ func CrossplaneToAkuityAPIConfigManagementPlugins(configManagementPlugins map[st
 				Name:           pm.Name,
 				Title:          pm.Title,
 				Tooltip:        pm.Tooltip,
-				Required:       pm.Required,
+				Required:       ptr.Deref(pm.Required, false),
 				ItemType:       pm.ItemType,
 				CollectionType: pm.CollectionType,
 				String_:        pm.String_,
@@ -775,7 +775,7 @@ func CrossplaneToAkuityAPIConfigManagementPlugins(configManagementPlugins map[st
 					Static:  static,
 					Dynamic: (*argocdtypes.Dynamic)(configManagementPlugin.Spec.Parameters.Dynamic),
 				},
-				PreserveFileMode: configManagementPlugin.Spec.PreserveFileMode,
+				PreserveFileMode: ptr.Deref(configManagementPlugin.Spec.PreserveFileMode, false),
 			},
 		}
 
