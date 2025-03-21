@@ -19,12 +19,14 @@ package instance
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/connection"
@@ -37,7 +39,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
@@ -45,6 +46,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/features"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
+	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
@@ -122,7 +124,7 @@ func NewExternal(client akuity.Client, logger logging.Logger) *External {
 	}
 }
 
-func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
+func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) { //nolint:gocyclo
 	managedInstance, ok := mg.(*v1alpha1.Instance)
 	if !ok {
 		return managed.ExternalObservation{}, errors.New(errNotInstance)
@@ -178,11 +180,15 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		managedInstance.SetConditions(xpv1.Available())
 	}
 
-	c.logger.Debug("Comparing managed instance to external instance", "diff", cmp.Diff(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider))
+	isUpToDate := checkInstanceUpToDate(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider)
+
+	if !isUpToDate {
+		c.logger.Debug("Comparing managed instance to external instance", "diff", cmp.Diff(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider))
+	}
 
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: cmp.Equal(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider),
+		ResourceUpToDate: isUpToDate,
 	}, nil
 }
 
@@ -296,4 +302,85 @@ func lateInitializeInstanceConfigMaps(in *v1alpha1.InstanceParameters, exportedI
 	}
 
 	return nil
+}
+
+type ResourceCustomization struct {
+	Group             string `yaml:"-"`
+	Kind              string `yaml:"-"`
+	Health            string `yaml:"health.lua,omitempty"`
+	Actions           string `yaml:"actions,omitempty"`
+	IgnoreDifferences string `yaml:"ignoreDifferences,omitempty"`
+	KnownTypeFields   string `yaml:"knownTypeFields,omitempty"`
+}
+
+// normalizeInstanceParameters synchronizes default values from the actual instance to the managed instance,
+// and normalize fields that have same values as the actual instance. This ensures consistency with API defaults.
+func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.InstanceParameters) { //nolint:gocyclo
+	if managedInstance == nil || actualInstance == nil {
+		return
+	}
+	if managedInstance.ArgoCD != nil {
+		// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
+		if managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
+			managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
+		}
+
+		// only one of Fqdn and Subdomain should be set, so we sync them if both are set
+		if managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn != "" && managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain != "" {
+			managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain = actualInstance.ArgoCD.Spec.InstanceSpec.Subdomain
+			managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn = actualInstance.ArgoCD.Spec.InstanceSpec.Fqdn
+		}
+	}
+
+	// some configmap values have stable orders which may not be the same as user input
+	for k, v := range managedInstance.ArgoCDConfigMap {
+		if strings.Contains(k, "accounts.") {
+			value := ""
+			if strings.Contains(v, "apiKey") {
+				value = "apiKey"
+			}
+			if strings.Contains(v, "login") {
+				if value != "" {
+					value += ",login"
+				} else {
+					value = "login"
+				}
+			}
+			if value != "" {
+				managedInstance.ArgoCDConfigMap[k] = value
+			}
+		}
+
+		if k == "resource.customizations" {
+			customizations := make(map[string]*ResourceCustomization)
+			if err := yaml.Unmarshal([]byte(v), &customizations); err != nil {
+				return
+			}
+			actualCustomizations := make(map[string]*ResourceCustomization)
+			if err := yaml.Unmarshal([]byte(actualInstance.ArgoCDConfigMap[k]), &actualCustomizations); err != nil {
+				return
+			}
+			if !cmp.Equal(customizations, actualCustomizations, utilcmp.EquateEmpty()...) {
+				return
+			}
+			managedInstance.ArgoCDConfigMap[k] = actualInstance.ArgoCDConfigMap[k]
+		}
+	}
+	for _, k := range ignoredArgocdCMKeys {
+		delete(managedInstance.ArgoCDConfigMap, k)
+	}
+}
+
+// some values are not able to be configured, and we ignore them if they are set
+var ignoredArgocdCMKeys = []string{
+	"cluster.inClusterEnabled",
+	"resource.respectRBAC",
+	"application.resourceTrackingMethod",
+	"url",
+}
+
+func checkInstanceUpToDate(managedInstance, actualInstance v1alpha1.InstanceParameters) bool {
+	mc, ac := managedInstance.DeepCopy(), actualInstance.DeepCopy()
+	normalizeInstanceParameters(mc, ac)
+	return cmp.Equal(mc, ac, utilcmp.EquateEmpty()...)
 }

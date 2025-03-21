@@ -1,8 +1,9 @@
 package fixtures
 
 import (
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"k8s.io/utils/ptr"
+
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -48,7 +49,7 @@ var (
 
 	AkuityAppsetPolicy = &akuitytypes.AppsetPolicy{
 		Policy:         "policy",
-		OverridePolicy: true,
+		OverridePolicy: ptr.To(true),
 	}
 
 	ArgocdAppsetPolicy = &argocdv1.AppsetPolicy{
@@ -58,7 +59,7 @@ var (
 
 	CrossplaneAppsetPolicy = &crossplanetypes.AppsetPolicy{
 		Policy:         "policy",
-		OverridePolicy: ptr.To(true),
+		OverridePolicy: true,
 	}
 
 	AkuityAppSetDelegate = &akuitytypes.AppSetDelegate{
@@ -80,7 +81,7 @@ var (
 	}
 
 	AkuityImageUpdaterDelegate = &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: true,
+		ControlPlane: ptr.To(true),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -94,14 +95,14 @@ var (
 	}
 
 	CrossplaneImageUpdateDelegate = &crossplanetypes.ImageUpdaterDelegate{
-		ControlPlane: ptr.To(true),
+		ControlPlane: true,
 		ManagedCluster: &crossplanetypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
 	}
 
 	AkuityRepoServerDelegate = &akuitytypes.RepoServerDelegate{
-		ControlPlane: true,
+		ControlPlane: ptr.To(true),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -115,7 +116,7 @@ var (
 	}
 
 	CrossplaneRepoServerDelegate = &crossplanetypes.RepoServerDelegate{
-		ControlPlane: ptr.To(true),
+		ControlPlane: true,
 		ManagedCluster: &crossplanetypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -188,10 +189,10 @@ var (
 	}
 
 	AkuityClusterCustomization = &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: true,
+		AutoUpgradeDisabled: ptr.To(true),
 		Kustomization:       Kustomization,
-		AppReplication:      true,
-		RedisTunneling:      true,
+		AppReplication:      ptr.To(true),
+		RedisTunneling:      ptr.To(true),
 	}
 
 	ArgocdClusterCustomization = &argocdv1.ClusterCustomization{
@@ -202,30 +203,30 @@ var (
 	}
 
 	CrossplaneClusterCustomization = &crossplanetypes.ClusterCustomization{
-		AutoUpgradeDisabled: ptr.To(true),
+		AutoUpgradeDisabled: true,
 		Kustomization:       KustomizationYAML,
-		AppReplication:      ptr.To(true),
-		RedisTunneling:      ptr.To(true),
+		AppReplication:      true,
+		RedisTunneling:      true,
 	}
 
 	AkuityInstanceSpec = akuitytypes.InstanceSpec{
 		IpAllowList:                     AkuityIpAllowList,
 		Subdomain:                       "example.com",
-		DeclarativeManagementEnabled:    true,
+		DeclarativeManagementEnabled:    ptr.To(true),
 		Extensions:                      AkuityInstallEntryList,
 		ClusterCustomizationDefaults:    AkuityClusterCustomization,
-		ImageUpdaterEnabled:             true,
-		BackendIpAllowListEnabled:       true,
+		ImageUpdaterEnabled:             ptr.To(true),
+		BackendIpAllowListEnabled:       ptr.To(true),
 		RepoServerDelegate:              AkuityRepoServerDelegate,
-		AuditExtensionEnabled:           true,
-		SyncHistoryExtensionEnabled:     true,
+		AuditExtensionEnabled:           ptr.To(true),
+		SyncHistoryExtensionEnabled:     ptr.To(true),
 		ImageUpdaterDelegate:            AkuityImageUpdaterDelegate,
 		AppSetDelegate:                  AkuityAppSetDelegate,
-		AssistantExtensionEnabled:       true,
+		AssistantExtensionEnabled:       ptr.To(true),
 		AppsetPolicy:                    AkuityAppsetPolicy,
 		HostAliases:                     AkuityHostAliasesList,
-		Fqdn:                            "",
-		MultiClusterK8SDashboardEnabled: true,
+		Fqdn:                            ptr.To(""),
+		MultiClusterK8SDashboardEnabled: ptr.To(true),
 	}
 
 	ArgocdInstanceSpec = &argocdv1.InstanceSpec{
@@ -247,23 +248,24 @@ var (
 		MultiClusterK8SDashboardEnabled: true,
 	}
 
+	trueValue              = true
 	CrossplaneInstanceSpec = crossplanetypes.InstanceSpec{
 		ClusterCustomizationDefaults:    CrossplaneClusterCustomization,
 		IpAllowList:                     CrossplaneIpAllowList,
 		Subdomain:                       "example.com",
-		DeclarativeManagementEnabled:    ptr.To(true),
+		DeclarativeManagementEnabled:    true,
 		Extensions:                      CrossplaneInstallEntryList,
-		ImageUpdaterEnabled:             ptr.To(true),
-		BackendIpAllowListEnabled:       ptr.To(true),
+		ImageUpdaterEnabled:             true,
+		BackendIpAllowListEnabled:       true,
 		RepoServerDelegate:              CrossplaneRepoServerDelegate,
-		AuditExtensionEnabled:           ptr.To(true),
-		SyncHistoryExtensionEnabled:     ptr.To(true),
+		AuditExtensionEnabled:           true,
+		SyncHistoryExtensionEnabled:     true,
 		ImageUpdaterDelegate:            CrossplaneImageUpdateDelegate,
 		AppSetDelegate:                  CrossplaneAppSetDelegate,
-		AssistantExtensionEnabled:       ptr.To(true),
+		AssistantExtensionEnabled:       true,
 		AppsetPolicy:                    CrossplaneAppsetPolicy,
 		HostAliases:                     CrossplaneHostAliasesList,
-		MultiClusterK8SDashboardEnabled: ptr.To(true),
+		MultiClusterK8SDashboardEnabled: &trueValue,
 	}
 
 	AkuityInstance = &argocdv1.Instance{

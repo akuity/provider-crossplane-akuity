@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"maps"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
+
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"

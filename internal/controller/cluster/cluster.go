@@ -48,6 +48,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/features"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
+	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
@@ -195,11 +196,15 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		managedCluster.SetConditions(xpv1.Available())
 	}
 
-	c.logger.Debug("Comparing managed cluster to external cluster", "diff", cmp.Diff(managedCluster.Spec.ForProvider, actualCluster))
+	isUpToDate := checkClusterUpToDate(managedCluster.Spec.ForProvider, actualCluster)
+
+	if !isUpToDate {
+		c.logger.Debug("Comparing managed cluster to external instance", "diff", cmp.Diff(managedCluster.Spec.ForProvider, actualCluster))
+	}
 
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: cmp.Equal(managedCluster.Spec.ForProvider, actualCluster),
+		ResourceUpToDate: isUpToDate,
 	}, nil
 }
 
@@ -297,6 +302,7 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 	in.ClusterSpec.Data.RedisTunneling = pointer.LateInitialize(in.ClusterSpec.Data.RedisTunneling, actual.ClusterSpec.Data.RedisTunneling)
 	in.ClusterSpec.Data.Size = pointer.LateInitialize(in.ClusterSpec.Data.Size, actual.ClusterSpec.Data.Size)
 	in.ClusterSpec.Data.Kustomization = pointer.LateInitialize(in.ClusterSpec.Data.Kustomization, actual.ClusterSpec.Data.Kustomization)
+	in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled = pointer.LateInitialize(in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled, actual.ClusterSpec.Data.MultiClusterK8SDashboardEnabled)
 }
 
 func (c *External) getInstanceID(ctx context.Context, instanceID string, instanceRef v1alpha1.NameRef) (string, error) {
@@ -373,4 +379,21 @@ func (c *External) applyClusterManifests(ctx context.Context, managedCluster v1a
 	}
 
 	return applyClient.ApplyManifests(ctx, clusterManifests, delete)
+}
+
+func normalizeClusterParameters(managedCluster, actualCluster *v1alpha1.ClusterParameters) {
+	if managedCluster == nil || actualCluster == nil {
+		return
+	}
+
+	// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
+	if managedCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled == nil {
+		managedCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled =
+			actualCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
+	}
+}
+
+func checkClusterUpToDate(managedCluster, actualCluster v1alpha1.ClusterParameters) bool {
+	normalizeClusterParameters(&managedCluster, &actualCluster)
+	return cmp.Equal(managedCluster, actualCluster, utilcmp.EquateEmpty()...)
 }
