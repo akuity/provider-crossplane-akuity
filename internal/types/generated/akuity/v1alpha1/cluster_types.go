@@ -81,7 +81,7 @@ type RepoServerAutoScalingConfig struct {
 }
 
 type ClusterCompatibility struct {
-	Ipv6Only bool `json:"ipv6Only,omitempty"`
+	Ipv6Only *bool `json:"ipv6Only,omitempty"`
 }
 
 type ClusterData struct {
