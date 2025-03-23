@@ -41,6 +41,22 @@ spec:
               - "admin"
             allowedGroups:
               - "developers"
+          imageUpdaterVersion: "",
+          customDeprecatedApis:
+            - apiVersion: "apps/v1"
+              newApiVersion: "apps/v2"
+              deprecatedInKubernetesVersion: "1.18"
+              unavailableInKubernetesVersion: "1.19"
+          kubeVisionConfig:
+            cveScanConfig:
+              scanEnabled: true
+              rescanInterval: 8h
+          appInAnyNamespaceConfig:
+            enabled: true
+          basepath: ""
+          appsetProgressiveSyncsEnabled: true
+          aiSupportEngineerExtension:
+            enabled: true
     argocdConfigMap:
       # When configuring the `argocdConfigMap`, make sure to specify the following keys (from "exec.enabled", to "users.anonymous.enabled") 
       # since these keys are added by Akuity Platform by default. If they are not defined, you may see inconsistent results and errors from the provider.
