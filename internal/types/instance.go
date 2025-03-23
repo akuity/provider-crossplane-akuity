@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"strconv"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
-
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -335,7 +334,15 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		HostAliases:                     AkuityAPIToCrossplaneHostAliases(instanceSpec.GetHostAliases()),
 		AgentPermissionsRules:           AkuityAPIToCrossplaneAgentPermissionsRules(instanceSpec.GetAgentPermissionsRules()),
 		Fqdn:                            instanceSpec.GetFqdn(),
-		MultiClusterK8SDashboardEnabled: &instanceSpec.MultiClusterK8SDashboardEnabled,
+		MultiClusterK8SDashboardEnabled: ptr.To(instanceSpec.GetMultiClusterK8SDashboardEnabled()),
+		KubeVisionArgoExtension:         AkuityAPIToCrossplaneKubeVisionArgoExtension(instanceSpec.GetKubeVisionArgoExtension()),
+		ImageUpdaterVersion:             instanceSpec.GetImageUpdaterVersion(),
+		CustomDeprecatedApis:            AkuityAPIToCrossplaneCustomDeprecatedApis(instanceSpec.GetCustomDeprecatedApis()),
+		KubeVisionConfig:                AkuityAPIToCrossplaneKubeVisionConfig(instanceSpec.GetKubeVisionConfig()),
+		AppInAnyNamespaceConfig:         AkuityAPIToCrossplaneAppInAnyNamespaceConfig(instanceSpec.GetAppInAnyNamespaceConfig()),
+		Basepath:                        instanceSpec.GetBasepath(),
+		AppsetProgressiveSyncsEnabled:   ptr.To(instanceSpec.GetAppsetProgressiveSyncsEnabled()),
+		AiSupportEngineerExtension:      AkuityAPIToCrossplaneAiSupportEngineerExtension(instanceSpec.GetAiSupportEngineerExtension()),
 	}, nil
 }
 
@@ -512,6 +519,69 @@ func AkuityAPIToCrossplaneAgentPermissionsRules(agentPermissionsRules []*argocdv
 	return crossplaneAgentPermissionsRules
 }
 
+func AkuityAPIToCrossplaneKubeVisionArgoExtension(kubeVisionArgoExtension *argocdv1.KubeVisionArgoExtension) *crossplanetypes.KubeVisionArgoExtension {
+	if kubeVisionArgoExtension == nil {
+		return nil
+	}
+
+	return &crossplanetypes.KubeVisionArgoExtension{
+		Enabled:          ptr.To(kubeVisionArgoExtension.GetEnabled()),
+		AllowedUsernames: kubeVisionArgoExtension.GetAllowedUsernames(),
+		AllowedGroups:    kubeVisionArgoExtension.GetAllowedGroups(),
+	}
+}
+
+func AkuityAPIToCrossplaneCustomDeprecatedApis(customDeprecatedApis []*argocdv1.CustomDeprecatedAPI) []*crossplanetypes.CustomDeprecatedAPI {
+	if len(customDeprecatedApis) == 0 {
+		return nil
+	}
+
+	crossplaneCustomDeprecatedApis := make([]*crossplanetypes.CustomDeprecatedAPI, 0, len(customDeprecatedApis))
+	for _, c := range customDeprecatedApis {
+		crossplaneCustomDeprecatedApis = append(crossplaneCustomDeprecatedApis, &crossplanetypes.CustomDeprecatedAPI{
+			ApiVersion:                     c.ApiVersion,
+			NewApiVersion:                  c.NewApiVersion,
+			DeprecatedInKubernetesVersion:  c.DeprecatedInKubernetesVersion,
+			UnavailableInKubernetesVersion: c.UnavailableInKubernetesVersion,
+		})
+	}
+
+	return crossplaneCustomDeprecatedApis
+}
+
+func AkuityAPIToCrossplaneKubeVisionConfig(kubeVisionConfig *argocdv1.KubeVisionConfig) *crossplanetypes.KubeVisionConfig {
+	if kubeVisionConfig == nil {
+		return nil
+	}
+
+	return &crossplanetypes.KubeVisionConfig{
+		CveScanConfig: &crossplanetypes.CveScanConfig{
+			ScanEnabled:    ptr.To(kubeVisionConfig.GetCveScanConfig().GetScanEnabled()),
+			RescanInterval: kubeVisionConfig.GetCveScanConfig().GetRescanInterval(),
+		},
+	}
+}
+
+func AkuityAPIToCrossplaneAppInAnyNamespaceConfig(appInAnyNamespaceConfig *argocdv1.AppInAnyNamespaceConfig) *crossplanetypes.AppInAnyNamespaceConfig {
+	if appInAnyNamespaceConfig == nil {
+		return nil
+	}
+
+	return &crossplanetypes.AppInAnyNamespaceConfig{
+		Enabled: ptr.To(appInAnyNamespaceConfig.GetEnabled()),
+	}
+}
+
+func AkuityAPIToCrossplaneAiSupportEngineerExtension(aiSupportEngineerExtension *argocdv1.AISupportEngineerExtension) *crossplanetypes.AISupportEngineerExtension {
+	if aiSupportEngineerExtension == nil {
+		return nil
+	}
+
+	return &crossplanetypes.AISupportEngineerExtension{
+		Enabled: ptr.To(aiSupportEngineerExtension.GetEnabled()),
+	}
+}
+
 func CrossplaneToAkuityAPIArgoCD(name string, instance *crossplanetypes.ArgoCD) (*structpb.Struct, error) {
 	instanceSpec, err := CrossplaneToAkuityAPIInstanceSpec(instance.Spec.InstanceSpec)
 	if err != nil {
@@ -567,6 +637,14 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		AgentPermissionsRules:           CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
 		Fqdn:                            instanceSpec.Fqdn,
 		MultiClusterK8SDashboardEnabled: instanceSpec.MultiClusterK8SDashboardEnabled,
+		KubeVisionArgoExtension:         CrossplaneToAkuityAPIKubeVisionArgoExtension(instanceSpec.KubeVisionArgoExtension),
+		ImageUpdaterVersion:             instanceSpec.ImageUpdaterVersion,
+		CustomDeprecatedApis:            CrossplaneToAkuityAPICustomDeprecatedApis(instanceSpec.CustomDeprecatedApis),
+		KubeVisionConfig:                CrossplaneToAkuityAPIKubeVisionConfig(instanceSpec.KubeVisionConfig),
+		AppInAnyNamespaceConfig:         CrossplaneToAkuityAPIAppInAnyNamespaceConfig(instanceSpec.AppInAnyNamespaceConfig),
+		Basepath:                        instanceSpec.Basepath,
+		AppsetProgressiveSyncsEnabled:   instanceSpec.AppsetProgressiveSyncsEnabled,
+		AiSupportEngineerExtension:      CrossplaneToAkuityAPIAiSupportEngineerExtension(instanceSpec.AiSupportEngineerExtension),
 	}, nil
 }
 
@@ -788,4 +866,67 @@ func CrossplaneToAkuityAPIConfigManagementPlugins(configManagementPlugins map[st
 	}
 
 	return akConfigManagementPluginsPB, nil
+}
+
+func CrossplaneToAkuityAPIKubeVisionArgoExtension(kubeVisionArgoExtension *crossplanetypes.KubeVisionArgoExtension) *akuitytypes.KubeVisionArgoExtension {
+	if kubeVisionArgoExtension == nil {
+		return nil
+	}
+
+	return &akuitytypes.KubeVisionArgoExtension{
+		Enabled:          kubeVisionArgoExtension.Enabled,
+		AllowedUsernames: kubeVisionArgoExtension.AllowedUsernames,
+		AllowedGroups:    kubeVisionArgoExtension.AllowedGroups,
+	}
+}
+
+func CrossplaneToAkuityAPICustomDeprecatedApis(customDeprecatedApis []*crossplanetypes.CustomDeprecatedAPI) []*akuitytypes.CustomDeprecatedAPI {
+	if len(customDeprecatedApis) == 0 {
+		return nil
+	}
+
+	akuityCustomDeprecatedApis := make([]*akuitytypes.CustomDeprecatedAPI, 0, len(customDeprecatedApis))
+	for _, c := range customDeprecatedApis {
+		akuityCustomDeprecatedApis = append(akuityCustomDeprecatedApis, &akuitytypes.CustomDeprecatedAPI{
+			ApiVersion:                     c.ApiVersion,
+			NewApiVersion:                  c.NewApiVersion,
+			DeprecatedInKubernetesVersion:  c.DeprecatedInKubernetesVersion,
+			UnavailableInKubernetesVersion: c.UnavailableInKubernetesVersion,
+		})
+	}
+
+	return akuityCustomDeprecatedApis
+}
+
+func CrossplaneToAkuityAPIKubeVisionConfig(kubeVisionConfig *crossplanetypes.KubeVisionConfig) *akuitytypes.KubeVisionConfig {
+	if kubeVisionConfig == nil {
+		return nil
+	}
+
+	return &akuitytypes.KubeVisionConfig{
+		CveScanConfig: &akuitytypes.CveScanConfig{
+			ScanEnabled:    kubeVisionConfig.CveScanConfig.ScanEnabled,
+			RescanInterval: kubeVisionConfig.CveScanConfig.RescanInterval,
+		},
+	}
+}
+
+func CrossplaneToAkuityAPIAppInAnyNamespaceConfig(appInAnyNamespaceConfig *crossplanetypes.AppInAnyNamespaceConfig) *akuitytypes.AppInAnyNamespaceConfig {
+	if appInAnyNamespaceConfig == nil {
+		return nil
+	}
+
+	return &akuitytypes.AppInAnyNamespaceConfig{
+		Enabled: appInAnyNamespaceConfig.Enabled,
+	}
+}
+
+func CrossplaneToAkuityAPIAiSupportEngineerExtension(aiSupportEngineerExtension *crossplanetypes.AISupportEngineerExtension) *akuitytypes.AISupportEngineerExtension {
+	if aiSupportEngineerExtension == nil {
+		return nil
+	}
+
+	return &akuitytypes.AISupportEngineerExtension{
+		Enabled: aiSupportEngineerExtension.Enabled,
+	}
 }
