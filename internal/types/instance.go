@@ -550,23 +550,23 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 	return akuitytypes.InstanceSpec{
 		IpAllowList:                     CrossplaneToAkuityAPIIPAllowListEntry(instanceSpec.IpAllowList),
 		Subdomain:                       instanceSpec.Subdomain,
-		DeclarativeManagementEnabled:    ptr.Deref(instanceSpec.DeclarativeManagementEnabled, false),
+		DeclarativeManagementEnabled:    instanceSpec.DeclarativeManagementEnabled,
 		Extensions:                      CrossplaneToAkuityAPIArgoCDExtensionInstallEntry(instanceSpec.Extensions),
 		ClusterCustomizationDefaults:    clusterCustomization,
-		ImageUpdaterEnabled:             ptr.Deref(instanceSpec.ImageUpdaterEnabled, false),
-		BackendIpAllowListEnabled:       ptr.Deref(instanceSpec.BackendIpAllowListEnabled, false),
+		ImageUpdaterEnabled:             instanceSpec.ImageUpdaterEnabled,
+		BackendIpAllowListEnabled:       instanceSpec.BackendIpAllowListEnabled,
 		RepoServerDelegate:              CrossplaneToAkuityAPIRepoServerDelegate(instanceSpec.RepoServerDelegate),
-		AuditExtensionEnabled:           ptr.Deref(instanceSpec.AuditExtensionEnabled, false),
-		SyncHistoryExtensionEnabled:     ptr.Deref(instanceSpec.SyncHistoryExtensionEnabled, false),
+		AuditExtensionEnabled:           instanceSpec.AuditExtensionEnabled,
+		SyncHistoryExtensionEnabled:     instanceSpec.SyncHistoryExtensionEnabled,
 		CrossplaneExtension:             CrossplaneToAkuityAPICrossplaneExtension(instanceSpec.CrossplaneExtension),
 		ImageUpdaterDelegate:            CrossplaneToAkuityAPIImageUpdaterDelegate(instanceSpec.ImageUpdaterDelegate),
 		AppSetDelegate:                  CrossplaneToAkuityAPIAppSetDelegate(instanceSpec.AppSetDelegate),
-		AssistantExtensionEnabled:       ptr.Deref(instanceSpec.AssistantExtensionEnabled, false),
+		AssistantExtensionEnabled:       instanceSpec.AssistantExtensionEnabled,
 		AppsetPolicy:                    CrossplaneToAkuityAPIAppsetPolicy(instanceSpec.AppsetPolicy),
 		HostAliases:                     CrossplaneToAkuityAPIHostAliases(instanceSpec.HostAliases),
 		AgentPermissionsRules:           CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
 		Fqdn:                            instanceSpec.Fqdn,
-		MultiClusterK8SDashboardEnabled: ptr.Deref(instanceSpec.MultiClusterK8SDashboardEnabled, false),
+		MultiClusterK8SDashboardEnabled: instanceSpec.MultiClusterK8SDashboardEnabled,
 	}, nil
 }
 
@@ -607,10 +607,10 @@ func CrossplaneToAkuityAPIClusterCustomization(clusterCustomization *crossplanet
 	}
 
 	return &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: ptr.Deref(clusterCustomization.AutoUpgradeDisabled, false),
+		AutoUpgradeDisabled: clusterCustomization.AutoUpgradeDisabled,
 		Kustomization:       kustomization,
-		AppReplication:      ptr.Deref(clusterCustomization.AppReplication, false),
-		RedisTunneling:      ptr.Deref(clusterCustomization.RedisTunneling, false),
+		AppReplication:      clusterCustomization.AppReplication,
+		RedisTunneling:      clusterCustomization.RedisTunneling,
 	}, nil
 }
 
@@ -620,7 +620,7 @@ func CrossplaneToAkuityAPIRepoServerDelegate(repoServerDelegate *crossplanetypes
 	}
 
 	return &akuitytypes.RepoServerDelegate{
-		ControlPlane: ptr.Deref(repoServerDelegate.ControlPlane, false),
+		ControlPlane: repoServerDelegate.ControlPlane,
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: repoServerDelegate.ManagedCluster.ClusterName,
 		},
@@ -648,7 +648,7 @@ func CrossplaneToAkuityAPIImageUpdaterDelegate(imageUpdaterDelegate *crossplanet
 	}
 
 	return &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: ptr.Deref(imageUpdaterDelegate.ControlPlane, false),
+		ControlPlane: imageUpdaterDelegate.ControlPlane,
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: imageUpdaterDelegate.ManagedCluster.ClusterName,
 		},
@@ -674,7 +674,7 @@ func CrossplaneToAkuityAPIAppsetPolicy(appsetPolicy *crossplanetypes.AppsetPolic
 
 	return &akuitytypes.AppsetPolicy{
 		Policy:         appsetPolicy.Policy,
-		OverridePolicy: ptr.Deref(appsetPolicy.OverridePolicy, false),
+		OverridePolicy: appsetPolicy.OverridePolicy,
 	}
 }
 
