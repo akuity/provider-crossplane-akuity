@@ -202,7 +202,7 @@ func AkuityAPIToCrossplaneConfigManagementPlugins(pbConfigManagementPlugins []*s
 				Generate:         AkuityAPIToCrossplaneCommand(configManagementPlugin.Spec.Generate),
 				Discover:         AkuityAPIToCrossplaneDiscover(configManagementPlugin.Spec.Discover),
 				Parameters:       AkuityAPIToCrossplaneParameters(configManagementPlugin.Spec.Parameters),
-				PreserveFileMode: ptr.To(configManagementPlugin.Spec.PreserveFileMode),
+				PreserveFileMode: configManagementPlugin.Spec.PreserveFileMode,
 			},
 		}
 	}
@@ -256,7 +256,7 @@ func AkuityAPIToCrossplaneParameters(parameters *argocdtypes.Parameters) *crossp
 				Name:           static.Name,
 				Title:          static.Title,
 				Tooltip:        static.Tooltip,
-				Required:       ptr.To(static.Required),
+				Required:       static.Required,
 				ItemType:       static.ItemType,
 				CollectionType: static.CollectionType,
 				String_:        static.String_,
@@ -820,7 +820,7 @@ func CrossplaneToAkuityAPIConfigManagementPlugins(configManagementPlugins map[st
 				Name:           pm.Name,
 				Title:          pm.Title,
 				Tooltip:        pm.Tooltip,
-				Required:       ptr.Deref(pm.Required, false),
+				Required:       pm.Required,
 				ItemType:       pm.ItemType,
 				CollectionType: pm.CollectionType,
 				String_:        pm.String_,
@@ -853,7 +853,7 @@ func CrossplaneToAkuityAPIConfigManagementPlugins(configManagementPlugins map[st
 					Static:  static,
 					Dynamic: (*argocdtypes.Dynamic)(configManagementPlugin.Spec.Parameters.Dynamic),
 				},
-				PreserveFileMode: ptr.Deref(configManagementPlugin.Spec.PreserveFileMode, false),
+				PreserveFileMode: configManagementPlugin.Spec.PreserveFileMode,
 			},
 		}
 
