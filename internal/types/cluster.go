@@ -120,6 +120,60 @@ func CrossplaneToAkuityAPIManagedClusterConfig(managedClusterConfig *generated.M
 	}
 }
 
+func AkuityAPIToCrossplaneAutoscalerConfig(autoScaleConfig *argocdv1.AutoScalerConfig) *generated.AutoScalerConfig {
+	if autoScaleConfig == nil {
+		return nil
+	}
+
+	crossplaneAutoscalerConfig := &generated.AutoScalerConfig{}
+	if autoScaleConfig.GetApplicationController() != nil {
+		applicationController := &generated.AppControllerAutoScalingConfig{}
+		if autoScaleConfig.GetApplicationController().GetResourceMinimum() != nil {
+			applicationController.ResourceMinimum = &generated.Resources{
+				Mem: autoScaleConfig.GetApplicationController().GetResourceMinimum().GetMem(),
+				Cpu: autoScaleConfig.GetApplicationController().GetResourceMinimum().GetCpu(),
+			}
+		}
+		if autoScaleConfig.GetApplicationController().GetResourceMaximum() != nil {
+			applicationController.ResourceMaximum = &generated.Resources{
+				Mem: autoScaleConfig.GetApplicationController().GetResourceMaximum().GetMem(),
+				Cpu: autoScaleConfig.GetApplicationController().GetResourceMaximum().GetCpu(),
+			}
+		}
+		crossplaneAutoscalerConfig.ApplicationController = applicationController
+	}
+	if autoScaleConfig.GetRepoServer() != nil {
+		repoServer := &generated.RepoServerAutoScalingConfig{}
+		if autoScaleConfig.GetRepoServer().GetResourceMinimum() != nil {
+			repoServer.ResourceMinimum = &generated.Resources{
+				Mem: autoScaleConfig.GetRepoServer().GetResourceMinimum().GetMem(),
+				Cpu: autoScaleConfig.GetRepoServer().GetResourceMinimum().GetCpu(),
+			}
+		}
+		if autoScaleConfig.GetRepoServer().GetResourceMaximum() != nil {
+			repoServer.ResourceMaximum = &generated.Resources{
+				Mem: autoScaleConfig.GetRepoServer().GetResourceMaximum().GetMem(),
+				Cpu: autoScaleConfig.GetRepoServer().GetResourceMaximum().GetCpu(),
+			}
+		}
+		repoServer.ReplicaMinimum = autoScaleConfig.GetRepoServer().GetReplicaMinimum()
+		repoServer.ReplicaMaximum = autoScaleConfig.GetRepoServer().GetReplicaMaximum()
+		crossplaneAutoscalerConfig.RepoServer = repoServer
+	}
+
+	return crossplaneAutoscalerConfig
+}
+
+func AkuityAPIToCrossplaneCompatibility(compatibility *argocdv1.ClusterCompatibility) *generated.ClusterCompatibility {
+	if compatibility == nil {
+		return nil
+	}
+
+	return &generated.ClusterCompatibility{
+		Ipv6Only: ptr.To(compatibility.GetIpv6Only()),
+	}
+}
+
 func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.ClusterParameters, cluster *argocdv1.Cluster) (v1alpha1.ClusterParameters, error) {
 	kustomizationYAML, err := AkuityAPIKustomizationToCrossplaneKustomization(cluster.GetData().GetKustomization())
 	if err != nil {
@@ -164,6 +218,9 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 				EksAddonEnabled:                 cluster.GetData().EksAddonEnabled,           //nolint:all
 				ManagedClusterConfig:            AkuityAPIToCrossplaneManagedClusterConfig(cluster.GetData().GetManagedClusterConfig()),
 				MultiClusterK8SDashboardEnabled: cluster.GetData().MultiClusterK8SDashboardEnabled, //nolint:all
+				AutoscalerConfig:                AkuityAPIToCrossplaneAutoscalerConfig(cluster.GetData().GetAutoscalerConfig()),
+				Project:                         cluster.GetData().GetProject(),
+				Compatibility:                   AkuityAPIToCrossplaneCompatibility(cluster.GetData().GetCompatibility()),
 			},
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
@@ -173,6 +230,60 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 		},
 		RemoveAgentResourcesOnDestroy: managedCluster.RemoveAgentResourcesOnDestroy,
 	}, nil
+}
+
+func CrossplaneToAkuityAPIAutoscalerConfig(autoscalerConfig *generated.AutoScalerConfig) *akuitytypes.AutoScalerConfig {
+	if autoscalerConfig == nil {
+		return nil
+	}
+
+	akuityAutoscalerConfig := &akuitytypes.AutoScalerConfig{}
+	if autoscalerConfig.ApplicationController != nil {
+		applicationController := &akuitytypes.AppControllerAutoScalingConfig{}
+		if autoscalerConfig.ApplicationController.ResourceMinimum != nil {
+			applicationController.ResourceMinimum = &akuitytypes.Resources{
+				Mem: autoscalerConfig.ApplicationController.ResourceMinimum.Mem,
+				Cpu: autoscalerConfig.ApplicationController.ResourceMinimum.Cpu,
+			}
+		}
+		if autoscalerConfig.ApplicationController.ResourceMaximum != nil {
+			applicationController.ResourceMaximum = &akuitytypes.Resources{
+				Mem: autoscalerConfig.ApplicationController.ResourceMaximum.Mem,
+				Cpu: autoscalerConfig.ApplicationController.ResourceMaximum.Cpu,
+			}
+		}
+		akuityAutoscalerConfig.ApplicationController = applicationController
+	}
+	if autoscalerConfig.RepoServer != nil {
+		repoServer := &akuitytypes.RepoServerAutoScalingConfig{}
+		if autoscalerConfig.RepoServer.ResourceMinimum != nil {
+			repoServer.ResourceMinimum = &akuitytypes.Resources{
+				Mem: autoscalerConfig.RepoServer.ResourceMinimum.Mem,
+				Cpu: autoscalerConfig.RepoServer.ResourceMinimum.Cpu,
+			}
+		}
+		if autoscalerConfig.RepoServer.ResourceMaximum != nil {
+			repoServer.ResourceMaximum = &akuitytypes.Resources{
+				Mem: autoscalerConfig.RepoServer.ResourceMaximum.Mem,
+				Cpu: autoscalerConfig.RepoServer.ResourceMaximum.Cpu,
+			}
+		}
+		repoServer.ReplicaMinimum = autoscalerConfig.RepoServer.ReplicaMinimum
+		repoServer.ReplicaMaximum = autoscalerConfig.RepoServer.ReplicaMaximum
+		akuityAutoscalerConfig.RepoServer = repoServer
+	}
+
+	return akuityAutoscalerConfig
+}
+
+func CrossplaneToAkuityAPICompatibility(compatibility *generated.ClusterCompatibility) *akuitytypes.ClusterCompatibility {
+	if compatibility == nil {
+		return nil
+	}
+
+	return &akuitytypes.ClusterCompatibility{
+		Ipv6Only: compatibility.Ipv6Only,
+	}
 }
 
 func CrossplaneToAkuityAPICluster(cluster v1alpha1.ClusterParameters) (akuitytypes.Cluster, error) {
@@ -210,6 +321,9 @@ func CrossplaneToAkuityAPICluster(cluster v1alpha1.ClusterParameters) (akuitytyp
 				EksAddonEnabled:                 cluster.ClusterSpec.Data.EksAddonEnabled,
 				ManagedClusterConfig:            CrossplaneToAkuityAPIManagedClusterConfig(cluster.ClusterSpec.Data.ManagedClusterConfig),
 				MultiClusterK8SDashboardEnabled: cluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
+				AutoscalerConfig:                CrossplaneToAkuityAPIAutoscalerConfig(cluster.ClusterSpec.Data.AutoscalerConfig),
+				Project:                         cluster.ClusterSpec.Data.Project,
+				Compatibility:                   CrossplaneToAkuityAPICompatibility(cluster.ClusterSpec.Data.Compatibility),
 			},
 		},
 	}, nil
