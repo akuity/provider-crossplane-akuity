@@ -62,6 +62,8 @@ spec:
           secretKey: "secretKey"
         multiClusterK8sDashboardEnabled: true
         project: "test"
+        compatibility:
+          ipv6Only: false
     # Use the example Kubernetes Secret above to pass a kubeconfig to the
     # provider.
     # kubeconfigSecretRef:
