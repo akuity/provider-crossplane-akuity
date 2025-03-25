@@ -64,6 +64,23 @@ spec:
         project: "test"
         compatibility:
           ipv6Only: false
+        autoscalerConfig:
+          applicationController:
+            resourceMaximum:
+              mem: "8Gi"
+              cpu: "4"
+            resourceMinimum:
+              mem: "0.5Gi"
+              cpu: "250m"
+          repoServer:
+            resourceMaximum:
+              mem: "6Gi"
+              cpu: "4"
+            resourceMinimum:
+              mem: "0.25Gi"
+              cpu: "250m"
+            replicaMaximum: 4
+            replicaMinimum: 1
     # Use the example Kubernetes Secret above to pass a kubeconfig to the
     # provider.
     # kubeconfigSecretRef:
