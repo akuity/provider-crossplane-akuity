@@ -539,10 +539,10 @@ func AkuityAPIToCrossplaneCustomDeprecatedApis(customDeprecatedApis []*argocdv1.
 	crossplaneCustomDeprecatedApis := make([]*crossplanetypes.CustomDeprecatedAPI, 0, len(customDeprecatedApis))
 	for _, c := range customDeprecatedApis {
 		crossplaneCustomDeprecatedApis = append(crossplaneCustomDeprecatedApis, &crossplanetypes.CustomDeprecatedAPI{
-			ApiVersion:                     c.ApiVersion,
-			NewApiVersion:                  c.NewApiVersion,
-			DeprecatedInKubernetesVersion:  c.DeprecatedInKubernetesVersion,
-			UnavailableInKubernetesVersion: c.UnavailableInKubernetesVersion,
+			ApiVersion:                     c.GetApiVersion(),
+			NewApiVersion:                  c.GetNewApiVersion(),
+			DeprecatedInKubernetesVersion:  c.GetDeprecatedInKubernetesVersion(),
+			UnavailableInKubernetesVersion: c.GetUnavailableInKubernetesVersion(),
 		})
 	}
 
