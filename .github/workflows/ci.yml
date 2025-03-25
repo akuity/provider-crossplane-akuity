@@ -9,7 +9,7 @@ on:
 
 env:
   GO_VERSION: '1.21'
-  GOLANGCILINT_VERSION: 'v1.55.2'
+  GOLANGCILINT_VERSION: 'v1.64.6'
   DOCKER_BUILDX_VERSION: 'v0.12.0'
 
 jobs:
@@ -63,12 +63,8 @@ jobs:
       - name: Vendor Dependencies
         run: make vendor vendor.check
 
-      # We could run 'make lint' but we prefer this action because it leaves
-      # 'annotations' (i.e. it comments on PRs to point out linter violations).
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: ${{ env.GOLANGCILINT_VERSION }}
+        run: make lint
 
   check-diff:
     runs-on: ubuntu-22.04

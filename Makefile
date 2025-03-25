@@ -6,7 +6,7 @@ PROJECT_REPO := github.com/akuityio/$(PROJECT_NAME)
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
 
-GOLANGCILINT_VERSION := 1.55.2
+GOLANGCILINT_VERSION := 1.64.6
 
 # ====================================================================================
 # Setup Output
