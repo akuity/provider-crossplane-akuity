@@ -13,7 +13,6 @@ spec:
         instanceSpec:
           declarativeManagementEnabled: false
           backendIpAllowListEnabled: true
-          imageUpdaterEnabled: true
           ipAllowList:
             - description: "dummy entry2"
               ip: "1.2.3.4"
@@ -41,7 +40,8 @@ spec:
               - "admin"
             allowedGroups:
               - "developers"
-          imageUpdaterVersion: "",
+          imageUpdaterEnabled: true
+          imageUpdaterVersion: "v0.15.2"
           customDeprecatedApis:
             - apiVersion: "apps/v1"
               newApiVersion: "apps/v2"
