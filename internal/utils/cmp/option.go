@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func EquateEmpty() []cmp.Option {
@@ -13,7 +14,26 @@ func EquateEmpty() []cmp.Option {
 		cmp.FilterValues(func(x, y any) bool {
 			return isZeroValue(x) && isZeroValue(y)
 		}, cmp.Ignore()),
+		cmp.FilterValues(func(x, y any) bool {
+			return areEquivalentResourceQuantities(x, y)
+		}, cmp.Ignore()),
 	}
+}
+
+func areEquivalentResourceQuantities(x, y any) bool {
+	xStr, xOk := x.(string)
+	yStr, yOk := y.(string)
+	if !xOk || !yOk {
+		return false
+	}
+
+	xQuantity, xErr := resource.ParseQuantity(xStr)
+	yQuantity, yErr := resource.ParseQuantity(yStr)
+	if xErr != nil || yErr != nil {
+		return false
+	}
+
+	return xQuantity.Equal(yQuantity)
 }
 
 func isZeroValue(x any) bool { //nolint:gocyclo
@@ -27,12 +47,20 @@ func isZeroValue(x any) bool { //nolint:gocyclo
 			return true
 		}
 		if v.Elem().Kind() == reflect.Struct {
-			return isZeroValue(v.Elem().Interface())
+			allZero := true
+			for i := 0; i < v.Elem().NumField(); i++ {
+				field := v.Elem().Field(i)
+				if !isZeroValue(field.Interface()) {
+					allZero = false
+					break
+				}
+			}
+			return allZero
 		}
 		if v.Elem().Kind() == reflect.Bool {
 			return !v.Elem().Bool()
 		}
-		return false
+		return isZeroValue(v.Elem().Interface())
 	case reflect.Slice, reflect.Map, reflect.Chan:
 		return v.IsNil() || v.Len() == 0
 	case reflect.Struct:
