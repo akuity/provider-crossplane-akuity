@@ -189,11 +189,16 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 	}
 
 	size := "small"
-	if cluster.GetData().GetSize() == argocdv1.ClusterSize_CLUSTER_SIZE_MEDIUM {
+	switch cluster.GetData().GetSize() {
+	case argocdv1.ClusterSize_CLUSTER_SIZE_UNSPECIFIED:
+		size = ""
+	case argocdv1.ClusterSize_CLUSTER_SIZE_SMALL:
+		size = "small"
+	case argocdv1.ClusterSize_CLUSTER_SIZE_MEDIUM:
 		size = "medium"
-	} else if cluster.GetData().GetSize() == argocdv1.ClusterSize_CLUSTER_SIZE_LARGE {
+	case argocdv1.ClusterSize_CLUSTER_SIZE_LARGE:
 		size = "large"
-	} else if cluster.GetData().GetSize() == argocdv1.ClusterSize_CLUSTER_SIZE_AUTO {
+	case argocdv1.ClusterSize_CLUSTER_SIZE_AUTO:
 		size = "auto"
 	}
 

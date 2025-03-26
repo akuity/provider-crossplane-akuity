@@ -14,9 +14,7 @@ func EquateEmpty() []cmp.Option {
 		cmp.FilterValues(func(x, y any) bool {
 			return isZeroValue(x) && isZeroValue(y)
 		}, cmp.Ignore()),
-		cmp.FilterValues(func(x, y any) bool {
-			return areEquivalentResourceQuantities(x, y)
-		}, cmp.Ignore()),
+		cmp.FilterValues(areEquivalentResourceQuantities, cmp.Ignore()),
 	}
 }
 
