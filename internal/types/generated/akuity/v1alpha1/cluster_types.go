@@ -10,6 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+
+// Cluster is the Schema for the cluster API
 type Cluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -21,6 +25,9 @@ type ClusterSize string
 
 type DirectClusterType string
 
+//+kubebuilder:object:root=true
+
+// ClusterList contains a list of Cluster
 type ClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
