@@ -1,8 +1,6 @@
 module github.com/akuityio/provider-crossplane-akuity
 
-go 1.22.7
-
-toolchain go1.23.4
+go 1.23.4
 
 require (
 	github.com/akuity/api-client-go v0.21.3
