@@ -330,6 +330,14 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 			managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain = actualInstance.ArgoCD.Spec.InstanceSpec.Subdomain
 			managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn = actualInstance.ArgoCD.Spec.InstanceSpec.Fqdn
 		}
+
+		if managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig == nil {
+			managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig = actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+		}
+
+		if managedInstance.ArgoCD.Spec.InstanceSpec.AiSupportEngineerExtension == nil {
+			managedInstance.ArgoCD.Spec.InstanceSpec.AiSupportEngineerExtension = actualInstance.ArgoCD.Spec.InstanceSpec.AiSupportEngineerExtension
+		}
 	}
 
 	// some configmap values have stable orders which may not be the same as user input
