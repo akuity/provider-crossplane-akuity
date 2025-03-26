@@ -6,6 +6,7 @@ import (
 	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -65,14 +66,14 @@ patches:
 		Annotations: Annotations,
 		ClusterSpec: generated.ClusterSpec{
 			Description:     "test-description",
-			NamespaceScoped: true,
+			NamespaceScoped: ptr.To(true),
 			Data: generated.ClusterData{
 				Size:                "medium",
-				AutoUpgradeDisabled: AutoUpgradeDisabled,
+				AutoUpgradeDisabled: ptr.To(AutoUpgradeDisabled),
 				Kustomization:       KustomizationYAML,
-				AppReplication:      AppReplication,
+				AppReplication:      ptr.To(AppReplication),
 				TargetVersion:       "v1.2.3",
-				RedisTunneling:      RedisTunneling,
+				RedisTunneling:      ptr.To(RedisTunneling),
 			},
 		},
 		EnableInClusterKubeConfig: true,
@@ -124,7 +125,7 @@ patches:
 		},
 		Spec: akuitytypes.ClusterSpec{
 			Description:     "test-description",
-			NamespaceScoped: true,
+			NamespaceScoped: ptr.To(true),
 			Data: akuitytypes.ClusterData{
 				Size:                akuitytypes.ClusterSize("medium"),
 				AutoUpgradeDisabled: &AutoUpgradeDisabled,

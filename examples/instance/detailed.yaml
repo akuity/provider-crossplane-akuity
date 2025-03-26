@@ -9,11 +9,10 @@ spec:
     argocd:
       spec:
         description: "My ArgoCD instance used for my project."
-        version: "v2.11.4"
+        version: "v2.14.2-ak.52"
         instanceSpec:
           declarativeManagementEnabled: false
           backendIpAllowListEnabled: true
-          imageUpdaterEnabled: true
           ipAllowList:
             - description: "dummy entry2"
               ip: "1.2.3.4"
@@ -35,6 +34,29 @@ spec:
               verbs: [ "create" ]
           fqdn: "instance.example.com"
           multiClusterK8sDashboardEnabled: true
+          kubeVisionArgoExtension:
+            enabled: true
+            allowedUsernames:
+              - "admin"
+            allowedGroups:
+              - "developers"
+          imageUpdaterEnabled: true
+          imageUpdaterVersion: "v0.15.2"
+          customDeprecatedApis:
+            - apiVersion: "apps/v1"
+              newApiVersion: "apps/v2"
+              deprecatedInKubernetesVersion: "1.18"
+              unavailableInKubernetesVersion: "1.19"
+          kubeVisionConfig:
+            cveScanConfig:
+              scanEnabled: true
+              rescanInterval: 8h
+          appInAnyNamespaceConfig:
+            enabled: true
+          basepath: ""
+          appsetProgressiveSyncsEnabled: true
+          aiSupportEngineerExtension:
+            enabled: true
     argocdConfigMap:
       # When configuring the `argocdConfigMap`, make sure to specify the following keys (from "exec.enabled", to "users.anonymous.enabled") 
       # since these keys are added by Akuity Platform by default. If they are not defined, you may see inconsistent results and errors from the provider.
