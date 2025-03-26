@@ -189,7 +189,7 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 	}
 
 	size := "small"
-	switch cluster.GetData().GetSize() {
+	switch cluster.GetData().GetSize() { //nolint:exhaustive
 	case argocdv1.ClusterSize_CLUSTER_SIZE_MEDIUM:
 		size = "medium"
 	case argocdv1.ClusterSize_CLUSTER_SIZE_LARGE:
