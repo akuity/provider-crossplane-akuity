@@ -14,10 +14,6 @@ const (
 	AnnotationCMPImage   = "akuity.io/image"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-
-// ConfigManagementPlugin is the Schema for the ConfigManagementPlugin API
 type ConfigManagementPlugin struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -25,9 +21,6 @@ type ConfigManagementPlugin struct {
 	Spec PluginSpec `json:"spec,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
-// ConfigManagementPluginList contains a list of ConfigManagementPlugin
 type ConfigManagementPluginList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
