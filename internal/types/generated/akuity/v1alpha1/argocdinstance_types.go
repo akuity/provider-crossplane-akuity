@@ -10,10 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-
-// ArgoCD is the Schema for the argocd API
 type ArgoCD struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -21,9 +17,6 @@ type ArgoCD struct {
 	Spec ArgoCDSpec `json:"spec,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
-// ArgoCDList contains a list of ArgoCD
 type ArgoCDList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
