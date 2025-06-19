@@ -15,8 +15,8 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	k8s.io/apimachinery v0.33.1
-	k8s.io/client-go v0.33.0
-	k8s.io/kubectl v0.29.1
+	k8s.io/client-go v0.33.1
+	k8s.io/kubectl v0.33.1
 	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/controller-tools v0.16.0
 )
@@ -36,7 +36,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.33.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
-	k8s.io/component-base v0.33.0 // indirect
+	k8s.io/component-base v0.33.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
