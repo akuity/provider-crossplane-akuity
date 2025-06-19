@@ -224,18 +224,22 @@ func (c *External) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	return managed.ExternalUpdate{}, err
 }
 
-func (c *External) Delete(ctx context.Context, mg resource.Managed) error {
+func (c *External) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	managedInstance, ok := mg.(*v1alpha1.Instance)
 	if !ok {
-		return errors.New(errNotInstance)
+		return managed.ExternalDelete{}, errors.New(errNotInstance)
 	}
 
 	externalName := meta.GetExternalName(managedInstance)
 	if externalName == "" {
-		return nil
+		return managed.ExternalDelete{}, nil
 	}
 
-	return c.client.DeleteInstance(ctx, externalName)
+	return managed.ExternalDelete{}, c.client.DeleteInstance(ctx, externalName)
+}
+
+func (c *External) Disconnect(ctx context.Context) error {
+	return nil
 }
 
 func lateInitializeInstance(in *v1alpha1.InstanceParameters, instance *argocdv1.Instance, exportedInstance *argocdv1.ExportInstanceResponse) error {

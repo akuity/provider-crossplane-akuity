@@ -214,8 +214,9 @@ func TestDelete_NotClusterErr(t *testing.T) {
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
 	client := cluster.NewExternal(mockAkuityClient, fake.NewClientBuilder().Build(), logging.NewNopLogger())
 
-	err := client.Delete(ctx, &v1alpha1.Instance{})
+	resp, err := client.Delete(ctx, &v1alpha1.Instance{})
 	require.Error(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
 func TestDelete_NoExternalName(t *testing.T) {
@@ -224,8 +225,9 @@ func TestDelete_NoExternalName(t *testing.T) {
 
 	managedCluster := &v1alpha1.Cluster{}
 
-	err := client.Delete(ctx, managedCluster)
+	resp, err := client.Delete(ctx, managedCluster)
 	require.NoError(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
 func TestDelete_RemoveAgentResourcesOnDestroy_GetClusterManifestsErr(t *testing.T) {
@@ -248,8 +250,9 @@ func TestDelete_RemoveAgentResourcesOnDestroy_GetClusterManifestsErr(t *testing.
 	mockAkuityClient.EXPECT().GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name).
 		Return("", errors.New("fake")).Times(1)
 
-	err := client.Delete(ctx, &managedCluster)
+	resp, err := client.Delete(ctx, &managedCluster)
 	require.Error(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
 func TestDelete_RemoveAgentResourcesOnDestroy_ApplyClusterManifestsErr(t *testing.T) {
@@ -268,8 +271,9 @@ func TestDelete_RemoveAgentResourcesOnDestroy_ApplyClusterManifestsErr(t *testin
 	mockAkuityClient.EXPECT().GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name).
 		Return("", nil).Times(1)
 
-	err := client.Delete(ctx, &managedCluster)
+	resp, err := client.Delete(ctx, &managedCluster)
 	require.Error(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
 func TestDelete_DeleteClusterErr(t *testing.T) {
@@ -287,8 +291,9 @@ func TestDelete_DeleteClusterErr(t *testing.T) {
 	mockAkuityClient.EXPECT().DeleteCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
 		Return(errors.New("fake")).Times(1)
 
-	err := client.Delete(ctx, &managedCluster)
+	resp, err := client.Delete(ctx, &managedCluster)
 	require.Error(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
 func TestObserve_NotClusterErr(t *testing.T) {
