@@ -262,35 +262,39 @@ func (c *External) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	return managed.ExternalUpdate{}, err
 }
 
-func (c *External) Delete(ctx context.Context, mg resource.Managed) error {
+func (c *External) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	managedCluster, ok := mg.(*v1alpha1.Cluster)
 	if !ok {
-		return errors.New(errNotCluster)
+		return managed.ExternalDelete{}, errors.New(errNotCluster)
 	}
 
 	externalName := meta.GetExternalName(managedCluster)
 	if externalName == "" {
-		return nil
+		return managed.ExternalDelete{}, nil
 	}
 
 	if managedCluster.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
 		(managedCluster.Spec.ForProvider.EnableInClusterKubeConfig || managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name != "") {
 		clusterManifests, err := c.client.GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name)
 		if err != nil {
-			return fmt.Errorf("could not get cluster manifests to delete: %w", err)
+			return managed.ExternalDelete{}, fmt.Errorf("could not get cluster manifests to delete: %w", err)
 		}
 
 		err = c.applyClusterManifests(ctx, *managedCluster, clusterManifests, true)
 		if err != nil {
-			return fmt.Errorf("could not delete cluster manifests: %w", err)
+			return managed.ExternalDelete{}, fmt.Errorf("could not delete cluster manifests: %w", err)
 		}
 	}
 
 	err := c.client.DeleteCluster(ctx, managedCluster.Spec.ForProvider.InstanceID, externalName)
 	if err != nil {
-		return fmt.Errorf("could not delete cluster: %w", err)
+		return managed.ExternalDelete{}, fmt.Errorf("could not delete cluster: %w", err)
 	}
 
+	return managed.ExternalDelete{}, nil
+}
+
+func (c *External) Disconnect(ctx context.Context) error {
 	return nil
 }
 

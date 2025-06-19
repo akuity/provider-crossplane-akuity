@@ -20,8 +20,6 @@ import (
 	"context"
 	"testing"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/reconciler/managed"
@@ -30,6 +28,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
@@ -187,22 +188,25 @@ func TestDelete(t *testing.T) {
 
 	mockAkuityClient.EXPECT().DeleteInstance(ctx, fixtures.InstanceName).Return(nil).Times(1)
 
-	err := client.Delete(ctx, &managedInstance)
+	resp, err := client.Delete(ctx, &managedInstance)
 	require.NoError(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
 func TestDelete_NotInstanceErr(t *testing.T) {
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
 	client := instance.NewExternal(mockAkuityClient, logging.NewNopLogger())
-	err := client.Delete(ctx, &v1alpha1.Cluster{})
+	resp, err := client.Delete(ctx, &v1alpha1.Cluster{})
 	require.Error(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
 func TestDelete_EmptyExternalName(t *testing.T) {
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
 	client := instance.NewExternal(mockAkuityClient, logging.NewNopLogger())
-	err := client.Delete(ctx, &v1alpha1.Instance{})
+	resp, err := client.Delete(ctx, &v1alpha1.Instance{})
 	require.NoError(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
 func TestDelete_ClientErr(t *testing.T) {
@@ -218,8 +222,9 @@ func TestDelete_ClientErr(t *testing.T) {
 
 	mockAkuityClient.EXPECT().DeleteInstance(ctx, fixtures.InstanceName).Return(errors.New("fake")).Times(1)
 
-	err := client.Delete(ctx, &managedInstance)
+	resp, err := client.Delete(ctx, &managedInstance)
 	require.Error(t, err)
+	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 func TestObserve_NotInstanceErr(t *testing.T) {
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
