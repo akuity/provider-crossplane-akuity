@@ -6,7 +6,7 @@ require (
 	github.com/akuity/api-client-go v0.21.3
 	github.com/akuity/grpc-gateway-client v0.0.0-20240912082144-55a48e8b4b89
 	github.com/avast/retry-go/v4 v4.6.0
-	github.com/crossplane/crossplane-runtime v1.18.0
+	github.com/crossplane/crossplane-runtime v1.20.0
 	github.com/crossplane/crossplane-tools v0.0.0-20230925130601-628280f8bf79
 	github.com/google/go-cmp v0.7.0
 	github.com/pkg/errors v0.9.1
@@ -24,7 +24,7 @@ require (
 require (
 	github.com/alevinval/sse v1.0.2 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
+	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-resty/resty/v2 v2.11.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
