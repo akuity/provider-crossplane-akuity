@@ -7,6 +7,7 @@ PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
 
 GOLANGCILINT_VERSION := 1.64.6
+GO_LINT_ARGS := --timeout=10m
 
 # ====================================================================================
 # Setup Output
