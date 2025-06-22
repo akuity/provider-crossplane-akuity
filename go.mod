@@ -11,7 +11,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
-	go.uber.org/mock v0.4.0
+	go.uber.org/mock v0.5.2
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	k8s.io/apimachinery v0.33.1
