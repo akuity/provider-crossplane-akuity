@@ -103,6 +103,8 @@ spec:
                                 properties:
                                   enabled:
                                     type: boolean
+                                  modelVersion:
+                                    type: string
                                 type: object
                               appInAnyNamespaceConfig:
                                 properties:
@@ -117,6 +119,25 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                              applicationSetExtension:
+                                properties:
+                                  enabled:
+                                    type: boolean
+                                type: object
+                              appsetPlugins:
+                                items:
+                                  properties:
+                                    baseUrl:
+                                      type: string
+                                    name:
+                                      type: string
+                                    requestTimeout:
+                                      format: int32
+                                      type: integer
+                                    token:
+                                      type: string
+                                  type: object
+                                type: array
                               appsetPolicy:
                                 properties:
                                   overridePolicy:
@@ -230,6 +251,61 @@ spec:
                                 type: object
                               kubeVisionConfig:
                                 properties:
+                                  aiConfig:
+                                    properties:
+                                      incidents:
+                                        properties:
+                                          degradedArgocdApps:
+                                            type: boolean
+                                          degradedK8sNamespaces:
+                                            type: boolean
+                                          subscriptions:
+                                            items:
+                                              properties:
+                                                argocdApplications:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                clusters:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                k8sNamespaces:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                runbooks:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          webhooks:
+                                            items:
+                                              properties:
+                                                argocdApplicationNamePath:
+                                                  type: string
+                                                clusterPath:
+                                                  type: string
+                                                descriptionPath:
+                                                  type: string
+                                                k8sNamespacePath:
+                                                  type: string
+                                                name:
+                                                  type: string
+                                              type: object
+                                            type: array
+                                        type: object
+                                      runbooks:
+                                        items:
+                                          properties:
+                                            content:
+                                              type: string
+                                            name:
+                                              type: string
+                                          type: object
+                                        type: array
+                                    type: object
                                   cveScanConfig:
                                     properties:
                                       rescanInterval:
@@ -712,6 +788,8 @@ spec:
                                 properties:
                                   enabled:
                                     type: boolean
+                                  modelVersion:
+                                    type: string
                                 type: object
                               appInAnyNamespaceConfig:
                                 properties:
@@ -726,6 +804,25 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                              applicationSetExtension:
+                                properties:
+                                  enabled:
+                                    type: boolean
+                                type: object
+                              appsetPlugins:
+                                items:
+                                  properties:
+                                    baseUrl:
+                                      type: string
+                                    name:
+                                      type: string
+                                    requestTimeout:
+                                      format: int32
+                                      type: integer
+                                    token:
+                                      type: string
+                                  type: object
+                                type: array
                               appsetPolicy:
                                 properties:
                                   overridePolicy:
@@ -839,6 +936,61 @@ spec:
                                 type: object
                               kubeVisionConfig:
                                 properties:
+                                  aiConfig:
+                                    properties:
+                                      incidents:
+                                        properties:
+                                          degradedArgocdApps:
+                                            type: boolean
+                                          degradedK8sNamespaces:
+                                            type: boolean
+                                          subscriptions:
+                                            items:
+                                              properties:
+                                                argocdApplications:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                clusters:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                k8sNamespaces:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                runbooks:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          webhooks:
+                                            items:
+                                              properties:
+                                                argocdApplicationNamePath:
+                                                  type: string
+                                                clusterPath:
+                                                  type: string
+                                                descriptionPath:
+                                                  type: string
+                                                k8sNamespacePath:
+                                                  type: string
+                                                name:
+                                                  type: string
+                                              type: object
+                                            type: array
+                                        type: object
+                                      runbooks:
+                                        items:
+                                          properties:
+                                            content:
+                                              type: string
+                                            name:
+                                              type: string
+                                          type: object
+                                        type: array
+                                    type: object
                                   cveScanConfig:
                                     properties:
                                       rescanInterval:
