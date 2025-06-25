@@ -86,6 +86,11 @@ spec:
                         properties:
                           appReplication:
                             type: boolean
+                          argocdNotificationsSettings:
+                            properties:
+                              inClusterSettings:
+                                type: boolean
+                            type: object
                           autoUpgradeDisabled:
                             type: boolean
                           autoscalerConfig:

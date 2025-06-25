@@ -10,10 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-
-// ArgoCD is the Schema for the argocd API
 type ArgoCD struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -21,9 +17,6 @@ type ArgoCD struct {
 	Spec ArgoCDSpec `json:"spec,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
-// ArgoCDList contains a list of ArgoCD
 type ArgoCDList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -78,8 +71,41 @@ type KubeVisionArgoExtension struct {
 	AllowedGroups    []string `json:"allowedGroups,omitempty"`
 }
 
+type IncidentSubscription struct {
+	ArgocdApplications []string `json:"argocdApplications,omitempty"`
+	K8SNamespaces      []string `json:"k8sNamespaces,omitempty"`
+	Clusters           []string `json:"clusters,omitempty"`
+	Runbooks           []string `json:"runbooks,omitempty"`
+}
+
+type Runbook struct {
+	Name    string `json:"name,omitempty"`
+	Content string `json:"content,omitempty"`
+}
+
+type IncidentWebhookConfig struct {
+	Name                      string `json:"name,omitempty"`
+	DescriptionPath           string `json:"descriptionPath,omitempty"`
+	ClusterPath               string `json:"clusterPath,omitempty"`
+	K8SNamespacePath          string `json:"k8sNamespacePath,omitempty"`
+	ArgocdApplicationNamePath string `json:"argocdApplicationNamePath,omitempty"`
+}
+
+type IncidentsConfig struct {
+	DegradedArgocdApps    *bool                    `json:"degradedArgocdApps,omitempty"`
+	DegradedK8SNamespaces *bool                    `json:"degradedK8sNamespaces,omitempty"`
+	Subscriptions         []*IncidentSubscription  `json:"subscriptions,omitempty"`
+	Webhooks              []*IncidentWebhookConfig `json:"webhooks,omitempty"`
+}
+
+type AIConfig struct {
+	Runbooks  []*Runbook       `json:"runbooks,omitempty"`
+	Incidents *IncidentsConfig `json:"incidents,omitempty"`
+}
+
 type KubeVisionConfig struct {
 	CveScanConfig *CveScanConfig `json:"cveScanConfig,omitempty"`
+	AiConfig      *AIConfig      `json:"aiConfig,omitempty"`
 }
 
 type AppInAnyNamespaceConfig struct {
@@ -120,6 +146,11 @@ type SecretsManagementConfig struct {
 }
 
 type AISupportEngineerExtension struct {
+	Enabled      *bool  `json:"enabled,omitempty"`
+	ModelVersion string `json:"modelVersion,omitempty"`
+}
+
+type ApplicationSetExtension struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
@@ -152,6 +183,15 @@ type InstanceSpec struct {
 	AppsetProgressiveSyncsEnabled   *bool                          `json:"appsetProgressiveSyncsEnabled,omitempty"`
 	AiSupportEngineerExtension      *AISupportEngineerExtension    `json:"aiSupportEngineerExtension,omitempty"`
 	Secrets                         *SecretsManagementConfig       `json:"secrets,omitempty"`
+	AppsetPlugins                   []*AppsetPlugins               `json:"appsetPlugins,omitempty"`
+	ApplicationSetExtension         *ApplicationSetExtension       `json:"applicationSetExtension,omitempty"`
+}
+
+type AppsetPlugins struct {
+	Name           string `json:"name,omitempty"`
+	Token          string `json:"token,omitempty"`
+	BaseUrl        string `json:"baseUrl,omitempty"`
+	RequestTimeout int32  `json:"requestTimeout,omitempty"`
 }
 
 type ManagedCluster struct {
