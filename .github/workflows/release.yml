@@ -3,61 +3,57 @@ name: Release
 on:
   push:
     tags:
-      - '*'
+      - "*"
 
 env:
-  GO_VERSION: '1.21'
-  DOCKER_BUILDX_VERSION: 'v0.12.0'
+  GO_VERSION: "1.25"
 
 jobs:
   build-and-release-artifacts:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         with:
           platforms: all
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         with:
-          version: ${{ env.DOCKER_BUILDX_VERSION }}
           install: true
-      
+
       - name: Login to Google Artifact Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: us-docker.pkg.dev
           username: ${{ secrets.ARTIFACT_REGISTRY_USERNAME }}
           password: ${{ secrets.ARTIFACT_REGISTRY_PASSWORD }}
 
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           submodules: true
-
-      - name: Fetch History
-        run: git fetch --prune --unshallow
+          fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Find the Go Build Cache
         id: go
-        run: echo "::set-output name=cache::$(make go.cachedir)"
+        run: echo "cache=$(make go.cachedir)" >> $GITHUB_OUTPUT
 
       - name: Cache the Go Build Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.go.outputs.cache }}
           key: ${{ runner.os }}-build-publish-artifacts-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-build-publish-artifacts-
 
       - name: Cache Go Dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
@@ -77,7 +73,7 @@ jobs:
       - name: Publish Artifacts
         run: |
           set -euo pipefail
-          curl -sL https://raw.githubusercontent.com/crossplane/crossplane/v1.13.2/install.sh | XP_VERSION=v1.13.2 sh
+          curl -sL https://raw.githubusercontent.com/crossplane/crossplane/v1.20.1/install.sh | XP_VERSION=v1.20.1 sh
           sudo mv kubectl-crossplane /usr/local/bin
           make akuity-publish
         env:

@@ -6,8 +6,9 @@ PROJECT_REPO := github.com/akuityio/$(PROJECT_NAME)
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
 
-GOLANGCILINT_VERSION := 1.64.6
+GOLANGCILINT_VERSION := 2.5.0
 GO_LINT_ARGS := --timeout=10m
+CROSSPLANE_CLI_VERSION = v1.20.1
 
 # ====================================================================================
 # Setup Output
@@ -80,7 +81,7 @@ go.cachedir:
 # NOTE(hasheddan): we must ensure up is installed in tool cache prior to build
 # as including the k8s_tools machinery prior to the xpkg machinery sets UP to
 # point to tool cache.
-build.init: $(UP)
+build.init: $(UP) $(CROSSPLANE_CLI)
 
 # This is for running out-of-cluster locally, and is for convenience. Running
 # this make target will print out the command which was used. For more control,

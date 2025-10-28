@@ -16,8 +16,11 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20251022142026-3a174f9686a8
 	k8s.io/apimachinery v0.34.1
 	k8s.io/client-go v0.34.1
-	k8s.io/kubectl v0.33.1
-	sigs.k8s.io/controller-runtime v0.22.3
+	k8s.io/kubectl v0.34.1
+	// We have to pin to this version and not later until crossplane updates, otherwise there ends
+	// up being two `Apply` methods in the crossplane-runtime module and it considers it an
+	// ambiguous selector
+	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/controller-tools v0.19.0
 )
 
