@@ -209,22 +209,28 @@ var (
 		RedisTunneling:      ptr.To(true),
 	}
 
-	AkuityKubeVisionArgoExtension = &akuitytypes.KubeVisionArgoExtension{
-		Enabled:          ptr.To(true),
-		AllowedGroups:    []string{"admin"},
-		AllowedUsernames: []string{"admin"},
+	AkuityIntelligenceExtension = &akuitytypes.AkuityIntelligenceExtension{
+		Enabled:                  ptr.To(true),
+		AllowedGroups:            []string{"admin"},
+		AllowedUsernames:         []string{"admin"},
+		AiSupportEngineerEnabled: ptr.To(true),
+		ModelVersion:             "gpt-4.1",
 	}
 
-	ArgocdKubeVisionArgoExtension = &argocdv1.KubeVisionArgoExtension{
-		Enabled:          true,
-		AllowedGroups:    []string{"admin"},
-		AllowedUsernames: []string{"admin"},
+	ArgocdIntelligenceExtension = &argocdv1.AkuityIntelligenceExtension{
+		Enabled:                  true,
+		AllowedGroups:            []string{"admin"},
+		AllowedUsernames:         []string{"admin"},
+		AiSupportEngineerEnabled: true,
+		ModelVersion:             "gpt-4.1",
 	}
 
-	CrossplaneKubeVisionArgoExtension = &crossplanetypes.KubeVisionArgoExtension{
-		Enabled:          ptr.To(true),
-		AllowedGroups:    []string{"admin"},
-		AllowedUsernames: []string{"admin"},
+	CrossplaneIntelligenceExtension = &crossplanetypes.AkuityIntelligenceExtension{
+		Enabled:                  ptr.To(true),
+		AllowedGroups:            []string{"admin"},
+		AllowedUsernames:         []string{"admin"},
+		AiSupportEngineerEnabled: ptr.To(true),
+		ModelVersion:             "gpt-4.1",
 	}
 
 	AkuityCustomDeprecatedApis = []*akuitytypes.CustomDeprecatedAPI{
@@ -287,16 +293,106 @@ var (
 		Enabled: ptr.To(true),
 	}
 
-	AkuityAiSupportEngineerExtension = &akuitytypes.AISupportEngineerExtension{
+	AkuityAppsetPlugins = []*akuitytypes.AppsetPlugins{
+		{
+			Name:           "plugin-1",
+			Token:          "token-1",
+			BaseUrl:        "https://plugins.example.com",
+			RequestTimeout: 30,
+		},
+		{
+			Name:           "plugin-2",
+			Token:          "token-2",
+			BaseUrl:        "https://plugins.example.com",
+			RequestTimeout: 45,
+		},
+	}
+
+	ArgocdAppsetPlugins = []*argocdv1.AppsetPlugins{
+		{
+			Name:           "plugin-1",
+			Token:          "token-1",
+			BaseUrl:        "https://plugins.example.com",
+			RequestTimeout: 30,
+		},
+		{
+			Name:           "plugin-2",
+			Token:          "token-2",
+			BaseUrl:        "https://plugins.example.com",
+			RequestTimeout: 45,
+		},
+	}
+
+	CrossplaneAppsetPlugins = []*crossplanetypes.AppsetPlugins{
+		{
+			Name:           "plugin-1",
+			Token:          "token-1",
+			BaseUrl:        "https://plugins.example.com",
+			RequestTimeout: 30,
+		},
+		{
+			Name:           "plugin-2",
+			Token:          "token-2",
+			BaseUrl:        "https://plugins.example.com",
+			RequestTimeout: 45,
+		},
+	}
+
+	AkuityApplicationSetExtension = &akuitytypes.ApplicationSetExtension{
 		Enabled: ptr.To(true),
 	}
 
-	ArgocdAiSupportEngineerExtension = &argocdv1.AISupportEngineerExtension{
+	ArgocdApplicationSetExtension = &argocdv1.ApplicationSetExtension{
 		Enabled: true,
 	}
 
-	CrossplaneAiSupportEngineerExtension = &crossplanetypes.AISupportEngineerExtension{
+	CrossplaneApplicationSetExtension = &crossplanetypes.ApplicationSetExtension{
 		Enabled: ptr.To(true),
+	}
+
+	AkuityAppReconciliationsRateLimiting = &akuitytypes.AppReconciliationsRateLimiting{
+		BucketRateLimiting: &akuitytypes.BucketRateLimiting{
+			Enabled:    ptr.To(true),
+			BucketSize: 5,
+			BucketQps:  10,
+		},
+		ItemRateLimiting: &akuitytypes.ItemRateLimiting{
+			Enabled:         ptr.To(true),
+			FailureCooldown: 30,
+			BaseDelay:       1,
+			MaxDelay:        10,
+			BackoffFactor:   1.5,
+		},
+	}
+
+	ArgocdAppReconciliationsRateLimiting = &argocdv1.AppReconciliationsRateLimiting{
+		BucketRateLimiting: &argocdv1.BucketRateLimiting{
+			Enabled:    true,
+			BucketSize: 5,
+			BucketQps:  10,
+		},
+		ItemRateLimiting: &argocdv1.ItemRateLimiting{
+			Enabled:         true,
+			FailureCooldown: 30,
+			BaseDelay:       1,
+			MaxDelay:        10,
+			BackoffFactor:   1.5,
+		},
+	}
+
+	CrossplaneAppReconciliationsRateLimiting = &crossplanetypes.AppReconciliationsRateLimiting{
+		BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
+			Enabled:    ptr.To(true),
+			BucketSize: 5,
+			BucketQps:  10,
+		},
+		ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
+			Enabled:             ptr.To(true),
+			FailureCooldown:     30,
+			BaseDelay:           1,
+			MaxDelay:            10,
+			BackoffFactorString: "1.5",
+		},
 	}
 
 	AkuityInstanceSpec = akuitytypes.InstanceSpec{
@@ -317,14 +413,16 @@ var (
 		HostAliases:                     AkuityHostAliasesList,
 		Fqdn:                            "",
 		MultiClusterK8SDashboardEnabled: ptr.To(true),
-		KubeVisionArgoExtension:         AkuityKubeVisionArgoExtension,
+		AkuityIntelligenceExtension:     AkuityIntelligenceExtension,
 		ImageUpdaterVersion:             "",
 		CustomDeprecatedApis:            AkuityCustomDeprecatedApis,
 		KubeVisionConfig:                AkuityKubeVisionConfig,
 		AppInAnyNamespaceConfig:         AkuityAppInAnyNamespaceConfig,
 		Basepath:                        "",
 		AppsetProgressiveSyncsEnabled:   ptr.To(true),
-		AiSupportEngineerExtension:      AkuityAiSupportEngineerExtension,
+		AppsetPlugins:                   AkuityAppsetPlugins,
+		ApplicationSetExtension:         AkuityApplicationSetExtension,
+		AppReconciliationsRateLimiting:  AkuityAppReconciliationsRateLimiting,
 	}
 
 	ArgocdInstanceSpec = &argocdv1.InstanceSpec{
@@ -344,14 +442,16 @@ var (
 		AppsetPolicy:                    ArgocdAppsetPolicy,
 		HostAliases:                     ArgocdHostAliasesList,
 		MultiClusterK8SDashboardEnabled: true,
-		KubeVisionArgoExtension:         ArgocdKubeVisionArgoExtension,
+		AkuityIntelligenceExtension:     ArgocdIntelligenceExtension,
 		ImageUpdaterVersion:             "",
 		CustomDeprecatedApis:            ArgocdCustomDeprecatedApis,
 		KubeVisionConfig:                ArgocdKubeVisionConfig,
 		AppInAnyNamespaceConfig:         ArgocdAppInAnyNamespaceConfig,
 		Basepath:                        "",
 		AppsetProgressiveSyncsEnabled:   true,
-		AiSupportEngineerExtension:      ArgocdAiSupportEngineerExtension,
+		AppsetPlugins:                   ArgocdAppsetPlugins,
+		ApplicationSetExtension:         ArgocdApplicationSetExtension,
+		AppReconciliationsRateLimiting:  ArgocdAppReconciliationsRateLimiting,
 	}
 
 	trueValue              = true
@@ -372,14 +472,16 @@ var (
 		AppsetPolicy:                    CrossplaneAppsetPolicy,
 		HostAliases:                     CrossplaneHostAliasesList,
 		MultiClusterK8SDashboardEnabled: &trueValue,
-		KubeVisionArgoExtension:         CrossplaneKubeVisionArgoExtension,
+		AkuityIntelligenceExtension:     CrossplaneIntelligenceExtension,
 		ImageUpdaterVersion:             "",
 		CustomDeprecatedApis:            CrossplaneCustomDeprecatedApis,
 		KubeVisionConfig:                CrossplaneKubeVisionConfig,
 		AppInAnyNamespaceConfig:         CrossplaneAppInAnyNamespaceConfig,
 		Basepath:                        "",
 		AppsetProgressiveSyncsEnabled:   ptr.To(true),
-		AiSupportEngineerExtension:      CrossplaneAiSupportEngineerExtension,
+		AppsetPlugins:                   CrossplaneAppsetPlugins,
+		ApplicationSetExtension:         CrossplaneApplicationSetExtension,
+		AppReconciliationsRateLimiting:  CrossplaneAppReconciliationsRateLimiting,
 	}
 
 	AkuityInstance = &argocdv1.Instance{

@@ -29,17 +29,18 @@ spec:
             resources:
               - group: "*.example.crossplane.*"
           agentPermissionsRules:
-            - apiGroups: [ "batch" ]
-              resources: [ "jobs" ]
-              verbs: [ "create" ]
+            - apiGroups: ["batch"]
+              resources: ["jobs"]
+              verbs: ["create"]
           fqdn: "instance.example.com"
           multiClusterK8sDashboardEnabled: true
-          kubeVisionArgoExtension:
+          akuityIntelligenceExtension:
             enabled: true
             allowedUsernames:
               - "admin"
             allowedGroups:
               - "developers"
+            aiSupportEngineerEnabled: true
           imageUpdaterEnabled: true
           imageUpdaterVersion: "v0.15.2"
           customDeprecatedApis:
@@ -55,20 +56,36 @@ spec:
             enabled: true
           basepath: ""
           appsetProgressiveSyncsEnabled: true
-          aiSupportEngineerExtension:
+          appsetPlugins:
+            - name: "example-plugin"
+              token: "example-token"
+              baseUrl: "https://plugins.example.com"
+              requestTimeout: 30
+          applicationSetExtension:
             enabled: true
+          appReconciliationsRateLimiting:
+            bucketRateLimiting:
+              enabled: true
+              bucketSize: 5
+              bucketQps: 10
+            itemRateLimiting:
+              enabled: true
+              failureCooldown: 30
+              baseDelay: 1
+              maxDelay: 10
+              backoffFactor: "1.5"
     argocdConfigMap:
-      # When configuring the `argocdConfigMap`, make sure to specify the following keys (from "exec.enabled", to "users.anonymous.enabled") 
+      # When configuring the `argocdConfigMap`, make sure to specify the following keys (from "exec.enabled", to "users.anonymous.enabled")
       # since these keys are added by Akuity Platform by default. If they are not defined, you may see inconsistent results and errors from the provider.
       # You can customize the values based on your usage, but the keys themselves must be specified.
-      exec.enabled:                    "true"
-      ga.anonymizeusers:               "false"
-      helm.enabled:                    "true"
-      kustomize.enabled:               "true"
-      server.rbac.log.enforce.enable:  "false"
-      statusbadge.enabled:             "false"
-      ui.bannerpermanent:              "false"
-      users.anonymous.enabled:         "false"
+      exec.enabled: "true"
+      ga.anonymizeusers: "false"
+      helm.enabled: "true"
+      kustomize.enabled: "true"
+      server.rbac.log.enforce.enable: "false"
+      statusbadge.enabled: "false"
+      ui.bannerpermanent: "false"
+      users.anonymous.enabled: "false"
 
       kustomize.buildOptions: "--load_restrictor none"
       accounts.admin: "login"
@@ -100,13 +117,13 @@ spec:
               HostkeyAlgorithms2 +ssh-rsa
     argocdNotificationsConfigMap:
       trigger.on-sync-status-unknown: |
-          - when: app.status.sync.status == 'Unknown'
-            send: [my-custom-template]
+        - when: app.status.sync.status == 'Unknown'
+          send: [my-custom-template]
       template.my-custom-template: |
-          message: |
-            Application details: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}.
+        message: |
+          Application details: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}.
       defaultTriggers: |
-          - on-sync-status-unknown
+        - on-sync-status-unknown
     argocdRbacConfigMap:
       policy.default: "role:readonly"
       policy.csv: |
@@ -114,7 +131,7 @@ spec:
         p, role:org-admin, clusters, get, *, allow
         g, your-github-org:your-team, role:org-admin
     argocdSshKnownHostsConfigMap:
-      # When configuring ssh_known_hosts, make sure to add the following defaults before adding any of your own hosts, 
+      # When configuring ssh_known_hosts, make sure to add the following defaults before adding any of your own hosts,
       # since these keys are added by Akuity Platform by default. If they are not defined, you may see inconsistent results and errors from the provider.
       ssh_known_hosts: |
         [ssh.github.com]:443 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
@@ -137,34 +154,34 @@ spec:
         ......
         -----END CERTIFICATE-----
     configManagementPlugins:
-        helmfile:
-          enabled: true
-          image: ghcr.io/travisghansen/argo-cd-helmfile:v0.3.6
-          spec:
-            version: "v0.3.6"
-            preserveFileMode: false
-            discover:
-              fileName: helmfile.yaml
-              find: {}
-            generate:
+      helmfile:
+        enabled: true
+        image: ghcr.io/travisghansen/argo-cd-helmfile:v0.3.6
+        spec:
+          version: "v0.3.6"
+          preserveFileMode: false
+          discover:
+            fileName: helmfile.yaml
+            find: {}
+          generate:
+            args:
+              - generate
+            command:
+              - argo-cd-helmfile.sh
+          init:
+            args:
+              - init
+            command:
+              - argo-cd-helmfile.sh
+          parameters:
+            dynamic:
               args:
-                - generate
+                - parameters
               command:
                 - argo-cd-helmfile.sh
-            init:
-              args:
-                - init
-              command:
-                - argo-cd-helmfile.sh
-            parameters:
-              dynamic:
-                args:
-                  - parameters
-                command:
-                  - argo-cd-helmfile.sh
-              static:
-                - name: "env"
-                  required: true
-                  string: "default"
+            static:
+              - name: "env"
+                required: true
+                string: "default"
   providerConfigRef:
     name: akuity

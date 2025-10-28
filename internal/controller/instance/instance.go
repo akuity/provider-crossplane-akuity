@@ -339,8 +339,9 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 			managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig = actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
 		}
 
-		if managedInstance.ArgoCD.Spec.InstanceSpec.AiSupportEngineerExtension == nil {
-			managedInstance.ArgoCD.Spec.InstanceSpec.AiSupportEngineerExtension = actualInstance.ArgoCD.Spec.InstanceSpec.AiSupportEngineerExtension
+		// If Akuity Intelligence is enabled by default, sync the value
+		if managedInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension == nil {
+			managedInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension = actualInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension
 		}
 	}
 

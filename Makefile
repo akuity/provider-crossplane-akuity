@@ -148,9 +148,8 @@ endef
 export CROSSPLANE_MAKE_HELP
 
 mocks:
-	go install go.uber.org/mock/mockgen@latest
-	mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/argocd_service_gateway_client_mock.go github.com/akuity/api-client-go/pkg/api/gen/argocd/v1 ArgoCDServiceGatewayClient
-	mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/clientset_mock.go github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity Client
+	go tool mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/argocd_service_gateway_client_mock.go github.com/akuity/api-client-go/pkg/api/gen/argocd/v1 ArgoCDServiceGatewayClient
+	go tool mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/clientset_mock.go github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity Client
 
 crossplane.help:
 	@echo "$$CROSSPLANE_MAKE_HELP"
@@ -163,11 +162,3 @@ akuity-publish:
 		us-docker.pkg.dev/akuity/crossplane/provider:$(VERSION)
 
 .PHONY: crossplane.help help-special
-
-.PHONY: generate-kubetypes
-generate-kubetypes:
-	# https://pkg.go.dev/sigs.k8s.io/controller-tools/cmd/controller-gen
-	GOBIN=`pwd`/dist go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
-	./dist/controller-gen object paths="./internal/types/generated/akuity/v1alpha1/..."
-	./dist/controller-gen object paths="./internal/types/generated/argocd/v1alpha1/..."
-	./dist/controller-gen object paths="./internal/types/generated/crossplane/v1alpha1/..."

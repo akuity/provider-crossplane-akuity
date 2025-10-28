@@ -335,14 +335,16 @@ func AkuityAPIToCrossplaneInstanceSpec(instanceSpec *argocdv1.InstanceSpec) (cro
 		AgentPermissionsRules:           AkuityAPIToCrossplaneAgentPermissionsRules(instanceSpec.GetAgentPermissionsRules()),
 		Fqdn:                            instanceSpec.GetFqdn(),
 		MultiClusterK8SDashboardEnabled: ptr.To(instanceSpec.GetMultiClusterK8SDashboardEnabled()),
-		KubeVisionArgoExtension:         AkuityAPIToCrossplaneKubeVisionArgoExtension(instanceSpec.GetKubeVisionArgoExtension()),
+		AkuityIntelligenceExtension:     AkuityAPIToCrossplaneAkuityIntelligenceExtension(instanceSpec.GetAkuityIntelligenceExtension()),
 		ImageUpdaterVersion:             instanceSpec.GetImageUpdaterVersion(),
 		CustomDeprecatedApis:            AkuityAPIToCrossplaneCustomDeprecatedApis(instanceSpec.GetCustomDeprecatedApis()),
 		KubeVisionConfig:                AkuityAPIToCrossplaneKubeVisionConfig(instanceSpec.GetKubeVisionConfig()),
 		AppInAnyNamespaceConfig:         AkuityAPIToCrossplaneAppInAnyNamespaceConfig(instanceSpec.GetAppInAnyNamespaceConfig()),
 		Basepath:                        instanceSpec.GetBasepath(),
 		AppsetProgressiveSyncsEnabled:   ptr.To(instanceSpec.GetAppsetProgressiveSyncsEnabled()),
-		AiSupportEngineerExtension:      AkuityAPIToCrossplaneAiSupportEngineerExtension(instanceSpec.GetAiSupportEngineerExtension()),
+		AppsetPlugins:                   AkuityAPIToCrossplaneAppsetPlugins(instanceSpec.GetAppsetPlugins()),
+		ApplicationSetExtension:         AkuityAPIToCrossplaneApplicationSetExtension(instanceSpec.GetApplicationSetExtension()),
+		AppReconciliationsRateLimiting:  AkuityAPIToCrossplaneAppReconciliationsRateLimiting(instanceSpec.GetAppReconciliationsRateLimiting()),
 	}, nil
 }
 
@@ -519,15 +521,17 @@ func AkuityAPIToCrossplaneAgentPermissionsRules(agentPermissionsRules []*argocdv
 	return crossplaneAgentPermissionsRules
 }
 
-func AkuityAPIToCrossplaneKubeVisionArgoExtension(kubeVisionArgoExtension *argocdv1.KubeVisionArgoExtension) *crossplanetypes.KubeVisionArgoExtension {
-	if kubeVisionArgoExtension == nil {
+func AkuityAPIToCrossplaneAkuityIntelligenceExtension(apiIntelligenceExtension *argocdv1.AkuityIntelligenceExtension) *crossplanetypes.AkuityIntelligenceExtension {
+	if apiIntelligenceExtension == nil {
 		return nil
 	}
 
-	return &crossplanetypes.KubeVisionArgoExtension{
-		Enabled:          ptr.To(kubeVisionArgoExtension.GetEnabled()),
-		AllowedUsernames: kubeVisionArgoExtension.GetAllowedUsernames(),
-		AllowedGroups:    kubeVisionArgoExtension.GetAllowedGroups(),
+	return &crossplanetypes.AkuityIntelligenceExtension{
+		Enabled:                  ptr.To(apiIntelligenceExtension.GetEnabled()),
+		AllowedUsernames:         apiIntelligenceExtension.GetAllowedUsernames(),
+		AllowedGroups:            apiIntelligenceExtension.GetAllowedGroups(),
+		AiSupportEngineerEnabled: ptr.To(apiIntelligenceExtension.GetAiSupportEngineerEnabled()),
+		ModelVersion:             apiIntelligenceExtension.GetModelVersion(),
 	}
 }
 
@@ -572,14 +576,62 @@ func AkuityAPIToCrossplaneAppInAnyNamespaceConfig(appInAnyNamespaceConfig *argoc
 	}
 }
 
-func AkuityAPIToCrossplaneAiSupportEngineerExtension(aiSupportEngineerExtension *argocdv1.AISupportEngineerExtension) *crossplanetypes.AISupportEngineerExtension {
-	if aiSupportEngineerExtension == nil {
+func AkuityAPIToCrossplaneAppsetPlugins(appsetPlugins []*argocdv1.AppsetPlugins) []*crossplanetypes.AppsetPlugins {
+	if len(appsetPlugins) == 0 {
 		return nil
 	}
 
-	return &crossplanetypes.AISupportEngineerExtension{
-		Enabled: ptr.To(aiSupportEngineerExtension.GetEnabled()),
+	crossplaneAppsetPlugins := make([]*crossplanetypes.AppsetPlugins, 0, len(appsetPlugins))
+	for _, p := range appsetPlugins {
+		crossplaneAppsetPlugins = append(crossplaneAppsetPlugins, &crossplanetypes.AppsetPlugins{
+			Name:           p.GetName(),
+			Token:          p.GetToken(),
+			BaseUrl:        p.GetBaseUrl(),
+			RequestTimeout: p.GetRequestTimeout(),
+		})
 	}
+
+	return crossplaneAppsetPlugins
+}
+
+func AkuityAPIToCrossplaneApplicationSetExtension(applicationSetExtension *argocdv1.ApplicationSetExtension) *crossplanetypes.ApplicationSetExtension {
+	if applicationSetExtension == nil {
+		return nil
+	}
+
+	return &crossplanetypes.ApplicationSetExtension{
+		Enabled: ptr.To(applicationSetExtension.GetEnabled()),
+	}
+}
+
+func AkuityAPIToCrossplaneAppReconciliationsRateLimiting(appReconciliationsRateLimiting *argocdv1.AppReconciliationsRateLimiting) *crossplanetypes.AppReconciliationsRateLimiting {
+	if appReconciliationsRateLimiting == nil {
+		return nil
+	}
+
+	rl := &crossplanetypes.AppReconciliationsRateLimiting{}
+
+	if appReconciliationsRateLimiting.GetBucketRateLimiting() != nil {
+		bucket := appReconciliationsRateLimiting.GetBucketRateLimiting()
+		rl.BucketRateLimiting = &crossplanetypes.BucketRateLimiting{
+			Enabled:    ptr.To(bucket.GetEnabled()),
+			BucketSize: bucket.GetBucketSize(),
+			BucketQps:  bucket.GetBucketQps(),
+		}
+	}
+
+	if appReconciliationsRateLimiting.GetItemRateLimiting() != nil {
+		item := appReconciliationsRateLimiting.GetItemRateLimiting()
+		rl.ItemRateLimiting = &crossplanetypes.ItemRateLimiting{
+			Enabled:             ptr.To(item.GetEnabled()),
+			FailureCooldown:     item.GetFailureCooldown(),
+			BaseDelay:           item.GetBaseDelay(),
+			MaxDelay:            item.GetMaxDelay(),
+			BackoffFactorString: strconv.FormatFloat(float64(item.GetBackoffFactor()), 'f', -1, 32),
+		}
+	}
+
+	return rl
 }
 
 func CrossplaneToAkuityAPIArgoCD(name string, instance *crossplanetypes.ArgoCD) (*structpb.Struct, error) {
@@ -617,6 +669,11 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		return akuitytypes.InstanceSpec{}, fmt.Errorf("could not build instance argocd instance spec: %w", err)
 	}
 
+	appReconciliationsRateLimiting, err := CrossplaneToAkuityAPIAppReconciliationsRateLimiting(instanceSpec.AppReconciliationsRateLimiting)
+	if err != nil {
+		return akuitytypes.InstanceSpec{}, fmt.Errorf("could not build instance app reconciliations rate limiting config: %w", err)
+	}
+
 	return akuitytypes.InstanceSpec{
 		IpAllowList:                     CrossplaneToAkuityAPIIPAllowListEntry(instanceSpec.IpAllowList),
 		Subdomain:                       instanceSpec.Subdomain,
@@ -637,14 +694,16 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 		AgentPermissionsRules:           CrossplaneToAkuityAPIAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
 		Fqdn:                            instanceSpec.Fqdn,
 		MultiClusterK8SDashboardEnabled: instanceSpec.MultiClusterK8SDashboardEnabled,
-		KubeVisionArgoExtension:         CrossplaneToAkuityAPIKubeVisionArgoExtension(instanceSpec.KubeVisionArgoExtension),
+		AkuityIntelligenceExtension:     CrossplaneToAkuityAPIAkuityIntelligenceExtension(instanceSpec.AkuityIntelligenceExtension),
 		ImageUpdaterVersion:             instanceSpec.ImageUpdaterVersion,
 		CustomDeprecatedApis:            CrossplaneToAkuityAPICustomDeprecatedApis(instanceSpec.CustomDeprecatedApis),
 		KubeVisionConfig:                CrossplaneToAkuityAPIKubeVisionConfig(instanceSpec.KubeVisionConfig),
 		AppInAnyNamespaceConfig:         CrossplaneToAkuityAPIAppInAnyNamespaceConfig(instanceSpec.AppInAnyNamespaceConfig),
 		Basepath:                        instanceSpec.Basepath,
 		AppsetProgressiveSyncsEnabled:   instanceSpec.AppsetProgressiveSyncsEnabled,
-		AiSupportEngineerExtension:      CrossplaneToAkuityAPIAiSupportEngineerExtension(instanceSpec.AiSupportEngineerExtension),
+		AppsetPlugins:                   CrossplaneToAkuityAPIAppsetPlugins(instanceSpec.AppsetPlugins),
+		ApplicationSetExtension:         CrossplaneToAkuityAPIApplicationSetExtension(instanceSpec.ApplicationSetExtension),
+		AppReconciliationsRateLimiting:  appReconciliationsRateLimiting,
 	}, nil
 }
 
@@ -868,15 +927,17 @@ func CrossplaneToAkuityAPIConfigManagementPlugins(configManagementPlugins map[st
 	return akConfigManagementPluginsPB, nil
 }
 
-func CrossplaneToAkuityAPIKubeVisionArgoExtension(kubeVisionArgoExtension *crossplanetypes.KubeVisionArgoExtension) *akuitytypes.KubeVisionArgoExtension {
-	if kubeVisionArgoExtension == nil {
+func CrossplaneToAkuityAPIAkuityIntelligenceExtension(akuityIntelligenceArgoExtension *crossplanetypes.AkuityIntelligenceExtension) *akuitytypes.AkuityIntelligenceExtension {
+	if akuityIntelligenceArgoExtension == nil {
 		return nil
 	}
 
-	return &akuitytypes.KubeVisionArgoExtension{
-		Enabled:          kubeVisionArgoExtension.Enabled,
-		AllowedUsernames: kubeVisionArgoExtension.AllowedUsernames,
-		AllowedGroups:    kubeVisionArgoExtension.AllowedGroups,
+	return &akuitytypes.AkuityIntelligenceExtension{
+		Enabled:                  akuityIntelligenceArgoExtension.Enabled,
+		AllowedUsernames:         akuityIntelligenceArgoExtension.AllowedUsernames,
+		AllowedGroups:            akuityIntelligenceArgoExtension.AllowedGroups,
+		AiSupportEngineerEnabled: akuityIntelligenceArgoExtension.AiSupportEngineerEnabled,
+		ModelVersion:             akuityIntelligenceArgoExtension.ModelVersion,
 	}
 }
 
@@ -921,12 +982,67 @@ func CrossplaneToAkuityAPIAppInAnyNamespaceConfig(appInAnyNamespaceConfig *cross
 	}
 }
 
-func CrossplaneToAkuityAPIAiSupportEngineerExtension(aiSupportEngineerExtension *crossplanetypes.AISupportEngineerExtension) *akuitytypes.AISupportEngineerExtension {
-	if aiSupportEngineerExtension == nil {
+func CrossplaneToAkuityAPIAppsetPlugins(appsetPlugins []*crossplanetypes.AppsetPlugins) []*akuitytypes.AppsetPlugins {
+	if len(appsetPlugins) == 0 {
 		return nil
 	}
 
-	return &akuitytypes.AISupportEngineerExtension{
-		Enabled: aiSupportEngineerExtension.Enabled,
+	akuityAppsetPlugins := make([]*akuitytypes.AppsetPlugins, 0, len(appsetPlugins))
+	for _, p := range appsetPlugins {
+		akuityAppsetPlugins = append(akuityAppsetPlugins, &akuitytypes.AppsetPlugins{
+			Name:           p.Name,
+			Token:          p.Token,
+			BaseUrl:        p.BaseUrl,
+			RequestTimeout: p.RequestTimeout,
+		})
 	}
+
+	return akuityAppsetPlugins
+}
+
+func CrossplaneToAkuityAPIApplicationSetExtension(applicationSetExtension *crossplanetypes.ApplicationSetExtension) *akuitytypes.ApplicationSetExtension {
+	if applicationSetExtension == nil {
+		return nil
+	}
+
+	return &akuitytypes.ApplicationSetExtension{
+		Enabled: applicationSetExtension.Enabled,
+	}
+}
+
+func CrossplaneToAkuityAPIAppReconciliationsRateLimiting(appReconciliationsRateLimiting *crossplanetypes.AppReconciliationsRateLimiting) (*akuitytypes.AppReconciliationsRateLimiting, error) {
+	if appReconciliationsRateLimiting == nil {
+		return nil, nil
+	}
+
+	rl := &akuitytypes.AppReconciliationsRateLimiting{}
+
+	if appReconciliationsRateLimiting.BucketRateLimiting != nil {
+		bucket := appReconciliationsRateLimiting.BucketRateLimiting
+		rl.BucketRateLimiting = &akuitytypes.BucketRateLimiting{
+			Enabled:    bucket.Enabled,
+			BucketSize: bucket.BucketSize,
+			BucketQps:  bucket.BucketQps,
+		}
+	}
+
+	if appReconciliationsRateLimiting.ItemRateLimiting != nil {
+		item := appReconciliationsRateLimiting.ItemRateLimiting
+		rl.ItemRateLimiting = &akuitytypes.ItemRateLimiting{
+			Enabled:         item.Enabled,
+			FailureCooldown: item.FailureCooldown,
+			BaseDelay:       item.BaseDelay,
+			MaxDelay:        item.MaxDelay,
+		}
+
+		if item.BackoffFactorString != "" {
+			backoff, err := strconv.ParseFloat(item.BackoffFactorString, 32)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse backoff factor %q as float: %w", item.BackoffFactorString, err)
+			}
+			rl.ItemRateLimiting.BackoffFactor = float32(backoff)
+		}
+	}
+
+	return rl, nil
 }
