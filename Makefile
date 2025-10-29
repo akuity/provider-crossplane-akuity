@@ -59,7 +59,7 @@ fallthrough: submodules
 e2e.run: test-integration
 
 # Run integration tests.
-test-integration: $(KIND) $(KUBECTL) $(UP) $(HELM3)
+test-integration: $(KIND) $(KUBECTL) $(UP) $(HELM)
 	@$(INFO) running integration tests using kind $(KIND_VERSION)
 	@KIND_NODE_IMAGE_TAG=${KIND_NODE_IMAGE_TAG} $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
 	@$(OK) integration tests passed
@@ -91,12 +91,16 @@ run: go.build
 	@# To see other arguments that can be provided, run the command with --help instead
 	$(GO_OUT_DIR)/provider --debug
 
-dev: $(KIND) $(KUBECTL)
+dev: $(KIND) $(KUBECTL) $(HELM)
 	@$(INFO) Creating kind cluster
 	@$(KIND) create cluster --name=$(PROJECT_NAME)-dev
 	@$(KUBECTL) cluster-info --context kind-$(PROJECT_NAME)-dev
-	@$(INFO) Installing Crossplane CRDs
-	@$(KUBECTL) apply -k https://github.com/crossplane/crossplane//cluster?ref=master
+	@$(INFO) Installing Crossplane
+	@$(HELM) repo add crossplane-stable https://charts.crossplane.io/stable
+	@$(HELM) repo update
+	# Trim the leading "v" from the Crossplane CLI version for helm install.
+	@$(HELM) install crossplane --namespace crossplane-system --create-namespace crossplane-stable/crossplane --version $(patsubst v%,%,$(CROSSPLANE_CLI_VERSION))
+	@$(INFO) Waiting for Crossplane to be ready
 	@$(INFO) Installing Provider Akuity CRDs
 	@$(KUBECTL) apply -R -f package/crds
 	@$(INFO) Starting Provider Akuity controllers
