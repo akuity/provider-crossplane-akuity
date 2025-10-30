@@ -84,20 +84,25 @@ type ClusterCompatibility struct {
 	Ipv6Only *bool `json:"ipv6Only,omitempty"`
 }
 
+type ClusterArgoCDNotificationsSettings struct {
+	InClusterSettings *bool `json:"inClusterSettings,omitempty"`
+}
+
 type ClusterData struct {
-	Size                            ClusterSize           `json:"size,omitempty"`
-	AutoUpgradeDisabled             *bool                 `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization                   runtime.RawExtension  `json:"kustomization,omitempty"`
-	AppReplication                  *bool                 `json:"appReplication,omitempty"`
-	TargetVersion                   string                `json:"targetVersion,omitempty"`
-	RedisTunneling                  *bool                 `json:"redisTunneling,omitempty"`
-	DirectClusterSpec               *DirectClusterSpec    `json:"directClusterSpec,omitempty"`
-	DatadogAnnotationsEnabled       *bool                 `json:"datadogAnnotationsEnabled,omitempty"`
-	EksAddonEnabled                 *bool                 `json:"eksAddonEnabled,omitempty"`
-	ManagedClusterConfig            *ManagedClusterConfig `json:"managedClusterConfig,omitempty"`
-	MaintenanceMode                 *bool                 `json:"maintenanceMode,omitempty"`
-	MultiClusterK8SDashboardEnabled *bool                 `json:"multiClusterK8sDashboardEnabled,omitempty"`
-	AutoscalerConfig                *AutoScalerConfig     `json:"autoscalerConfig,omitempty"`
-	Project                         string                `json:"project,omitempty"`
-	Compatibility                   *ClusterCompatibility `json:"compatibility,omitempty"`
+	Size                            ClusterSize                         `json:"size,omitempty"`
+	AutoUpgradeDisabled             *bool                               `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization                   runtime.RawExtension                `json:"kustomization,omitempty"`
+	AppReplication                  *bool                               `json:"appReplication,omitempty"`
+	TargetVersion                   string                              `json:"targetVersion,omitempty"`
+	RedisTunneling                  *bool                               `json:"redisTunneling,omitempty"`
+	DirectClusterSpec               *DirectClusterSpec                  `json:"directClusterSpec,omitempty"`
+	DatadogAnnotationsEnabled       *bool                               `json:"datadogAnnotationsEnabled,omitempty"`
+	EksAddonEnabled                 *bool                               `json:"eksAddonEnabled,omitempty"`
+	ManagedClusterConfig            *ManagedClusterConfig               `json:"managedClusterConfig,omitempty"`
+	MaintenanceMode                 *bool                               `json:"maintenanceMode,omitempty"`
+	MultiClusterK8SDashboardEnabled *bool                               `json:"multiClusterK8sDashboardEnabled,omitempty"`
+	AutoscalerConfig                *AutoScalerConfig                   `json:"autoscalerConfig,omitempty"`
+	Project                         string                              `json:"project,omitempty"`
+	Compatibility                   *ClusterCompatibility               `json:"compatibility,omitempty"`
+	ArgocdNotificationsSettings     *ClusterArgoCDNotificationsSettings `json:"argocdNotificationsSettings,omitempty"`
 }
