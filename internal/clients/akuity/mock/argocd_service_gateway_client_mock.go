@@ -73,6 +73,21 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) ApplyInstance(arg0, arg1 a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyInstance", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ApplyInstance), arg0, arg1)
 }
 
+// ClearAddonStatusSourceHistory mocks base method.
+func (m *MockArgoCDServiceGatewayClient) ClearAddonStatusSourceHistory(arg0 context.Context, arg1 *argocdv1.ClearAddonStatusSourceHistoryRequest) (*argocdv1.ClearAddonStatusSourceHistoryResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearAddonStatusSourceHistory", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.ClearAddonStatusSourceHistoryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearAddonStatusSourceHistory indicates an expected call of ClearAddonStatusSourceHistory.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) ClearAddonStatusSourceHistory(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearAddonStatusSourceHistory", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ClearAddonStatusSourceHistory), arg0, arg1)
+}
+
 // CreateInstance mocks base method.
 func (m *MockArgoCDServiceGatewayClient) CreateInstance(arg0 context.Context, arg1 *argocdv1.CreateInstanceRequest) (*argocdv1.CreateInstanceResponse, error) {
 	m.ctrl.T.Helper()
@@ -118,6 +133,51 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) CreateInstanceCluster(arg0
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateInstanceCluster", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).CreateInstanceCluster), arg0, arg1)
 }
 
+// CreateInstanceRepo mocks base method.
+func (m *MockArgoCDServiceGatewayClient) CreateInstanceRepo(arg0 context.Context, arg1 *argocdv1.CreateInstanceRepoRequest) (*argocdv1.CreateInstanceRepoResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateInstanceRepo", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.CreateInstanceRepoResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateInstanceRepo indicates an expected call of CreateInstanceRepo.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) CreateInstanceRepo(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateInstanceRepo", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).CreateInstanceRepo), arg0, arg1)
+}
+
+// CreateManagedSecret mocks base method.
+func (m *MockArgoCDServiceGatewayClient) CreateManagedSecret(arg0 context.Context, arg1 *argocdv1.CreateManagedSecretRequest) (*argocdv1.CreateManagedSecretResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateManagedSecret", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.CreateManagedSecretResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateManagedSecret indicates an expected call of CreateManagedSecret.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) CreateManagedSecret(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateManagedSecret", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).CreateManagedSecret), arg0, arg1)
+}
+
+// DeleteAddonMarketplaceInstall mocks base method.
+func (m *MockArgoCDServiceGatewayClient) DeleteAddonMarketplaceInstall(arg0 context.Context, arg1 *argocdv1.DeleteAddonMarketplaceInstallRequest) (*argocdv1.DeleteAddonMarketplaceInstallResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAddonMarketplaceInstall", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.DeleteAddonMarketplaceInstallResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAddonMarketplaceInstall indicates an expected call of DeleteAddonMarketplaceInstall.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) DeleteAddonMarketplaceInstall(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAddonMarketplaceInstall", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).DeleteAddonMarketplaceInstall), arg0, arg1)
+}
+
 // DeleteInstance mocks base method.
 func (m *MockArgoCDServiceGatewayClient) DeleteInstance(arg0 context.Context, arg1 *argocdv1.DeleteInstanceRequest) (*argocdv1.DeleteInstanceResponse, error) {
 	m.ctrl.T.Helper()
@@ -148,6 +208,21 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) DeleteInstanceAccount(arg0
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInstanceAccount", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).DeleteInstanceAccount), arg0, arg1)
 }
 
+// DeleteInstanceAddon mocks base method.
+func (m *MockArgoCDServiceGatewayClient) DeleteInstanceAddon(arg0 context.Context, arg1 *argocdv1.DeleteInstanceAddonRequest) (*argocdv1.DeleteInstanceAddonResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteInstanceAddon", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.DeleteInstanceAddonResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteInstanceAddon indicates an expected call of DeleteInstanceAddon.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) DeleteInstanceAddon(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInstanceAddon", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).DeleteInstanceAddon), arg0, arg1)
+}
+
 // DeleteInstanceAddonRepo mocks base method.
 func (m *MockArgoCDServiceGatewayClient) DeleteInstanceAddonRepo(arg0 context.Context, arg1 *argocdv1.DeleteInstanceAddonRepoRequest) (*argocdv1.DeleteInstanceAddonRepoResponse, error) {
 	m.ctrl.T.Helper()
@@ -176,6 +251,21 @@ func (m *MockArgoCDServiceGatewayClient) DeleteInstanceCluster(arg0 context.Cont
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) DeleteInstanceCluster(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInstanceCluster", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).DeleteInstanceCluster), arg0, arg1)
+}
+
+// DeleteManagedSecret mocks base method.
+func (m *MockArgoCDServiceGatewayClient) DeleteManagedSecret(arg0 context.Context, arg1 *argocdv1.DeleteManagedSecretRequest) (*argocdv1.DeleteManagedSecretResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteManagedSecret", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.DeleteManagedSecretResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteManagedSecret indicates an expected call of DeleteManagedSecret.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) DeleteManagedSecret(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteManagedSecret", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).DeleteManagedSecret), arg0, arg1)
 }
 
 // ExportInstance mocks base method.
@@ -494,6 +584,21 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) ListInstanceAccounts(arg0,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListInstanceAccounts", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ListInstanceAccounts), arg0, arg1)
 }
 
+// ListInstanceAddonErrors mocks base method.
+func (m *MockArgoCDServiceGatewayClient) ListInstanceAddonErrors(arg0 context.Context, arg1 *argocdv1.ListInstanceAddonErrorsRequest) (*argocdv1.ListInstanceAddonErrorsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListInstanceAddonErrors", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.ListInstanceAddonErrorsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListInstanceAddonErrors indicates an expected call of ListInstanceAddonErrors.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) ListInstanceAddonErrors(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListInstanceAddonErrors", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ListInstanceAddonErrors), arg0, arg1)
+}
+
 // ListInstanceAddonRepos mocks base method.
 func (m *MockArgoCDServiceGatewayClient) ListInstanceAddonRepos(arg0 context.Context, arg1 *argocdv1.ListInstanceAddonReposRequest) (*argocdv1.ListInstanceAddonReposResponse, error) {
 	m.ctrl.T.Helper()
@@ -537,6 +642,36 @@ func (m *MockArgoCDServiceGatewayClient) ListInstanceClusters(arg0 context.Conte
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) ListInstanceClusters(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListInstanceClusters", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ListInstanceClusters), arg0, arg1)
+}
+
+// ListInstanceManagedSecrets mocks base method.
+func (m *MockArgoCDServiceGatewayClient) ListInstanceManagedSecrets(arg0 context.Context, arg1 *argocdv1.ListInstanceManagedSecretsRequest) (*argocdv1.ListInstanceManagedSecretsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListInstanceManagedSecrets", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.ListInstanceManagedSecretsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListInstanceManagedSecrets indicates an expected call of ListInstanceManagedSecrets.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) ListInstanceManagedSecrets(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListInstanceManagedSecrets", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ListInstanceManagedSecrets), arg0, arg1)
+}
+
+// ListInstanceRepos mocks base method.
+func (m *MockArgoCDServiceGatewayClient) ListInstanceRepos(arg0 context.Context, arg1 *argocdv1.ListInstanceReposRequest) (*argocdv1.ListInstanceReposResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListInstanceRepos", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.ListInstanceReposResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListInstanceRepos indicates an expected call of ListInstanceRepos.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) ListInstanceRepos(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListInstanceRepos", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ListInstanceRepos), arg0, arg1)
 }
 
 // ListInstanceVersions mocks base method.
@@ -657,6 +792,21 @@ func (m *MockArgoCDServiceGatewayClient) PatchInstanceSecret(arg0 context.Contex
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) PatchInstanceSecret(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchInstanceSecret", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).PatchInstanceSecret), arg0, arg1)
+}
+
+// PatchManagedSecret mocks base method.
+func (m *MockArgoCDServiceGatewayClient) PatchManagedSecret(arg0 context.Context, arg1 *argocdv1.PatchManagedSecretRequest) (*argocdv1.PatchManagedSecretResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PatchManagedSecret", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.PatchManagedSecretResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PatchManagedSecret indicates an expected call of PatchManagedSecret.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) PatchManagedSecret(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchManagedSecret", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).PatchManagedSecret), arg0, arg1)
 }
 
 // RefreshInstanceAddon mocks base method.
@@ -927,6 +1077,21 @@ func (m *MockArgoCDServiceGatewayClient) UpdateInstanceWorkspace(arg0 context.Co
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) UpdateInstanceWorkspace(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstanceWorkspace", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).UpdateInstanceWorkspace), arg0, arg1)
+}
+
+// UpdateManagedSecret mocks base method.
+func (m *MockArgoCDServiceGatewayClient) UpdateManagedSecret(arg0 context.Context, arg1 *argocdv1.UpdateManagedSecretRequest) (*argocdv1.UpdateManagedSecretResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateManagedSecret", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.UpdateManagedSecretResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateManagedSecret indicates an expected call of UpdateManagedSecret.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) UpdateManagedSecret(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateManagedSecret", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).UpdateManagedSecret), arg0, arg1)
 }
 
 // UpsertInstanceAccount mocks base method.

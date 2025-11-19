@@ -6,8 +6,9 @@ PROJECT_REPO := github.com/akuityio/$(PROJECT_NAME)
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
 
-GOLANGCILINT_VERSION := 1.64.6
+GOLANGCILINT_VERSION := 2.5.0
 GO_LINT_ARGS := --timeout=10m
+CROSSPLANE_CLI_VERSION = v1.20.1
 
 # ====================================================================================
 # Setup Output
@@ -58,7 +59,7 @@ fallthrough: submodules
 e2e.run: test-integration
 
 # Run integration tests.
-test-integration: $(KIND) $(KUBECTL) $(UP) $(HELM3)
+test-integration: $(KIND) $(KUBECTL) $(UP) $(HELM)
 	@$(INFO) running integration tests using kind $(KIND_VERSION)
 	@KIND_NODE_IMAGE_TAG=${KIND_NODE_IMAGE_TAG} $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
 	@$(OK) integration tests passed
@@ -80,7 +81,7 @@ go.cachedir:
 # NOTE(hasheddan): we must ensure up is installed in tool cache prior to build
 # as including the k8s_tools machinery prior to the xpkg machinery sets UP to
 # point to tool cache.
-build.init: $(UP)
+build.init: $(UP) $(CROSSPLANE_CLI)
 
 # This is for running out-of-cluster locally, and is for convenience. Running
 # this make target will print out the command which was used. For more control,
@@ -90,12 +91,16 @@ run: go.build
 	@# To see other arguments that can be provided, run the command with --help instead
 	$(GO_OUT_DIR)/provider --debug
 
-dev: $(KIND) $(KUBECTL)
+dev: $(KIND) $(KUBECTL) $(HELM)
 	@$(INFO) Creating kind cluster
 	@$(KIND) create cluster --name=$(PROJECT_NAME)-dev
 	@$(KUBECTL) cluster-info --context kind-$(PROJECT_NAME)-dev
-	@$(INFO) Installing Crossplane CRDs
-	@$(KUBECTL) apply -k https://github.com/crossplane/crossplane//cluster?ref=master
+	@$(INFO) Installing Crossplane
+	@$(HELM) repo add crossplane-stable https://charts.crossplane.io/stable
+	@$(HELM) repo update
+	# Trim the leading "v" from the Crossplane CLI version for helm install.
+	@$(HELM) install crossplane --namespace crossplane-system --create-namespace crossplane-stable/crossplane --version $(patsubst v%,%,$(CROSSPLANE_CLI_VERSION))
+	@$(INFO) Waiting for Crossplane to be ready
 	@$(INFO) Installing Provider Akuity CRDs
 	@$(KUBECTL) apply -R -f package/crds
 	@$(INFO) Starting Provider Akuity controllers
@@ -148,9 +153,8 @@ endef
 export CROSSPLANE_MAKE_HELP
 
 mocks:
-	go install go.uber.org/mock/mockgen@latest
-	mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/argocd_service_gateway_client_mock.go github.com/akuity/api-client-go/pkg/api/gen/argocd/v1 ArgoCDServiceGatewayClient
-	mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/clientset_mock.go github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity Client
+	go tool mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/argocd_service_gateway_client_mock.go github.com/akuity/api-client-go/pkg/api/gen/argocd/v1 ArgoCDServiceGatewayClient
+	go tool mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/clientset_mock.go github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity Client
 
 crossplane.help:
 	@echo "$$CROSSPLANE_MAKE_HELP"
@@ -163,11 +167,3 @@ akuity-publish:
 		us-docker.pkg.dev/akuity/crossplane/provider:$(VERSION)
 
 .PHONY: crossplane.help help-special
-
-.PHONY: generate-kubetypes
-generate-kubetypes:
-	# https://pkg.go.dev/sigs.k8s.io/controller-tools/cmd/controller-gen
-	GOBIN=`pwd`/dist go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
-	./dist/controller-gen object paths="./internal/types/generated/akuity/v1alpha1/..."
-	./dist/controller-gen object paths="./internal/types/generated/argocd/v1alpha1/..."
-	./dist/controller-gen object paths="./internal/types/generated/crossplane/v1alpha1/..."
