@@ -80,6 +80,12 @@ type AkuityIntelligenceExtension struct {
 	ModelVersion             string   `json:"modelVersion,omitempty"`
 }
 
+type ClusterAddonsExtension struct {
+	Enabled          *bool    `json:"enabled,omitempty"`
+	AllowedUsernames []string `json:"allowedUsernames,omitempty"`
+	AllowedGroups    []string `json:"allowedGroups,omitempty"`
+}
+
 type TargetSelector struct {
 	ArgocdApplications []string `json:"argocdApplications,omitempty"`
 	K8SNamespaces      []string `json:"k8sNamespaces,omitempty"`
@@ -211,6 +217,7 @@ type InstanceSpec struct {
 	MetricsIngressUsername          *string                         `json:"metricsIngressUsername,omitempty"`
 	MetricsIngressPasswordHash      *string                         `json:"metricsIngressPasswordHash,omitempty"`
 	PrivilegedNotificationCluster   *string                         `json:"privilegedNotificationCluster,omitempty"`
+	ClusterAddonsExtension          *ClusterAddonsExtension         `json:"clusterAddonsExtension,omitempty"`
 }
 
 type AppsetPlugins struct {

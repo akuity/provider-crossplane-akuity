@@ -195,6 +195,19 @@ spec:
                                 type: boolean
                               basepath:
                                 type: string
+                              clusterAddonsExtension:
+                                properties:
+                                  allowedGroups:
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    type: boolean
+                                type: object
                               clusterCustomizationDefaults:
                                 properties:
                                   appReplication:
@@ -926,6 +939,19 @@ spec:
                                 type: boolean
                               basepath:
                                 type: string
+                              clusterAddonsExtension:
+                                properties:
+                                  allowedGroups:
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    type: boolean
+                                type: object
                               clusterCustomizationDefaults:
                                 properties:
                                   appReplication:
