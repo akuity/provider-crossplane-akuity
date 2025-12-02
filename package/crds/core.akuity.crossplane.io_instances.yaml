@@ -195,6 +195,19 @@ spec:
                                 type: boolean
                               basepath:
                                 type: string
+                              clusterAddonsExtension:
+                                properties:
+                                  allowedGroups:
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    type: boolean
+                                type: object
                               clusterCustomizationDefaults:
                                 properties:
                                   appReplication:
@@ -204,6 +217,8 @@ spec:
                                   kustomization:
                                     type: string
                                   redisTunneling:
+                                    type: boolean
+                                  serverSideDiffEnabled:
                                     type: boolean
                                 type: object
                               crossplaneExtension:
@@ -280,6 +295,10 @@ spec:
                                 properties:
                                   aiConfig:
                                     properties:
+                                      argocdSlackChannels:
+                                        items:
+                                          type: string
+                                        type: array
                                       argocdSlackService:
                                         type: string
                                       incidents:
@@ -926,6 +945,19 @@ spec:
                                 type: boolean
                               basepath:
                                 type: string
+                              clusterAddonsExtension:
+                                properties:
+                                  allowedGroups:
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    type: boolean
+                                type: object
                               clusterCustomizationDefaults:
                                 properties:
                                   appReplication:
@@ -935,6 +967,8 @@ spec:
                                   kustomization:
                                     type: string
                                   redisTunneling:
+                                    type: boolean
+                                  serverSideDiffEnabled:
                                     type: boolean
                                 type: object
                               crossplaneExtension:
@@ -1011,6 +1045,10 @@ spec:
                                 properties:
                                   aiConfig:
                                     properties:
+                                      argocdSlackChannels:
+                                        items:
+                                          type: string
+                                        type: array
                                       argocdSlackService:
                                         type: string
                                       incidents:
