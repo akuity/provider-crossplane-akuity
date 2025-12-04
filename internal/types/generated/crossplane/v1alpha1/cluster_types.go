@@ -96,4 +96,5 @@ type ClusterData struct {
 	Project                         string                              `json:"project,omitempty"`
 	Compatibility                   *ClusterCompatibility               `json:"compatibility,omitempty"`
 	ArgocdNotificationsSettings     *ClusterArgoCDNotificationsSettings `json:"argocdNotificationsSettings,omitempty"`
+	ServerSideDiffEnabled           *bool                               `json:"serverSideDiffEnabled,omitempty"`
 }

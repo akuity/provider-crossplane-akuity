@@ -47,10 +47,11 @@ type ArgoCDExtensionInstallEntry struct {
 }
 
 type ClusterCustomization struct {
-	AutoUpgradeDisabled *bool                `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization       runtime.RawExtension `json:"kustomization,omitempty"`
-	AppReplication      *bool                `json:"appReplication,omitempty"`
-	RedisTunneling      *bool                `json:"redisTunneling,omitempty"`
+	AutoUpgradeDisabled   *bool                `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization         runtime.RawExtension `json:"kustomization,omitempty"`
+	AppReplication        *bool                `json:"appReplication,omitempty"`
+	RedisTunneling        *bool                `json:"redisTunneling,omitempty"`
+	ServerSideDiffEnabled *bool                `json:"serverSideDiffEnabled,omitempty"`
 }
 
 type AppsetPolicy struct {
@@ -80,6 +81,12 @@ type AkuityIntelligenceExtension struct {
 	ModelVersion             string   `json:"modelVersion,omitempty"`
 }
 
+type ClusterAddonsExtension struct {
+	Enabled          *bool    `json:"enabled,omitempty"`
+	AllowedUsernames []string `json:"allowedUsernames,omitempty"`
+	AllowedGroups    []string `json:"allowedGroups,omitempty"`
+}
+
 type TargetSelector struct {
 	ArgocdApplications []string `json:"argocdApplications,omitempty"`
 	K8SNamespaces      []string `json:"k8sNamespaces,omitempty"`
@@ -107,9 +114,10 @@ type IncidentsConfig struct {
 }
 
 type AIConfig struct {
-	Runbooks           []*Runbook       `json:"runbooks,omitempty"`
-	Incidents          *IncidentsConfig `json:"incidents,omitempty"`
-	ArgocdSlackService *string          `json:"argocdSlackService,omitempty"`
+	Runbooks            []*Runbook       `json:"runbooks,omitempty"`
+	Incidents           *IncidentsConfig `json:"incidents,omitempty"`
+	ArgocdSlackService  *string          `json:"argocdSlackService,omitempty"`
+	ArgocdSlackChannels []string         `json:"argocdSlackChannels,omitempty"`
 }
 
 type KubeVisionConfig struct {
@@ -211,6 +219,7 @@ type InstanceSpec struct {
 	MetricsIngressUsername          *string                         `json:"metricsIngressUsername,omitempty"`
 	MetricsIngressPasswordHash      *string                         `json:"metricsIngressPasswordHash,omitempty"`
 	PrivilegedNotificationCluster   *string                         `json:"privilegedNotificationCluster,omitempty"`
+	ClusterAddonsExtension          *ClusterAddonsExtension         `json:"clusterAddonsExtension,omitempty"`
 }
 
 type AppsetPlugins struct {

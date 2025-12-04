@@ -177,6 +177,8 @@ spec:
                             type: string
                           redisTunneling:
                             type: boolean
+                          serverSideDiffEnabled:
+                            type: boolean
                           size:
                             type: string
                           targetVersion:

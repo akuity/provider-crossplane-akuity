@@ -30,10 +30,11 @@ type ArgoCDExtensionInstallEntry struct {
 
 // +kubebuilder:object:generate=true
 type ClusterCustomization struct {
-	AutoUpgradeDisabled *bool  `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization       string `json:"kustomization,omitempty"`
-	AppReplication      *bool  `json:"appReplication,omitempty"`
-	RedisTunneling      *bool  `json:"redisTunneling,omitempty"`
+	AutoUpgradeDisabled   *bool  `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization         string `json:"kustomization,omitempty"`
+	AppReplication        *bool  `json:"appReplication,omitempty"`
+	RedisTunneling        *bool  `json:"redisTunneling,omitempty"`
+	ServerSideDiffEnabled *bool  `json:"serverSideDiffEnabled,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -69,6 +70,13 @@ type AkuityIntelligenceExtension struct {
 }
 
 // +kubebuilder:object:generate=true
+type ClusterAddonsExtension struct {
+	Enabled          *bool    `json:"enabled,omitempty"`
+	AllowedUsernames []string `json:"allowedUsernames,omitempty"`
+	AllowedGroups    []string `json:"allowedGroups,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
 type TargetSelector struct {
 	ArgocdApplications []string `json:"argocdApplications,omitempty"`
 	K8SNamespaces      []string `json:"k8sNamespaces,omitempty"`
@@ -100,9 +108,10 @@ type IncidentsConfig struct {
 
 // +kubebuilder:object:generate=true
 type AIConfig struct {
-	Runbooks           []*Runbook       `json:"runbooks,omitempty"`
-	Incidents          *IncidentsConfig `json:"incidents,omitempty"`
-	ArgocdSlackService *string          `json:"argocdSlackService,omitempty"`
+	Runbooks            []*Runbook       `json:"runbooks,omitempty"`
+	Incidents           *IncidentsConfig `json:"incidents,omitempty"`
+	ArgocdSlackService  *string          `json:"argocdSlackService,omitempty"`
+	ArgocdSlackChannels []string         `json:"argocdSlackChannels,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -217,6 +226,7 @@ type InstanceSpec struct {
 	MetricsIngressUsername          *string                         `json:"metricsIngressUsername,omitempty"`
 	MetricsIngressPasswordHash      *string                         `json:"metricsIngressPasswordHash,omitempty"`
 	PrivilegedNotificationCluster   *string                         `json:"privilegedNotificationCluster,omitempty"`
+	ClusterAddonsExtension          *ClusterAddonsExtension         `json:"clusterAddonsExtension,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
