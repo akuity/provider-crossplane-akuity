@@ -303,6 +303,17 @@ spec:
                                         type: string
                                       incidents:
                                         properties:
+                                          grouping:
+                                            properties:
+                                              argocdApplicationNames:
+                                                items:
+                                                  type: string
+                                                type: array
+                                              k8sNamespaces:
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
                                           triggers:
                                             items:
                                               properties:
@@ -1053,6 +1064,17 @@ spec:
                                         type: string
                                       incidents:
                                         properties:
+                                          grouping:
+                                            properties:
+                                              argocdApplicationNames:
+                                                items:
+                                                  type: string
+                                                type: array
+                                              k8sNamespaces:
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
                                           triggers:
                                             items:
                                               properties:

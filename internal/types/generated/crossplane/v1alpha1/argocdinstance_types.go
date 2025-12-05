@@ -101,9 +101,16 @@ type IncidentWebhookConfig struct {
 }
 
 // +kubebuilder:object:generate=true
+type IncidentsGroupingConfig struct {
+	K8SNamespaces          []string `json:"k8sNamespaces,omitempty"`
+	ArgocdApplicationNames []string `json:"argocdApplicationNames,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
 type IncidentsConfig struct {
 	Triggers []*TargetSelector        `json:"triggers,omitempty"`
 	Webhooks []*IncidentWebhookConfig `json:"webhooks,omitempty"`
+	Grouping *IncidentsGroupingConfig `json:"grouping,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
