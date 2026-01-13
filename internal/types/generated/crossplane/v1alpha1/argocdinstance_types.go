@@ -86,9 +86,10 @@ type TargetSelector struct {
 
 // +kubebuilder:object:generate=true
 type Runbook struct {
-	Name      string          `json:"name,omitempty"`
-	Content   string          `json:"content,omitempty"`
-	AppliedTo *TargetSelector `json:"appliedTo,omitempty"`
+	Name              string          `json:"name,omitempty"`
+	Content           string          `json:"content,omitempty"`
+	AppliedTo         *TargetSelector `json:"appliedTo,omitempty"`
+	SlackChannelNames []string        `json:"slackChannelNames,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -122,9 +123,19 @@ type AIConfig struct {
 }
 
 // +kubebuilder:object:generate=true
+type AdditionalAttributeRule struct {
+	Group       string   `json:"group,omitempty"`
+	Kind        string   `json:"kind,omitempty"`
+	Annotations []string `json:"annotations,omitempty"`
+	Labels      []string `json:"labels,omitempty"`
+	Namespace   string   `json:"namespace,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
 type KubeVisionConfig struct {
-	CveScanConfig *CveScanConfig `json:"cveScanConfig,omitempty"`
-	AiConfig      *AIConfig      `json:"aiConfig,omitempty"`
+	CveScanConfig        *CveScanConfig             `json:"cveScanConfig,omitempty"`
+	AiConfig             *AIConfig                  `json:"aiConfig,omitempty"`
+	AdditionalAttributes []*AdditionalAttributeRule `json:"additionalAttributes,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
