@@ -90,6 +90,7 @@ type KargoInstanceSpec struct {
 	AkuityIntelligence         *AkuityIntelligence      `json:"akuityIntelligence,omitempty"`
 	GcConfig                   *GarbageCollectorConfig  `json:"gcConfig,omitempty"`
 	PromoControllerEnabled     bool                     `json:"promoControllerEnabled,omitempty"`
+	Secrets                    SecretsManagementConfig  `json:"secrets,omitempty"`
 }
 
 type AkuityIntelligence struct {

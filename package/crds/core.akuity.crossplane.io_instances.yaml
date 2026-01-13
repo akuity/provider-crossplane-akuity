@@ -293,6 +293,25 @@ spec:
                                 type: array
                               kubeVisionConfig:
                                 properties:
+                                  additionalAttributes:
+                                    items:
+                                      properties:
+                                        annotations:
+                                          items:
+                                            type: string
+                                          type: array
+                                        group:
+                                          type: string
+                                        kind:
+                                          type: string
+                                        labels:
+                                          items:
+                                            type: string
+                                          type: array
+                                        namespace:
+                                          type: string
+                                      type: object
+                                    type: array
                                   aiConfig:
                                     properties:
                                       argocdSlackChannels:
@@ -373,6 +392,10 @@ spec:
                                               type: string
                                             name:
                                               type: string
+                                            slackChannelNames:
+                                              items:
+                                                type: string
+                                              type: array
                                           type: object
                                         type: array
                                     type: object
@@ -1054,6 +1077,25 @@ spec:
                                 type: array
                               kubeVisionConfig:
                                 properties:
+                                  additionalAttributes:
+                                    items:
+                                      properties:
+                                        annotations:
+                                          items:
+                                            type: string
+                                          type: array
+                                        group:
+                                          type: string
+                                        kind:
+                                          type: string
+                                        labels:
+                                          items:
+                                            type: string
+                                          type: array
+                                        namespace:
+                                          type: string
+                                      type: object
+                                    type: array
                                   aiConfig:
                                     properties:
                                       argocdSlackChannels:
@@ -1134,6 +1176,10 @@ spec:
                                               type: string
                                             name:
                                               type: string
+                                            slackChannelNames:
+                                              items:
+                                                type: string
+                                              type: array
                                           type: object
                                         type: array
                                     type: object

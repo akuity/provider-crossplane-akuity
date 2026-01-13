@@ -95,9 +95,10 @@ type TargetSelector struct {
 }
 
 type Runbook struct {
-	Name      string          `json:"name,omitempty"`
-	Content   string          `json:"content,omitempty"`
-	AppliedTo *TargetSelector `json:"appliedTo,omitempty"`
+	Name              string          `json:"name,omitempty"`
+	Content           string          `json:"content,omitempty"`
+	AppliedTo         *TargetSelector `json:"appliedTo,omitempty"`
+	SlackChannelNames []string        `json:"slackChannelNames,omitempty"`
 }
 
 type IncidentWebhookConfig struct {
@@ -126,9 +127,18 @@ type AIConfig struct {
 	ArgocdSlackChannels []string         `json:"argocdSlackChannels,omitempty"`
 }
 
+type AdditionalAttributeRule struct {
+	Group       string   `json:"group,omitempty"`
+	Kind        string   `json:"kind,omitempty"`
+	Annotations []string `json:"annotations,omitempty"`
+	Labels      []string `json:"labels,omitempty"`
+	Namespace   string   `json:"namespace,omitempty"`
+}
+
 type KubeVisionConfig struct {
-	CveScanConfig *CveScanConfig `json:"cveScanConfig,omitempty"`
-	AiConfig      *AIConfig      `json:"aiConfig,omitempty"`
+	CveScanConfig        *CveScanConfig             `json:"cveScanConfig,omitempty"`
+	AiConfig             *AIConfig                  `json:"aiConfig,omitempty"`
+	AdditionalAttributes []*AdditionalAttributeRule `json:"additionalAttributes,omitempty"`
 }
 
 type AppInAnyNamespaceConfig struct {
