@@ -66,8 +66,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	logger := o.Logger.WithValues("controller", name)
 
-	r := managed.NewReconciler(mgr,
-		resource.ManagedKind(v1alpha1.InstanceGroupVersionKind),
+	opts := []managed.ReconcilerOption{
 		managed.WithExternalConnecter(&connector{
 			kube:   mgr.GetClient(),
 			usage:  resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
@@ -78,6 +77,15 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 		managed.WithConnectionPublishers(cps...),
 		managed.WithInitializers(),
+	}
+
+	if o.Features.Enabled(features.EnableBetaManagementPolicies) {
+		opts = append(opts, managed.WithManagementPolicies())
+	}
+
+	r := managed.NewReconciler(mgr,
+		resource.ManagedKind(v1alpha1.InstanceGroupVersionKind),
+		opts...,
 	)
 
 	return ctrl.NewControllerManagedBy(mgr).
