@@ -9,7 +9,7 @@ on:
 
 env:
   GO_VERSION: "1.26.1"
-  GOLANGCILINT_VERSION: "v2.5.0"
+  GOLANGCILINT_VERSION: "v2.11.4"
 
 jobs:
   detect-noop:
