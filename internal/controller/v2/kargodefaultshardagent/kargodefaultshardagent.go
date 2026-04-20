@@ -173,27 +173,20 @@ func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgen
 	})
 }
 
-// resolveKargo returns (kargoInstanceID, kargoInstanceName) for the
-// MR — either from an explicit ID or by looking up the referenced
-// KargoInstance MR (same namespace).
+// resolveKargo returns (kargoInstanceID, kargoInstanceName) by looking
+// up the referenced KargoInstance MR in the same namespace. The ID may
+// be empty if the KargoInstance has not yet reported its AtProvider.ID;
+// the Akuity apply path only needs the name, so this is fine.
 func (e *external) resolveKargo(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (string, string, error) {
-	if mg.Spec.ForProvider.KargoInstanceRef != nil && mg.Spec.ForProvider.KargoInstanceRef.Name != "" {
-		ki := &v1alpha2.KargoInstance{}
-		key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.KargoInstanceRef.Name, Namespace: mg.GetNamespace()}
-		if err := e.Kube.Get(ctx, key, ki); err != nil {
-			return "", "", fmt.Errorf("could not resolve KargoInstanceRef %s/%s: %w", key.Namespace, key.Name, err)
-		}
-		return ki.Status.AtProvider.ID, ki.Spec.ForProvider.Name, nil
+	if mg.Spec.ForProvider.KargoInstanceRef == nil || mg.Spec.ForProvider.KargoInstanceRef.Name == "" {
+		return "", "", fmt.Errorf("spec.forProvider.kargoInstanceRef.name must be set")
 	}
-	if mg.Spec.ForProvider.KargoInstanceID == "" {
-		return "", "", fmt.Errorf("one of spec.forProvider.kargoInstanceId or spec.forProvider.kargoInstanceRef must be set")
+	ki := &v1alpha2.KargoInstance{}
+	key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.KargoInstanceRef.Name, Namespace: mg.GetNamespace()}
+	if err := e.Kube.Get(ctx, key, ki); err != nil {
+		return "", "", fmt.Errorf("could not resolve KargoInstanceRef %s/%s: %w", key.Namespace, key.Name, err)
 	}
-	// ApplyKargoInstance keys by name, so the ID alone is insufficient
-	// for the patch path. Callers that supply KargoInstanceID alone
-	// must keep the KargoInstance MR in the same namespace; we fall
-	// back to the empty name and let the Akuity API reject the
-	// request to surface the mis-configuration early.
-	return mg.Spec.ForProvider.KargoInstanceID, "", nil
+	return ki.Status.AtProvider.ID, ki.Spec.ForProvider.Name, nil
 }
 
 // pbSpecToKargoStruct wraps the mutated *kargov1.KargoInstance back

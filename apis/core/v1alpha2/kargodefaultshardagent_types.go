@@ -29,15 +29,12 @@ import (
 // Kargo instance. This resource is a convenience wrapper around the
 // Kargo instance's kargoInstanceSpec.defaultShardAgent field.
 type KargoDefaultShardAgentParameters struct {
-	// KargoInstanceID references the owning Kargo instance by ID.
-	// Either KargoInstanceID or KargoInstanceRef must be set.
-	// +optional
-	KargoInstanceID string `json:"kargoInstanceId,omitempty"`
-
 	// KargoInstanceRef references the owning Kargo instance by name
-	// in the same namespace as this KargoDefaultShardAgent.
-	// +optional
-	KargoInstanceRef *LocalReference `json:"kargoInstanceRef,omitempty"`
+	// in the same namespace as this KargoDefaultShardAgent. The Akuity
+	// Kargo apply path keys by instance name, so referencing by name
+	// is the only supported resolution mode.
+	// +kubebuilder:validation:Required
+	KargoInstanceRef *LocalReference `json:"kargoInstanceRef"`
 
 	// AgentName is the name of the shard agent to promote as default.
 	// Required.

@@ -72,15 +72,12 @@ spec:
                       Required.
                     minLength: 1
                     type: string
-                  kargoInstanceId:
-                    description: |-
-                      KargoInstanceID references the owning Kargo instance by ID.
-                      Either KargoInstanceID or KargoInstanceRef must be set.
-                    type: string
                   kargoInstanceRef:
                     description: |-
                       KargoInstanceRef references the owning Kargo instance by name
-                      in the same namespace as this KargoDefaultShardAgent.
+                      in the same namespace as this KargoDefaultShardAgent. The Akuity
+                      Kargo apply path keys by instance name, so referencing by name
+                      is the only supported resolution mode.
                     properties:
                       name:
                         description: Name of the referenced object. Required.
@@ -91,6 +88,7 @@ spec:
                     type: object
                 required:
                 - agentName
+                - kargoInstanceRef
                 type: object
               managementPolicies:
                 default:
