@@ -72,3 +72,19 @@ func ProtoToMap(msg proto.Message) (map[string]any, error) {
 	}
 	return m, nil
 }
+
+// GoModelToProto populates the supplied protobuf message from a Go
+// model via JSON→protojson. Used by the Kargo controllers to bridge
+// hand-authored akuity wire types (JSON-tagged) into the protobuf
+// request types the gateway client expects.
+func GoModelToProto(obj any, target proto.Message) error {
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	opts := protojson.UnmarshalOptions{DiscardUnknown: true}
+	if err := opts.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("protojson unmarshal: %w", err)
+	}
+	return nil
+}
