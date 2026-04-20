@@ -77,6 +77,19 @@ test-integration: $(KIND) $(KUBECTL) $(UP) $(HELM)
 	@KIND_NODE_IMAGE_TAG=${KIND_NODE_IMAGE_TAG} $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
 	@$(OK) integration tests passed
 
+# Version of the kube-apiserver + etcd binaries to fetch via setup-envtest.
+ENVTEST_K8S_VERSION ?= 1.35.x
+
+# Install setup-envtest + the kube binaries it manages, then run the
+# envtest-gated tests. Keeps envtest out of the default `go test ./...`
+# (which must work without network + without binaries on disk).
+test-envtest:
+	@$(INFO) installing setup-envtest + k8s $(ENVTEST_K8S_VERSION) binaries
+	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.23
+	@KUBEBUILDER_ASSETS="$$($$(go env GOPATH)/bin/setup-envtest use -p path $(ENVTEST_K8S_VERSION))" \
+		go test -tags=envtest ./internal/controller/v2/envtest/... || $(FAIL)
+	@$(OK) envtest suite passed
+
 # Update the submodules, such as the common build scripts.
 submodules:
 	@git submodule sync
