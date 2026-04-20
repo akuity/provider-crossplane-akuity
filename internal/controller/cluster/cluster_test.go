@@ -402,17 +402,37 @@ func TestObserve_GetClusterErr(t *testing.T) {
 		},
 	}
 
+	// The akuity client translates both NotFound and PermissionDenied from
+	// the API into reason.NotFound (see internal/reason/doc.go). Observe
+	// must treat that as an absent external resource.
 	mockAkuityClient.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
-		Return(nil, errors.New("fake")).Times(1)
+		Return(nil, reason.AsNotFound(errors.New("cluster not found"))).Times(1)
 
 	resp, err := client.Observe(ctx, &managedCluster)
-	// require.Error(t, err)
-	// assert.Equal(t, managed.ExternalObservation{}, resp)
-	// assert.Equal(t, xpv1.ReasonReconcileError, managedCluster.Status.Conditions[0].Reason)
-
-	// we use not found for permission denied error
 	require.NoError(t, err)
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: false}, resp)
+}
+
+func TestObserve_GetClusterGenericErrPropagates(t *testing.T) {
+	ctx := context.Background()
+	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
+	client := cluster.NewExternal(mockAkuityClient, fake.NewClientBuilder().Build(), logging.NewNopLogger())
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.ObjectMeta = metav1.ObjectMeta{
+		Annotations: map[string]string{
+			"crossplane.io/external-name": fixtures.ClusterName,
+		},
+	}
+
+	mockAkuityClient.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(nil, errors.New("boom")).Times(1)
+
+	resp, err := client.Observe(ctx, &managedCluster)
+	require.Error(t, err)
+	assert.Equal(t, managed.ExternalObservation{}, resp)
+	require.NotEmpty(t, managedCluster.Status.Conditions)
+	assert.Equal(t, xpv1.ReasonReconcileError, managedCluster.Status.Conditions[0].Reason)
 }
 
 func TestObserve_HealthStatusNotHealthy(t *testing.T) {

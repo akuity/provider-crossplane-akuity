@@ -34,6 +34,7 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/apis"
 	akuity "github.com/akuityio/provider-crossplane-akuity/internal/controller"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/ratelimit"
 )
 
 func main() {
@@ -85,7 +86,7 @@ func main() {
 		Logger:                  log,
 		MaxConcurrentReconciles: *maxReconcileRate,
 		PollInterval:            *pollInterval,
-		GlobalRateLimiter:       ratelimiter.NewGlobal(*maxReconcileRate),
+		GlobalRateLimiter:       ratelimit.ForAkuity(*maxReconcileRate),
 		Features:                &feature.Flags{},
 	}
 
