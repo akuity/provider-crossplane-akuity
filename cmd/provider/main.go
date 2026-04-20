@@ -34,7 +34,6 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/apis"
 	akuity "github.com/akuityio/provider-crossplane-akuity/internal/controller"
-	"github.com/akuityio/provider-crossplane-akuity/internal/features"
 )
 
 func main() {
@@ -46,8 +45,6 @@ func main() {
 		syncInterval     = app.Flag("sync", "How often all resources will be double-checked for drift from the desired state.").Short('s').Default("1h").Duration()
 		pollInterval     = app.Flag("poll", "How often individual resources will be checked for drift from the desired state").Default("1m").Duration()
 		maxReconcileRate = app.Flag("max-reconcile-rate", "The global maximum rate per second at which resources may checked for drift from the desired state.").Default("10").Int()
-
-		enableManagementPolicies = app.Flag("enable-management-policies", "Enable support for Management Policies.").Default("false").Envar("ENABLE_MANAGEMENT_POLICIES").Bool()
 	)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
@@ -90,11 +87,6 @@ func main() {
 		PollInterval:            *pollInterval,
 		GlobalRateLimiter:       ratelimiter.NewGlobal(*maxReconcileRate),
 		Features:                &feature.Flags{},
-	}
-
-	if *enableManagementPolicies {
-		o.Features.Enable(features.EnableAlphaManagementPolicies)
-		log.Info("Alpha feature enabled", "flag", features.EnableAlphaManagementPolicies)
 	}
 
 	kingpin.FatalIfError(akuity.Setup(mgr, o), "Cannot setup Akuity controllers")
