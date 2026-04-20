@@ -19,7 +19,7 @@ package v1alpha2
 import (
 	"reflect"
 
-	xpcommon "github.com/crossplane/crossplane-runtime/v2/apis/common"
+	xpcommon "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )

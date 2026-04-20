@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -864,8 +865,8 @@ type InstanceObservation struct {
 
 // An InstanceSpec defines the desired state of an Instance.
 type InstanceSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       InstanceParameters `json:"forProvider"`
+	xpv2.ManagedResourceSpec `json:",inline"`
+	ForProvider              InstanceParameters `json:"forProvider"`
 }
 
 // An InstanceStatus represents the observed state of an Instance.

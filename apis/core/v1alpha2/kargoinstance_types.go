@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -233,11 +234,11 @@ type KargoInstanceObservation struct {
 	OwnerOrganizationName string `json:"ownerOrganizationName,omitempty"`
 }
 
-// A KargoInstanceSpecResource defines the desired state of a Kargo
+// A KargoInstanceResourceSpec defines the desired state of a Kargo
 // instance.
-type KargoInstanceSpecResource struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       KargoInstanceParameters `json:"forProvider"`
+type KargoInstanceResourceSpec struct {
+	xpv2.ManagedResourceSpec `json:",inline"`
+	ForProvider              KargoInstanceParameters `json:"forProvider"`
 }
 
 // A KargoInstanceStatus represents the observed state of a Kargo
@@ -260,7 +261,7 @@ type KargoInstance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KargoInstanceSpecResource `json:"spec"`
+	Spec   KargoInstanceResourceSpec `json:"spec"`
 	Status KargoInstanceStatus       `json:"status,omitempty"`
 }
 

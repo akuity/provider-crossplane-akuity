@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -56,8 +57,8 @@ type InstanceIpAllowListObservation struct {
 // An InstanceIpAllowListSpec defines the desired state of an
 // InstanceIpAllowList.
 type InstanceIpAllowListSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       InstanceIpAllowListParameters `json:"forProvider"`
+	xpv2.ManagedResourceSpec `json:",inline"`
+	ForProvider              InstanceIpAllowListParameters `json:"forProvider"`
 }
 
 // An InstanceIpAllowListStatus represents the observed state of an

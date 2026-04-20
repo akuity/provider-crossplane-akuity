@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -74,24 +75,6 @@ type ClusterParameters struct {
 	// Data holds the cluster data configuration.
 	// +optional
 	Data ClusterData `json:"data,omitempty"`
-
-	// KubeConfigSecretRef references a Secret in the same namespace as
-	// this Cluster containing a kubeconfig that the provider uses to
-	// apply agent manifests.
-	// +optional
-	KubeConfigSecretRef *LocalSecretKeySelector `json:"kubeConfigSecretRef,omitempty"`
-
-	// EnableInClusterKubeConfig makes the provider use its own
-	// in-cluster kubeconfig to apply agent manifests. Mutually exclusive
-	// with KubeConfigSecretRef.
-	// +optional
-	EnableInClusterKubeConfig bool `json:"enableInClusterKubeConfig,omitempty"`
-
-	// RemoveAgentResourcesOnDestroy toggles removal of the agent
-	// manifests from the managed cluster when the Cluster CR is deleted.
-	// Defaults to true when unset.
-	// +optional
-	RemoveAgentResourcesOnDestroy *bool `json:"removeAgentResourcesOnDestroy,omitempty"`
 }
 
 // ClusterData mirrors the upstream ClusterData wire shape with the
@@ -338,8 +321,8 @@ type ClusterObservationAgentHealthStatus struct {
 
 // A ClusterSpec defines the desired state of a Cluster.
 type ClusterSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       ClusterParameters `json:"forProvider"`
+	xpv2.ManagedResourceSpec `json:",inline"`
+	ForProvider              ClusterParameters `json:"forProvider"`
 }
 
 // A ClusterStatus represents the observed state of a Cluster.

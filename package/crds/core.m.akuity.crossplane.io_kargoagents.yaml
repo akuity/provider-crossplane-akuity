@@ -56,22 +56,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: A KargoAgentSpecResource defines the desired state of a KargoAgent.
+            description: A KargoAgentResourceSpec defines the desired state of a KargoAgent.
             properties:
-              deletionPolicy:
-                default: Delete
-                description: |-
-                  DeletionPolicy specifies what will happen to the underlying external
-                  when this managed resource is deleted - either "Delete" or "Orphan" the
-                  external resource.
-                  This field is planned to be deprecated in favor of the ManagementPolicies
-                  field in a future release. Currently, both could be set independently and
-                  non-default values would be honored if the feature flag is enabled.
-                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
-                enum:
-                - Orphan
-                - Delete
-                type: string
               forProvider:
                 description: KargoAgentParameters are the configurable fields of a
                   KargoAgent.
@@ -98,23 +84,6 @@ spec:
                     required:
                     - name
                     type: object
-                  kubeConfigSecretRef:
-                    description: |-
-                      KubeConfigSecretRef references a Secret holding the kubeconfig
-                      used to install the agent. Same-namespace only.
-                    properties:
-                      key:
-                        description: Key within the Secret. Required.
-                        minLength: 1
-                        type: string
-                      name:
-                        description: Name of the Secret. Required.
-                        minLength: 1
-                        type: string
-                    required:
-                    - key
-                    - name
-                    type: object
                   labels:
                     additionalProperties:
                       type: string
@@ -128,16 +97,6 @@ spec:
                     description: Namespace in the managed cluster where the agent
                       is installed.
                     type: string
-                  reapplyManifestsOnUpdate:
-                    description: |-
-                      ReapplyManifestsOnUpdate forces re-application of agent manifests
-                      on each update reconcile.
-                    type: boolean
-                  removeAgentResourcesOnDestroy:
-                    description: |-
-                      RemoveAgentResourcesOnDestroy toggles removal of agent manifests
-                      from the managed cluster when the KargoAgent CR is deleted.
-                    type: boolean
                   spec:
                     description: Spec is the KargoAgent configuration.
                     properties:
@@ -253,10 +212,6 @@ spec:
                   through a Crossplane feature flag.
                   ManagementPolicies specify the array of actions Crossplane is allowed to
                   take on the managed and external resources.
-                  This field is planned to replace the DeletionPolicy field in a future
-                  release. Currently, both could be set independently and non-default
-                  values would be honored if the feature flag is enabled. If both are
-                  custom, the DeletionPolicy field will be ignored.
                   See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
                   and this one: https://github.com/crossplane/crossplane/blob/444267e84783136daa93568b364a5f01228cacbe/design/one-pager-ignore-changes.md
                 items:
@@ -274,41 +229,21 @@ spec:
                 type: array
               providerConfigRef:
                 default:
+                  kind: ClusterProviderConfig
                   name: default
                 description: |-
                   ProviderConfigReference specifies how the provider that will be used to
                   create, observe, update, and delete this managed resource should be
                   configured.
                 properties:
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
                   name:
                     description: Name of the referenced object.
                     type: string
-                  policy:
-                    description: Policies for referencing.
-                    properties:
-                      resolution:
-                        default: Required
-                        description: |-
-                          Resolution specifies whether resolution of this reference is required.
-                          The default is 'Required', which means the reconcile will fail if the
-                          reference cannot be resolved. 'Optional' means this reference will be
-                          a no-op if it cannot be resolved.
-                        enum:
-                        - Required
-                        - Optional
-                        type: string
-                      resolve:
-                        description: |-
-                          Resolve specifies when this reference should be resolved. The default
-                          is 'IfNotPresent', which will attempt to resolve the reference only when
-                          the corresponding field is not present. Use 'Always' to resolve the
-                          reference on every reconcile.
-                        enum:
-                        - Always
-                        - IfNotPresent
-                        type: string
-                    type: object
                 required:
+                - kind
                 - name
                 type: object
               writeConnectionSecretToRef:
@@ -321,12 +256,8 @@ spec:
                   name:
                     description: Name of the secret.
                     type: string
-                  namespace:
-                    description: Namespace of the secret.
-                    type: string
                 required:
                 - name
-                - namespace
                 type: object
             required:
             - forProvider

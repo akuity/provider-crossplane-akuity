@@ -24,23 +24,18 @@ func (mg *Cluster) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
 	return mg.Status.GetCondition(ct)
 }
 
-// GetDeletionPolicy of this Cluster.
-func (mg *Cluster) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.DeletionPolicy
-}
-
 // GetManagementPolicies of this Cluster.
 func (mg *Cluster) GetManagementPolicies() xpv1.ManagementPolicies {
 	return mg.Spec.ManagementPolicies
 }
 
 // GetProviderConfigReference of this Cluster.
-func (mg *Cluster) GetProviderConfigReference() *xpv1.Reference {
+func (mg *Cluster) GetProviderConfigReference() *xpv1.ProviderConfigReference {
 	return mg.Spec.ProviderConfigReference
 }
 
 // GetWriteConnectionSecretToReference of this Cluster.
-func (mg *Cluster) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+func (mg *Cluster) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
 	return mg.Spec.WriteConnectionSecretToReference
 }
 
@@ -49,23 +44,18 @@ func (mg *Cluster) SetConditions(c ...xpv1.Condition) {
 	mg.Status.SetConditions(c...)
 }
 
-// SetDeletionPolicy of this Cluster.
-func (mg *Cluster) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.DeletionPolicy = r
-}
-
 // SetManagementPolicies of this Cluster.
 func (mg *Cluster) SetManagementPolicies(r xpv1.ManagementPolicies) {
 	mg.Spec.ManagementPolicies = r
 }
 
 // SetProviderConfigReference of this Cluster.
-func (mg *Cluster) SetProviderConfigReference(r *xpv1.Reference) {
+func (mg *Cluster) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
 	mg.Spec.ProviderConfigReference = r
 }
 
 // SetWriteConnectionSecretToReference of this Cluster.
-func (mg *Cluster) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+func (mg *Cluster) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
 	mg.Spec.WriteConnectionSecretToReference = r
 }
 
@@ -74,23 +64,18 @@ func (mg *Instance) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
 	return mg.Status.GetCondition(ct)
 }
 
-// GetDeletionPolicy of this Instance.
-func (mg *Instance) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.DeletionPolicy
-}
-
 // GetManagementPolicies of this Instance.
 func (mg *Instance) GetManagementPolicies() xpv1.ManagementPolicies {
 	return mg.Spec.ManagementPolicies
 }
 
 // GetProviderConfigReference of this Instance.
-func (mg *Instance) GetProviderConfigReference() *xpv1.Reference {
+func (mg *Instance) GetProviderConfigReference() *xpv1.ProviderConfigReference {
 	return mg.Spec.ProviderConfigReference
 }
 
 // GetWriteConnectionSecretToReference of this Instance.
-func (mg *Instance) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+func (mg *Instance) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
 	return mg.Spec.WriteConnectionSecretToReference
 }
 
@@ -99,23 +84,18 @@ func (mg *Instance) SetConditions(c ...xpv1.Condition) {
 	mg.Status.SetConditions(c...)
 }
 
-// SetDeletionPolicy of this Instance.
-func (mg *Instance) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.DeletionPolicy = r
-}
-
 // SetManagementPolicies of this Instance.
 func (mg *Instance) SetManagementPolicies(r xpv1.ManagementPolicies) {
 	mg.Spec.ManagementPolicies = r
 }
 
 // SetProviderConfigReference of this Instance.
-func (mg *Instance) SetProviderConfigReference(r *xpv1.Reference) {
+func (mg *Instance) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
 	mg.Spec.ProviderConfigReference = r
 }
 
 // SetWriteConnectionSecretToReference of this Instance.
-func (mg *Instance) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+func (mg *Instance) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
 	mg.Spec.WriteConnectionSecretToReference = r
 }
 
@@ -124,23 +104,18 @@ func (mg *InstanceIpAllowList) GetCondition(ct xpv1.ConditionType) xpv1.Conditio
 	return mg.Status.GetCondition(ct)
 }
 
-// GetDeletionPolicy of this InstanceIpAllowList.
-func (mg *InstanceIpAllowList) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.DeletionPolicy
-}
-
 // GetManagementPolicies of this InstanceIpAllowList.
 func (mg *InstanceIpAllowList) GetManagementPolicies() xpv1.ManagementPolicies {
 	return mg.Spec.ManagementPolicies
 }
 
 // GetProviderConfigReference of this InstanceIpAllowList.
-func (mg *InstanceIpAllowList) GetProviderConfigReference() *xpv1.Reference {
+func (mg *InstanceIpAllowList) GetProviderConfigReference() *xpv1.ProviderConfigReference {
 	return mg.Spec.ProviderConfigReference
 }
 
 // GetWriteConnectionSecretToReference of this InstanceIpAllowList.
-func (mg *InstanceIpAllowList) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+func (mg *InstanceIpAllowList) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
 	return mg.Spec.WriteConnectionSecretToReference
 }
 
@@ -149,23 +124,58 @@ func (mg *InstanceIpAllowList) SetConditions(c ...xpv1.Condition) {
 	mg.Status.SetConditions(c...)
 }
 
-// SetDeletionPolicy of this InstanceIpAllowList.
-func (mg *InstanceIpAllowList) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.DeletionPolicy = r
-}
-
 // SetManagementPolicies of this InstanceIpAllowList.
 func (mg *InstanceIpAllowList) SetManagementPolicies(r xpv1.ManagementPolicies) {
 	mg.Spec.ManagementPolicies = r
 }
 
 // SetProviderConfigReference of this InstanceIpAllowList.
-func (mg *InstanceIpAllowList) SetProviderConfigReference(r *xpv1.Reference) {
+func (mg *InstanceIpAllowList) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
 	mg.Spec.ProviderConfigReference = r
 }
 
 // SetWriteConnectionSecretToReference of this InstanceIpAllowList.
-func (mg *InstanceIpAllowList) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+func (mg *InstanceIpAllowList) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
+	mg.Spec.WriteConnectionSecretToReference = r
+}
+
+// GetCondition of this KargoAgent.
+func (mg *KargoAgent) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	return mg.Status.GetCondition(ct)
+}
+
+// GetManagementPolicies of this KargoAgent.
+func (mg *KargoAgent) GetManagementPolicies() xpv1.ManagementPolicies {
+	return mg.Spec.ManagementPolicies
+}
+
+// GetProviderConfigReference of this KargoAgent.
+func (mg *KargoAgent) GetProviderConfigReference() *xpv1.ProviderConfigReference {
+	return mg.Spec.ProviderConfigReference
+}
+
+// GetWriteConnectionSecretToReference of this KargoAgent.
+func (mg *KargoAgent) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
+	return mg.Spec.WriteConnectionSecretToReference
+}
+
+// SetConditions of this KargoAgent.
+func (mg *KargoAgent) SetConditions(c ...xpv1.Condition) {
+	mg.Status.SetConditions(c...)
+}
+
+// SetManagementPolicies of this KargoAgent.
+func (mg *KargoAgent) SetManagementPolicies(r xpv1.ManagementPolicies) {
+	mg.Spec.ManagementPolicies = r
+}
+
+// SetProviderConfigReference of this KargoAgent.
+func (mg *KargoAgent) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
+	mg.Spec.ProviderConfigReference = r
+}
+
+// SetWriteConnectionSecretToReference of this KargoAgent.
+func (mg *KargoAgent) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
 	mg.Spec.WriteConnectionSecretToReference = r
 }
 
@@ -174,23 +184,18 @@ func (mg *KargoDefaultShardAgent) GetCondition(ct xpv1.ConditionType) xpv1.Condi
 	return mg.Status.GetCondition(ct)
 }
 
-// GetDeletionPolicy of this KargoDefaultShardAgent.
-func (mg *KargoDefaultShardAgent) GetDeletionPolicy() xpv1.DeletionPolicy {
-	return mg.Spec.DeletionPolicy
-}
-
 // GetManagementPolicies of this KargoDefaultShardAgent.
 func (mg *KargoDefaultShardAgent) GetManagementPolicies() xpv1.ManagementPolicies {
 	return mg.Spec.ManagementPolicies
 }
 
 // GetProviderConfigReference of this KargoDefaultShardAgent.
-func (mg *KargoDefaultShardAgent) GetProviderConfigReference() *xpv1.Reference {
+func (mg *KargoDefaultShardAgent) GetProviderConfigReference() *xpv1.ProviderConfigReference {
 	return mg.Spec.ProviderConfigReference
 }
 
 // GetWriteConnectionSecretToReference of this KargoDefaultShardAgent.
-func (mg *KargoDefaultShardAgent) GetWriteConnectionSecretToReference() *xpv1.SecretReference {
+func (mg *KargoDefaultShardAgent) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
 	return mg.Spec.WriteConnectionSecretToReference
 }
 
@@ -199,22 +204,57 @@ func (mg *KargoDefaultShardAgent) SetConditions(c ...xpv1.Condition) {
 	mg.Status.SetConditions(c...)
 }
 
-// SetDeletionPolicy of this KargoDefaultShardAgent.
-func (mg *KargoDefaultShardAgent) SetDeletionPolicy(r xpv1.DeletionPolicy) {
-	mg.Spec.DeletionPolicy = r
-}
-
 // SetManagementPolicies of this KargoDefaultShardAgent.
 func (mg *KargoDefaultShardAgent) SetManagementPolicies(r xpv1.ManagementPolicies) {
 	mg.Spec.ManagementPolicies = r
 }
 
 // SetProviderConfigReference of this KargoDefaultShardAgent.
-func (mg *KargoDefaultShardAgent) SetProviderConfigReference(r *xpv1.Reference) {
+func (mg *KargoDefaultShardAgent) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
 	mg.Spec.ProviderConfigReference = r
 }
 
 // SetWriteConnectionSecretToReference of this KargoDefaultShardAgent.
-func (mg *KargoDefaultShardAgent) SetWriteConnectionSecretToReference(r *xpv1.SecretReference) {
+func (mg *KargoDefaultShardAgent) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
+	mg.Spec.WriteConnectionSecretToReference = r
+}
+
+// GetCondition of this KargoInstance.
+func (mg *KargoInstance) GetCondition(ct xpv1.ConditionType) xpv1.Condition {
+	return mg.Status.GetCondition(ct)
+}
+
+// GetManagementPolicies of this KargoInstance.
+func (mg *KargoInstance) GetManagementPolicies() xpv1.ManagementPolicies {
+	return mg.Spec.ManagementPolicies
+}
+
+// GetProviderConfigReference of this KargoInstance.
+func (mg *KargoInstance) GetProviderConfigReference() *xpv1.ProviderConfigReference {
+	return mg.Spec.ProviderConfigReference
+}
+
+// GetWriteConnectionSecretToReference of this KargoInstance.
+func (mg *KargoInstance) GetWriteConnectionSecretToReference() *xpv1.LocalSecretReference {
+	return mg.Spec.WriteConnectionSecretToReference
+}
+
+// SetConditions of this KargoInstance.
+func (mg *KargoInstance) SetConditions(c ...xpv1.Condition) {
+	mg.Status.SetConditions(c...)
+}
+
+// SetManagementPolicies of this KargoInstance.
+func (mg *KargoInstance) SetManagementPolicies(r xpv1.ManagementPolicies) {
+	mg.Spec.ManagementPolicies = r
+}
+
+// SetProviderConfigReference of this KargoInstance.
+func (mg *KargoInstance) SetProviderConfigReference(r *xpv1.ProviderConfigReference) {
+	mg.Spec.ProviderConfigReference = r
+}
+
+// SetWriteConnectionSecretToReference of this KargoInstance.
+func (mg *KargoInstance) SetWriteConnectionSecretToReference(r *xpv1.LocalSecretReference) {
 	mg.Spec.WriteConnectionSecretToReference = r
 }

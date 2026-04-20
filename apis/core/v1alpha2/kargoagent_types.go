@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -64,21 +65,6 @@ type KargoAgentParameters struct {
 	// Spec is the KargoAgent configuration.
 	// +optional
 	Spec *KargoAgentSpec `json:"spec,omitempty"`
-
-	// KubeConfigSecretRef references a Secret holding the kubeconfig
-	// used to install the agent. Same-namespace only.
-	// +optional
-	KubeConfigSecretRef *LocalSecretKeySelector `json:"kubeConfigSecretRef,omitempty"`
-
-	// RemoveAgentResourcesOnDestroy toggles removal of agent manifests
-	// from the managed cluster when the KargoAgent CR is deleted.
-	// +optional
-	RemoveAgentResourcesOnDestroy *bool `json:"removeAgentResourcesOnDestroy,omitempty"`
-
-	// ReapplyManifestsOnUpdate forces re-application of agent manifests
-	// on each update reconcile.
-	// +optional
-	ReapplyManifestsOnUpdate *bool `json:"reapplyManifestsOnUpdate,omitempty"`
 }
 
 // KargoAgentSpec is the Kargo-agent wire-level spec.
@@ -178,10 +164,10 @@ type KargoAgentObservation struct {
 	ReconciliationStatus ResourceStatusCode `json:"reconciliationStatus,omitempty"`
 }
 
-// A KargoAgentSpecResource defines the desired state of a KargoAgent.
-type KargoAgentSpecResource struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       KargoAgentParameters `json:"forProvider"`
+// A KargoAgentResourceSpec defines the desired state of a KargoAgent.
+type KargoAgentResourceSpec struct {
+	xpv2.ManagedResourceSpec `json:",inline"`
+	ForProvider              KargoAgentParameters `json:"forProvider"`
 }
 
 // A KargoAgentStatus represents the observed state of a KargoAgent.
@@ -204,7 +190,7 @@ type KargoAgent struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KargoAgentSpecResource `json:"spec"`
+	Spec   KargoAgentResourceSpec `json:"spec"`
 	Status KargoAgentStatus       `json:"status,omitempty"`
 }
 
