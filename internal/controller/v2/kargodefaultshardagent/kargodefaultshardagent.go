@@ -86,7 +86,7 @@ type external struct {
 }
 
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalObservation, error) {
-	_, kargoName, err := e.resolveKargo(ctx, mg)
+	kargoName, err := e.resolveKargo(ctx, mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
@@ -143,7 +143,7 @@ func (e *external) Disconnect(ctx context.Context) error { return nil }
 // DefaultShardAgent, and re-applies. Other instance-spec fields are
 // carried through verbatim.
 func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent, desired string) error {
-	_, kargoName, err := e.resolveKargo(ctx, mg)
+	kargoName, err := e.resolveKargo(ctx, mg)
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgen
 		return fmt.Errorf("could not get kargo instance %q to patch defaultShardAgent: %w", kargoName, err)
 	}
 
-	if ki.Spec == nil {
+	if ki.GetSpec() == nil {
 		ki.Spec = &kargov1.KargoInstanceSpec{}
 	}
 	ki.Spec.DefaultShardAgent = desired
@@ -173,20 +173,19 @@ func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgen
 	})
 }
 
-// resolveKargo returns (kargoInstanceID, kargoInstanceName) by looking
-// up the referenced KargoInstance MR in the same namespace. The ID may
-// be empty if the KargoInstance has not yet reported its AtProvider.ID;
-// the Akuity apply path only needs the name, so this is fine.
-func (e *external) resolveKargo(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (string, string, error) {
+// resolveKargo returns the Akuity-side Kargo instance name by looking
+// up the referenced KargoInstance MR in the same namespace. The Akuity
+// apply path keys by name.
+func (e *external) resolveKargo(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (string, error) {
 	if mg.Spec.ForProvider.KargoInstanceRef == nil || mg.Spec.ForProvider.KargoInstanceRef.Name == "" {
-		return "", "", fmt.Errorf("spec.forProvider.kargoInstanceRef.name must be set")
+		return "", fmt.Errorf("spec.forProvider.kargoInstanceRef.name must be set")
 	}
 	ki := &v1alpha2.KargoInstance{}
 	key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.KargoInstanceRef.Name, Namespace: mg.GetNamespace()}
 	if err := e.Kube.Get(ctx, key, ki); err != nil {
-		return "", "", fmt.Errorf("could not resolve KargoInstanceRef %s/%s: %w", key.Namespace, key.Name, err)
+		return "", fmt.Errorf("could not resolve KargoInstanceRef %s/%s: %w", key.Namespace, key.Name, err)
 	}
-	return ki.Status.AtProvider.ID, ki.Spec.ForProvider.Name, nil
+	return ki.Spec.ForProvider.Name, nil
 }
 
 // pbSpecToKargoStruct wraps the mutated *kargov1.KargoInstance back

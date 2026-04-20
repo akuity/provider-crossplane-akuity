@@ -35,6 +35,7 @@ func isRetryableGRPC(err error) bool {
 		return false
 	}
 	if s, ok := status.FromError(err); ok {
+		//exhaustive:ignore // only classifying the transient subset; everything else falls through to the substring probe below.
 		switch s.Code() {
 		case codes.Unavailable,
 			codes.DeadlineExceeded,

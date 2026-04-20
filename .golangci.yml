@@ -96,6 +96,15 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      # Codegen + field-inventory tooling. Not runtime code; held to a
+      # weaker quality bar (gocyclo / gosec / SA1019 parser.ParseDir /
+      # exhaustive FieldKind switches).
+      - ^hack/
+      # Legacy v1alpha1 paths kept for the 6-month deprecation window.
+      # Not receiving feature work; the lint noise here is drift we do
+      # not plan to fix before the v3.0.0 removal.
+      - ^internal/clients/kube/
+      - ^internal/types/
 issues:
   max-same-issues: 0
   new: false

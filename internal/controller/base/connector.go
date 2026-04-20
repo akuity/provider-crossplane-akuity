@@ -59,10 +59,10 @@ type ExternalClientBuilder[T resource.ModernManaged] func(client akuity.Client, 
 // Akuity client through the supplied ClientFactory, and hands both
 // client and kube client off to the per-resource builder.
 type Connector[T resource.ModernManaged] struct {
-	Kube     client.Client
-	Usage    *resource.ProviderConfigUsageTracker
-	Logger   logging.Logger
-	Recorder event.Recorder
+	Kube      client.Client
+	Usage     *resource.ProviderConfigUsageTracker
+	Logger    logging.Logger
+	Recorder  event.Recorder
 	NewClient ClientFactory
 	Build     ExternalClientBuilder[T]
 }

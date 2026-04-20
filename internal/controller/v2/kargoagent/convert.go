@@ -36,10 +36,11 @@ func apiToSpec(desired v1alpha2.KargoAgentParameters, agent *kargov1.KargoAgent)
 		KargoInstanceID:  desired.KargoInstanceID,
 		KargoInstanceRef: desired.KargoInstanceRef,
 		Name:             agent.GetName(),
-		Namespace:        agent.GetNamespace(),
-		Workspace:        desired.Workspace,
-		Labels:           desired.Labels,
-		Annotations:      desired.Annotations,
+		//nolint:staticcheck // SA1019: agent.GetNamespace is deprecated upstream, but the Kargo service still populates it on responses; dropping it would lose round-trip fidelity.
+		Namespace:   agent.GetNamespace(),
+		Workspace:   desired.Workspace,
+		Labels:      desired.Labels,
+		Annotations: desired.Annotations,
 	}
 	// Project the wire Data sub-tree via the generated converter; the
 	// top-level KargoAgentSpec wrapper is constructed here because

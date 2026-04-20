@@ -42,8 +42,8 @@ func newCluster() *v1alpha2.Cluster {
 		ObjectMeta: metav1.ObjectMeta{Name: "c", Namespace: "ns"},
 		Spec: v1alpha2.ClusterSpec{
 			ForProvider: v1alpha2.ClusterParameters{
-				InstanceID: "inst-1",
-				Name:       "c",
+				InstanceID:  "inst-1",
+				Name:        "c",
 				Description: "test cluster",
 				Data: v1alpha2.ClusterData{
 					Size: v1alpha2.ClusterSize("small"),
@@ -85,8 +85,8 @@ func TestObserve_NotYetReconciled(t *testing.T) {
 	meta.SetExternalName(cl, "c")
 
 	ac := &argocdv1.Cluster{
-		Id:   "cid-1",
-		Name: "c",
+		Id:                   "cid-1",
+		Name:                 "c",
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_PROGRESSING},
 		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_PROGRESSING},
 	}
@@ -106,10 +106,10 @@ func TestObserve_ReconciledPublishesManifests(t *testing.T) {
 	meta.SetExternalName(cl, "c")
 
 	ac := &argocdv1.Cluster{
-		Id:          "cid-1",
-		Name:        "c",
-		Description: "test cluster",
-		Data: &argocdv1.ClusterData{Size: argocdv1.ClusterSize_CLUSTER_SIZE_SMALL},
+		Id:                   "cid-1",
+		Name:                 "c",
+		Description:          "test cluster",
+		Data:                 &argocdv1.ClusterData{Size: argocdv1.ClusterSize_CLUSTER_SIZE_SMALL},
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
 		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}

@@ -30,7 +30,6 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
-	"github.com/google/go-cmp/cmp"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
@@ -39,6 +38,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"github.com/google/go-cmp/cmp"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -88,7 +88,7 @@ type external struct {
 }
 
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (managed.ExternalObservation, error) {
-	_, instanceName, err := e.resolveInstance(ctx, mg)
+	instanceName, err := e.resolveInstance(ctx, mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
@@ -148,7 +148,7 @@ func (e *external) Disconnect(ctx context.Context) error { return nil }
 // verbatim so this controller can coexist with an Instance MR that
 // manages everything *except* the allow list.
 func (e *external) apply(ctx context.Context, mg *v1alpha2.InstanceIpAllowList, desired []*v1alpha2.IPAllowListEntry) error {
-	_, instanceName, err := e.resolveInstance(ctx, mg)
+	instanceName, err := e.resolveInstance(ctx, mg)
 	if err != nil {
 		return err
 	}
@@ -192,21 +192,20 @@ func (e *external) apply(ctx context.Context, mg *v1alpha2.InstanceIpAllowList, 
 	return e.Client.ApplyInstance(ctx, req)
 }
 
-// resolveInstance returns (instanceID, instanceName) by looking up the
-// referenced Instance MR in the same namespace. The ID may be empty if
-// the Instance has not yet reported its AtProvider.ID; the Akuity apply
-// and delete paths only need the name, so this is fine.
-func (e *external) resolveInstance(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (string, string, error) {
+// resolveInstance returns the Akuity-side Instance name by looking up the
+// referenced Instance MR in the same namespace. The Akuity apply and
+// delete paths key by name only.
+func (e *external) resolveInstance(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (string, error) {
 	if mg.Spec.ForProvider.InstanceRef == nil || mg.Spec.ForProvider.InstanceRef.Name == "" {
-		return "", "", fmt.Errorf("spec.forProvider.instanceRef.name must be set")
+		return "", fmt.Errorf("spec.forProvider.instanceRef.name must be set")
 	}
 
 	inst := &v1alpha2.Instance{}
 	key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.InstanceRef.Name, Namespace: mg.GetNamespace()}
 	if err := e.Kube.Get(ctx, key, inst); err != nil {
-		return "", "", fmt.Errorf("could not resolve InstanceRef %s/%s: %w", key.Namespace, key.Name, err)
+		return "", fmt.Errorf("could not resolve InstanceRef %s/%s: %w", key.Namespace, key.Name, err)
 	}
-	return inst.Status.AtProvider.ID, inst.Spec.ForProvider.Name, nil
+	return inst.Spec.ForProvider.Name, nil
 }
 
 func pbEntriesToSpec(in []*argocdv1.IPAllowListEntry) []*v1alpha2.IPAllowListEntry {

@@ -69,31 +69,32 @@ func apiToSpec(ai *argocdv1.Instance, exp *argocdv1.ExportInstanceResponse) (v1a
 		spec.ArgoCD.Spec.InstanceSpec = *is
 	}
 
-	var err error
-	if spec.ArgoCDConfigMap, err = configMapFromPB(argoCDCMKey, exp.GetArgocdConfigmap()); err != nil {
+	cms := []struct {
+		dst *map[string]string
+		key string
+		pb  *structpb.Struct
+	}{
+		{&spec.ArgoCDConfigMap, argoCDCMKey, exp.GetArgocdConfigmap()},
+		{&spec.ArgoCDImageUpdaterConfigMap, argoCDImageUpdaterCMKey, exp.GetImageUpdaterConfigmap()},
+		{&spec.ArgoCDImageUpdaterSSHConfigMap, argoCDImageUpdaterSSHCMKey, exp.GetImageUpdaterSshConfigmap()},
+		{&spec.ArgoCDNotificationsConfigMap, argoCDNotificationsCMKey, exp.GetNotificationsConfigmap()},
+		{&spec.ArgoCDRBACConfigMap, argoCDRBACCMKey, exp.GetArgocdRbacConfigmap()},
+		{&spec.ArgoCDSSHKnownHostsConfigMap, argoCDSSHKnownHostsCMKey, exp.GetArgocdKnownHostsConfigmap()},
+		{&spec.ArgoCDTLSCertsConfigMap, argoCDTLSCertsCMKey, exp.GetArgocdTlsCertsConfigmap()},
+	}
+	for _, cm := range cms {
+		v, err := configMapFromPB(cm.key, cm.pb)
+		if err != nil {
+			return spec, err
+		}
+		*cm.dst = v
+	}
+
+	plugins, err := pluginsFromPB(exp.GetConfigManagementPlugins())
+	if err != nil {
 		return spec, err
 	}
-	if spec.ArgoCDImageUpdaterConfigMap, err = configMapFromPB(argoCDImageUpdaterCMKey, exp.GetImageUpdaterConfigmap()); err != nil {
-		return spec, err
-	}
-	if spec.ArgoCDImageUpdaterSSHConfigMap, err = configMapFromPB(argoCDImageUpdaterSSHCMKey, exp.GetImageUpdaterSshConfigmap()); err != nil {
-		return spec, err
-	}
-	if spec.ArgoCDNotificationsConfigMap, err = configMapFromPB(argoCDNotificationsCMKey, exp.GetNotificationsConfigmap()); err != nil {
-		return spec, err
-	}
-	if spec.ArgoCDRBACConfigMap, err = configMapFromPB(argoCDRBACCMKey, exp.GetArgocdRbacConfigmap()); err != nil {
-		return spec, err
-	}
-	if spec.ArgoCDSSHKnownHostsConfigMap, err = configMapFromPB(argoCDSSHKnownHostsCMKey, exp.GetArgocdKnownHostsConfigmap()); err != nil {
-		return spec, err
-	}
-	if spec.ArgoCDTLSCertsConfigMap, err = configMapFromPB(argoCDTLSCertsCMKey, exp.GetArgocdTlsCertsConfigmap()); err != nil {
-		return spec, err
-	}
-	if spec.ConfigManagementPlugins, err = pluginsFromPB(exp.GetConfigManagementPlugins()); err != nil {
-		return spec, err
-	}
+	spec.ConfigManagementPlugins = plugins
 
 	return spec, nil
 }

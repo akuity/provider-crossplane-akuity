@@ -90,18 +90,18 @@ type FieldInfo struct {
 type FieldKind int
 
 const (
-	KindPrimitive    FieldKind = iota // string, int32, uint32, int64, bool, float32, float64
-	KindNamedString                   // named string type like ClusterSize
-	KindPtrPrimitive                  // *bool, *string, *int32, etc.
-	KindPtrTime                       // *metav1.Time
-	KindRawExtension                  // runtime.RawExtension
-	KindStruct                        // nested struct by-value
-	KindPtrStruct                     // *<Struct>
-	KindSlicePtrStruct                // []*<Struct>
-	KindSliceString                   // []string
-	KindMapStringString               // map[string]string
-	KindMapStringStruct               // map[string]<Struct>
-	KindMapStringPtrStruct            // map[string]*<Struct>
+	KindPrimitive          FieldKind = iota // string, int32, uint32, int64, bool, float32, float64
+	KindNamedString                         // named string type like ClusterSize
+	KindPtrPrimitive                        // *bool, *string, *int32, etc.
+	KindPtrTime                             // *metav1.Time
+	KindRawExtension                        // runtime.RawExtension
+	KindStruct                              // nested struct by-value
+	KindPtrStruct                           // *<Struct>
+	KindSlicePtrStruct                      // []*<Struct>
+	KindSliceString                         // []string
+	KindMapStringString                     // map[string]string
+	KindMapStringStruct                     // map[string]<Struct>
+	KindMapStringPtrStruct                  // map[string]*<Struct>
 	KindUnsupported
 )
 

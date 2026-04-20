@@ -616,7 +616,7 @@ func TestApplyInstance_FillsOrganizationId(t *testing.T) {
 
 	err = client.ApplyInstance(ctx, callerRequest)
 	require.NoError(t, err)
-	assert.Equal(t, organizationID, callerRequest.OrganizationId, "ApplyInstance must auto-fill OrganizationId on the outgoing request")
+	assert.Equal(t, organizationID, callerRequest.GetOrganizationId(), "ApplyInstance must auto-fill OrganizationId on the outgoing request")
 }
 
 func TestDeleteInstance(t *testing.T) {

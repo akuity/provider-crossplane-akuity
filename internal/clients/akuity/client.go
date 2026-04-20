@@ -253,7 +253,7 @@ func (c client) ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstan
 	// buildApplyClusterRequest already set it; the guard is a no-op
 	// for them. Matches the shape used by ApplyKargoInstance and the
 	// KargoInstanceAgent Create/Update helpers below.
-	if request.OrganizationId == "" {
+	if request.GetOrganizationId() == "" {
 		request.OrganizationId = c.organizationID
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
@@ -446,7 +446,7 @@ func (c client) ApplyKargoInstance(ctx context.Context, request *kargov1.ApplyKa
 	if err := c.kargoRequired("ApplyKargoInstance"); err != nil {
 		return err
 	}
-	if request.OrganizationId == "" {
+	if request.GetOrganizationId() == "" {
 		request.OrganizationId = c.organizationID
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
@@ -499,7 +499,7 @@ func (c client) CreateKargoInstanceAgent(ctx context.Context, request *kargov1.C
 	if err := c.kargoRequired("CreateKargoInstanceAgent"); err != nil {
 		return nil, err
 	}
-	if request.OrganizationId == "" {
+	if request.GetOrganizationId() == "" {
 		request.OrganizationId = c.organizationID
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
@@ -514,7 +514,7 @@ func (c client) UpdateKargoInstanceAgent(ctx context.Context, request *kargov1.U
 	if err := c.kargoRequired("UpdateKargoInstanceAgent"); err != nil {
 		return nil, err
 	}
-	if request.OrganizationId == "" {
+	if request.GetOrganizationId() == "" {
 		request.OrganizationId = c.organizationID
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())

@@ -26,7 +26,7 @@ const LegacyDeprecationReason = "Deprecated"
 // v1alpha2 namespaced API group.
 const LegacyDeprecationMessage = "core.akuity.crossplane.io/v1alpha1 is deprecated and will be removed in " +
 	LegacyRemovalVersion + " (target " + LegacyRemovalTargetDate +
-	"). Migrate to core.m.akuity.crossplane.io/v1alpha2."
+	"); migrate to core.m.akuity.crossplane.io/v1alpha2"
 
 // LegacyCRCount reports the number of v1alpha1 managed-resource instances
 // currently on the API server, labelled by kind. Observational only; used to
