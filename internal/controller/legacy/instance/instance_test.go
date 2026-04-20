@@ -35,7 +35,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instance"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/legacy/instance"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )

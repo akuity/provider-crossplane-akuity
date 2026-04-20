@@ -20,9 +20,9 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/cluster"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instance"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/legacy/cluster"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/legacy/instance"
 	clusterv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/cluster"
 	instancev2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/instance"
 	instanceipallowlistv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/instanceipallowlist"
