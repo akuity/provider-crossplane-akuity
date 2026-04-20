@@ -506,11 +506,11 @@ func AkuityAPIToCrossplaneAgentPermissionsRules(agentPermissionsRules []*argocdv
 
 	crossplaneAgentPermissionsRules := make([]*crossplanetypes.AgentPermissionsRule, 0, len(agentPermissionsRules))
 	for _, rule := range agentPermissionsRules {
-		var apiGroups []string
+		apiGroups := make([]string, 0, len(rule.GetApiGroups()))
 		apiGroups = append(apiGroups, rule.GetApiGroups()...)
-		var resources []string
+		resources := make([]string, 0, len(rule.GetResources()))
 		resources = append(resources, rule.GetResources()...)
-		var verbs []string
+		verbs := make([]string, 0, len(rule.GetVerbs()))
 		verbs = append(verbs, rule.GetVerbs()...)
 		crossplaneAgentPermissionsRules = append(crossplaneAgentPermissionsRules, &crossplanetypes.AgentPermissionsRule{
 			ApiGroups: apiGroups,
@@ -708,7 +708,7 @@ func CrossplaneToAkuityAPIInstanceSpec(instanceSpec crossplanetypes.InstanceSpec
 }
 
 func CrossplaneToAkuityAPIIPAllowListEntry(ipAllowList []*crossplanetypes.IPAllowListEntry) []*akuitytypes.IPAllowListEntry {
-	AkuityIpAllowList := make([]*akuitytypes.IPAllowListEntry, 0)
+	AkuityIpAllowList := make([]*akuitytypes.IPAllowListEntry, 0, len(ipAllowList))
 
 	for _, i := range ipAllowList {
 		AkuityIpAllowList = append(AkuityIpAllowList, &akuitytypes.IPAllowListEntry{
@@ -721,7 +721,7 @@ func CrossplaneToAkuityAPIIPAllowListEntry(ipAllowList []*crossplanetypes.IPAllo
 }
 
 func CrossplaneToAkuityAPIArgoCDExtensionInstallEntry(installEntryList []*crossplanetypes.ArgoCDExtensionInstallEntry) []*akuitytypes.ArgoCDExtensionInstallEntry {
-	AkuityInstallEntryList := make([]*akuitytypes.ArgoCDExtensionInstallEntry, 0)
+	AkuityInstallEntryList := make([]*akuitytypes.ArgoCDExtensionInstallEntry, 0, len(installEntryList))
 
 	for _, i := range installEntryList {
 		AkuityInstallEntryList = append(AkuityInstallEntryList, &akuitytypes.ArgoCDExtensionInstallEntry{
@@ -816,7 +816,7 @@ func CrossplaneToAkuityAPIAppsetPolicy(appsetPolicy *crossplanetypes.AppsetPolic
 }
 
 func CrossplaneToAkuityAPIHostAliases(hostAliasesList []*crossplanetypes.HostAliases) []*akuitytypes.HostAliases {
-	AkuityHostAliasesList := make([]*akuitytypes.HostAliases, 0)
+	AkuityHostAliasesList := make([]*akuitytypes.HostAliases, 0, len(hostAliasesList))
 
 	for _, h := range hostAliasesList {
 		AkuityHostAliasesList = append(AkuityHostAliasesList, &akuitytypes.HostAliases{

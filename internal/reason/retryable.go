@@ -35,7 +35,6 @@ func isRetryableGRPC(err error) bool {
 		return false
 	}
 	if s, ok := status.FromError(err); ok {
-		//exhaustive:ignore // only classifying the transient subset; everything else falls through to the substring probe below.
 		switch s.Code() {
 		case codes.Unavailable,
 			codes.DeadlineExceeded,
@@ -49,6 +48,12 @@ func isRetryableGRPC(err error) bool {
 			if strings.Contains(s.Message(), "still being provisioned") {
 				return true
 			}
+		case codes.OK, codes.Canceled, codes.Unknown, codes.NotFound,
+			codes.AlreadyExists, codes.PermissionDenied, codes.FailedPrecondition,
+			codes.OutOfRange, codes.Unimplemented, codes.DataLoss, codes.Unauthenticated:
+			// Terminal codes: not retryable at the gRPC layer. The
+			// substring probe below still handles network-level strings
+			// that arrive as generic errors.
 		}
 	}
 	msg := err.Error()

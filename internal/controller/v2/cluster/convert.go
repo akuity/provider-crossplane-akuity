@@ -155,7 +155,6 @@ func pbStructToYAML(s *structpb.Struct) string {
 }
 
 func clusterSizeString(s argocdv1.ClusterSize) string {
-	//exhaustive:ignore // UNSPECIFIED + SMALL both fall through to "small" via the default.
 	switch s {
 	case argocdv1.ClusterSize_CLUSTER_SIZE_MEDIUM:
 		return "medium"
@@ -163,7 +162,8 @@ func clusterSizeString(s argocdv1.ClusterSize) string {
 		return "large"
 	case argocdv1.ClusterSize_CLUSTER_SIZE_AUTO:
 		return "auto"
-	default:
+	case argocdv1.ClusterSize_CLUSTER_SIZE_UNSPECIFIED, argocdv1.ClusterSize_CLUSTER_SIZE_SMALL:
 		return "small"
 	}
+	return "small"
 }

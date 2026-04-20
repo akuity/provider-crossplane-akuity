@@ -122,11 +122,11 @@ func main() {
 		fatalf("load overrides: %v", err)
 	}
 
-	if err := os.MkdirAll(*outDir, 0o755); err != nil {
+	if err := os.MkdirAll(*outDir, 0o750); err != nil {
 		fatalf("create out dir: %v", err)
 	}
 
-	header, err := os.ReadFile(headerFile)
+	header, err := os.ReadFile(filepath.Clean(headerFile))
 	if err != nil {
 		fatalf("read boilerplate header: %v", err)
 	}
@@ -150,58 +150,19 @@ func main() {
 // aliases (e.g. `type ClusterSize string`) and interface types are
 // ignored — only struct types become converter subjects.
 func parseAkuityPackage(dir string) (map[string]*StructInfo, error) {
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
-		name := fi.Name()
-		if strings.HasPrefix(name, "zz_generated") {
-			return false
-		}
-		return strings.HasSuffix(name, ".go")
-	}, parser.SkipObjectResolution)
+	files, err := parseGoFiles(dir)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", dir, err)
+		return nil, err
 	}
 
 	out := map[string]*StructInfo{}
 	// Catalog named-string types in a side map so the field classifier
 	// can recognise them as NamedString rather than UnsupportedNamedRef.
 	namedStrings := map[string]bool{}
-
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Files {
-			ast.Inspect(file, func(n ast.Node) bool {
-				ts, ok := n.(*ast.TypeSpec)
-				if !ok {
-					return true
-				}
-				if !ts.Name.IsExported() {
-					return true
-				}
-				// String-named types (e.g. type ClusterSize string).
-				if ident, ok := ts.Type.(*ast.Ident); ok && ident.Name == "string" {
-					namedStrings[ts.Name.Name] = true
-					return false
-				}
-				st, ok := ts.Type.(*ast.StructType)
-				if !ok {
-					return true
-				}
-				info := &StructInfo{Name: ts.Name.Name}
-				for _, field := range st.Fields.List {
-					for _, name := range field.Names {
-						if !name.IsExported() {
-							continue
-						}
-						info.Fields = append(info.Fields, FieldInfo{
-							Name:    name.Name,
-							TypeStr: typeString(field.Type),
-						})
-					}
-				}
-				out[ts.Name.Name] = info
-				return false
-			})
-		}
+	for _, file := range files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			return inspectTypeSpec(n, out, namedStrings)
+		})
 	}
 
 	// Second pass: classify each field now that we know the full type
@@ -212,6 +173,65 @@ func parseAkuityPackage(dir string) (map[string]*StructInfo, error) {
 		}
 	}
 	return out, nil
+}
+
+// parseGoFiles reads every non-generated .go file in dir and returns the
+// parsed *ast.File list. Used by both parseAkuityPackage here and
+// hack/fieldcov's struct walker.
+func parseGoFiles(dir string) ([]*ast.File, error) {
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", dir, err)
+	}
+	var files []*ast.File
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasPrefix(name, "zz_generated") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", name, err)
+		}
+		files = append(files, f)
+	}
+	return files, nil
+}
+
+// inspectTypeSpec records an exported TypeSpec into the catalog or the
+// named-string side map. Returns the ast.Inspect continuation signal.
+func inspectTypeSpec(n ast.Node, out map[string]*StructInfo, namedStrings map[string]bool) bool {
+	ts, ok := n.(*ast.TypeSpec)
+	if !ok {
+		return true
+	}
+	if !ts.Name.IsExported() {
+		return true
+	}
+	// String-named types (e.g. type ClusterSize string).
+	if ident, ok := ts.Type.(*ast.Ident); ok && ident.Name == "string" {
+		namedStrings[ts.Name.Name] = true
+		return false
+	}
+	st, ok := ts.Type.(*ast.StructType)
+	if !ok {
+		return true
+	}
+	info := &StructInfo{Name: ts.Name.Name}
+	for _, field := range st.Fields.List {
+		for _, name := range field.Names {
+			if !name.IsExported() {
+				continue
+			}
+			info.Fields = append(info.Fields, FieldInfo{
+				Name:    name.Name,
+				TypeStr: typeString(field.Type),
+			})
+		}
+	}
+	out[ts.Name.Name] = info
+	return false
 }
 
 // typeString renders an ast.Expr back to the Go source-level string
@@ -238,60 +258,15 @@ func typeString(e ast.Expr) string {
 
 func (f *FieldInfo) classify(structs map[string]*StructInfo, namedStrings map[string]bool) {
 	ts := f.TypeStr
-	switch ts {
-	case "string", "bool", "int32", "int64", "uint32", "uint64", "float32", "float64":
-		f.Kind = KindPrimitive
-		return
-	case "*string", "*bool", "*int32", "*int64", "*uint32", "*uint64", "*float32", "*float64":
-		f.Kind = KindPtrPrimitive
-		return
-	case "*metav1.Time":
-		f.Kind = KindPtrTime
-		return
-	case "runtime.RawExtension":
-		f.Kind = KindRawExtension
-		return
-	case "[]string":
-		f.Kind = KindSliceString
-		return
-	case "map[string]string":
-		f.Kind = KindMapStringString
+	if f.classifyLeaf(ts) {
 		return
 	}
 	if namedStrings[ts] {
 		f.Kind = KindNamedString
 		return
 	}
-	if strings.HasPrefix(ts, "map[string]") {
-		elem := strings.TrimPrefix(ts, "map[string]")
-		isPtr := strings.HasPrefix(elem, "*")
-		elem = strings.TrimPrefix(elem, "*")
-		if _, ok := structs[elem]; ok {
-			if isPtr {
-				f.Kind = KindMapStringPtrStruct
-			} else {
-				f.Kind = KindMapStringStruct
-			}
-			f.Elem = elem
-			return
-		}
-	}
-	if strings.HasPrefix(ts, "[]*") {
-		elem := strings.TrimPrefix(ts, "[]*")
-		if _, ok := structs[elem]; ok {
-			f.Kind = KindSlicePtrStruct
-			f.Elem = elem
-			return
-		}
-	}
-	if strings.HasPrefix(ts, "*") {
-		elem := strings.TrimPrefix(ts, "*")
-		if _, ok := structs[elem]; ok {
-			f.Kind = KindPtrStruct
-			f.Elem = elem
-			f.IsNamed = true
-			return
-		}
+	if f.classifyContainer(ts, structs) {
+		return
 	}
 	if _, ok := structs[ts]; ok {
 		f.Kind = KindStruct
@@ -302,8 +277,67 @@ func (f *FieldInfo) classify(structs map[string]*StructInfo, namedStrings map[st
 	f.Kind = KindUnsupported
 }
 
+// classifyLeaf matches the canonical primitive / well-known Go types.
+// Returns true when the FieldInfo kind was set.
+func (f *FieldInfo) classifyLeaf(ts string) bool {
+	switch ts {
+	case "string", "bool", "int32", "int64", "uint32", "uint64", "float32", "float64":
+		f.Kind = KindPrimitive
+	case "*string", "*bool", "*int32", "*int64", "*uint32", "*uint64", "*float32", "*float64":
+		f.Kind = KindPtrPrimitive
+	case "*metav1.Time":
+		f.Kind = KindPtrTime
+	case "runtime.RawExtension":
+		f.Kind = KindRawExtension
+	case "[]string":
+		f.Kind = KindSliceString
+	case "map[string]string":
+		f.Kind = KindMapStringString
+	default:
+		return false
+	}
+	return true
+}
+
+// classifyContainer matches map[string]* / []* / *<struct> shapes that
+// wrap a known struct element. Returns true when the FieldInfo kind was
+// set.
+func (f *FieldInfo) classifyContainer(ts string, structs map[string]*StructInfo) bool {
+	if elem, ok := strings.CutPrefix(ts, "map[string]"); ok {
+		isPtr := strings.HasPrefix(elem, "*")
+		elem = strings.TrimPrefix(elem, "*")
+		if _, ok := structs[elem]; ok {
+			if isPtr {
+				f.Kind = KindMapStringPtrStruct
+			} else {
+				f.Kind = KindMapStringStruct
+			}
+			f.Elem = elem
+			return true
+		}
+		return false
+	}
+	if elem, ok := strings.CutPrefix(ts, "[]*"); ok {
+		if _, ok := structs[elem]; ok {
+			f.Kind = KindSlicePtrStruct
+			f.Elem = elem
+			return true
+		}
+		return false
+	}
+	if elem, ok := strings.CutPrefix(ts, "*"); ok {
+		if _, ok := structs[elem]; ok {
+			f.Kind = KindPtrStruct
+			f.Elem = elem
+			f.IsNamed = true
+			return true
+		}
+	}
+	return false
+}
+
 func loadOverrides(path string) (Overrides, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return Overrides{}, err
 	}
@@ -338,34 +372,7 @@ func (o Overrides) v1alpha2Name(akuityName string) string {
 // SpecToAPI / APIToSpec functions for every reachable struct. Types
 // with `generate_false: true` are omitted (hand-written in glue).
 func emitSection(sec Section, structs map[string]*StructInfo, overrides Overrides, header, outDir string, alreadyEmitted map[string]bool) (int, error) {
-	reachable := map[string]bool{}
-	var walk func(name string)
-	walk = func(name string) {
-		if reachable[name] {
-			return
-		}
-		s, ok := structs[name]
-		if !ok {
-			return
-		}
-		reachable[name] = true
-		for _, f := range s.Fields {
-			switch f.Kind {
-			case KindStruct, KindPtrStruct, KindSlicePtrStruct, KindMapStringStruct, KindMapStringPtrStruct:
-				walk(f.Elem)
-			}
-		}
-	}
-	for _, r := range sec.Roots {
-		walk(r)
-	}
-
-	// Deterministic emission order.
-	names := make([]string, 0, len(reachable))
-	for n := range reachable {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+	names := sectionReachableNames(sec.Roots, structs)
 
 	f := jen.NewFile("convert")
 	f.HeaderComment(strings.TrimSpace(header))
@@ -395,6 +402,42 @@ func emitSection(sec Section, structs map[string]*StructInfo, overrides Override
 		return 0, fmt.Errorf("save %s: %w", out, err)
 	}
 	return emitted, nil
+}
+
+// sectionReachableNames walks every struct reachable from roots via
+// nested struct / slice / map fields and returns the result sorted so
+// the emitted section is deterministic across runs.
+func sectionReachableNames(roots []string, structs map[string]*StructInfo) []string {
+	reachable := map[string]bool{}
+	var walk func(name string)
+	walk = func(name string) {
+		if reachable[name] {
+			return
+		}
+		s, ok := structs[name]
+		if !ok {
+			return
+		}
+		reachable[name] = true
+		for _, f := range s.Fields {
+			switch f.Kind {
+			case KindStruct, KindPtrStruct, KindSlicePtrStruct, KindMapStringStruct, KindMapStringPtrStruct:
+				walk(f.Elem)
+			case KindPrimitive, KindPtrPrimitive, KindPtrTime, KindNamedString,
+				KindRawExtension, KindSliceString, KindMapStringString, KindUnsupported:
+				// Leaf kinds have no nested struct to descend into.
+			}
+		}
+	}
+	for _, r := range roots {
+		walk(r)
+	}
+	names := make([]string, 0, len(reachable))
+	for n := range reachable {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func emitSpecToAPI(f *jen.File, s *StructInfo, override TypeOverride, overrides Overrides) {
@@ -452,22 +495,47 @@ func shouldSkip(fieldName string, override TypeOverride) bool {
 // `in` and `out`. toAPI is true when emitting the curated→wire
 // direction and false for wire→curated.
 func fieldCopy(field FieldInfo, override TypeOverride, overrides Overrides, toAPI bool) jen.Code {
-	adapter := findAdapter(field.Name, override)
-	if adapter != nil {
+	if adapter := findAdapter(field.Name, override); adapter != nil {
 		return adapterCopy(field, *adapter, toAPI)
 	}
+	if code := fieldCopyLeaf(field, overrides, toAPI); code != nil {
+		return code
+	}
+	if code := fieldCopyStructLike(field, overrides, toAPI); code != nil {
+		return code
+	}
+	if field.Kind == KindUnsupported {
+		// generate_false + glue.go is the escape hatch for this case.
+		return jen.Commentf("// codegen: unsupported field %s of type %s — add generate_false override and hand-write in glue", field.Name, field.TypeStr)
+	}
+	return jen.Commentf("// codegen: unrecognised FieldKind for %s (%s)", field.Name, field.TypeStr)
+}
+
+// fieldCopyLeaf handles kinds that project to a single assignment
+// (direct copy, RawExtension, NamedString cast). Returns nil when the
+// field's kind is not a leaf.
+func fieldCopyLeaf(field FieldInfo, overrides Overrides, toAPI bool) jen.Code {
 	switch field.Kind {
-	case KindPrimitive, KindPtrPrimitive, KindPtrTime, KindSliceString, KindMapStringString:
-		return jen.Id("out").Dot(field.Name).Op("=").Id("in").Dot(field.Name)
-	case KindRawExtension:
-		// RawExtension with no adapter → direct assign. Normally
-		// overridden for Kustomization fields.
+	case KindPrimitive, KindPtrPrimitive, KindPtrTime, KindSliceString, KindMapStringString, KindRawExtension:
+		// RawExtension with no adapter: direct assign (adapters are the
+		// normal path for Kustomization fields).
 		return jen.Id("out").Dot(field.Name).Op("=").Id("in").Dot(field.Name)
 	case KindNamedString:
 		if toAPI {
 			return jen.Id("out").Dot(field.Name).Op("=").Qual(akuityImport, field.TypeStr).Parens(jen.Id("in").Dot(field.Name))
 		}
 		return jen.Id("out").Dot(field.Name).Op("=").Qual(v1alpha2Import, overrides.v1alpha2Name(field.TypeStr)).Parens(jen.Id("in").Dot(field.Name))
+	case KindStruct, KindPtrStruct, KindSlicePtrStruct, KindMapStringStruct, KindMapStringPtrStruct, KindUnsupported:
+		return nil
+	}
+	return nil
+}
+
+// fieldCopyStructLike handles kinds that project to a nested-converter
+// call or a range+build block. Returns nil when the field's kind is
+// not struct-bearing.
+func fieldCopyStructLike(field FieldInfo, overrides Overrides, toAPI bool) jen.Code {
+	switch field.Kind {
 	case KindStruct:
 		// By-value nested struct: call converter, deref the returned pointer.
 		fn := field.Elem + direction(toAPI)
@@ -476,38 +544,50 @@ func fieldCopy(field FieldInfo, override TypeOverride, overrides Overrides, toAP
 		fn := field.Elem + direction(toAPI)
 		return jen.Id("out").Dot(field.Name).Op("=").Id(fn).Call(jen.Id("in").Dot(field.Name))
 	case KindSlicePtrStruct:
-		fn := field.Elem + direction(toAPI)
-		elemType := jen.Op("*").Qual(pkgForDirection(toAPI), typeNameForDirection(field.Elem, overrides, toAPI))
-		return jen.If(jen.Id("in").Dot(field.Name).Op("!=").Nil()).BlockFunc(func(g *jen.Group) {
-			g.Id("out").Dot(field.Name).Op("=").Make(jen.Index().Add(elemType), jen.Lit(0), jen.Len(jen.Id("in").Dot(field.Name)))
-			g.For(jen.List(jen.Id("_"), jen.Id("item")).Op(":=").Range().Id("in").Dot(field.Name)).Block(
-				jen.Id("out").Dot(field.Name).Op("=").Append(jen.Id("out").Dot(field.Name), jen.Id(fn).Call(jen.Id("item"))),
-			)
-		})
+		return fieldCopySlicePtrStruct(field, overrides, toAPI)
 	case KindMapStringStruct:
-		fn := field.Elem + direction(toAPI)
-		valueType := jen.Qual(pkgForDirection(toAPI), typeNameForDirection(field.Elem, overrides, toAPI))
-		return jen.If(jen.Id("in").Dot(field.Name).Op("!=").Nil()).BlockFunc(func(g *jen.Group) {
-			g.Id("out").Dot(field.Name).Op("=").Make(jen.Map(jen.String()).Add(valueType), jen.Len(jen.Id("in").Dot(field.Name)))
-			g.For(jen.List(jen.Id("k"), jen.Id("v")).Op(":=").Range().Id("in").Dot(field.Name)).Block(
-				jen.Id("v").Op(":=").Id("v"), // shadow so &v captures each loop iteration
-				jen.Id("out").Dot(field.Name).Index(jen.Id("k")).Op("=").Op("*").Id(fn).Call(jen.Op("&").Id("v")),
-			)
-		})
+		return fieldCopyMapStringStruct(field, overrides, toAPI)
 	case KindMapStringPtrStruct:
-		fn := field.Elem + direction(toAPI)
-		valueType := jen.Op("*").Qual(pkgForDirection(toAPI), typeNameForDirection(field.Elem, overrides, toAPI))
-		return jen.If(jen.Id("in").Dot(field.Name).Op("!=").Nil()).BlockFunc(func(g *jen.Group) {
-			g.Id("out").Dot(field.Name).Op("=").Make(jen.Map(jen.String()).Add(valueType), jen.Len(jen.Id("in").Dot(field.Name)))
-			g.For(jen.List(jen.Id("k"), jen.Id("v")).Op(":=").Range().Id("in").Dot(field.Name)).Block(
-				jen.Id("out").Dot(field.Name).Index(jen.Id("k")).Op("=").Id(fn).Call(jen.Id("v")),
-			)
-		})
-	default:
-		// Unsupported: emit a compile-time comment so the developer
-		// notices. generate_false + glue.go is the escape hatch.
-		return jen.Commentf("// codegen: unsupported field %s of type %s — add generate_false override and hand-write in glue", field.Name, field.TypeStr)
+		return fieldCopyMapStringPtrStruct(field, overrides, toAPI)
+	case KindPrimitive, KindPtrPrimitive, KindPtrTime, KindNamedString,
+		KindRawExtension, KindSliceString, KindMapStringString, KindUnsupported:
+		return nil
 	}
+	return nil
+}
+
+func fieldCopySlicePtrStruct(field FieldInfo, overrides Overrides, toAPI bool) jen.Code {
+	fn := field.Elem + direction(toAPI)
+	elemType := jen.Op("*").Qual(pkgForDirection(toAPI), typeNameForDirection(field.Elem, overrides, toAPI))
+	return jen.If(jen.Id("in").Dot(field.Name).Op("!=").Nil()).BlockFunc(func(g *jen.Group) {
+		g.Id("out").Dot(field.Name).Op("=").Make(jen.Index().Add(elemType), jen.Lit(0), jen.Len(jen.Id("in").Dot(field.Name)))
+		g.For(jen.List(jen.Id("_"), jen.Id("item")).Op(":=").Range().Id("in").Dot(field.Name)).Block(
+			jen.Id("out").Dot(field.Name).Op("=").Append(jen.Id("out").Dot(field.Name), jen.Id(fn).Call(jen.Id("item"))),
+		)
+	})
+}
+
+func fieldCopyMapStringStruct(field FieldInfo, overrides Overrides, toAPI bool) jen.Code {
+	fn := field.Elem + direction(toAPI)
+	valueType := jen.Qual(pkgForDirection(toAPI), typeNameForDirection(field.Elem, overrides, toAPI))
+	return jen.If(jen.Id("in").Dot(field.Name).Op("!=").Nil()).BlockFunc(func(g *jen.Group) {
+		g.Id("out").Dot(field.Name).Op("=").Make(jen.Map(jen.String()).Add(valueType), jen.Len(jen.Id("in").Dot(field.Name)))
+		g.For(jen.List(jen.Id("k"), jen.Id("v")).Op(":=").Range().Id("in").Dot(field.Name)).Block(
+			jen.Id("v").Op(":=").Id("v"), // shadow so &v captures each loop iteration
+			jen.Id("out").Dot(field.Name).Index(jen.Id("k")).Op("=").Op("*").Id(fn).Call(jen.Op("&").Id("v")),
+		)
+	})
+}
+
+func fieldCopyMapStringPtrStruct(field FieldInfo, overrides Overrides, toAPI bool) jen.Code {
+	fn := field.Elem + direction(toAPI)
+	valueType := jen.Op("*").Qual(pkgForDirection(toAPI), typeNameForDirection(field.Elem, overrides, toAPI))
+	return jen.If(jen.Id("in").Dot(field.Name).Op("!=").Nil()).BlockFunc(func(g *jen.Group) {
+		g.Id("out").Dot(field.Name).Op("=").Make(jen.Map(jen.String()).Add(valueType), jen.Len(jen.Id("in").Dot(field.Name)))
+		g.For(jen.List(jen.Id("k"), jen.Id("v")).Op(":=").Range().Id("in").Dot(field.Name)).Block(
+			jen.Id("out").Dot(field.Name).Index(jen.Id("k")).Op("=").Id(fn).Call(jen.Id("v")),
+		)
+	})
 }
 
 // typeNameForDirection returns the akuity-side type name unchanged

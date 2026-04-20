@@ -50,29 +50,9 @@ func main() {
 
 	switch {
 	case *updateBaseline:
-		if err := writeJSON(*baselinePath, fields); err != nil {
-			fatalf("write baseline: %v", err)
-		}
-		fmt.Fprintf(os.Stderr, "wrote %d fields to %s\n", len(fields), *baselinePath)
+		cmdUpdateBaseline(*baselinePath, fields)
 	case *check:
-		baseline, err := readJSON(*baselinePath)
-		if err != nil {
-			fatalf("read baseline: %v", err)
-		}
-		added, removed := diff(baseline, fields)
-		if len(added) == 0 && len(removed) == 0 {
-			fmt.Fprintln(os.Stderr, "fieldcov: inventory matches baseline")
-			return
-		}
-		fmt.Fprintf(os.Stderr, "fieldcov: inventory drift vs %s\n", *baselinePath)
-		for _, f := range added {
-			fmt.Fprintf(os.Stderr, "  + %s\n", f)
-		}
-		for _, f := range removed {
-			fmt.Fprintf(os.Stderr, "  - %s\n", f)
-		}
-		fmt.Fprintln(os.Stderr, "run `go run ./hack/fieldcov -update-baseline` after auditing coverage.")
-		os.Exit(1)
+		cmdCheck(*baselinePath, fields)
 	default:
 		if err := json.NewEncoder(os.Stdout).Encode(fields); err != nil {
 			fatalf("encode: %v", err)
@@ -80,50 +60,58 @@ func main() {
 	}
 }
 
+func cmdUpdateBaseline(path string, fields []string) {
+	if err := writeJSON(path, fields); err != nil {
+		fatalf("write baseline: %v", err)
+	}
+	fmt.Fprintf(os.Stderr, "wrote %d fields to %s\n", len(fields), path)
+}
+
+func cmdCheck(path string, fields []string) {
+	baseline, err := readJSON(path)
+	if err != nil {
+		fatalf("read baseline: %v", err)
+	}
+	added, removed := diff(baseline, fields)
+	if len(added) == 0 && len(removed) == 0 {
+		fmt.Fprintln(os.Stderr, "fieldcov: inventory matches baseline")
+		return
+	}
+	fmt.Fprintf(os.Stderr, "fieldcov: inventory drift vs %s\n", path)
+	for _, f := range added {
+		fmt.Fprintf(os.Stderr, "  + %s\n", f)
+	}
+	for _, f := range removed {
+		fmt.Fprintf(os.Stderr, "  - %s\n", f)
+	}
+	fmt.Fprintln(os.Stderr, "run `go run ./hack/fieldcov -update-baseline` after auditing coverage.")
+	os.Exit(1)
+}
+
 func collectFields(dir string) ([]string, error) {
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
-		name := fi.Name()
-		if strings.HasPrefix(name, "zz_generated") {
-			return false
-		}
-		return strings.HasSuffix(name, ".go")
-	}, parser.SkipObjectResolution)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", dir, err)
+		return nil, fmt.Errorf("read %s: %w", dir, err)
+	}
+	var files []*ast.File
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasPrefix(name, "zz_generated") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", name, err)
+		}
+		files = append(files, f)
 	}
 
 	seen := map[string]struct{}{}
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Files {
-			ast.Inspect(file, func(n ast.Node) bool {
-				ts, ok := n.(*ast.TypeSpec)
-				if !ok {
-					return true
-				}
-				if !ts.Name.IsExported() {
-					return true
-				}
-				st, ok := ts.Type.(*ast.StructType)
-				if !ok {
-					return true
-				}
-				typeName := ts.Name.Name
-				for _, field := range st.Fields.List {
-					for _, name := range field.Names {
-						if !name.IsExported() {
-							continue
-						}
-						seen[typeName+"."+name.Name] = struct{}{}
-					}
-					// Embedded fields: field.Names is empty; record the type name.
-					if len(field.Names) == 0 {
-						seen[typeName+"."+embeddedName(field.Type)] = struct{}{}
-					}
-				}
-				return false
-			})
-		}
+	for _, file := range files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			return recordStructFields(n, seen)
+		})
 	}
 
 	out := make([]string, 0, len(seen))
@@ -132,6 +120,38 @@ func collectFields(dir string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// recordStructFields appends "<TypeName>.<FieldName>" entries to seen for
+// every exported field (including embedded ones) of every exported
+// struct TypeSpec visited by ast.Inspect. Returns the continuation
+// signal.
+func recordStructFields(n ast.Node, seen map[string]struct{}) bool {
+	ts, ok := n.(*ast.TypeSpec)
+	if !ok {
+		return true
+	}
+	if !ts.Name.IsExported() {
+		return true
+	}
+	st, ok := ts.Type.(*ast.StructType)
+	if !ok {
+		return true
+	}
+	typeName := ts.Name.Name
+	for _, field := range st.Fields.List {
+		for _, name := range field.Names {
+			if !name.IsExported() {
+				continue
+			}
+			seen[typeName+"."+name.Name] = struct{}{}
+		}
+		// Embedded fields: field.Names is empty; record the type name.
+		if len(field.Names) == 0 {
+			seen[typeName+"."+embeddedName(field.Type)] = struct{}{}
+		}
+	}
+	return false
 }
 
 func embeddedName(expr ast.Expr) string {
@@ -170,7 +190,7 @@ func diff(old, new []string) (added, removed []string) {
 }
 
 func readJSON(path string) ([]string, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +202,7 @@ func readJSON(path string) ([]string, error) {
 }
 
 func writeJSON(path string, v []string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(v, "", "  ")
@@ -190,7 +210,7 @@ func writeJSON(path string, v []string) error {
 		return err
 	}
 	b = append(b, '\n')
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o600)
 }
 
 func fatalf(format string, args ...any) {
