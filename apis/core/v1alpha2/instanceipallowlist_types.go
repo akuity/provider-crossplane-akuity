@@ -30,15 +30,12 @@ import (
 // separate controller own the allow list independently from the owning
 // Instance MR (supporting ownership-by-reference patterns).
 type InstanceIpAllowListParameters struct {
-	// InstanceID references the target ArgoCD Instance by ID.
-	// Either InstanceID or InstanceRef must be set.
-	// +optional
-	InstanceID string `json:"instanceId,omitempty"`
-
 	// InstanceRef references the target ArgoCD Instance by name in the
-	// same namespace as this InstanceIpAllowList.
-	// +optional
-	InstanceRef *LocalReference `json:"instanceRef,omitempty"`
+	// same namespace as this InstanceIpAllowList. The Akuity apply path
+	// keys by instance name, so referencing by name is the only
+	// supported resolution mode.
+	// +kubebuilder:validation:Required
+	InstanceRef *LocalReference `json:"instanceRef"`
 
 	// AllowList is the set of IP/CIDR entries to enforce on the
 	// instance.

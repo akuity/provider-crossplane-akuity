@@ -88,11 +88,10 @@ type external struct {
 }
 
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (managed.ExternalObservation, error) {
-	instanceID, instanceName, err := e.resolveInstance(ctx, mg)
+	_, instanceName, err := e.resolveInstance(ctx, mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
-	mg.Spec.ForProvider.InstanceID = instanceID
 
 	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
@@ -193,15 +192,11 @@ func (e *external) apply(ctx context.Context, mg *v1alpha2.InstanceIpAllowList, 
 	return e.Client.ApplyInstance(ctx, req)
 }
 
-// resolveInstance returns (instanceID, instanceName) for the MR.
-// InstanceID may be empty if InstanceRef is the source of truth and
-// the referenced Instance has not yet reported its ID; in that case
-// the Akuity-side lookup by name is authoritative for the controller's
-// purposes (Apply/Delete both key by name).
+// resolveInstance returns (instanceID, instanceName) by looking up the
+// referenced Instance MR in the same namespace. The ID may be empty if
+// the Instance has not yet reported its AtProvider.ID; the Akuity apply
+// and delete paths only need the name, so this is fine.
 func (e *external) resolveInstance(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (string, string, error) {
-	if mg.Spec.ForProvider.InstanceID != "" && mg.Spec.ForProvider.InstanceRef == nil {
-		return mg.Spec.ForProvider.InstanceID, "", fmt.Errorf("instanceIpAllowList requires an instanceRef (instance name) to patch; instanceId alone is not sufficient")
-	}
 	if mg.Spec.ForProvider.InstanceRef == nil || mg.Spec.ForProvider.InstanceRef.Name == "" {
 		return "", "", fmt.Errorf("spec.forProvider.instanceRef.name must be set")
 	}

@@ -83,15 +83,12 @@ spec:
                           type: string
                       type: object
                     type: array
-                  instanceId:
-                    description: |-
-                      InstanceID references the target ArgoCD Instance by ID.
-                      Either InstanceID or InstanceRef must be set.
-                    type: string
                   instanceRef:
                     description: |-
                       InstanceRef references the target ArgoCD Instance by name in the
-                      same namespace as this InstanceIpAllowList.
+                      same namespace as this InstanceIpAllowList. The Akuity apply path
+                      keys by instance name, so referencing by name is the only
+                      supported resolution mode.
                     properties:
                       name:
                         description: Name of the referenced object. Required.
@@ -100,6 +97,8 @@ spec:
                     required:
                     - name
                     type: object
+                required:
+                - instanceRef
                 type: object
               managementPolicies:
                 default:
