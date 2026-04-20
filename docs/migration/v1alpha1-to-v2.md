@@ -128,12 +128,37 @@ The spec shape is largely identical. Three changes:
 - `KargoInstance` — manages a Kargo instance.
 - `KargoAgent` — manages a Kargo agent and publishes agent-install manifests
   on its connection secret, same pattern as Cluster.
-- `KargoDefaultShardAgent` — sets `kargoInstanceSpec.defaultShardAgent` on a
-  referenced `KargoInstance` (narrow-patch controller).
-- `InstanceIpAllowList` — manages just `ipAllowList` on a referenced
-  `Instance`; pair with an Instance that deliberately omits `ipAllowList`.
+- `KargoDefaultShardAgent` — narrow-patch resource that sets
+  `kargoInstanceSpec.defaultShardAgent` on a target Kargo instance via the
+  Akuity `PatchKargoInstance` endpoint. Specify the target with either
+  `kargoInstanceId` (opaque Akuity ID, primary path) or `kargoInstanceRef`
+  (name of a sibling `KargoInstance` MR in the same namespace, resolved
+  through its `Status.AtProvider.ID`). Mutually exclusive.
+- `InstanceIpAllowList` — narrow-patch resource for `spec.ipAllowList` on a
+  target ArgoCD Instance via the Akuity `PatchInstance` endpoint. Same
+  ID-or-Ref shape as `KargoDefaultShardAgent`; pair with an Instance that
+  deliberately omits `ipAllowList`.
 
 Ready-to-use manifests live under `examples/v1alpha2/`.
+
+### 3.4 Why narrow-patch resources key by ID
+
+Both `InstanceIpAllowList` and `KargoDefaultShardAgent` call
+server-side-merging `Patch*` endpoints that require the opaque Akuity ID
+of the target. Two call paths are supported:
+
+- **Direct**: set `instanceId` / `kargoInstanceId` on the MR. No
+  cross-resource resolution; no kube client reads beyond the MR itself.
+- **Indirect** (recommended for GitOps flows): set `instanceRef` /
+  `kargoInstanceRef` pointing at a sibling `Instance` / `KargoInstance`
+  MR in the same namespace. The controller reads the sibling's
+  `Status.AtProvider.ID` at reconcile time. If the sibling has not yet
+  reported an ID, the narrow-patch reconcile errors out with a
+  "waiting for its controller to observe" message and requeues.
+
+The indirect path matches the Akuity Terraform provider's
+`akp_instance_ip_allow_list` / `akp_kargo_default_shard_agent` resources
+one-for-one, modulo Crossplane's ref-based composition idiom.
 
 ---
 

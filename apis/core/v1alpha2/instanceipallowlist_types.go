@@ -26,16 +26,25 @@ import (
 )
 
 // InstanceIpAllowListParameters manage the ipAllowList field of an
-// ArgoCD instance. This resource is a convenience wrapper that lets a
-// separate controller own the allow list independently from the owning
-// Instance MR (supporting ownership-by-reference patterns).
+// ArgoCD instance. The underlying PatchInstance endpoint keys by ID;
+// callers can supply the ID directly on InstanceID or point at an
+// Instance managed resource in the same namespace via InstanceRef, in
+// which case the controller resolves the ID from the Instance's
+// Status.AtProvider.ID field.
+//
+// +kubebuilder:validation:XValidation:rule="has(self.instanceId) || has(self.instanceRef)",message="one of instanceId or instanceRef must be set"
 type InstanceIpAllowListParameters struct {
+	// InstanceID references the target ArgoCD Instance by its opaque
+	// Akuity ID. Mutually exclusive with InstanceRef.
+	// +optional
+	InstanceID string `json:"instanceId,omitempty"`
+
 	// InstanceRef references the target ArgoCD Instance by name in the
-	// same namespace as this InstanceIpAllowList. The Akuity apply path
-	// keys by instance name, so referencing by name is the only
-	// supported resolution mode.
-	// +kubebuilder:validation:Required
-	InstanceRef *LocalReference `json:"instanceRef"`
+	// same namespace as this InstanceIpAllowList. The controller reads
+	// the referenced Instance's Status.AtProvider.ID to resolve the
+	// underlying Akuity ID. Mutually exclusive with InstanceID.
+	// +optional
+	InstanceRef *LocalReference `json:"instanceRef,omitempty"`
 
 	// AllowList is the set of IP/CIDR entries to enforce on the
 	// instance.

@@ -1,6 +1,14 @@
 # v1alpha2 Kargo resources: a KargoInstance, a KargoAgent, a
-# KargoDefaultShardAgent, and an InstanceIpAllowList that is paired with
-# an ArgoCD Instance which deliberately does NOT set ipAllowList itself.
+# KargoDefaultShardAgent, and an InstanceIpAllowList that is paired
+# with an ArgoCD Instance which deliberately does NOT set ipAllowList
+# itself.
+#
+# KargoDefaultShardAgent and InstanceIpAllowList are narrow-patch
+# resources that key by Akuity ID. The snippets below show the
+# kubeInstanceRef / instanceRef form (the controller resolves the ID
+# from the referenced MR's Status.AtProvider.ID). If you already know
+# the Akuity ID, use kargoInstanceId / instanceId directly — mutually
+# exclusive with the ref form.
 ---
 apiVersion: core.m.akuity.crossplane.io/v1alpha2
 kind: KargoInstance
@@ -53,6 +61,9 @@ metadata:
   namespace: default
 spec:
   forProvider:
+    # Reference the owning KargoInstance MR; controller resolves its
+    # Status.AtProvider.ID. Alternatively:
+    #   kargoInstanceId: "kargo-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     kargoInstanceRef:
       name: platform-kargo
     agentName: prod-agent
@@ -67,6 +78,9 @@ metadata:
   namespace: default
 spec:
   forProvider:
+    # Reference the owning Instance MR; controller resolves its
+    # Status.AtProvider.ID. Alternatively:
+    #   instanceId: "instance-xxxxxxxxxxxxxxxxxxxxxxxxx"
     instanceRef:
       name: my-instance
     allowList:

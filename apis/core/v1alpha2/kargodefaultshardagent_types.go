@@ -26,15 +26,26 @@ import (
 )
 
 // KargoDefaultShardAgentParameters pin the default shard agent of a
-// Kargo instance. This resource is a convenience wrapper around the
-// Kargo instance's kargoInstanceSpec.defaultShardAgent field.
+// Kargo instance. The underlying PatchKargoInstance endpoint keys by
+// ID; callers can supply the ID directly on KargoInstanceID or point
+// at a KargoInstance managed resource in the same namespace via
+// KargoInstanceRef, in which case the controller resolves the ID from
+// the KargoInstance's Status.AtProvider.ID field.
+//
+// +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) || has(self.kargoInstanceRef)",message="one of kargoInstanceId or kargoInstanceRef must be set"
 type KargoDefaultShardAgentParameters struct {
+	// KargoInstanceID references the owning Kargo instance by its
+	// opaque Akuity ID. Mutually exclusive with KargoInstanceRef.
+	// +optional
+	KargoInstanceID string `json:"kargoInstanceId,omitempty"`
+
 	// KargoInstanceRef references the owning Kargo instance by name
-	// in the same namespace as this KargoDefaultShardAgent. The Akuity
-	// Kargo apply path keys by instance name, so referencing by name
-	// is the only supported resolution mode.
-	// +kubebuilder:validation:Required
-	KargoInstanceRef *LocalReference `json:"kargoInstanceRef"`
+	// in the same namespace as this KargoDefaultShardAgent. The
+	// controller reads the referenced KargoInstance's
+	// Status.AtProvider.ID to resolve the underlying Akuity ID.
+	// Mutually exclusive with KargoInstanceID.
+	// +optional
+	KargoInstanceRef *LocalReference `json:"kargoInstanceRef,omitempty"`
 
 	// AgentName is the name of the shard agent to promote as default.
 	// Required.

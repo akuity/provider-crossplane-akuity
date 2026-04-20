@@ -42,8 +42,16 @@ type Client interface {
 	ApplyCluster(ctx context.Context, instanceID string, cluster akuitytypes.Cluster) error
 	DeleteCluster(ctx context.Context, instanceID string, name string) error
 	GetInstance(ctx context.Context, name string) (*argocdv1.Instance, error)
+	// GetInstanceByID fetches an Instance by its canonical ID. Used by
+	// narrow-patch controllers that have the ID on their spec and want
+	// to avoid a name-resolution round-trip.
+	GetInstanceByID(ctx context.Context, id string) (*argocdv1.Instance, error)
 	ExportInstance(ctx context.Context, name string) (*argocdv1.ExportInstanceResponse, error)
 	ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error
+	// PatchInstance merges the supplied structpb patch into the target
+	// Instance's spec (keyed by ID). Narrow-patch controllers use this
+	// to avoid the whole-spec Get+Apply dance that ApplyInstance requires.
+	PatchInstance(ctx context.Context, id string, patch *structpb.Struct) error
 	DeleteInstance(ctx context.Context, name string) error
 	BuildApplyInstanceRequest(instance crossplanetypes.Instance) (*argocdv1.ApplyInstanceRequest, error)
 
@@ -52,8 +60,17 @@ type Client interface {
 	// is via the KargoServiceGatewayClient configured alongside the
 	// Argo gateway at construction time.
 	GetKargoInstance(ctx context.Context, name string) (*kargov1.KargoInstance, error)
+	// GetKargoInstanceByID fetches a KargoInstance by its canonical ID.
+	// The Kargo GetKargoInstanceRequest only accepts a name; we emulate
+	// the ID-keyed lookup by listing and filtering server-side (matches
+	// how the Akuity Terraform provider resolves by ID).
+	GetKargoInstanceByID(ctx context.Context, id string) (*kargov1.KargoInstance, error)
 	ExportKargoInstance(ctx context.Context, name string) (*kargov1.ExportKargoInstanceResponse, error)
 	ApplyKargoInstance(ctx context.Context, request *kargov1.ApplyKargoInstanceRequest) error
+	// PatchKargoInstance merges the supplied structpb patch into the
+	// target KargoInstance's spec (keyed by ID). Used by narrow-patch
+	// controllers like KargoDefaultShardAgent.
+	PatchKargoInstance(ctx context.Context, id string, patch *structpb.Struct) error
 	DeleteKargoInstance(ctx context.Context, name string) error
 	GetKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) (*kargov1.KargoAgent, error)
 	CreateKargoInstanceAgent(ctx context.Context, request *kargov1.CreateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error)
@@ -220,6 +237,38 @@ func (c client) GetInstance(ctx context.Context, name string) (*argocdv1.Instanc
 	}
 
 	return resp.GetInstance(), nil
+}
+
+func (c client) GetInstanceByID(ctx context.Context, id string) (*argocdv1.Instance, error) {
+	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
+	resp, err := c.gatewayClient.GetInstance(ctx, &argocdv1.GetInstanceRequest{
+		OrganizationId: c.organizationID,
+		IdType:         idv1.Type_ID,
+		Id:             id,
+	})
+	if err != nil {
+		if e, ok := status.FromError(err); ok && e.Code() == codes.NotFound {
+			return nil, reason.AsNotFound(fmt.Errorf("could not get instance %s from Akuity API, instance was not found", id))
+		}
+		return nil, fmt.Errorf("could not get instance %s from Akuity API, error: %w", id, err)
+	}
+	if resp == nil || resp.GetInstance() == nil {
+		return nil, fmt.Errorf("could not get instance %s from Akuity API, response was empty", id)
+	}
+	return resp.GetInstance(), nil
+}
+
+func (c client) PatchInstance(ctx context.Context, id string, patch *structpb.Struct) error {
+	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
+	_, err := c.gatewayClient.PatchInstance(ctx, &argocdv1.PatchInstanceRequest{
+		OrganizationId: c.organizationID,
+		Id:             id,
+		Patch:          patch,
+	})
+	if err != nil {
+		return fmt.Errorf("could not patch instance %s using Akuity API, error: %w", id, err)
+	}
+	return nil
 }
 
 func (c client) ExportInstance(ctx context.Context, name string) (*argocdv1.ExportInstanceResponse, error) {
@@ -419,6 +468,44 @@ func (c client) GetKargoInstance(ctx context.Context, name string) (*kargov1.Kar
 		return nil, fmt.Errorf("could not get kargo instance %s: empty response", name)
 	}
 	return resp.GetInstance(), nil
+}
+
+func (c client) GetKargoInstanceByID(ctx context.Context, id string) (*kargov1.KargoInstance, error) {
+	if err := c.kargoRequired("GetKargoInstanceByID"); err != nil {
+		return nil, err
+	}
+	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
+	// GetKargoInstanceRequest only accepts a name. Emulate ID-keyed
+	// lookup via ListKargoInstances + client-side filter (same approach
+	// as akuityio/akuity-platform/terraform/akp).
+	list, err := c.kargoGatewayClient.ListKargoInstances(ctx, &kargov1.ListKargoInstancesRequest{
+		OrganizationId: c.organizationID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not list kargo instances while resolving %s: %w", id, err)
+	}
+	for _, inst := range list.GetInstances() {
+		if inst.GetId() == id {
+			return inst, nil
+		}
+	}
+	return nil, reason.AsNotFound(fmt.Errorf("kargo instance %s not found", id))
+}
+
+func (c client) PatchKargoInstance(ctx context.Context, id string, patch *structpb.Struct) error {
+	if err := c.kargoRequired("PatchKargoInstance"); err != nil {
+		return err
+	}
+	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
+	_, err := c.kargoGatewayClient.PatchKargoInstance(ctx, &kargov1.PatchKargoInstanceRequest{
+		OrganizationId: c.organizationID,
+		Id:             id,
+		Patch:          patch,
+	})
+	if err != nil {
+		return fmt.Errorf("could not patch kargo instance %s: %w", id, err)
+	}
+	return nil
 }
 
 func (c client) ExportKargoInstance(ctx context.Context, name string) (*kargov1.ExportKargoInstanceResponse, error) {

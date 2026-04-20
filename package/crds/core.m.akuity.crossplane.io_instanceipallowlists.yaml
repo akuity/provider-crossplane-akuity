@@ -63,9 +63,11 @@ spec:
               forProvider:
                 description: |-
                   InstanceIpAllowListParameters manage the ipAllowList field of an
-                  ArgoCD instance. This resource is a convenience wrapper that lets a
-                  separate controller own the allow list independently from the owning
-                  Instance MR (supporting ownership-by-reference patterns).
+                  ArgoCD instance. The underlying PatchInstance endpoint keys by ID;
+                  callers can supply the ID directly on InstanceID or point at an
+                  Instance managed resource in the same namespace via InstanceRef, in
+                  which case the controller resolves the ID from the Instance's
+                  Status.AtProvider.ID field.
                 properties:
                   allowList:
                     description: |-
@@ -83,12 +85,17 @@ spec:
                           type: string
                       type: object
                     type: array
+                  instanceId:
+                    description: |-
+                      InstanceID references the target ArgoCD Instance by its opaque
+                      Akuity ID. Mutually exclusive with InstanceRef.
+                    type: string
                   instanceRef:
                     description: |-
                       InstanceRef references the target ArgoCD Instance by name in the
-                      same namespace as this InstanceIpAllowList. The Akuity apply path
-                      keys by instance name, so referencing by name is the only
-                      supported resolution mode.
+                      same namespace as this InstanceIpAllowList. The controller reads
+                      the referenced Instance's Status.AtProvider.ID to resolve the
+                      underlying Akuity ID. Mutually exclusive with InstanceID.
                     properties:
                       name:
                         description: Name of the referenced object. Required.
@@ -97,9 +104,10 @@ spec:
                     required:
                     - name
                     type: object
-                required:
-                - instanceRef
                 type: object
+                x-kubernetes-validations:
+                - message: one of instanceId or instanceRef must be set
+                  rule: has(self.instanceId) || has(self.instanceRef)
               managementPolicies:
                 default:
                 - '*'

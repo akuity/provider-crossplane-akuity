@@ -15,18 +15,21 @@ limitations under the License.
 */
 
 // Package kargodefaultshardagent is the v1alpha2
-// KargoDefaultShardAgent controller. It manages the single
-// kargoInstanceSpec.defaultShardAgent field of a Kargo instance by
-// round-tripping GetKargoInstance + ApplyKargoInstance with only that
-// field patched; other KargoInstanceSpec fields are preserved verbatim.
+// KargoDefaultShardAgent controller. It owns the single
+// kargoInstanceSpec.defaultShardAgent field of a Kargo instance via
+// the PatchKargoInstance endpoint, which keys by opaque Akuity ID and
+// server-side-merges into only the provided sub-tree.
 package kargodefaultshardagent
 
 import (
 	"context"
 	"fmt"
 
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
+	"google.golang.org/protobuf/types/known/structpb"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
@@ -35,16 +38,11 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
-	"google.golang.org/protobuf/types/known/structpb"
-	k8stypes "k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
 	apisv1alpha2 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha2"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
-	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
@@ -86,7 +84,7 @@ type external struct {
 }
 
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalObservation, error) {
-	kargoName, err := e.resolveKargo(ctx, mg)
+	kargoID, err := e.resolveKargoID(ctx, mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
@@ -94,7 +92,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoDefaultShardAg
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
-	ki, err := e.Client.GetKargoInstance(ctx, kargoName)
+	ki, err := e.Client.GetKargoInstanceByID(ctx, kargoID)
 	if err != nil {
 		if reason.IsNotFound(err) {
 			return managed.ExternalObservation{ResourceExists: false}, nil
@@ -120,7 +118,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoDefaultShardAg
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalCreation, error) {
-	if err := e.apply(ctx, mg, mg.Spec.ForProvider.AgentName); err != nil {
+	if err := e.patch(ctx, mg, mg.Spec.ForProvider.AgentName); err != nil {
 		return managed.ExternalCreation{}, err
 	}
 	meta.SetExternalName(mg, mg.GetName())
@@ -128,100 +126,58 @@ func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoDefaultShardAge
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalUpdate, error) {
-	return managed.ExternalUpdate{}, e.apply(ctx, mg, mg.Spec.ForProvider.AgentName)
+	return managed.ExternalUpdate{}, e.patch(ctx, mg, mg.Spec.ForProvider.AgentName)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalDelete, error) {
-	// Clearing the default is the API-neutral "no pinning" signal —
-	// we intentionally do not delete the Kargo instance.
-	return managed.ExternalDelete{}, e.apply(ctx, mg, "")
+	// Clearing the default is the API-neutral "no pinning" signal — we
+	// intentionally do not delete the Kargo instance itself.
+	return managed.ExternalDelete{}, e.patch(ctx, mg, "")
 }
 
-func (e *external) Disconnect(ctx context.Context) error { return nil }
+func (e *external) Disconnect(_ context.Context) error { return nil }
 
-// apply fetches the current Kargo instance spec, patches
-// DefaultShardAgent, and re-applies. Other instance-spec fields are
-// carried through verbatim.
-func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent, desired string) error {
-	kargoName, err := e.resolveKargo(ctx, mg)
+// patch writes the desired defaultShardAgent via the narrow
+// PatchKargoInstance endpoint. No prior Get is needed — the server
+// merges into only the provided sub-tree.
+func (e *external) patch(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent, desired string) error {
+	kargoID, err := e.resolveKargoID(ctx, mg)
 	if err != nil {
 		return err
 	}
 
-	ki, err := e.Client.GetKargoInstance(ctx, kargoName)
-	if err != nil {
-		return fmt.Errorf("could not get kargo instance %q to patch defaultShardAgent: %w", kargoName, err)
-	}
-
-	if ki.GetSpec() == nil {
-		ki.Spec = &kargov1.KargoInstanceSpec{}
-	}
-	ki.Spec.DefaultShardAgent = desired
-
-	// Re-wrap the KargoInstance into the on-wire `kargo` struct
-	// ApplyKargoInstance expects. Going through protojson → structpb
-	// is the same round-trip used elsewhere in this package.
-	kargoPB, err := pbSpecToKargoStruct(ki)
-	if err != nil {
-		return err
-	}
-
-	return e.Client.ApplyKargoInstance(ctx, &kargov1.ApplyKargoInstanceRequest{
-		IdType: idv1.Type_NAME,
-		Id:     kargoName,
-		Kargo:  kargoPB,
+	patch, err := structpb.NewStruct(map[string]any{
+		"spec": map[string]any{
+			"kargoInstanceSpec": map[string]any{
+				"defaultShardAgent": desired,
+			},
+		},
 	})
+	if err != nil {
+		return fmt.Errorf("build defaultShardAgent patch: %w", err)
+	}
+
+	return e.Client.PatchKargoInstance(ctx, kargoID, patch)
 }
 
-// resolveKargo returns the Akuity-side Kargo instance name by looking
-// up the referenced KargoInstance MR in the same namespace. The Akuity
-// apply path keys by name.
-func (e *external) resolveKargo(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (string, error) {
+// resolveKargoID returns the opaque Akuity ID of the target Kargo
+// instance. ForProvider.KargoInstanceID takes precedence; if absent,
+// KargoInstanceRef is resolved against a KargoInstance MR in the same
+// namespace and its Status.AtProvider.ID is used.
+func (e *external) resolveKargoID(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (string, error) {
+	if id := mg.Spec.ForProvider.KargoInstanceID; id != "" {
+		return id, nil
+	}
 	if mg.Spec.ForProvider.KargoInstanceRef == nil || mg.Spec.ForProvider.KargoInstanceRef.Name == "" {
-		return "", fmt.Errorf("spec.forProvider.kargoInstanceRef.name must be set")
+		return "", fmt.Errorf("one of spec.forProvider.kargoInstanceId or spec.forProvider.kargoInstanceRef must be set")
 	}
 	ki := &v1alpha2.KargoInstance{}
 	key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.KargoInstanceRef.Name, Namespace: mg.GetNamespace()}
 	if err := e.Kube.Get(ctx, key, ki); err != nil {
 		return "", fmt.Errorf("could not resolve KargoInstanceRef %s/%s: %w", key.Namespace, key.Name, err)
 	}
-	return ki.Spec.ForProvider.Name, nil
-}
-
-// pbSpecToKargoStruct wraps the mutated *kargov1.KargoInstance back
-// into the on-wire `kargo` struct ApplyKargoInstance expects. The
-// wire Kargo object is { kind, apiVersion, metadata.name, spec:
-// KargoSpec{ description, version, fqdn, subdomain, oidcConfig,
-// kargoInstanceSpec } } where kargoInstanceSpec is the protobuf
-// KargoInstanceSpec payload carried directly on KargoInstance.Spec.
-func pbSpecToKargoStruct(ki *kargov1.KargoInstance) (*structpb.Struct, error) {
-	instanceSpec, err := marshal.ProtoToMap(ki.GetSpec())
-	if err != nil {
-		return nil, fmt.Errorf("encode KargoInstanceSpec: %w", err)
+	if ki.Status.AtProvider.ID == "" {
+		return "", fmt.Errorf("referenced KargoInstance %s/%s has not yet reported an ID; waiting for its controller to observe", key.Namespace, key.Name)
 	}
-	spec := map[string]any{
-		"description":       ki.GetDescription(),
-		"version":           ki.GetVersion(),
-		"fqdn":              ki.GetFqdn(),
-		"subdomain":         ki.GetSubdomain(),
-		"kargoInstanceSpec": instanceSpec,
-	}
-	if oidc := ki.GetOidcConfig(); oidc != nil {
-		oidcMap, err := marshal.ProtoToMap(oidc)
-		if err != nil {
-			return nil, fmt.Errorf("encode KargoOidcConfig: %w", err)
-		}
-		spec["oidcConfig"] = oidcMap
-	}
-	wrapper := map[string]any{
-		"kind":       "Kargo",
-		"apiVersion": "kargo.akuity.io/v1alpha1",
-		"metadata":   map[string]any{"name": ki.GetName()},
-		"spec":       spec,
-	}
-	s, err := structpb.NewStruct(wrapper)
-	if err != nil {
-		return nil, fmt.Errorf("new kargo struct: %w", err)
-	}
-	return s, nil
+	return ki.Status.AtProvider.ID, nil
 }
