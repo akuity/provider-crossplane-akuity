@@ -247,6 +247,15 @@ func (c client) ExportInstance(ctx context.Context, name string) (*argocdv1.Expo
 }
 
 func (c client) ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error {
+	// Auto-fill OrganizationId for callers that build the request
+	// themselves (v1alpha2 Instance / InstanceIpAllowList controllers).
+	// Legacy callers that go through BuildApplyInstanceRequest /
+	// buildApplyClusterRequest already set it; the guard is a no-op
+	// for them. Matches the shape used by ApplyKargoInstance and the
+	// KargoInstanceAgent Create/Update helpers below.
+	if request.OrganizationId == "" {
+		request.OrganizationId = c.organizationID
+	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
 	_, err := c.gatewayClient.ApplyInstance(ctx, request)
 

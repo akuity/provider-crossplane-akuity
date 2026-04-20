@@ -592,6 +592,34 @@ func TestApplyInstance(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestApplyInstance_FillsOrganizationId guards the v1alpha2 controller
+// contract: callers (Instance, InstanceIpAllowList) construct the request
+// without setting OrganizationId, relying on the client wrapper to inject
+// it from the ProviderConfig-bound organisation. Regression test for
+// the WS-5 → WS-10 cutover.
+func TestApplyInstance_FillsOrganizationId(t *testing.T) {
+	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
+	callerRequest := &argocdv1.ApplyInstanceRequest{
+		// OrganizationId left empty on purpose.
+		IdType: idv1.Type_NAME,
+		Id:     "my-instance",
+	}
+	expected := &argocdv1.ApplyInstanceRequest{
+		OrganizationId: organizationID,
+		IdType:         idv1.Type_NAME,
+		Id:             "my-instance",
+	}
+
+	mockGatewayClient.EXPECT().ApplyInstance(authCtx, expected).Return(nil, nil).Times(1)
+
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
+	require.NoError(t, err)
+
+	err = client.ApplyInstance(ctx, callerRequest)
+	require.NoError(t, err)
+	assert.Equal(t, organizationID, callerRequest.OrganizationId, "ApplyInstance must auto-fill OrganizationId on the outgoing request")
+}
+
 func TestDeleteInstance(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
 	response := &argocdv1.GetInstanceResponse{
