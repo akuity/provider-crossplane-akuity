@@ -73,7 +73,7 @@ jobs:
       - name: Publish Artifacts
         run: |
           set -euo pipefail
-          curl -sL https://raw.githubusercontent.com/crossplane/crossplane/v1.20.1/install.sh | XP_VERSION=v1.20.1 sh
+          curl -sL https://raw.githubusercontent.com/crossplane/crossplane/v2.2.0/install.sh | XP_VERSION=v2.2.0 sh
           sudo mv kubectl-crossplane /usr/local/bin
           make akuity-publish
         env:
