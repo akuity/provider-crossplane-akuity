@@ -40,7 +40,7 @@ func init() {
 
 type ClusterSpec struct {
 	Description     string      `json:"description,omitempty"`
-	NamespaceScoped *bool       `json:"namespaceScoped,omitempty"`
+	NamespaceScoped bool        `json:"namespaceScoped,omitempty"`
 	Data            ClusterData `json:"data,omitempty"`
 }
 
@@ -81,11 +81,11 @@ type RepoServerAutoScalingConfig struct {
 }
 
 type ClusterCompatibility struct {
-	Ipv6Only *bool `json:"ipv6Only,omitempty"`
+	Ipv6Only bool `json:"ipv6Only,omitempty"`
 }
 
 type ClusterArgoCDNotificationsSettings struct {
-	InClusterSettings *bool `json:"inClusterSettings,omitempty"`
+	InClusterSettings bool `json:"inClusterSettings,omitempty"`
 }
 
 type ClusterData struct {
@@ -106,4 +106,6 @@ type ClusterData struct {
 	Compatibility                   *ClusterCompatibility               `json:"compatibility,omitempty"`
 	ArgocdNotificationsSettings     *ClusterArgoCDNotificationsSettings `json:"argocdNotificationsSettings,omitempty"`
 	ServerSideDiffEnabled           *bool                               `json:"serverSideDiffEnabled,omitempty"`
+	MaintenanceModeExpiry           *metav1.Time                        `json:"maintenanceModeExpiry,omitempty"`
+	PodInheritMetadata              *bool                               `json:"podInheritMetadata,omitempty"`
 }

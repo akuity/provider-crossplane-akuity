@@ -47,16 +47,16 @@ type ArgoCDExtensionInstallEntry struct {
 }
 
 type ClusterCustomization struct {
-	AutoUpgradeDisabled   *bool                `json:"autoUpgradeDisabled,omitempty"`
+	AutoUpgradeDisabled   bool                 `json:"autoUpgradeDisabled,omitempty"`
 	Kustomization         runtime.RawExtension `json:"kustomization,omitempty"`
-	AppReplication        *bool                `json:"appReplication,omitempty"`
-	RedisTunneling        *bool                `json:"redisTunneling,omitempty"`
-	ServerSideDiffEnabled *bool                `json:"serverSideDiffEnabled,omitempty"`
+	AppReplication        bool                 `json:"appReplication,omitempty"`
+	RedisTunneling        bool                 `json:"redisTunneling,omitempty"`
+	ServerSideDiffEnabled bool                 `json:"serverSideDiffEnabled,omitempty"`
 }
 
 type AppsetPolicy struct {
 	Policy         string `json:"policy,omitempty"`
-	OverridePolicy *bool  `json:"overridePolicy,omitempty"`
+	OverridePolicy bool   `json:"overridePolicy,omitempty"`
 }
 
 type AgentPermissionsRule struct {
@@ -74,15 +74,15 @@ type CrossplaneExtension struct {
 }
 
 type AkuityIntelligenceExtension struct {
-	Enabled                  *bool    `json:"enabled,omitempty"`
+	Enabled                  bool     `json:"enabled,omitempty"`
 	AllowedUsernames         []string `json:"allowedUsernames,omitempty"`
 	AllowedGroups            []string `json:"allowedGroups,omitempty"`
-	AiSupportEngineerEnabled *bool    `json:"aiSupportEngineerEnabled,omitempty"`
+	AiSupportEngineerEnabled bool     `json:"aiSupportEngineerEnabled,omitempty"`
 	ModelVersion             string   `json:"modelVersion,omitempty"`
 }
 
 type ClusterAddonsExtension struct {
-	Enabled          *bool    `json:"enabled,omitempty"`
+	Enabled          bool     `json:"enabled,omitempty"`
 	AllowedUsernames []string `json:"allowedUsernames,omitempty"`
 	AllowedGroups    []string `json:"allowedGroups,omitempty"`
 }
@@ -102,11 +102,13 @@ type Runbook struct {
 }
 
 type IncidentWebhookConfig struct {
-	Name                      string `json:"name,omitempty"`
-	DescriptionPath           string `json:"descriptionPath,omitempty"`
-	ClusterPath               string `json:"clusterPath,omitempty"`
-	K8SNamespacePath          string `json:"k8sNamespacePath,omitempty"`
-	ArgocdApplicationNamePath string `json:"argocdApplicationNamePath,omitempty"`
+	Name                           string `json:"name,omitempty"`
+	DescriptionPath                string `json:"descriptionPath,omitempty"`
+	ClusterPath                    string `json:"clusterPath,omitempty"`
+	K8SNamespacePath               string `json:"k8sNamespacePath,omitempty"`
+	ArgocdApplicationNamePath      string `json:"argocdApplicationNamePath,omitempty"`
+	ArgocdApplicationNamespacePath string `json:"argocdApplicationNamespacePath,omitempty"`
+	TitlePath                      string `json:"titlePath,omitempty"`
 }
 
 type IncidentsGroupingConfig struct {
@@ -114,10 +116,29 @@ type IncidentsGroupingConfig struct {
 	ArgocdApplicationNames []string `json:"argocdApplicationNames,omitempty"`
 }
 
+type IncidentInvestigationApprovalScope struct {
+	ArgocdApplications      []string `json:"argocdApplications,omitempty"`
+	K8SNamespaces           []string `json:"k8sNamespaces,omitempty"`
+	Clusters                []string `json:"clusters,omitempty"`
+	ConsecutiveAutoClosures int32    `json:"consecutiveAutoClosures,omitempty"`
+}
+
+type IncidentInvestigationApprovalConfig struct {
+	Scopes []*IncidentInvestigationApprovalScope `json:"scopes,omitempty"`
+}
+
 type IncidentsConfig struct {
-	Triggers []*TargetSelector        `json:"triggers,omitempty"`
-	Webhooks []*IncidentWebhookConfig `json:"webhooks,omitempty"`
-	Grouping *IncidentsGroupingConfig `json:"grouping,omitempty"`
+	Triggers              []*TargetSelector                    `json:"triggers,omitempty"`
+	Webhooks              []*IncidentWebhookConfig             `json:"webhooks,omitempty"`
+	Grouping              *IncidentsGroupingConfig             `json:"grouping,omitempty"`
+	InvestigationApproval *IncidentInvestigationApprovalConfig `json:"investigationApproval,omitempty"`
+}
+
+type RunbookRepo struct {
+	RepoUrl    string                     `json:"repoUrl,omitempty"`
+	Revision   *string                    `json:"revision,omitempty"`
+	Path       *string                    `json:"path,omitempty"`
+	AppliedFor map[string]*TargetSelector `json:"appliedFor,omitempty"`
 }
 
 type AIConfig struct {
@@ -125,6 +146,7 @@ type AIConfig struct {
 	Incidents           *IncidentsConfig `json:"incidents,omitempty"`
 	ArgocdSlackService  *string          `json:"argocdSlackService,omitempty"`
 	ArgocdSlackChannels []string         `json:"argocdSlackChannels,omitempty"`
+	RunbookRepos        []*RunbookRepo   `json:"runbookRepos,omitempty"`
 }
 
 type AdditionalAttributeRule struct {
@@ -142,7 +164,7 @@ type KubeVisionConfig struct {
 }
 
 type AppInAnyNamespaceConfig struct {
-	Enabled *bool `json:"enabled,omitempty"`
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 type CustomDeprecatedAPI struct {
@@ -153,7 +175,7 @@ type CustomDeprecatedAPI struct {
 }
 
 type CveScanConfig struct {
-	ScanEnabled    *bool  `json:"scanEnabled,omitempty"`
+	ScanEnabled    bool   `json:"scanEnabled,omitempty"`
 	RescanInterval string `json:"rescanInterval,omitempty"`
 }
 
@@ -179,17 +201,17 @@ type SecretsManagementConfig struct {
 }
 
 type ApplicationSetExtension struct {
-	Enabled *bool `json:"enabled,omitempty"`
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 type BucketRateLimiting struct {
-	Enabled    *bool  `json:"enabled,omitempty"`
+	Enabled    bool   `json:"enabled,omitempty"`
 	BucketSize uint32 `json:"bucketSize,omitempty"`
 	BucketQps  uint32 `json:"bucketQps,omitempty"`
 }
 
 type ItemRateLimiting struct {
-	Enabled         *bool   `json:"enabled,omitempty"`
+	Enabled         bool    `json:"enabled,omitempty"`
 	FailureCooldown uint32  `json:"failureCooldown,omitempty"`
 	BaseDelay       uint32  `json:"baseDelay,omitempty"`
 	MaxDelay        uint32  `json:"maxDelay,omitempty"`
@@ -201,33 +223,42 @@ type AppReconciliationsRateLimiting struct {
 	ItemRateLimiting   *ItemRateLimiting   `json:"itemRateLimiting,omitempty"`
 }
 
+type ConfigManagementToolVersions struct {
+	DefaultVersion     string   `json:"defaultVersion,omitempty"`
+	AdditionalVersions []string `json:"additionalVersions,omitempty"`
+}
+
+type ManifestGeneration struct {
+	Kustomize *ConfigManagementToolVersions `json:"kustomize,omitempty"`
+}
+
 type InstanceSpec struct {
 	IpAllowList                     []*IPAllowListEntry             `json:"ipAllowList,omitempty"`
 	Subdomain                       string                          `json:"subdomain,omitempty"`
-	DeclarativeManagementEnabled    *bool                           `json:"declarativeManagementEnabled,omitempty"`
+	DeclarativeManagementEnabled    bool                            `json:"declarativeManagementEnabled,omitempty"`
 	Extensions                      []*ArgoCDExtensionInstallEntry  `json:"extensions,omitempty"`
 	ClusterCustomizationDefaults    *ClusterCustomization           `json:"clusterCustomizationDefaults,omitempty"`
-	ImageUpdaterEnabled             *bool                           `json:"imageUpdaterEnabled,omitempty"`
-	BackendIpAllowListEnabled       *bool                           `json:"backendIpAllowListEnabled,omitempty"`
+	ImageUpdaterEnabled             bool                            `json:"imageUpdaterEnabled,omitempty"`
+	BackendIpAllowListEnabled       bool                            `json:"backendIpAllowListEnabled,omitempty"`
 	RepoServerDelegate              *RepoServerDelegate             `json:"repoServerDelegate,omitempty"`
-	AuditExtensionEnabled           *bool                           `json:"auditExtensionEnabled,omitempty"`
-	SyncHistoryExtensionEnabled     *bool                           `json:"syncHistoryExtensionEnabled,omitempty"`
+	AuditExtensionEnabled           bool                            `json:"auditExtensionEnabled,omitempty"`
+	SyncHistoryExtensionEnabled     bool                            `json:"syncHistoryExtensionEnabled,omitempty"`
 	CrossplaneExtension             *CrossplaneExtension            `json:"crossplaneExtension,omitempty"`
 	ImageUpdaterDelegate            *ImageUpdaterDelegate           `json:"imageUpdaterDelegate,omitempty"`
 	AppSetDelegate                  *AppSetDelegate                 `json:"appSetDelegate,omitempty"`
-	AssistantExtensionEnabled       *bool                           `json:"assistantExtensionEnabled,omitempty"`
+	AssistantExtensionEnabled       bool                            `json:"assistantExtensionEnabled,omitempty"`
 	AppsetPolicy                    *AppsetPolicy                   `json:"appsetPolicy,omitempty"`
 	HostAliases                     []*HostAliases                  `json:"hostAliases,omitempty"`
 	AgentPermissionsRules           []*AgentPermissionsRule         `json:"agentPermissionsRules,omitempty"`
 	Fqdn                            string                          `json:"fqdn,omitempty"`
-	MultiClusterK8SDashboardEnabled *bool                           `json:"multiClusterK8sDashboardEnabled,omitempty"`
+	MultiClusterK8SDashboardEnabled bool                            `json:"multiClusterK8sDashboardEnabled,omitempty"`
 	AkuityIntelligenceExtension     *AkuityIntelligenceExtension    `json:"akuityIntelligenceExtension,omitempty"`
 	ImageUpdaterVersion             string                          `json:"imageUpdaterVersion,omitempty"`
 	CustomDeprecatedApis            []*CustomDeprecatedAPI          `json:"customDeprecatedApis,omitempty"`
 	KubeVisionConfig                *KubeVisionConfig               `json:"kubeVisionConfig,omitempty"`
 	AppInAnyNamespaceConfig         *AppInAnyNamespaceConfig        `json:"appInAnyNamespaceConfig,omitempty"`
 	Basepath                        string                          `json:"basepath,omitempty"`
-	AppsetProgressiveSyncsEnabled   *bool                           `json:"appsetProgressiveSyncsEnabled,omitempty"`
+	AppsetProgressiveSyncsEnabled   bool                            `json:"appsetProgressiveSyncsEnabled,omitempty"`
 	Secrets                         *SecretsManagementConfig        `json:"secrets,omitempty"`
 	AppsetPlugins                   []*AppsetPlugins                `json:"appsetPlugins,omitempty"`
 	ApplicationSetExtension         *ApplicationSetExtension        `json:"applicationSetExtension,omitempty"`
@@ -236,6 +267,7 @@ type InstanceSpec struct {
 	MetricsIngressPasswordHash      *string                         `json:"metricsIngressPasswordHash,omitempty"`
 	PrivilegedNotificationCluster   *string                         `json:"privilegedNotificationCluster,omitempty"`
 	ClusterAddonsExtension          *ClusterAddonsExtension         `json:"clusterAddonsExtension,omitempty"`
+	ManifestGeneration              *ManifestGeneration             `json:"manifestGeneration,omitempty"`
 }
 
 type AppsetPlugins struct {
@@ -250,12 +282,12 @@ type ManagedCluster struct {
 }
 
 type RepoServerDelegate struct {
-	ControlPlane   *bool           `json:"controlPlane,omitempty"`
+	ControlPlane   bool            `json:"controlPlane,omitempty"`
 	ManagedCluster *ManagedCluster `json:"managedCluster,omitempty"`
 }
 
 type ImageUpdaterDelegate struct {
-	ControlPlane   *bool           `json:"controlPlane,omitempty"`
+	ControlPlane   bool            `json:"controlPlane,omitempty"`
 	ManagedCluster *ManagedCluster `json:"managedCluster,omitempty"`
 }
 

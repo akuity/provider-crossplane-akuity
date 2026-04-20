@@ -285,7 +285,7 @@ func CrossplaneToAkuityAPICompatibility(compatibility *generated.ClusterCompatib
 	}
 
 	return &akuitytypes.ClusterCompatibility{
-		Ipv6Only: compatibility.Ipv6Only,
+		Ipv6Only: ptr.Deref(compatibility.Ipv6Only, false),
 	}
 }
 
@@ -312,7 +312,7 @@ func CrossplaneToAkuityAPICluster(cluster v1alpha1.ClusterParameters) (akuitytyp
 		},
 		Spec: akuitytypes.ClusterSpec{
 			Description:     cluster.ClusterSpec.Description,
-			NamespaceScoped: cluster.ClusterSpec.NamespaceScoped,
+			NamespaceScoped: ptr.Deref(cluster.ClusterSpec.NamespaceScoped, false),
 			Data: akuitytypes.ClusterData{
 				Size:                            akuitytypes.ClusterSize(cluster.ClusterSpec.Data.Size),
 				AutoUpgradeDisabled:             cluster.ClusterSpec.Data.AutoUpgradeDisabled,

@@ -49,7 +49,7 @@ var (
 
 	AkuityAppsetPolicy = &akuitytypes.AppsetPolicy{
 		Policy:         "policy",
-		OverridePolicy: ptr.To(true),
+		OverridePolicy: true,
 	}
 
 	ArgocdAppsetPolicy = &argocdv1.AppsetPolicy{
@@ -81,7 +81,7 @@ var (
 	}
 
 	AkuityImageUpdaterDelegate = &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: ptr.To(true),
+		ControlPlane: true,
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -102,7 +102,7 @@ var (
 	}
 
 	AkuityRepoServerDelegate = &akuitytypes.RepoServerDelegate{
-		ControlPlane: ptr.To(true),
+		ControlPlane: true,
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -189,10 +189,10 @@ var (
 	}
 
 	AkuityClusterCustomization = &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: ptr.To(true),
+		AutoUpgradeDisabled: true,
 		Kustomization:       Kustomization,
-		AppReplication:      ptr.To(true),
-		RedisTunneling:      ptr.To(true),
+		AppReplication:      true,
+		RedisTunneling:      true,
 	}
 
 	ArgocdClusterCustomization = &argocdv1.ClusterCustomization{
@@ -210,10 +210,10 @@ var (
 	}
 
 	AkuityIntelligenceExtension = &akuitytypes.AkuityIntelligenceExtension{
-		Enabled:                  ptr.To(true),
+		Enabled:                  true,
 		AllowedGroups:            []string{"admin"},
 		AllowedUsernames:         []string{"admin"},
-		AiSupportEngineerEnabled: ptr.To(true),
+		AiSupportEngineerEnabled: true,
 		ModelVersion:             "gpt-4.1",
 	}
 
@@ -262,7 +262,7 @@ var (
 
 	AkuityKubeVisionConfig = &akuitytypes.KubeVisionConfig{
 		CveScanConfig: &akuitytypes.CveScanConfig{
-			ScanEnabled:    ptr.To(true),
+			ScanEnabled:    true,
 			RescanInterval: "",
 		},
 	}
@@ -282,7 +282,7 @@ var (
 	}
 
 	AkuityAppInAnyNamespaceConfig = &akuitytypes.AppInAnyNamespaceConfig{
-		Enabled: ptr.To(true),
+		Enabled: true,
 	}
 
 	ArgocdAppInAnyNamespaceConfig = &argocdv1.AppInAnyNamespaceConfig{
@@ -339,7 +339,7 @@ var (
 	}
 
 	AkuityApplicationSetExtension = &akuitytypes.ApplicationSetExtension{
-		Enabled: ptr.To(true),
+		Enabled: true,
 	}
 
 	ArgocdApplicationSetExtension = &argocdv1.ApplicationSetExtension{
@@ -352,12 +352,12 @@ var (
 
 	AkuityAppReconciliationsRateLimiting = &akuitytypes.AppReconciliationsRateLimiting{
 		BucketRateLimiting: &akuitytypes.BucketRateLimiting{
-			Enabled:    ptr.To(true),
+			Enabled:    true,
 			BucketSize: 5,
 			BucketQps:  10,
 		},
 		ItemRateLimiting: &akuitytypes.ItemRateLimiting{
-			Enabled:         ptr.To(true),
+			Enabled:         true,
 			FailureCooldown: 30,
 			BaseDelay:       1,
 			MaxDelay:        10,
@@ -398,28 +398,28 @@ var (
 	AkuityInstanceSpec = akuitytypes.InstanceSpec{
 		IpAllowList:                     AkuityIpAllowList,
 		Subdomain:                       "example.com",
-		DeclarativeManagementEnabled:    ptr.To(true),
+		DeclarativeManagementEnabled:    true,
 		Extensions:                      AkuityInstallEntryList,
 		ClusterCustomizationDefaults:    AkuityClusterCustomization,
-		ImageUpdaterEnabled:             ptr.To(true),
-		BackendIpAllowListEnabled:       ptr.To(true),
+		ImageUpdaterEnabled:             true,
+		BackendIpAllowListEnabled:       true,
 		RepoServerDelegate:              AkuityRepoServerDelegate,
-		AuditExtensionEnabled:           ptr.To(true),
-		SyncHistoryExtensionEnabled:     ptr.To(true),
+		AuditExtensionEnabled:           true,
+		SyncHistoryExtensionEnabled:     true,
 		ImageUpdaterDelegate:            AkuityImageUpdaterDelegate,
 		AppSetDelegate:                  AkuityAppSetDelegate,
-		AssistantExtensionEnabled:       ptr.To(true),
+		AssistantExtensionEnabled:       true,
 		AppsetPolicy:                    AkuityAppsetPolicy,
 		HostAliases:                     AkuityHostAliasesList,
 		Fqdn:                            "",
-		MultiClusterK8SDashboardEnabled: ptr.To(true),
+		MultiClusterK8SDashboardEnabled: true,
 		AkuityIntelligenceExtension:     AkuityIntelligenceExtension,
 		ImageUpdaterVersion:             "",
 		CustomDeprecatedApis:            AkuityCustomDeprecatedApis,
 		KubeVisionConfig:                AkuityKubeVisionConfig,
 		AppInAnyNamespaceConfig:         AkuityAppInAnyNamespaceConfig,
 		Basepath:                        "",
-		AppsetProgressiveSyncsEnabled:   ptr.To(true),
+		AppsetProgressiveSyncsEnabled:   true,
 		AppsetPlugins:                   AkuityAppsetPlugins,
 		ApplicationSetExtension:         AkuityApplicationSetExtension,
 		AppReconciliationsRateLimiting:  AkuityAppReconciliationsRateLimiting,

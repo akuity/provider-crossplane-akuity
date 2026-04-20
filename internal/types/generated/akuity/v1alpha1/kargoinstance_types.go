@@ -91,6 +91,11 @@ type KargoInstanceSpec struct {
 	GcConfig                   *GarbageCollectorConfig  `json:"gcConfig,omitempty"`
 	PromoControllerEnabled     bool                     `json:"promoControllerEnabled,omitempty"`
 	Secrets                    SecretsManagementConfig  `json:"secrets,omitempty"`
+	ArgocdUi                   *KargoArgoCDUIConfig     `json:"argocdUi,omitempty"`
+}
+
+type KargoArgoCDUIConfig struct {
+	IdpGroupsMapping bool `json:"idpGroupsMapping,omitempty"`
 }
 
 type AkuityIntelligence struct {
