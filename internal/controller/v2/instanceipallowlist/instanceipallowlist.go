@@ -34,9 +34,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
@@ -54,7 +54,7 @@ import (
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha2.InstanceIpAllowListGroupKind)
 	logger := o.Logger.WithValues("controller", name)
-	recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor(name))
+	recorder := event.NewRecorder(mgr, name)
 
 	conn := &base.Connector[*v1alpha2.InstanceIpAllowList]{
 		Kube:      mgr.GetClient(),

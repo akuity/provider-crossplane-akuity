@@ -26,7 +26,6 @@ import (
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/providerconfig"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
@@ -37,6 +36,7 @@ import (
 
 	apisv1alpha2 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha2"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 )
 
 // SetupV2 registers the namespaced ProviderConfig reconciler and the
@@ -59,7 +59,7 @@ func setupProviderConfigV2(mgr ctrl.Manager, o controller.Options) error {
 	}
 	r := providerconfig.NewReconciler(mgr, of,
 		providerconfig.WithLogger(o.Logger.WithValues("controller", name)),
-		providerconfig.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))))
+		providerconfig.WithRecorder(event.NewRecorder(mgr, name)))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -77,7 +77,7 @@ func setupClusterProviderConfigV2(mgr ctrl.Manager, o controller.Options) error 
 	}
 	r := providerconfig.NewReconciler(mgr, of,
 		providerconfig.WithLogger(o.Logger.WithValues("controller", name)),
-		providerconfig.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))))
+		providerconfig.WithRecorder(event.NewRecorder(mgr, name)))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).

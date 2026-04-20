@@ -6,9 +6,13 @@ PROJECT_REPO := github.com/akuityio/$(PROJECT_NAME)
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
 
+# Export so recursive make invocations (e.g. build/makelib/golang.mk
+# uses `?=`) honour this pin instead of inheriting a stale value from
+# the calling environment.
 GOLANGCILINT_VERSION := 2.11.4
+export GOLANGCILINT_VERSION
 GO_LINT_ARGS := --timeout=10m
-CROSSPLANE_CLI_VERSION = v1.20.1
+CROSSPLANE_CLI_VERSION = v2.2.0
 
 # ====================================================================================
 # Setup Output
