@@ -402,8 +402,7 @@ spec:
                             type: string
                           dexConfigSecret:
                             additionalProperties:
-                              description: KargoOidcSecretValue is a value reference
-                                inside DexConfigSecret.
+                              description: Value is a value reference inside DexConfigSecret.
                               properties:
                                 value:
                                   description: Value is the literal value.

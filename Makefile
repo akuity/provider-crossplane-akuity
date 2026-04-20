@@ -55,6 +55,19 @@ fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .
 	@make
 
+# Run the Akuity wire ↔ v1alpha2 converter codegen. Must run before
+# `go generate ./apis/...` because emitted files live under internal/convert/
+# and reference the v1alpha2 types generated here.
+generate-convert:
+	@$(INFO) running converter codegen
+	@$(GO) run ./hack/codegen
+	@$(OK) converter codegen
+
+# Make the generate target (provided by build/makelib/golang.mk) depend
+# on generate-convert so running `make generate` refreshes both the
+# converters and the controller-gen / angryjet output in one shot.
+generate.init: generate-convert
+
 # integration tests
 e2e.run: test-integration
 

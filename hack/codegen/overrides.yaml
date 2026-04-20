@@ -1,0 +1,53 @@
+# Codegen overrides for the WS-3 convert layer.
+#
+# Structure:
+#   <StructName>:
+#     renames:
+#       <akuity-gen field name>: <v1alpha2 field name>
+#     adapters:
+#       - field: <v1alpha2 field name>
+#         via: <fn>    # curated → wire
+#         back: <fn>   # wire → curated
+#     ignore:
+#       - <field name to omit from conversion>
+#     generate_false: true
+#       # skip auto-emission for the whole type; must be hand-written in
+#       # internal/convert/glue.go with <TypeName>SpecToAPI /
+#       # <TypeName>APIToSpec signatures.
+#
+# A special key `_type_renames` maps an akuity wire type name to its
+# counterpart name in apis/core/v1alpha2. Used when the v1alpha2 type
+# had to be renamed to avoid a collision with a Crossplane-level type
+# (e.g. InstanceSpec — akuity's is the nested ArgoCD payload, v1alpha2
+# reuses InstanceSpec for the MR-level spec).
+#
+# Adapter functions must be defined in internal/convert/glue.
+
+_type_renames:
+  InstanceSpec: ArgoCDInstanceSpec
+
+# Cluster payload — kustomization is the only upstream/field shape
+# difference that needs an adapter.
+ClusterData:
+  adapters:
+    - field: Kustomization
+      via: glue.KustomizationStringToRaw
+      back: glue.KustomizationRawToString
+
+ClusterCustomization:
+  adapters:
+    - field: Kustomization
+      via: glue.KustomizationStringToRaw
+      back: glue.KustomizationRawToString
+
+KargoAgentCustomization:
+  adapters:
+    - field: Kustomization
+      via: glue.KustomizationStringToRaw
+      back: glue.KustomizationRawToString
+
+KargoAgentData:
+  adapters:
+    - field: Kustomization
+      via: glue.KustomizationStringToRaw
+      back: glue.KustomizationRawToString

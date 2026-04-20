@@ -118,7 +118,7 @@ type KargoOidcConfig struct {
 	// DexConfig is the Dex configuration (YAML).
 	DexConfig string `json:"dexConfig"`
 	// DexConfigSecret maps keys into Dex config values.
-	DexConfigSecret map[string]KargoOidcSecretValue `json:"dexConfigSecret"`
+	DexConfigSecret map[string]Value `json:"dexConfigSecret"`
 	// IssuerURL of the OIDC provider.
 	IssuerURL string `json:"issuerUrl"`
 	// ClientID used by Kargo.
@@ -137,8 +137,8 @@ type KargoOidcConfig struct {
 	ProjectCreatorAccount KargoPredefinedAccountData `json:"projectCreatorAccount"`
 }
 
-// KargoOidcSecretValue is a value reference inside DexConfigSecret.
-type KargoOidcSecretValue struct {
+// Value is a value reference inside DexConfigSecret.
+type Value struct {
 	// Value is the literal value.
 	// +optional
 	Value *string `json:"value,omitempty"`
