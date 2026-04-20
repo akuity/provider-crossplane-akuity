@@ -103,4 +103,3 @@ func convertAgentData(pb *kargov1.KargoAgentData) *v1alpha2.KargoAgentData {
 	}
 	return convert.KargoAgentDataAPIToSpec(&wire)
 }
-

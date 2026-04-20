@@ -39,13 +39,13 @@ import (
 
 // Well-known configmap names used in the Akuity export payload.
 const (
-	argoCDCMKey                 = "argocd-cm"
-	argoCDImageUpdaterCMKey     = "argocd-image-updater-config"
-	argoCDImageUpdaterSSHCMKey  = "argocd-image-updater-ssh-config"
-	argoCDNotificationsCMKey    = "argocd-notifications-cm"
-	argoCDRBACCMKey             = "argocd-rbac-cm"
-	argoCDSSHKnownHostsCMKey    = "argocd-ssh-known-hosts-cm"
-	argoCDTLSCertsCMKey         = "argocd-tls-certs-cm"
+	argoCDCMKey                = "argocd-cm"
+	argoCDImageUpdaterCMKey    = "argocd-image-updater-config"
+	argoCDImageUpdaterSSHCMKey = "argocd-image-updater-ssh-config"
+	argoCDNotificationsCMKey   = "argocd-notifications-cm"
+	argoCDRBACCMKey            = "argocd-rbac-cm"
+	argoCDSSHKnownHostsCMKey   = "argocd-ssh-known-hosts-cm"
+	argoCDTLSCertsCMKey        = "argocd-tls-certs-cm"
 )
 
 // apiToSpec rebuilds the v1alpha2 Instance parameters from a freshly
@@ -268,7 +268,7 @@ func configMapToPB(name string, data map[string]string) (*structpb.Struct, error
 		return nil, nil
 	}
 	cm := corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{Kind: "ConfigMap", APIVersion: "v1"},
+		TypeMeta:   metav1.TypeMeta{Kind: "ConfigMap", APIVersion: "v1"},
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Data:       data,
 	}
@@ -461,4 +461,3 @@ func pbInstanceSpecToSpec(ai *argocdv1.Instance) (*v1alpha2.ArgoCDInstanceSpec, 
 	}
 	return convert.InstanceSpecAPIToSpec(wire), nil
 }
-
