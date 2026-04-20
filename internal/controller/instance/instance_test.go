@@ -47,7 +47,7 @@ var (
 
 func TestCreate(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient)
+	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	applyInstanceRequest, err := unmockedAkuityClient.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
@@ -90,7 +90,7 @@ func TestCreate_BuildRequestErr(t *testing.T) {
 
 func TestCreate_ClientErr(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient)
+	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	applyInstanceRequest, err := unmockedAkuityClient.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
@@ -112,7 +112,7 @@ func TestCreate_ClientErr(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient)
+	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	applyInstanceRequest, err := unmockedAkuityClient.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
@@ -155,7 +155,7 @@ func TestUpdate_BuildRequestErr(t *testing.T) {
 
 func TestUpdate_ClientErr(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient)
+	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	applyInstanceRequest, err := unmockedAkuityClient.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)

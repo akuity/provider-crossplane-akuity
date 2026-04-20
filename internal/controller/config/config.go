@@ -23,6 +23,7 @@ import (
 
 	gwoption "github.com/akuity/api-client-go/pkg/api/gateway/option"
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
@@ -81,8 +82,10 @@ func GetAkuityClientFromProviderConfig(ctx context.Context, kubeClient client.Cl
 		return nil, fmt.Errorf("could not unmarshal secret data: %w", err)
 	}
 
-	gatewayClient := argocdv1.NewArgoCDServiceGatewayClient(gwoption.NewClient(getAkuityClientServerURL(providerConfig.Spec.ServerURL), providerConfig.Spec.SkipTLSVerify))
-	akuityClient, err := akuity.NewClient(providerConfig.Spec.OrganizationID, secretData[CredentialsAPIKeyID], secretData[CredentialsAPIKeySecret], gatewayClient)
+	gw := gwoption.NewClient(getAkuityClientServerURL(providerConfig.Spec.ServerURL), providerConfig.Spec.SkipTLSVerify)
+	gatewayClient := argocdv1.NewArgoCDServiceGatewayClient(gw)
+	kargoGatewayClient := kargov1.NewKargoServiceGatewayClient(gw)
+	akuityClient, err := akuity.NewClient(providerConfig.Spec.OrganizationID, secretData[CredentialsAPIKeyID], secretData[CredentialsAPIKeySecret], gatewayClient, kargoGatewayClient)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create Akuity client: %w", err)
 	}

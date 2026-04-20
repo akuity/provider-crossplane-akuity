@@ -70,7 +70,7 @@ func TestNewClient_Err(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := akuity.NewClient(tc.organizationID, tc.apiKeyID, tc.apiKeySecret, gatewayClient)
+			_, err := akuity.NewClient(tc.organizationID, tc.apiKeyID, tc.apiKeySecret, gatewayClient, nil)
 			require.EqualError(t, err, tc.expectedErrStr)
 		})
 	}
@@ -78,7 +78,7 @@ func TestNewClient_Err(t *testing.T) {
 
 func TestNewClient(t *testing.T) {
 	gatewayClient := argocdv1.NewArgoCDServiceGatewayClient(gwoption.NewClient("fake", false))
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, gatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, gatewayClient, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 }
@@ -96,7 +96,7 @@ func TestGetCluster(t *testing.T) {
 		Id:             clusterName,
 	}).Return(mockResponse, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	cluster, err := client.GetCluster(ctx, instanceID, clusterName)
@@ -114,7 +114,7 @@ func TestGetCluster_ClientErr(t *testing.T) {
 		Id:             clusterName,
 	}).Return(nil, errFake).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	cluster, err := client.GetCluster(ctx, instanceID, clusterName)
@@ -132,7 +132,7 @@ func TestGetCluster_StatusNotFound(t *testing.T) {
 		Id:             clusterName,
 	}).Return(nil, statusNotFound).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	cluster, err := client.GetCluster(ctx, instanceID, clusterName)
@@ -151,7 +151,7 @@ func TestGetCluster_NilResponse(t *testing.T) {
 		Id:             clusterName,
 	}).Return(nil, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	cluster, err := client.GetCluster(ctx, instanceID, clusterName)
@@ -169,7 +169,7 @@ func TestGetCluster_NilCluster(t *testing.T) {
 		Id:             clusterName,
 	}).Return(&argocdv1.GetInstanceClusterResponse{}, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	cluster, err := client.GetCluster(ctx, instanceID, clusterName)
@@ -204,7 +204,7 @@ func TestGetClusterManifests(t *testing.T) {
 		Id:             clusterID,
 	}).Return(mockResponseChan, nil, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	manifests, err := client.GetClusterManifests(ctx, instanceID, clusterName)
@@ -222,7 +222,7 @@ func TestGetClusterManifests_GetClusterErr(t *testing.T) {
 		Id:             clusterName,
 	}).Return(nil, errors.New("fake")).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	manifests, err := client.GetClusterManifests(ctx, instanceID, clusterName)
@@ -247,7 +247,7 @@ func TestGetClusterManifests_ClusterNotReconciledErr(t *testing.T) {
 		},
 	}, nil).Times(5)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	manifests, err := client.GetClusterManifests(ctx, instanceID, clusterName)
@@ -278,7 +278,7 @@ func TestGetClusterManifests_ClientErr(t *testing.T) {
 		Id:             clusterID,
 	}).Return(nil, nil, errFake).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	manifests, err := client.GetClusterManifests(ctx, instanceID, clusterName)
@@ -311,7 +311,7 @@ func TestGetClusterManifests_ResponseErrChanErr(t *testing.T) {
 		Id:             clusterID,
 	}).Return(nil, mockErrChan, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	manifests, err := client.GetClusterManifests(ctx, instanceID, clusterName)
@@ -333,7 +333,7 @@ func TestApplyCluster(t *testing.T) {
 
 	mockGatewayClient.EXPECT().ApplyInstance(authCtx, request).Return(nil, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	err = client.ApplyCluster(ctx, instanceID, cluster)
@@ -360,7 +360,7 @@ func TestDeleteCluster(t *testing.T) {
 		Id:             mockCluster.GetId(),
 	}).Return(nil, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	err = client.DeleteCluster(ctx, instanceID, clusterName)
@@ -377,7 +377,7 @@ func TestDeleteCluster_GetClusterErr(t *testing.T) {
 		Id:             clusterName,
 	}).Return(nil, errFake).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	err = client.DeleteCluster(ctx, instanceID, clusterName)
@@ -405,7 +405,7 @@ func TestDeleteCluster_ClientErr(t *testing.T) {
 		Id:             mockCluster.GetId(),
 	}).Return(nil, errFake).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	err = client.DeleteCluster(ctx, instanceID, clusterName)
@@ -424,7 +424,7 @@ func TestGetInstance(t *testing.T) {
 		Id:             instanceName,
 	}).Return(mockResponse, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	instance, err := client.GetInstance(ctx, instanceName)
@@ -441,7 +441,7 @@ func TestGetInstance_StatusNotFound(t *testing.T) {
 		Id:             instanceName,
 	}).Return(nil, statusNotFound).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	instance, err := client.GetInstance(ctx, instanceName)
@@ -459,7 +459,7 @@ func TestGetInstance_ClientErr(t *testing.T) {
 		Id:             instanceName,
 	}).Return(nil, errFake).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	instance, err := client.GetInstance(ctx, instanceName)
@@ -476,7 +476,7 @@ func TestGetInstance_NilResponse(t *testing.T) {
 		Id:             instanceName,
 	}).Return(nil, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	instance, err := client.GetInstance(ctx, instanceName)
@@ -496,7 +496,7 @@ func TestGetInstance_NilInstance(t *testing.T) {
 		Id:             instanceName,
 	}).Return(mockResponse, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	instance, err := client.GetInstance(ctx, instanceName)
@@ -514,7 +514,7 @@ func TestExportInstance(t *testing.T) {
 		Id:             instanceName,
 	}).Return(mockResponse, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	resp, err := client.ExportInstance(ctx, instanceName)
@@ -531,7 +531,7 @@ func TestExportInstance_statusNotFound(t *testing.T) {
 		Id:             instanceName,
 	}).Return(nil, statusNotFound).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	resp, err := client.ExportInstance(ctx, instanceName)
@@ -549,7 +549,7 @@ func TestExportInstance_ClientErr(t *testing.T) {
 		Id:             instanceName,
 	}).Return(nil, errFake).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	resp, err := client.ExportInstance(ctx, instanceName)
@@ -566,7 +566,7 @@ func TestExportInstance_NilResponse(t *testing.T) {
 		Id:             instanceName,
 	}).Return(nil, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	resp, err := client.ExportInstance(ctx, instanceName)
@@ -585,7 +585,7 @@ func TestApplyInstance(t *testing.T) {
 
 	mockGatewayClient.EXPECT().ApplyInstance(authCtx, mockRequest).Return(nil, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	err = client.ApplyInstance(ctx, mockRequest)
@@ -611,7 +611,7 @@ func TestDeleteInstance(t *testing.T) {
 		Id:             instanceID,
 	}).Return(nil, nil).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	err = client.DeleteInstance(ctx, instanceName)
@@ -627,7 +627,7 @@ func TestDeleteInstance_GetInstanceErr(t *testing.T) {
 		Id:             instanceName,
 	}).Return(nil, errFake).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	err = client.DeleteInstance(ctx, instanceName)
@@ -653,7 +653,7 @@ func TestDeleteInstance_ClientErr(t *testing.T) {
 		Id:             instanceID,
 	}).Return(nil, errFake).Times(1)
 
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient)
+	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
 	require.NoError(t, err)
 
 	err = client.DeleteInstance(ctx, instanceName)
