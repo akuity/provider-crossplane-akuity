@@ -1,5 +1,8 @@
 # v1alpha2 namespaced ProviderConfig. Applies to managed resources in the
-# same namespace only.
+# same namespace only. The referenced Secret must live in the same
+# namespace as this ProviderConfig — the schema does not take a
+# credentialsSecretRef.namespace field (that's the cluster-scoped
+# variant below).
 ---
 apiVersion: akuity.m.crossplane.io/v1alpha2
 kind: ProviderConfig
@@ -9,7 +12,6 @@ metadata:
 spec:
   organizationId: REPLACE_ME
   credentialsSecretRef:
-    namespace: default
     name: akuity-provider-secret
     key: credentials
 ---
