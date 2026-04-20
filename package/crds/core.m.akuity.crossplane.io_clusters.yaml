@@ -1,0 +1,612 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: clusters.core.m.akuity.crossplane.io
+spec:
+  group: core.m.akuity.crossplane.io
+  names:
+    categories:
+    - crossplane
+    - managed
+    - akuity
+    kind: Cluster
+    listKind: ClusterList
+    plural: clusters
+    singular: cluster
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: READY
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Synced')].status
+      name: SYNCED
+      type: string
+    - jsonPath: .metadata.annotations.crossplane\.io/external-name
+      name: EXTERNAL-NAME
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha2
+    schema:
+      openAPIV3Schema:
+        description: A Cluster is an Akuity-managed ArgoCD agent cluster.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: A ClusterSpec defines the desired state of a Cluster.
+            properties:
+              deletionPolicy:
+                default: Delete
+                description: |-
+                  DeletionPolicy specifies what will happen to the underlying external
+                  when this managed resource is deleted - either "Delete" or "Orphan" the
+                  external resource.
+                  This field is planned to be deprecated in favor of the ManagementPolicies
+                  field in a future release. Currently, both could be set independently and
+                  non-default values would be honored if the feature flag is enabled.
+                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
+                enum:
+                - Orphan
+                - Delete
+                type: string
+              forProvider:
+                description: ClusterParameters are the configurable fields of a Cluster.
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: Annotations applied to the cluster custom resource.
+                    type: object
+                  data:
+                    description: Data holds the cluster data configuration.
+                    properties:
+                      appReplication:
+                        description: |-
+                          AppReplication toggles ArgoCD application replication to the
+                          managed cluster.
+                        type: boolean
+                      argocdNotificationsSettings:
+                        description: ArgocdNotificationsSettings enables in-cluster
+                          notifications.
+                        properties:
+                          inClusterSettings:
+                            description: |-
+                              InClusterSettings runs notifications from the agent instead of
+                              the Akuity control plane.
+                            type: boolean
+                        type: object
+                      autoUpgradeDisabled:
+                        description: AutoUpgradeDisabled disables automatic agent
+                          upgrades.
+                        type: boolean
+                      autoscalerConfig:
+                        description: |-
+                          AutoscalerConfig configures horizontal autoscaling for agent
+                          components.
+                        properties:
+                          applicationController:
+                            description: ApplicationController autoscaler config.
+                            properties:
+                              resourceMaximum:
+                                description: ResourceMaximum allowed for the application
+                                  controller.
+                                properties:
+                                  cpu:
+                                    description: Cpu is the CPU request/limit (Kubernetes
+                                      resource quantity).
+                                    type: string
+                                  mem:
+                                    description: Mem is the memory request/limit (Kubernetes
+                                      resource quantity).
+                                    type: string
+                                type: object
+                              resourceMinimum:
+                                description: ResourceMinimum requested for the application
+                                  controller.
+                                properties:
+                                  cpu:
+                                    description: Cpu is the CPU request/limit (Kubernetes
+                                      resource quantity).
+                                    type: string
+                                  mem:
+                                    description: Mem is the memory request/limit (Kubernetes
+                                      resource quantity).
+                                    type: string
+                                type: object
+                            type: object
+                          repoServer:
+                            description: RepoServer autoscaler config.
+                            properties:
+                              replicaMaximum:
+                                description: ReplicaMaximum caps the number of repo-server
+                                  replicas.
+                                format: int32
+                                type: integer
+                              replicaMinimum:
+                                description: ReplicaMinimum floors the number of repo-server
+                                  replicas.
+                                format: int32
+                                type: integer
+                              resourceMaximum:
+                                description: ResourceMaximum allowed for each repo-server
+                                  replica.
+                                properties:
+                                  cpu:
+                                    description: Cpu is the CPU request/limit (Kubernetes
+                                      resource quantity).
+                                    type: string
+                                  mem:
+                                    description: Mem is the memory request/limit (Kubernetes
+                                      resource quantity).
+                                    type: string
+                                type: object
+                              resourceMinimum:
+                                description: ResourceMinimum requested for each repo-server
+                                  replica.
+                                properties:
+                                  cpu:
+                                    description: Cpu is the CPU request/limit (Kubernetes
+                                      resource quantity).
+                                    type: string
+                                  mem:
+                                    description: Mem is the memory request/limit (Kubernetes
+                                      resource quantity).
+                                    type: string
+                                type: object
+                            type: object
+                        type: object
+                      compatibility:
+                        description: Compatibility captures platform-compatibility
+                          toggles.
+                        properties:
+                          ipv6Only:
+                            description: Ipv6Only restricts the agent to IPv6 networking.
+                            type: boolean
+                        type: object
+                      datadogAnnotationsEnabled:
+                        description: DatadogAnnotationsEnabled toggles emission of
+                          Datadog annotations.
+                        type: boolean
+                      directClusterSpec:
+                        description: DirectClusterSpec configures direct-attach cluster
+                          credentials.
+                        properties:
+                          caData:
+                            description: CaData is the PEM-encoded CA bundle for the
+                              direct cluster.
+                            type: string
+                          clusterType:
+                            description: ClusterType selects the direct-attach strategy.
+                            type: string
+                          kargoInstanceId:
+                            description: |-
+                              KargoInstanceId pins the owning Kargo instance when ClusterType
+                              is Kargo-shaped.
+                            type: string
+                          organization:
+                            description: Organization is a direct-attach organization
+                              identifier.
+                            type: string
+                          server:
+                            description: Server is the API server URL for the direct
+                              cluster.
+                            type: string
+                          token:
+                            description: Token is a bearer-token credential for the
+                              direct cluster.
+                            type: string
+                        type: object
+                      eksAddonEnabled:
+                        description: EksAddonEnabled toggles the EKS add-on installer
+                          path.
+                        type: boolean
+                      kustomization:
+                        description: |-
+                          Kustomization is a YAML-encoded Kustomization applied to the
+                          agent manifests before they are installed.
+                        type: string
+                      maintenanceMode:
+                        description: |-
+                          MaintenanceMode pauses agent reconciliation on the managed
+                          cluster.
+                        type: boolean
+                      maintenanceModeExpiry:
+                        description: |-
+                          MaintenanceModeExpiry scopes MaintenanceMode to an absolute
+                          deadline (RFC 3339).
+                        format: date-time
+                        type: string
+                      managedClusterConfig:
+                        description: ManagedClusterConfig references a cluster-credentials
+                          Secret.
+                        properties:
+                          secretKey:
+                            description: SecretKey is the key within the Secret.
+                            type: string
+                          secretName:
+                            description: |-
+                              SecretName is the name of the Secret (in the Akuity managed
+                              namespace) storing the credentials.
+                            type: string
+                        type: object
+                      multiClusterK8sDashboardEnabled:
+                        description: |-
+                          MultiClusterK8SDashboardEnabled toggles the multi-cluster K8s
+                          dashboard integration for this cluster.
+                        type: boolean
+                      podInheritMetadata:
+                        description: |-
+                          PodInheritMetadata copies selected labels/annotations from the
+                          agent pod template to the agent workload.
+                        type: boolean
+                      project:
+                        description: Project assigns the cluster to an ArgoCD project.
+                        type: string
+                      redisTunneling:
+                        description: RedisTunneling toggles Redis tunneling.
+                        type: boolean
+                      serverSideDiffEnabled:
+                        description: ServerSideDiffEnabled toggles server-side diff
+                          on the agent.
+                        type: boolean
+                      size:
+                        description: |-
+                          Size selects the agent sizing profile. Defaults to small when
+                          unset.
+                        enum:
+                        - unspecified
+                        - small
+                        - medium
+                        - large
+                        - auto
+                        type: string
+                      targetVersion:
+                        description: TargetVersion pins the agent to a specific version.
+                        type: string
+                    type: object
+                  description:
+                    description: Description is a free-form description of the cluster.
+                    type: string
+                  enableInClusterKubeConfig:
+                    description: |-
+                      EnableInClusterKubeConfig makes the provider use its own
+                      in-cluster kubeconfig to apply agent manifests. Mutually exclusive
+                      with KubeConfigSecretRef.
+                    type: boolean
+                  instanceId:
+                    description: |-
+                      InstanceID references the Akuity ArgoCD Instance the cluster
+                      belongs to by its opaque ID. Either InstanceID or InstanceRef must
+                      be set.
+                    type: string
+                  instanceRef:
+                    description: |-
+                      InstanceRef references the Akuity ArgoCD Instance the cluster
+                      belongs to by name in the same namespace as this Cluster.
+                    properties:
+                      name:
+                        description: Name of the referenced object. Required.
+                        minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  kubeConfigSecretRef:
+                    description: |-
+                      KubeConfigSecretRef references a Secret in the same namespace as
+                      this Cluster containing a kubeconfig that the provider uses to
+                      apply agent manifests.
+                    properties:
+                      key:
+                        description: Key within the Secret. Required.
+                        minLength: 1
+                        type: string
+                      name:
+                        description: Name of the Secret. Required.
+                        minLength: 1
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels applied to the cluster custom resource.
+                    type: object
+                  name:
+                    description: Name of the cluster in the Akuity Platform. Required.
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: |-
+                      Namespace in the managed Kubernetes cluster where the Akuity
+                      agent should be installed.
+                    type: string
+                  namespaceScoped:
+                    description: NamespaceScoped toggles whether the agent is namespace-scoped.
+                    type: boolean
+                  removeAgentResourcesOnDestroy:
+                    description: |-
+                      RemoveAgentResourcesOnDestroy toggles removal of the agent
+                      manifests from the managed cluster when the Cluster CR is deleted.
+                      Defaults to true when unset.
+                    type: boolean
+                required:
+                - name
+                type: object
+              managementPolicies:
+                default:
+                - '*'
+                description: |-
+                  THIS IS A BETA FIELD. It is on by default but can be opted out
+                  through a Crossplane feature flag.
+                  ManagementPolicies specify the array of actions Crossplane is allowed to
+                  take on the managed and external resources.
+                  This field is planned to replace the DeletionPolicy field in a future
+                  release. Currently, both could be set independently and non-default
+                  values would be honored if the feature flag is enabled. If both are
+                  custom, the DeletionPolicy field will be ignored.
+                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
+                  and this one: https://github.com/crossplane/crossplane/blob/444267e84783136daa93568b364a5f01228cacbe/design/one-pager-ignore-changes.md
+                items:
+                  description: |-
+                    A ManagementAction represents an action that the Crossplane controllers
+                    can take on an external resource.
+                  enum:
+                  - Observe
+                  - Create
+                  - Update
+                  - Delete
+                  - LateInitialize
+                  - '*'
+                  type: string
+                type: array
+              providerConfigRef:
+                default:
+                  name: default
+                description: |-
+                  ProviderConfigReference specifies how the provider that will be used to
+                  create, observe, update, and delete this managed resource should be
+                  configured.
+                properties:
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                  policy:
+                    description: Policies for referencing.
+                    properties:
+                      resolution:
+                        default: Required
+                        description: |-
+                          Resolution specifies whether resolution of this reference is required.
+                          The default is 'Required', which means the reconcile will fail if the
+                          reference cannot be resolved. 'Optional' means this reference will be
+                          a no-op if it cannot be resolved.
+                        enum:
+                        - Required
+                        - Optional
+                        type: string
+                      resolve:
+                        description: |-
+                          Resolve specifies when this reference should be resolved. The default
+                          is 'IfNotPresent', which will attempt to resolve the reference only when
+                          the corresponding field is not present. Use 'Always' to resolve the
+                          reference on every reconcile.
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        type: string
+                    type: object
+                required:
+                - name
+                type: object
+              writeConnectionSecretToRef:
+                description: |-
+                  WriteConnectionSecretToReference specifies the namespace and name of a
+                  Secret to which any connection details for this managed resource should
+                  be written. Connection details frequently include the endpoint, username,
+                  and password required to connect to the managed resource.
+                properties:
+                  name:
+                    description: Name of the secret.
+                    type: string
+                  namespace:
+                    description: Namespace of the secret.
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
+            required:
+            - forProvider
+            type: object
+          status:
+            description: A ClusterStatus represents the observed state of a Cluster.
+            properties:
+              atProvider:
+                description: ClusterObservation are the observable fields of a Cluster.
+                properties:
+                  agentSize:
+                    description: AgentSize is the observed agent sizing profile.
+                    type: string
+                  agentState:
+                    description: AgentState captures the per-component agent state.
+                    properties:
+                      argoCdVersion:
+                        description: ArgoCdVersion bundled with the running agent.
+                        type: string
+                      statuses:
+                        additionalProperties:
+                          description: ClusterObservationAgentHealthStatus is a per-agent
+                            status snapshot.
+                          properties:
+                            code:
+                              description: Code reports the agent's numeric status
+                                code.
+                              format: int32
+                              type: integer
+                            message:
+                              description: Message reports the agent's human-readable
+                                status message.
+                              type: string
+                          type: object
+                        description: Statuses reports the per-agent health statuses.
+                        type: object
+                      version:
+                        description: Version of the running agent.
+                        type: string
+                    type: object
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: Annotations applied to the cluster in the Akuity
+                      Platform.
+                    type: object
+                  appReplication:
+                    description: |-
+                      AppReplication reflects the observed ApplicationReplication
+                      toggle.
+                    type: boolean
+                  autoUpgradeDisabled:
+                    description: AutoUpgradeDisabled reflects the observed auto-upgrade
+                      toggle.
+                    type: boolean
+                  description:
+                    description: Description of the cluster.
+                    type: string
+                  healthStatus:
+                    description: HealthStatus captures the cluster health status code
+                      and message.
+                    properties:
+                      code:
+                        description: Code reported by the Akuity API.
+                        format: int32
+                        type: integer
+                      message:
+                        description: Message reported by the Akuity API.
+                        type: string
+                    type: object
+                  id:
+                    description: ID assigned by the Akuity Platform.
+                    type: string
+                  kustomization:
+                    description: Kustomization is the observed kustomization YAML.
+                    type: string
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels applied to the cluster in the Akuity Platform.
+                    type: object
+                  name:
+                    description: Name of the cluster.
+                    type: string
+                  namespace:
+                    description: Namespace in the managed cluster where the agent
+                      is installed.
+                    type: string
+                  namespaceScoped:
+                    description: NamespaceScoped reports whether the agent is namespace-scoped.
+                    type: boolean
+                  reconciliationStatus:
+                    description: ReconciliationStatus captures the cluster reconciliation
+                      status.
+                    properties:
+                      code:
+                        description: Code reported by the Akuity API.
+                        format: int32
+                        type: integer
+                      message:
+                        description: Message reported by the Akuity API.
+                        type: string
+                    type: object
+                  redisTunneling:
+                    description: RedisTunneling reflects the observed redis-tunneling
+                      toggle.
+                    type: boolean
+                  targetVersion:
+                    description: TargetVersion is the agent version currently targeted.
+                    type: string
+                type: object
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        LastTransitionTime is the last time this condition transitioned from one
+                        status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        A Message containing details about this condition's last transition from
+                        one status to another, if any.
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        ObservedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      type: integer
+                    reason:
+                      description: A Reason for this condition's last transition from
+                        one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
+                      type: string
+                    type:
+                      description: |-
+                        Type of this condition. At most one of each condition type may apply to
+                        a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the latest metadata.generation
+                  which resulted in either a ready state, or stalled due to error
+                  it can not recover from without human intervention.
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,0 +1,2432 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: instances.core.m.akuity.crossplane.io
+spec:
+  group: core.m.akuity.crossplane.io
+  names:
+    categories:
+    - crossplane
+    - managed
+    - akuity
+    kind: Instance
+    listKind: InstanceList
+    plural: instances
+    singular: instance
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: READY
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Synced')].status
+      name: SYNCED
+      type: string
+    - jsonPath: .metadata.annotations.crossplane\.io/external-name
+      name: EXTERNAL-NAME
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha2
+    schema:
+      openAPIV3Schema:
+        description: An Instance is an Akuity ArgoCD managed instance.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: An InstanceSpec defines the desired state of an Instance.
+            properties:
+              deletionPolicy:
+                default: Delete
+                description: |-
+                  DeletionPolicy specifies what will happen to the underlying external
+                  when this managed resource is deleted - either "Delete" or "Orphan" the
+                  external resource.
+                  This field is planned to be deprecated in favor of the ManagementPolicies
+                  field in a future release. Currently, both could be set independently and
+                  non-default values would be honored if the feature flag is enabled.
+                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
+                enum:
+                - Orphan
+                - Delete
+                type: string
+              forProvider:
+                description: InstanceParameters are the configurable fields of an
+                  ArgoCD Instance.
+                properties:
+                  argocd:
+                    description: ArgoCD contains the ArgoCD configuration. Required.
+                    properties:
+                      spec:
+                        description: ArgoCDSpec is the desired configuration for an
+                          ArgoCD instance.
+                        properties:
+                          description:
+                            description: Description is a free-form description of
+                              the instance.
+                            type: string
+                          instanceSpec:
+                            description: InstanceSpec contains the per-instance configuration.
+                            properties:
+                              agentPermissionsRules:
+                                description: AgentPermissionsRules are RBAC rules
+                                  granted to agents.
+                                items:
+                                  description: |-
+                                    AgentPermissionsRule is a Kubernetes-RBAC-shaped rule granted to
+                                    agents.
+                                  properties:
+                                    apiGroups:
+                                      description: ApiGroups granted.
+                                      items:
+                                        type: string
+                                      type: array
+                                    resources:
+                                      description: Resources granted.
+                                      items:
+                                        type: string
+                                      type: array
+                                    verbs:
+                                      description: Verbs granted.
+                                      items:
+                                        type: string
+                                      type: array
+                                  type: object
+                                type: array
+                              akuityIntelligenceExtension:
+                                description: |-
+                                  AkuityIntelligenceExtension configures the Akuity Intelligence
+                                  extension.
+                                properties:
+                                  aiSupportEngineerEnabled:
+                                    description: AiSupportEngineerEnabled toggles
+                                      the AI support engineer persona.
+                                    type: boolean
+                                  allowedGroups:
+                                    description: AllowedGroups grants access to named
+                                      groups.
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    description: AllowedUsernames grants access to
+                                      named users.
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    description: Enabled toggles the extension.
+                                    type: boolean
+                                  modelVersion:
+                                    description: ModelVersion pins the AI model version.
+                                    type: string
+                                type: object
+                              appInAnyNamespaceConfig:
+                                description: AppInAnyNamespaceConfig toggles app-in-any-namespace
+                                  support.
+                                properties:
+                                  enabled:
+                                    description: Enabled toggles the feature.
+                                    type: boolean
+                                type: object
+                              appReconciliationsRateLimiting:
+                                description: AppReconciliationsRateLimiting tunes
+                                  reconcile rate limiting.
+                                properties:
+                                  bucketRateLimiting:
+                                    description: BucketRateLimiting bounds global
+                                      throughput.
+                                    properties:
+                                      bucketQps:
+                                        description: BucketQps is the refill rate.
+                                        format: int32
+                                        type: integer
+                                      bucketSize:
+                                        description: BucketSize is the token-bucket
+                                          capacity.
+                                        format: int32
+                                        type: integer
+                                      enabled:
+                                        description: Enabled toggles bucket rate limiting.
+                                        type: boolean
+                                    type: object
+                                  itemRateLimiting:
+                                    description: ItemRateLimiting configures per-item
+                                      backoff.
+                                    properties:
+                                      backoffFactor:
+                                        description: BackoffFactor multiplies each
+                                          subsequent delay.
+                                        type: number
+                                      baseDelay:
+                                        description: BaseDelay seconds for the first
+                                          retry.
+                                        format: int32
+                                        type: integer
+                                      enabled:
+                                        description: Enabled toggles item rate limiting.
+                                        type: boolean
+                                      failureCooldown:
+                                        description: FailureCooldown seconds after
+                                          a terminal failure.
+                                        format: int32
+                                        type: integer
+                                      maxDelay:
+                                        description: MaxDelay seconds between retries.
+                                        format: int32
+                                        type: integer
+                                    type: object
+                                type: object
+                              appSetDelegate:
+                                description: AppSetDelegate delegates ApplicationSet
+                                  to a cluster.
+                                properties:
+                                  managedCluster:
+                                    description: ManagedCluster hosts ApplicationSet.
+                                    properties:
+                                      clusterName:
+                                        description: ClusterName is the name of the
+                                          managed cluster.
+                                        type: string
+                                    type: object
+                                type: object
+                              applicationSetExtension:
+                                description: ApplicationSetExtension configures the
+                                  ApplicationSet extension.
+                                properties:
+                                  enabled:
+                                    description: Enabled toggles the extension.
+                                    type: boolean
+                                type: object
+                              appsetPlugins:
+                                description: AppsetPlugins registers AppSet plugins.
+                                items:
+                                  description: AppsetPlugins registers an ApplicationSet
+                                    plugin.
+                                  properties:
+                                    baseUrl:
+                                      description: BaseUrl is the plugin API endpoint.
+                                      type: string
+                                    name:
+                                      description: Name of the plugin.
+                                      type: string
+                                    requestTimeout:
+                                      description: RequestTimeout in seconds.
+                                      format: int32
+                                      type: integer
+                                    token:
+                                      description: Token credential used for the plugin
+                                        API.
+                                      type: string
+                                  type: object
+                                type: array
+                              appsetPolicy:
+                                description: AppsetPolicy configures the ApplicationSet
+                                  policy.
+                                properties:
+                                  overridePolicy:
+                                    description: OverridePolicy allows overrides of
+                                      the policy.
+                                    type: boolean
+                                  policy:
+                                    description: Policy name applied to ApplicationSets.
+                                    type: string
+                                type: object
+                              appsetProgressiveSyncsEnabled:
+                                description: AppsetProgressiveSyncsEnabled toggles
+                                  AppSet progressive syncs.
+                                type: boolean
+                              assistantExtensionEnabled:
+                                description: AssistantExtensionEnabled toggles the
+                                  assistant extension.
+                                type: boolean
+                              auditExtensionEnabled:
+                                description: AuditExtensionEnabled toggles the audit
+                                  extension.
+                                type: boolean
+                              backendIpAllowListEnabled:
+                                description: BackendIpAllowListEnabled toggles the
+                                  backend IP allow list.
+                                type: boolean
+                              basepath:
+                                description: Basepath overrides the ArgoCD base path.
+                                type: string
+                              clusterAddonsExtension:
+                                description: ClusterAddonsExtension configures the
+                                  cluster-addons extension.
+                                properties:
+                                  allowedGroups:
+                                    description: AllowedGroups grants access to named
+                                      groups.
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    description: AllowedUsernames grants access to
+                                      named users.
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    description: Enabled toggles the extension.
+                                    type: boolean
+                                type: object
+                              clusterCustomizationDefaults:
+                                description: |-
+                                  ClusterCustomizationDefaults defines default cluster
+                                  customization.
+                                properties:
+                                  appReplication:
+                                    description: AppReplication toggles app replication.
+                                    type: boolean
+                                  autoUpgradeDisabled:
+                                    description: AutoUpgradeDisabled disables automatic
+                                      agent upgrades.
+                                    type: boolean
+                                  kustomization:
+                                    description: Kustomization YAML applied to agent
+                                      manifests.
+                                    type: string
+                                  redisTunneling:
+                                    description: RedisTunneling toggles Redis tunneling.
+                                    type: boolean
+                                  serverSideDiffEnabled:
+                                    description: ServerSideDiffEnabled toggles server-side
+                                      diff.
+                                    type: boolean
+                                type: object
+                              crossplaneExtension:
+                                description: CrossplaneExtension configures the Crossplane
+                                  extension.
+                                properties:
+                                  resources:
+                                    description: Resources lists Crossplane resource
+                                      groups to expose.
+                                    items:
+                                      description: |-
+                                        CrossplaneExtensionResource names a Crossplane resource group
+                                        consumed by the Crossplane extension.
+                                      properties:
+                                        group:
+                                          description: Group of the Crossplane resource.
+                                          type: string
+                                      type: object
+                                    type: array
+                                type: object
+                              customDeprecatedApis:
+                                description: CustomDeprecatedApis lists deprecated-API
+                                  shims.
+                                items:
+                                  description: CustomDeprecatedAPI shim maps a deprecated
+                                    API to a replacement.
+                                  properties:
+                                    apiVersion:
+                                      description: ApiVersion of the deprecated API.
+                                      type: string
+                                    deprecatedInKubernetesVersion:
+                                      description: DeprecatedInKubernetesVersion records
+                                        when it became deprecated.
+                                      type: string
+                                    newApiVersion:
+                                      description: NewApiVersion replaces the deprecated
+                                        ApiVersion.
+                                      type: string
+                                    unavailableInKubernetesVersion:
+                                      description: UnavailableInKubernetesVersion
+                                        records when it becomes removed.
+                                      type: string
+                                  type: object
+                                type: array
+                              declarativeManagementEnabled:
+                                description: DeclarativeManagementEnabled toggles
+                                  declarative management.
+                                type: boolean
+                              extensions:
+                                description: Extensions installs ArgoCD UI extensions.
+                                items:
+                                  description: ArgoCDExtensionInstallEntry installs
+                                    an ArgoCD UI extension.
+                                  properties:
+                                    id:
+                                      description: Id of the extension.
+                                      type: string
+                                    version:
+                                      description: Version of the extension to install.
+                                      type: string
+                                  type: object
+                                type: array
+                              fqdn:
+                                description: Fqdn overrides the default instance FQDN.
+                                type: string
+                              hostAliases:
+                                description: HostAliases adds host aliases to agent
+                                  pods.
+                                items:
+                                  description: HostAliases adds /etc/hosts-style host
+                                    aliases to agent pods.
+                                  properties:
+                                    hostnames:
+                                      description: Hostnames resolve to Ip.
+                                      items:
+                                        type: string
+                                      type: array
+                                    ip:
+                                      description: Ip is the host IP.
+                                      type: string
+                                  type: object
+                                type: array
+                              imageUpdaterDelegate:
+                                description: ImageUpdaterDelegate delegates image-updater
+                                  to a cluster.
+                                properties:
+                                  controlPlane:
+                                    description: ControlPlane runs image-updater on
+                                      the Akuity control plane.
+                                    type: boolean
+                                  managedCluster:
+                                    description: ManagedCluster runs image-updater
+                                      on a managed cluster.
+                                    properties:
+                                      clusterName:
+                                        description: ClusterName is the name of the
+                                          managed cluster.
+                                        type: string
+                                    type: object
+                                type: object
+                              imageUpdaterEnabled:
+                                description: ImageUpdaterEnabled toggles the ArgoCD
+                                  image-updater component.
+                                type: boolean
+                              imageUpdaterVersion:
+                                description: ImageUpdaterVersion pins the image-updater
+                                  version.
+                                type: string
+                              ipAllowList:
+                                description: IpAllowList restricts which IPs can reach
+                                  the instance.
+                                items:
+                                  description: IPAllowListEntry grants access for
+                                    a single IP or CIDR.
+                                  properties:
+                                    description:
+                                      description: Description is free-form context.
+                                      type: string
+                                    ip:
+                                      description: Ip is the IP address or CIDR.
+                                      type: string
+                                  type: object
+                                type: array
+                              kubeVisionConfig:
+                                description: KubeVisionConfig configures the KubeVision
+                                  extension.
+                                properties:
+                                  additionalAttributes:
+                                    description: AdditionalAttributes configures extra
+                                      attribute copying.
+                                    items:
+                                      description: |-
+                                        AdditionalAttributeRule attaches extra attributes to a resource
+                                        kind.
+                                      properties:
+                                        annotations:
+                                          description: Annotations copied onto matching
+                                            resources.
+                                          items:
+                                            type: string
+                                          type: array
+                                        group:
+                                          description: Group of the resource.
+                                          type: string
+                                        kind:
+                                          description: Kind of the resource.
+                                          type: string
+                                        labels:
+                                          description: Labels copied onto matching
+                                            resources.
+                                          items:
+                                            type: string
+                                          type: array
+                                        namespace:
+                                          description: Namespace scoping for the rule.
+                                          type: string
+                                      type: object
+                                    type: array
+                                  aiConfig:
+                                    description: AiConfig configures AI features.
+                                    properties:
+                                      argocdSlackChannels:
+                                        description: ArgocdSlackChannels routes ArgoCD
+                                          notifications.
+                                        items:
+                                          type: string
+                                        type: array
+                                      argocdSlackService:
+                                        description: ArgocdSlackService selects the
+                                          ArgoCD slack notification service.
+                                        type: string
+                                      incidents:
+                                        description: Incidents configures incident
+                                          detection.
+                                        properties:
+                                          grouping:
+                                            description: Grouping rules group related
+                                              incidents.
+                                            properties:
+                                              argocdApplicationNames:
+                                                description: ArgocdApplicationNames
+                                                  groups incidents by ArgoCD app name.
+                                                items:
+                                                  type: string
+                                                type: array
+                                              k8sNamespaces:
+                                                description: K8SNamespaces groups
+                                                  incidents by namespace.
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
+                                          investigationApproval:
+                                            description: InvestigationApproval configures
+                                              approval thresholds.
+                                            properties:
+                                              scopes:
+                                                description: Scopes define approval
+                                                  thresholds.
+                                                items:
+                                                  description: IncidentInvestigationApprovalScope
+                                                    scopes auto-closure approvals.
+                                                  properties:
+                                                    argocdApplications:
+                                                      description: ArgocdApplications
+                                                        selects apps.
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    clusters:
+                                                      description: Clusters selects
+                                                        clusters.
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    consecutiveAutoClosures:
+                                                      description: ConsecutiveAutoClosures
+                                                        threshold before approval
+                                                        is required.
+                                                      format: int32
+                                                      type: integer
+                                                    k8sNamespaces:
+                                                      description: K8SNamespaces selects
+                                                        namespaces.
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                            type: object
+                                          triggers:
+                                            description: Triggers are target selectors
+                                              that fire incidents.
+                                            items:
+                                              description: |-
+                                                TargetSelector selects a subset of ArgoCD applications, k8s
+                                                namespaces, or clusters.
+                                              properties:
+                                                argocdApplications:
+                                                  description: ArgocdApplications
+                                                    selects apps by name.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                clusters:
+                                                  description: Clusters selects clusters
+                                                    by name.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                degradedFor:
+                                                  description: |-
+                                                    DegradedFor restricts matches to resources degraded for at least
+                                                    this duration.
+                                                  type: string
+                                                k8sNamespaces:
+                                                  description: K8SNamespaces selects
+                                                    Kubernetes namespaces.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          webhooks:
+                                            description: Webhooks route incidents
+                                              to external systems.
+                                            items:
+                                              description: IncidentWebhookConfig configures
+                                                an incident webhook.
+                                              properties:
+                                                argocdApplicationNamePath:
+                                                  description: ArgocdApplicationNamePath
+                                                    in the webhook payload.
+                                                  type: string
+                                                argocdApplicationNamespacePath:
+                                                  description: ArgocdApplicationNamespacePath
+                                                    in the webhook payload.
+                                                  type: string
+                                                clusterPath:
+                                                  description: ClusterPath in the
+                                                    webhook payload.
+                                                  type: string
+                                                descriptionPath:
+                                                  description: DescriptionPath in
+                                                    the webhook payload.
+                                                  type: string
+                                                k8sNamespacePath:
+                                                  description: K8SNamespacePath in
+                                                    the webhook payload.
+                                                  type: string
+                                                name:
+                                                  description: Name of the webhook.
+                                                  type: string
+                                                titlePath:
+                                                  description: TitlePath in the webhook
+                                                    payload.
+                                                  type: string
+                                              type: object
+                                            type: array
+                                        type: object
+                                      runbookRepos:
+                                        description: RunbookRepos configures runbook
+                                          repositories.
+                                        items:
+                                          description: RunbookRepo references a runbook
+                                            repository.
+                                          properties:
+                                            appliedFor:
+                                              additionalProperties:
+                                                description: |-
+                                                  TargetSelector selects a subset of ArgoCD applications, k8s
+                                                  namespaces, or clusters.
+                                                properties:
+                                                  argocdApplications:
+                                                    description: ArgocdApplications
+                                                      selects apps by name.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  clusters:
+                                                    description: Clusters selects
+                                                      clusters by name.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  degradedFor:
+                                                    description: |-
+                                                      DegradedFor restricts matches to resources degraded for at least
+                                                      this duration.
+                                                    type: string
+                                                  k8sNamespaces:
+                                                    description: K8SNamespaces selects
+                                                      Kubernetes namespaces.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              description: AppliedFor maps runbook
+                                                names to scoping selectors.
+                                              type: object
+                                            path:
+                                              description: Path within the repository.
+                                              type: string
+                                            repoUrl:
+                                              description: RepoUrl of the runbook
+                                                repository.
+                                              type: string
+                                            revision:
+                                              description: Revision checked out.
+                                              type: string
+                                          type: object
+                                        type: array
+                                      runbooks:
+                                        description: Runbooks are KubeVision runbooks.
+                                        items:
+                                          description: Runbook defines a KubeVision
+                                            runbook.
+                                          properties:
+                                            appliedTo:
+                                              description: AppliedTo scopes the runbook.
+                                              properties:
+                                                argocdApplications:
+                                                  description: ArgocdApplications
+                                                    selects apps by name.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                clusters:
+                                                  description: Clusters selects clusters
+                                                    by name.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                degradedFor:
+                                                  description: |-
+                                                    DegradedFor restricts matches to resources degraded for at least
+                                                    this duration.
+                                                  type: string
+                                                k8sNamespaces:
+                                                  description: K8SNamespaces selects
+                                                    Kubernetes namespaces.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            content:
+                                              description: Content of the runbook
+                                                (markdown).
+                                              type: string
+                                            name:
+                                              description: Name of the runbook.
+                                              type: string
+                                            slackChannelNames:
+                                              description: SlackChannelNames route
+                                                the runbook to Slack channels.
+                                              items:
+                                                type: string
+                                              type: array
+                                          type: object
+                                        type: array
+                                    type: object
+                                  cveScanConfig:
+                                    description: CveScanConfig configures CVE scanning.
+                                    properties:
+                                      rescanInterval:
+                                        description: RescanInterval configures the
+                                          rescan period (Go duration).
+                                        type: string
+                                      scanEnabled:
+                                        description: ScanEnabled toggles scanning.
+                                        type: boolean
+                                    type: object
+                                type: object
+                              manifestGeneration:
+                                description: ManifestGeneration configures manifest-generation
+                                  tool versions.
+                                properties:
+                                  kustomize:
+                                    description: Kustomize versions available.
+                                    properties:
+                                      additionalVersions:
+                                        description: AdditionalVersions available
+                                          alongside the default.
+                                        items:
+                                          type: string
+                                        type: array
+                                      defaultVersion:
+                                        description: DefaultVersion selected by default.
+                                        type: string
+                                    type: object
+                                type: object
+                              metricsIngressPasswordHash:
+                                description: |-
+                                  MetricsIngressPasswordHash is the htpasswd-hashed password for
+                                  the metrics ingress.
+                                type: string
+                              metricsIngressUsername:
+                                description: |-
+                                  MetricsIngressUsername is the basic-auth username for the
+                                  metrics ingress.
+                                type: string
+                              multiClusterK8sDashboardEnabled:
+                                description: |-
+                                  MultiClusterK8SDashboardEnabled toggles the multi-cluster
+                                  Kubernetes dashboard for the instance.
+                                type: boolean
+                              privilegedNotificationCluster:
+                                description: |-
+                                  PrivilegedNotificationCluster selects a cluster that may run
+                                  privileged notifications.
+                                type: string
+                              repoServerDelegate:
+                                description: RepoServerDelegate delegates repo-server
+                                  to a cluster.
+                                properties:
+                                  controlPlane:
+                                    description: ControlPlane runs repo-server on
+                                      the Akuity control plane.
+                                    type: boolean
+                                  managedCluster:
+                                    description: ManagedCluster runs repo-server on
+                                      a managed cluster.
+                                    properties:
+                                      clusterName:
+                                        description: ClusterName is the name of the
+                                          managed cluster.
+                                        type: string
+                                    type: object
+                                type: object
+                              secrets:
+                                description: Secrets configures cross-cluster secret
+                                  mappings.
+                                properties:
+                                  destinations:
+                                    description: Destinations identify destination
+                                      mappings.
+                                    items:
+                                      description: ClusterSecretMapping maps clusters
+                                        to secrets.
+                                      properties:
+                                        clusters:
+                                          description: Clusters selects source/destination
+                                            clusters.
+                                          properties:
+                                            matchExpressions:
+                                              description: MatchExpressions selects
+                                                by compound label expression.
+                                              items:
+                                                description: LabelSelectorRequirement
+                                                  is a single label-selector expression.
+                                                properties:
+                                                  key:
+                                                    description: Key is the label
+                                                      key.
+                                                    type: string
+                                                  operator:
+                                                    description: Operator applied
+                                                      to values.
+                                                    type: string
+                                                  values:
+                                                    description: Values compared against
+                                                      the label.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: MatchLabels selects by
+                                                label equality.
+                                              type: object
+                                          type: object
+                                        secrets:
+                                          description: Secrets selects secret resources.
+                                          properties:
+                                            matchExpressions:
+                                              description: MatchExpressions selects
+                                                by compound label expression.
+                                              items:
+                                                description: LabelSelectorRequirement
+                                                  is a single label-selector expression.
+                                                properties:
+                                                  key:
+                                                    description: Key is the label
+                                                      key.
+                                                    type: string
+                                                  operator:
+                                                    description: Operator applied
+                                                      to values.
+                                                    type: string
+                                                  values:
+                                                    description: Values compared against
+                                                      the label.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: MatchLabels selects by
+                                                label equality.
+                                              type: object
+                                          type: object
+                                      type: object
+                                    type: array
+                                  sources:
+                                    description: Sources identify source mappings.
+                                    items:
+                                      description: ClusterSecretMapping maps clusters
+                                        to secrets.
+                                      properties:
+                                        clusters:
+                                          description: Clusters selects source/destination
+                                            clusters.
+                                          properties:
+                                            matchExpressions:
+                                              description: MatchExpressions selects
+                                                by compound label expression.
+                                              items:
+                                                description: LabelSelectorRequirement
+                                                  is a single label-selector expression.
+                                                properties:
+                                                  key:
+                                                    description: Key is the label
+                                                      key.
+                                                    type: string
+                                                  operator:
+                                                    description: Operator applied
+                                                      to values.
+                                                    type: string
+                                                  values:
+                                                    description: Values compared against
+                                                      the label.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: MatchLabels selects by
+                                                label equality.
+                                              type: object
+                                          type: object
+                                        secrets:
+                                          description: Secrets selects secret resources.
+                                          properties:
+                                            matchExpressions:
+                                              description: MatchExpressions selects
+                                                by compound label expression.
+                                              items:
+                                                description: LabelSelectorRequirement
+                                                  is a single label-selector expression.
+                                                properties:
+                                                  key:
+                                                    description: Key is the label
+                                                      key.
+                                                    type: string
+                                                  operator:
+                                                    description: Operator applied
+                                                      to values.
+                                                    type: string
+                                                  values:
+                                                    description: Values compared against
+                                                      the label.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: MatchLabels selects by
+                                                label equality.
+                                              type: object
+                                          type: object
+                                      type: object
+                                    type: array
+                                type: object
+                              subdomain:
+                                description: Subdomain overrides the default Akuity
+                                  subdomain.
+                                type: string
+                              syncHistoryExtensionEnabled:
+                                description: SyncHistoryExtensionEnabled toggles the
+                                  sync-history extension.
+                                type: boolean
+                            type: object
+                          shard:
+                            description: Shard places the instance on a specific backend
+                              shard.
+                            type: string
+                          version:
+                            description: Version of ArgoCD to run. Required.
+                            minLength: 1
+                            type: string
+                        required:
+                        - description
+                        - shard
+                        - version
+                        type: object
+                    type: object
+                  argocdConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: ArgoCDConfigMap sets keys in the argocd-cm ConfigMap.
+                    type: object
+                  argocdImageUpdaterConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDImageUpdaterConfigMap sets keys in the
+                      argocd-image-updater-config ConfigMap.
+                    type: object
+                  argocdImageUpdaterSshConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDImageUpdaterSSHConfigMap sets keys in the
+                      argocd-image-updater-ssh-config ConfigMap.
+                    type: object
+                  argocdNotificationsConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDNotificationsConfigMap sets keys in the
+                      argocd-notifications-cm ConfigMap.
+                    type: object
+                  argocdRbacConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: ArgoCDRBACConfigMap sets keys in the argocd-rbac-cm
+                      ConfigMap.
+                    type: object
+                  argocdSshKnownHostsConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDSSHKnownHostsConfigMap sets keys in the
+                      argocd-ssh-known-hosts-cm ConfigMap.
+                    type: object
+                  argocdTlsCertsConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDTLSCertsConfigMap sets keys in the argocd-tls-certs-cm
+                      ConfigMap.
+                    type: object
+                  configManagementPlugins:
+                    additionalProperties:
+                      description: ConfigManagementPlugin registers a v2 config-management
+                        plugin.
+                      properties:
+                        enabled:
+                          description: Enabled toggles the plugin.
+                          type: boolean
+                        image:
+                          description: Image containing the plugin binary.
+                          minLength: 1
+                          type: string
+                        spec:
+                          description: Spec is the plugin definition.
+                          properties:
+                            discover:
+                              description: Discover configures plugin activation.
+                              properties:
+                                fileName:
+                                  description: FileName triggers activation when present.
+                                  type: string
+                                find:
+                                  description: Find configures discovery via exec
+                                    or glob.
+                                  properties:
+                                    args:
+                                      description: Args passed to Command.
+                                      items:
+                                        type: string
+                                      type: array
+                                    command:
+                                      description: Command argv to run for discovery.
+                                      items:
+                                        type: string
+                                      type: array
+                                    glob:
+                                      description: Glob pattern used for discovery.
+                                      type: string
+                                  type: object
+                              type: object
+                            generate:
+                              description: Generate command executed to render manifests.
+                              properties:
+                                args:
+                                  description: Args passed to Command.
+                                  items:
+                                    type: string
+                                  type: array
+                                command:
+                                  description: Command argv[0..].
+                                  items:
+                                    type: string
+                                  type: array
+                              type: object
+                            init:
+                              description: Init command executed before generation.
+                              properties:
+                                args:
+                                  description: Args passed to Command.
+                                  items:
+                                    type: string
+                                  type: array
+                                command:
+                                  description: Command argv[0..].
+                                  items:
+                                    type: string
+                                  type: array
+                              type: object
+                            parameters:
+                              description: Parameters announces plugin parameters
+                                to the UI.
+                              properties:
+                                dynamic:
+                                  description: Dynamic parameter generator.
+                                  properties:
+                                    args:
+                                      description: Args passed to Command.
+                                      items:
+                                        type: string
+                                      type: array
+                                    command:
+                                      description: Command argv.
+                                      items:
+                                        type: string
+                                      type: array
+                                  type: object
+                                static:
+                                  description: Static parameter announcements.
+                                  items:
+                                    description: ParameterAnnouncement declares a
+                                      single plugin parameter.
+                                    properties:
+                                      array:
+                                        description: Array default value.
+                                        items:
+                                          type: string
+                                        type: array
+                                      collectionType:
+                                        description: CollectionType hints the collection
+                                          shape.
+                                        type: string
+                                      itemType:
+                                        description: ItemType hints the primitive
+                                          type of each value.
+                                        type: string
+                                      map:
+                                        additionalProperties:
+                                          type: string
+                                        description: Map default value.
+                                        type: object
+                                      name:
+                                        description: Name of the parameter.
+                                        type: string
+                                      required:
+                                        description: Required marks the parameter
+                                          as required.
+                                        type: boolean
+                                      string:
+                                        description: String default value.
+                                        type: string
+                                      title:
+                                        description: Title shown in the UI.
+                                        type: string
+                                      tooltip:
+                                        description: Tooltip shown on hover.
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                            preserveFileMode:
+                              description: PreserveFileMode retains source-file modes
+                                in rendered output.
+                              type: boolean
+                            version:
+                              description: Version of the plugin API.
+                              type: string
+                          type: object
+                      required:
+                      - enabled
+                      - image
+                      type: object
+                    description: ConfigManagementPlugins keys plugin names to their
+                      definitions.
+                    type: object
+                  name:
+                    description: Name of the instance in the Akuity Platform. Required.
+                    minLength: 1
+                    type: string
+                required:
+                - argocd
+                - name
+                type: object
+              managementPolicies:
+                default:
+                - '*'
+                description: |-
+                  THIS IS A BETA FIELD. It is on by default but can be opted out
+                  through a Crossplane feature flag.
+                  ManagementPolicies specify the array of actions Crossplane is allowed to
+                  take on the managed and external resources.
+                  This field is planned to replace the DeletionPolicy field in a future
+                  release. Currently, both could be set independently and non-default
+                  values would be honored if the feature flag is enabled. If both are
+                  custom, the DeletionPolicy field will be ignored.
+                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
+                  and this one: https://github.com/crossplane/crossplane/blob/444267e84783136daa93568b364a5f01228cacbe/design/one-pager-ignore-changes.md
+                items:
+                  description: |-
+                    A ManagementAction represents an action that the Crossplane controllers
+                    can take on an external resource.
+                  enum:
+                  - Observe
+                  - Create
+                  - Update
+                  - Delete
+                  - LateInitialize
+                  - '*'
+                  type: string
+                type: array
+              providerConfigRef:
+                default:
+                  name: default
+                description: |-
+                  ProviderConfigReference specifies how the provider that will be used to
+                  create, observe, update, and delete this managed resource should be
+                  configured.
+                properties:
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                  policy:
+                    description: Policies for referencing.
+                    properties:
+                      resolution:
+                        default: Required
+                        description: |-
+                          Resolution specifies whether resolution of this reference is required.
+                          The default is 'Required', which means the reconcile will fail if the
+                          reference cannot be resolved. 'Optional' means this reference will be
+                          a no-op if it cannot be resolved.
+                        enum:
+                        - Required
+                        - Optional
+                        type: string
+                      resolve:
+                        description: |-
+                          Resolve specifies when this reference should be resolved. The default
+                          is 'IfNotPresent', which will attempt to resolve the reference only when
+                          the corresponding field is not present. Use 'Always' to resolve the
+                          reference on every reconcile.
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        type: string
+                    type: object
+                required:
+                - name
+                type: object
+              writeConnectionSecretToRef:
+                description: |-
+                  WriteConnectionSecretToReference specifies the namespace and name of a
+                  Secret to which any connection details for this managed resource should
+                  be written. Connection details frequently include the endpoint, username,
+                  and password required to connect to the managed resource.
+                properties:
+                  name:
+                    description: Name of the secret.
+                    type: string
+                  namespace:
+                    description: Namespace of the secret.
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
+            required:
+            - forProvider
+            type: object
+          status:
+            description: An InstanceStatus represents the observed state of an Instance.
+            properties:
+              atProvider:
+                description: InstanceObservation are the observable fields of an Instance.
+                properties:
+                  argocd:
+                    description: ArgoCD is the observed ArgoCD configuration.
+                    properties:
+                      spec:
+                        description: ArgoCDSpec is the desired configuration for an
+                          ArgoCD instance.
+                        properties:
+                          description:
+                            description: Description is a free-form description of
+                              the instance.
+                            type: string
+                          instanceSpec:
+                            description: InstanceSpec contains the per-instance configuration.
+                            properties:
+                              agentPermissionsRules:
+                                description: AgentPermissionsRules are RBAC rules
+                                  granted to agents.
+                                items:
+                                  description: |-
+                                    AgentPermissionsRule is a Kubernetes-RBAC-shaped rule granted to
+                                    agents.
+                                  properties:
+                                    apiGroups:
+                                      description: ApiGroups granted.
+                                      items:
+                                        type: string
+                                      type: array
+                                    resources:
+                                      description: Resources granted.
+                                      items:
+                                        type: string
+                                      type: array
+                                    verbs:
+                                      description: Verbs granted.
+                                      items:
+                                        type: string
+                                      type: array
+                                  type: object
+                                type: array
+                              akuityIntelligenceExtension:
+                                description: |-
+                                  AkuityIntelligenceExtension configures the Akuity Intelligence
+                                  extension.
+                                properties:
+                                  aiSupportEngineerEnabled:
+                                    description: AiSupportEngineerEnabled toggles
+                                      the AI support engineer persona.
+                                    type: boolean
+                                  allowedGroups:
+                                    description: AllowedGroups grants access to named
+                                      groups.
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    description: AllowedUsernames grants access to
+                                      named users.
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    description: Enabled toggles the extension.
+                                    type: boolean
+                                  modelVersion:
+                                    description: ModelVersion pins the AI model version.
+                                    type: string
+                                type: object
+                              appInAnyNamespaceConfig:
+                                description: AppInAnyNamespaceConfig toggles app-in-any-namespace
+                                  support.
+                                properties:
+                                  enabled:
+                                    description: Enabled toggles the feature.
+                                    type: boolean
+                                type: object
+                              appReconciliationsRateLimiting:
+                                description: AppReconciliationsRateLimiting tunes
+                                  reconcile rate limiting.
+                                properties:
+                                  bucketRateLimiting:
+                                    description: BucketRateLimiting bounds global
+                                      throughput.
+                                    properties:
+                                      bucketQps:
+                                        description: BucketQps is the refill rate.
+                                        format: int32
+                                        type: integer
+                                      bucketSize:
+                                        description: BucketSize is the token-bucket
+                                          capacity.
+                                        format: int32
+                                        type: integer
+                                      enabled:
+                                        description: Enabled toggles bucket rate limiting.
+                                        type: boolean
+                                    type: object
+                                  itemRateLimiting:
+                                    description: ItemRateLimiting configures per-item
+                                      backoff.
+                                    properties:
+                                      backoffFactor:
+                                        description: BackoffFactor multiplies each
+                                          subsequent delay.
+                                        type: number
+                                      baseDelay:
+                                        description: BaseDelay seconds for the first
+                                          retry.
+                                        format: int32
+                                        type: integer
+                                      enabled:
+                                        description: Enabled toggles item rate limiting.
+                                        type: boolean
+                                      failureCooldown:
+                                        description: FailureCooldown seconds after
+                                          a terminal failure.
+                                        format: int32
+                                        type: integer
+                                      maxDelay:
+                                        description: MaxDelay seconds between retries.
+                                        format: int32
+                                        type: integer
+                                    type: object
+                                type: object
+                              appSetDelegate:
+                                description: AppSetDelegate delegates ApplicationSet
+                                  to a cluster.
+                                properties:
+                                  managedCluster:
+                                    description: ManagedCluster hosts ApplicationSet.
+                                    properties:
+                                      clusterName:
+                                        description: ClusterName is the name of the
+                                          managed cluster.
+                                        type: string
+                                    type: object
+                                type: object
+                              applicationSetExtension:
+                                description: ApplicationSetExtension configures the
+                                  ApplicationSet extension.
+                                properties:
+                                  enabled:
+                                    description: Enabled toggles the extension.
+                                    type: boolean
+                                type: object
+                              appsetPlugins:
+                                description: AppsetPlugins registers AppSet plugins.
+                                items:
+                                  description: AppsetPlugins registers an ApplicationSet
+                                    plugin.
+                                  properties:
+                                    baseUrl:
+                                      description: BaseUrl is the plugin API endpoint.
+                                      type: string
+                                    name:
+                                      description: Name of the plugin.
+                                      type: string
+                                    requestTimeout:
+                                      description: RequestTimeout in seconds.
+                                      format: int32
+                                      type: integer
+                                    token:
+                                      description: Token credential used for the plugin
+                                        API.
+                                      type: string
+                                  type: object
+                                type: array
+                              appsetPolicy:
+                                description: AppsetPolicy configures the ApplicationSet
+                                  policy.
+                                properties:
+                                  overridePolicy:
+                                    description: OverridePolicy allows overrides of
+                                      the policy.
+                                    type: boolean
+                                  policy:
+                                    description: Policy name applied to ApplicationSets.
+                                    type: string
+                                type: object
+                              appsetProgressiveSyncsEnabled:
+                                description: AppsetProgressiveSyncsEnabled toggles
+                                  AppSet progressive syncs.
+                                type: boolean
+                              assistantExtensionEnabled:
+                                description: AssistantExtensionEnabled toggles the
+                                  assistant extension.
+                                type: boolean
+                              auditExtensionEnabled:
+                                description: AuditExtensionEnabled toggles the audit
+                                  extension.
+                                type: boolean
+                              backendIpAllowListEnabled:
+                                description: BackendIpAllowListEnabled toggles the
+                                  backend IP allow list.
+                                type: boolean
+                              basepath:
+                                description: Basepath overrides the ArgoCD base path.
+                                type: string
+                              clusterAddonsExtension:
+                                description: ClusterAddonsExtension configures the
+                                  cluster-addons extension.
+                                properties:
+                                  allowedGroups:
+                                    description: AllowedGroups grants access to named
+                                      groups.
+                                    items:
+                                      type: string
+                                    type: array
+                                  allowedUsernames:
+                                    description: AllowedUsernames grants access to
+                                      named users.
+                                    items:
+                                      type: string
+                                    type: array
+                                  enabled:
+                                    description: Enabled toggles the extension.
+                                    type: boolean
+                                type: object
+                              clusterCustomizationDefaults:
+                                description: |-
+                                  ClusterCustomizationDefaults defines default cluster
+                                  customization.
+                                properties:
+                                  appReplication:
+                                    description: AppReplication toggles app replication.
+                                    type: boolean
+                                  autoUpgradeDisabled:
+                                    description: AutoUpgradeDisabled disables automatic
+                                      agent upgrades.
+                                    type: boolean
+                                  kustomization:
+                                    description: Kustomization YAML applied to agent
+                                      manifests.
+                                    type: string
+                                  redisTunneling:
+                                    description: RedisTunneling toggles Redis tunneling.
+                                    type: boolean
+                                  serverSideDiffEnabled:
+                                    description: ServerSideDiffEnabled toggles server-side
+                                      diff.
+                                    type: boolean
+                                type: object
+                              crossplaneExtension:
+                                description: CrossplaneExtension configures the Crossplane
+                                  extension.
+                                properties:
+                                  resources:
+                                    description: Resources lists Crossplane resource
+                                      groups to expose.
+                                    items:
+                                      description: |-
+                                        CrossplaneExtensionResource names a Crossplane resource group
+                                        consumed by the Crossplane extension.
+                                      properties:
+                                        group:
+                                          description: Group of the Crossplane resource.
+                                          type: string
+                                      type: object
+                                    type: array
+                                type: object
+                              customDeprecatedApis:
+                                description: CustomDeprecatedApis lists deprecated-API
+                                  shims.
+                                items:
+                                  description: CustomDeprecatedAPI shim maps a deprecated
+                                    API to a replacement.
+                                  properties:
+                                    apiVersion:
+                                      description: ApiVersion of the deprecated API.
+                                      type: string
+                                    deprecatedInKubernetesVersion:
+                                      description: DeprecatedInKubernetesVersion records
+                                        when it became deprecated.
+                                      type: string
+                                    newApiVersion:
+                                      description: NewApiVersion replaces the deprecated
+                                        ApiVersion.
+                                      type: string
+                                    unavailableInKubernetesVersion:
+                                      description: UnavailableInKubernetesVersion
+                                        records when it becomes removed.
+                                      type: string
+                                  type: object
+                                type: array
+                              declarativeManagementEnabled:
+                                description: DeclarativeManagementEnabled toggles
+                                  declarative management.
+                                type: boolean
+                              extensions:
+                                description: Extensions installs ArgoCD UI extensions.
+                                items:
+                                  description: ArgoCDExtensionInstallEntry installs
+                                    an ArgoCD UI extension.
+                                  properties:
+                                    id:
+                                      description: Id of the extension.
+                                      type: string
+                                    version:
+                                      description: Version of the extension to install.
+                                      type: string
+                                  type: object
+                                type: array
+                              fqdn:
+                                description: Fqdn overrides the default instance FQDN.
+                                type: string
+                              hostAliases:
+                                description: HostAliases adds host aliases to agent
+                                  pods.
+                                items:
+                                  description: HostAliases adds /etc/hosts-style host
+                                    aliases to agent pods.
+                                  properties:
+                                    hostnames:
+                                      description: Hostnames resolve to Ip.
+                                      items:
+                                        type: string
+                                      type: array
+                                    ip:
+                                      description: Ip is the host IP.
+                                      type: string
+                                  type: object
+                                type: array
+                              imageUpdaterDelegate:
+                                description: ImageUpdaterDelegate delegates image-updater
+                                  to a cluster.
+                                properties:
+                                  controlPlane:
+                                    description: ControlPlane runs image-updater on
+                                      the Akuity control plane.
+                                    type: boolean
+                                  managedCluster:
+                                    description: ManagedCluster runs image-updater
+                                      on a managed cluster.
+                                    properties:
+                                      clusterName:
+                                        description: ClusterName is the name of the
+                                          managed cluster.
+                                        type: string
+                                    type: object
+                                type: object
+                              imageUpdaterEnabled:
+                                description: ImageUpdaterEnabled toggles the ArgoCD
+                                  image-updater component.
+                                type: boolean
+                              imageUpdaterVersion:
+                                description: ImageUpdaterVersion pins the image-updater
+                                  version.
+                                type: string
+                              ipAllowList:
+                                description: IpAllowList restricts which IPs can reach
+                                  the instance.
+                                items:
+                                  description: IPAllowListEntry grants access for
+                                    a single IP or CIDR.
+                                  properties:
+                                    description:
+                                      description: Description is free-form context.
+                                      type: string
+                                    ip:
+                                      description: Ip is the IP address or CIDR.
+                                      type: string
+                                  type: object
+                                type: array
+                              kubeVisionConfig:
+                                description: KubeVisionConfig configures the KubeVision
+                                  extension.
+                                properties:
+                                  additionalAttributes:
+                                    description: AdditionalAttributes configures extra
+                                      attribute copying.
+                                    items:
+                                      description: |-
+                                        AdditionalAttributeRule attaches extra attributes to a resource
+                                        kind.
+                                      properties:
+                                        annotations:
+                                          description: Annotations copied onto matching
+                                            resources.
+                                          items:
+                                            type: string
+                                          type: array
+                                        group:
+                                          description: Group of the resource.
+                                          type: string
+                                        kind:
+                                          description: Kind of the resource.
+                                          type: string
+                                        labels:
+                                          description: Labels copied onto matching
+                                            resources.
+                                          items:
+                                            type: string
+                                          type: array
+                                        namespace:
+                                          description: Namespace scoping for the rule.
+                                          type: string
+                                      type: object
+                                    type: array
+                                  aiConfig:
+                                    description: AiConfig configures AI features.
+                                    properties:
+                                      argocdSlackChannels:
+                                        description: ArgocdSlackChannels routes ArgoCD
+                                          notifications.
+                                        items:
+                                          type: string
+                                        type: array
+                                      argocdSlackService:
+                                        description: ArgocdSlackService selects the
+                                          ArgoCD slack notification service.
+                                        type: string
+                                      incidents:
+                                        description: Incidents configures incident
+                                          detection.
+                                        properties:
+                                          grouping:
+                                            description: Grouping rules group related
+                                              incidents.
+                                            properties:
+                                              argocdApplicationNames:
+                                                description: ArgocdApplicationNames
+                                                  groups incidents by ArgoCD app name.
+                                                items:
+                                                  type: string
+                                                type: array
+                                              k8sNamespaces:
+                                                description: K8SNamespaces groups
+                                                  incidents by namespace.
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
+                                          investigationApproval:
+                                            description: InvestigationApproval configures
+                                              approval thresholds.
+                                            properties:
+                                              scopes:
+                                                description: Scopes define approval
+                                                  thresholds.
+                                                items:
+                                                  description: IncidentInvestigationApprovalScope
+                                                    scopes auto-closure approvals.
+                                                  properties:
+                                                    argocdApplications:
+                                                      description: ArgocdApplications
+                                                        selects apps.
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    clusters:
+                                                      description: Clusters selects
+                                                        clusters.
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    consecutiveAutoClosures:
+                                                      description: ConsecutiveAutoClosures
+                                                        threshold before approval
+                                                        is required.
+                                                      format: int32
+                                                      type: integer
+                                                    k8sNamespaces:
+                                                      description: K8SNamespaces selects
+                                                        namespaces.
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                            type: object
+                                          triggers:
+                                            description: Triggers are target selectors
+                                              that fire incidents.
+                                            items:
+                                              description: |-
+                                                TargetSelector selects a subset of ArgoCD applications, k8s
+                                                namespaces, or clusters.
+                                              properties:
+                                                argocdApplications:
+                                                  description: ArgocdApplications
+                                                    selects apps by name.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                clusters:
+                                                  description: Clusters selects clusters
+                                                    by name.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                degradedFor:
+                                                  description: |-
+                                                    DegradedFor restricts matches to resources degraded for at least
+                                                    this duration.
+                                                  type: string
+                                                k8sNamespaces:
+                                                  description: K8SNamespaces selects
+                                                    Kubernetes namespaces.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          webhooks:
+                                            description: Webhooks route incidents
+                                              to external systems.
+                                            items:
+                                              description: IncidentWebhookConfig configures
+                                                an incident webhook.
+                                              properties:
+                                                argocdApplicationNamePath:
+                                                  description: ArgocdApplicationNamePath
+                                                    in the webhook payload.
+                                                  type: string
+                                                argocdApplicationNamespacePath:
+                                                  description: ArgocdApplicationNamespacePath
+                                                    in the webhook payload.
+                                                  type: string
+                                                clusterPath:
+                                                  description: ClusterPath in the
+                                                    webhook payload.
+                                                  type: string
+                                                descriptionPath:
+                                                  description: DescriptionPath in
+                                                    the webhook payload.
+                                                  type: string
+                                                k8sNamespacePath:
+                                                  description: K8SNamespacePath in
+                                                    the webhook payload.
+                                                  type: string
+                                                name:
+                                                  description: Name of the webhook.
+                                                  type: string
+                                                titlePath:
+                                                  description: TitlePath in the webhook
+                                                    payload.
+                                                  type: string
+                                              type: object
+                                            type: array
+                                        type: object
+                                      runbookRepos:
+                                        description: RunbookRepos configures runbook
+                                          repositories.
+                                        items:
+                                          description: RunbookRepo references a runbook
+                                            repository.
+                                          properties:
+                                            appliedFor:
+                                              additionalProperties:
+                                                description: |-
+                                                  TargetSelector selects a subset of ArgoCD applications, k8s
+                                                  namespaces, or clusters.
+                                                properties:
+                                                  argocdApplications:
+                                                    description: ArgocdApplications
+                                                      selects apps by name.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  clusters:
+                                                    description: Clusters selects
+                                                      clusters by name.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  degradedFor:
+                                                    description: |-
+                                                      DegradedFor restricts matches to resources degraded for at least
+                                                      this duration.
+                                                    type: string
+                                                  k8sNamespaces:
+                                                    description: K8SNamespaces selects
+                                                      Kubernetes namespaces.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              description: AppliedFor maps runbook
+                                                names to scoping selectors.
+                                              type: object
+                                            path:
+                                              description: Path within the repository.
+                                              type: string
+                                            repoUrl:
+                                              description: RepoUrl of the runbook
+                                                repository.
+                                              type: string
+                                            revision:
+                                              description: Revision checked out.
+                                              type: string
+                                          type: object
+                                        type: array
+                                      runbooks:
+                                        description: Runbooks are KubeVision runbooks.
+                                        items:
+                                          description: Runbook defines a KubeVision
+                                            runbook.
+                                          properties:
+                                            appliedTo:
+                                              description: AppliedTo scopes the runbook.
+                                              properties:
+                                                argocdApplications:
+                                                  description: ArgocdApplications
+                                                    selects apps by name.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                clusters:
+                                                  description: Clusters selects clusters
+                                                    by name.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                degradedFor:
+                                                  description: |-
+                                                    DegradedFor restricts matches to resources degraded for at least
+                                                    this duration.
+                                                  type: string
+                                                k8sNamespaces:
+                                                  description: K8SNamespaces selects
+                                                    Kubernetes namespaces.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            content:
+                                              description: Content of the runbook
+                                                (markdown).
+                                              type: string
+                                            name:
+                                              description: Name of the runbook.
+                                              type: string
+                                            slackChannelNames:
+                                              description: SlackChannelNames route
+                                                the runbook to Slack channels.
+                                              items:
+                                                type: string
+                                              type: array
+                                          type: object
+                                        type: array
+                                    type: object
+                                  cveScanConfig:
+                                    description: CveScanConfig configures CVE scanning.
+                                    properties:
+                                      rescanInterval:
+                                        description: RescanInterval configures the
+                                          rescan period (Go duration).
+                                        type: string
+                                      scanEnabled:
+                                        description: ScanEnabled toggles scanning.
+                                        type: boolean
+                                    type: object
+                                type: object
+                              manifestGeneration:
+                                description: ManifestGeneration configures manifest-generation
+                                  tool versions.
+                                properties:
+                                  kustomize:
+                                    description: Kustomize versions available.
+                                    properties:
+                                      additionalVersions:
+                                        description: AdditionalVersions available
+                                          alongside the default.
+                                        items:
+                                          type: string
+                                        type: array
+                                      defaultVersion:
+                                        description: DefaultVersion selected by default.
+                                        type: string
+                                    type: object
+                                type: object
+                              metricsIngressPasswordHash:
+                                description: |-
+                                  MetricsIngressPasswordHash is the htpasswd-hashed password for
+                                  the metrics ingress.
+                                type: string
+                              metricsIngressUsername:
+                                description: |-
+                                  MetricsIngressUsername is the basic-auth username for the
+                                  metrics ingress.
+                                type: string
+                              multiClusterK8sDashboardEnabled:
+                                description: |-
+                                  MultiClusterK8SDashboardEnabled toggles the multi-cluster
+                                  Kubernetes dashboard for the instance.
+                                type: boolean
+                              privilegedNotificationCluster:
+                                description: |-
+                                  PrivilegedNotificationCluster selects a cluster that may run
+                                  privileged notifications.
+                                type: string
+                              repoServerDelegate:
+                                description: RepoServerDelegate delegates repo-server
+                                  to a cluster.
+                                properties:
+                                  controlPlane:
+                                    description: ControlPlane runs repo-server on
+                                      the Akuity control plane.
+                                    type: boolean
+                                  managedCluster:
+                                    description: ManagedCluster runs repo-server on
+                                      a managed cluster.
+                                    properties:
+                                      clusterName:
+                                        description: ClusterName is the name of the
+                                          managed cluster.
+                                        type: string
+                                    type: object
+                                type: object
+                              secrets:
+                                description: Secrets configures cross-cluster secret
+                                  mappings.
+                                properties:
+                                  destinations:
+                                    description: Destinations identify destination
+                                      mappings.
+                                    items:
+                                      description: ClusterSecretMapping maps clusters
+                                        to secrets.
+                                      properties:
+                                        clusters:
+                                          description: Clusters selects source/destination
+                                            clusters.
+                                          properties:
+                                            matchExpressions:
+                                              description: MatchExpressions selects
+                                                by compound label expression.
+                                              items:
+                                                description: LabelSelectorRequirement
+                                                  is a single label-selector expression.
+                                                properties:
+                                                  key:
+                                                    description: Key is the label
+                                                      key.
+                                                    type: string
+                                                  operator:
+                                                    description: Operator applied
+                                                      to values.
+                                                    type: string
+                                                  values:
+                                                    description: Values compared against
+                                                      the label.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: MatchLabels selects by
+                                                label equality.
+                                              type: object
+                                          type: object
+                                        secrets:
+                                          description: Secrets selects secret resources.
+                                          properties:
+                                            matchExpressions:
+                                              description: MatchExpressions selects
+                                                by compound label expression.
+                                              items:
+                                                description: LabelSelectorRequirement
+                                                  is a single label-selector expression.
+                                                properties:
+                                                  key:
+                                                    description: Key is the label
+                                                      key.
+                                                    type: string
+                                                  operator:
+                                                    description: Operator applied
+                                                      to values.
+                                                    type: string
+                                                  values:
+                                                    description: Values compared against
+                                                      the label.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: MatchLabels selects by
+                                                label equality.
+                                              type: object
+                                          type: object
+                                      type: object
+                                    type: array
+                                  sources:
+                                    description: Sources identify source mappings.
+                                    items:
+                                      description: ClusterSecretMapping maps clusters
+                                        to secrets.
+                                      properties:
+                                        clusters:
+                                          description: Clusters selects source/destination
+                                            clusters.
+                                          properties:
+                                            matchExpressions:
+                                              description: MatchExpressions selects
+                                                by compound label expression.
+                                              items:
+                                                description: LabelSelectorRequirement
+                                                  is a single label-selector expression.
+                                                properties:
+                                                  key:
+                                                    description: Key is the label
+                                                      key.
+                                                    type: string
+                                                  operator:
+                                                    description: Operator applied
+                                                      to values.
+                                                    type: string
+                                                  values:
+                                                    description: Values compared against
+                                                      the label.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: MatchLabels selects by
+                                                label equality.
+                                              type: object
+                                          type: object
+                                        secrets:
+                                          description: Secrets selects secret resources.
+                                          properties:
+                                            matchExpressions:
+                                              description: MatchExpressions selects
+                                                by compound label expression.
+                                              items:
+                                                description: LabelSelectorRequirement
+                                                  is a single label-selector expression.
+                                                properties:
+                                                  key:
+                                                    description: Key is the label
+                                                      key.
+                                                    type: string
+                                                  operator:
+                                                    description: Operator applied
+                                                      to values.
+                                                    type: string
+                                                  values:
+                                                    description: Values compared against
+                                                      the label.
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                type: string
+                                              description: MatchLabels selects by
+                                                label equality.
+                                              type: object
+                                          type: object
+                                      type: object
+                                    type: array
+                                type: object
+                              subdomain:
+                                description: Subdomain overrides the default Akuity
+                                  subdomain.
+                                type: string
+                              syncHistoryExtensionEnabled:
+                                description: SyncHistoryExtensionEnabled toggles the
+                                  sync-history extension.
+                                type: boolean
+                            type: object
+                          shard:
+                            description: Shard places the instance on a specific backend
+                              shard.
+                            type: string
+                          version:
+                            description: Version of ArgoCD to run. Required.
+                            minLength: 1
+                            type: string
+                        required:
+                        - description
+                        - shard
+                        - version
+                        type: object
+                    type: object
+                  argocdConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: ArgoCDConfigMap is the observed argocd-cm ConfigMap.
+                    type: object
+                  argocdImageUpdaterConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDImageUpdaterConfigMap is the observed
+                      argocd-image-updater-config ConfigMap.
+                    type: object
+                  argocdImageUpdaterSshConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDImageUpdaterSSHConfigMap is the observed
+                      argocd-image-updater-ssh-config ConfigMap.
+                    type: object
+                  argocdNotificationsConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDNotificationsConfigMap is the observed
+                      argocd-notifications-cm ConfigMap.
+                    type: object
+                  argocdRbacConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: ArgoCDRBACConfigMap is the observed argocd-rbac-cm
+                      ConfigMap.
+                    type: object
+                  argocdSshKnownHostsConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDSSHKnownHostsConfigMap is the observed
+                      argocd-ssh-known-hosts-cm ConfigMap.
+                    type: object
+                  argocdTlsCertsConfigMap:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ArgoCDTLSCertsConfigMap is the observed argocd-tls-certs-cm
+                      ConfigMap.
+                    type: object
+                  clusterCount:
+                    description: ClusterCount is the number of managed clusters attached.
+                    format: int32
+                    type: integer
+                  configManagementPlugins:
+                    additionalProperties:
+                      description: ConfigManagementPlugin registers a v2 config-management
+                        plugin.
+                      properties:
+                        enabled:
+                          description: Enabled toggles the plugin.
+                          type: boolean
+                        image:
+                          description: Image containing the plugin binary.
+                          minLength: 1
+                          type: string
+                        spec:
+                          description: Spec is the plugin definition.
+                          properties:
+                            discover:
+                              description: Discover configures plugin activation.
+                              properties:
+                                fileName:
+                                  description: FileName triggers activation when present.
+                                  type: string
+                                find:
+                                  description: Find configures discovery via exec
+                                    or glob.
+                                  properties:
+                                    args:
+                                      description: Args passed to Command.
+                                      items:
+                                        type: string
+                                      type: array
+                                    command:
+                                      description: Command argv to run for discovery.
+                                      items:
+                                        type: string
+                                      type: array
+                                    glob:
+                                      description: Glob pattern used for discovery.
+                                      type: string
+                                  type: object
+                              type: object
+                            generate:
+                              description: Generate command executed to render manifests.
+                              properties:
+                                args:
+                                  description: Args passed to Command.
+                                  items:
+                                    type: string
+                                  type: array
+                                command:
+                                  description: Command argv[0..].
+                                  items:
+                                    type: string
+                                  type: array
+                              type: object
+                            init:
+                              description: Init command executed before generation.
+                              properties:
+                                args:
+                                  description: Args passed to Command.
+                                  items:
+                                    type: string
+                                  type: array
+                                command:
+                                  description: Command argv[0..].
+                                  items:
+                                    type: string
+                                  type: array
+                              type: object
+                            parameters:
+                              description: Parameters announces plugin parameters
+                                to the UI.
+                              properties:
+                                dynamic:
+                                  description: Dynamic parameter generator.
+                                  properties:
+                                    args:
+                                      description: Args passed to Command.
+                                      items:
+                                        type: string
+                                      type: array
+                                    command:
+                                      description: Command argv.
+                                      items:
+                                        type: string
+                                      type: array
+                                  type: object
+                                static:
+                                  description: Static parameter announcements.
+                                  items:
+                                    description: ParameterAnnouncement declares a
+                                      single plugin parameter.
+                                    properties:
+                                      array:
+                                        description: Array default value.
+                                        items:
+                                          type: string
+                                        type: array
+                                      collectionType:
+                                        description: CollectionType hints the collection
+                                          shape.
+                                        type: string
+                                      itemType:
+                                        description: ItemType hints the primitive
+                                          type of each value.
+                                        type: string
+                                      map:
+                                        additionalProperties:
+                                          type: string
+                                        description: Map default value.
+                                        type: object
+                                      name:
+                                        description: Name of the parameter.
+                                        type: string
+                                      required:
+                                        description: Required marks the parameter
+                                          as required.
+                                        type: boolean
+                                      string:
+                                        description: String default value.
+                                        type: string
+                                      title:
+                                        description: Title shown in the UI.
+                                        type: string
+                                      tooltip:
+                                        description: Tooltip shown on hover.
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                            preserveFileMode:
+                              description: PreserveFileMode retains source-file modes
+                                in rendered output.
+                              type: boolean
+                            version:
+                              description: Version of the plugin API.
+                              type: string
+                          type: object
+                      required:
+                      - enabled
+                      - image
+                      type: object
+                    description: ConfigManagementPlugins is the observed plugin set.
+                    type: object
+                  healthStatus:
+                    description: HealthStatus is the instance health.
+                    properties:
+                      code:
+                        description: Code reported by the Akuity API.
+                        format: int32
+                        type: integer
+                      message:
+                        description: Message reported by the Akuity API.
+                        type: string
+                    type: object
+                  hostname:
+                    description: Hostname is the public hostname.
+                    type: string
+                  id:
+                    description: ID assigned by the Akuity Platform.
+                    type: string
+                  name:
+                    description: Name of the instance.
+                    type: string
+                  ownerOrganizationName:
+                    description: |-
+                      OwnerOrganizationName is the Akuity organization owning the
+                      instance.
+                    type: string
+                  reconciliationStatus:
+                    description: ReconciliationStatus is the instance reconciliation
+                      status.
+                    properties:
+                      code:
+                        description: Code reported by the Akuity API.
+                        format: int32
+                        type: integer
+                      message:
+                        description: Message reported by the Akuity API.
+                        type: string
+                    type: object
+                type: object
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        LastTransitionTime is the last time this condition transitioned from one
+                        status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        A Message containing details about this condition's last transition from
+                        one status to another, if any.
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        ObservedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      type: integer
+                    reason:
+                      description: A Reason for this condition's last transition from
+                        one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
+                      type: string
+                    type:
+                      description: |-
+                        Type of this condition. At most one of each condition type may apply to
+                        a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the latest metadata.generation
+                  which resulted in either a ready state, or stalled due to error
+                  it can not recover from without human intervention.
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
