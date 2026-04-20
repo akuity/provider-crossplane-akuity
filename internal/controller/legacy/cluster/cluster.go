@@ -45,6 +45,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/metrics"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
 	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
@@ -61,6 +62,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha1.ClusterGroupKind)
 
 	logger := o.Logger.WithValues("controller", name)
+	recorder := event.NewAPIRecorder(mgr.GetEventRecorderFor(name))
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.ClusterGroupVersionKind),
@@ -71,8 +73,8 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		}),
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-		managed.WithInitializers(),
+		managed.WithRecorder(recorder),
+		managed.WithInitializers(metrics.NewLegacyDeprecationInitializer(recorder)),
 	)
 
 	return ctrl.NewControllerManagedBy(mgr).

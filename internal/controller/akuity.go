@@ -23,6 +23,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/legacy/cluster"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/legacy/instance"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/metrics"
 	clusterv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/cluster"
 	instancev2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/instance"
 	instanceipallowlistv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/instanceipallowlist"
@@ -52,5 +53,8 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 			return err
 		}
 	}
-	return nil
+
+	// Legacy-CR observational telemetry. Safe to call unconditionally; the
+	// gauge stays at 0 once users have fully migrated off v1alpha1.
+	return metrics.SetupLegacyTelemetry(mgr, o.Logger.WithValues("controller", "legacy-telemetry"))
 }
