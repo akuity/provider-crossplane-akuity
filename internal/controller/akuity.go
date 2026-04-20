@@ -23,15 +23,30 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/cluster"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instance"
+	clusterv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/cluster"
+	instancev2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/instance"
+	instanceipallowlistv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/instanceipallowlist"
+	kargoagentv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/kargoagent"
+	kargodefaultshardagentv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/kargodefaultshardagent"
+	kargoinstancev2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/kargoinstance"
 )
 
 // Setup creates all akuity controllers with the supplied logger and adds them to
 // the supplied manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
+		// Legacy v1alpha1 provider config + managed resources.
 		config.Setup,
 		instance.Setup,
 		cluster.Setup,
+		// v1alpha2 namespaced provider configs + controllers.
+		config.SetupV2,
+		instancev2.Setup,
+		clusterv2.Setup,
+		instanceipallowlistv2.Setup,
+		kargoinstancev2.Setup,
+		kargoagentv2.Setup,
+		kargodefaultshardagentv2.Setup,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err
