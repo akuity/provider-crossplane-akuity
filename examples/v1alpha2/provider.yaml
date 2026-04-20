@@ -1,0 +1,30 @@
+# v1alpha2 namespaced ProviderConfig. Applies to managed resources in the
+# same namespace only.
+---
+apiVersion: akuity.m.crossplane.io/v1alpha2
+kind: ProviderConfig
+metadata:
+  name: akuity
+  namespace: default
+spec:
+  organizationId: REPLACE_ME
+  credentialsSecretRef:
+    namespace: default
+    name: akuity-provider-secret
+    key: credentials
+---
+# Cluster-wide variant. Use when you want a single Akuity organisation
+# credential shared across namespaces. Managed resources opt in via
+#   spec.providerConfigRef:
+#     kind: ClusterProviderConfig
+#     name: akuity-cluster
+apiVersion: akuity.m.crossplane.io/v1alpha2
+kind: ClusterProviderConfig
+metadata:
+  name: akuity-cluster
+spec:
+  organizationId: REPLACE_ME
+  credentialsSecretRef:
+    namespace: crossplane-system
+    name: akuity-provider-secret
+    key: credentials

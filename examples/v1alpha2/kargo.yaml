@@ -1,0 +1,79 @@
+# v1alpha2 Kargo resources: a KargoInstance, a KargoAgent, a
+# KargoDefaultShardAgent, and an InstanceIpAllowList that is paired with
+# an ArgoCD Instance which deliberately does NOT set ipAllowList itself.
+---
+apiVersion: core.m.akuity.crossplane.io/v1alpha2
+kind: KargoInstance
+metadata:
+  name: platform-kargo
+  namespace: default
+spec:
+  forProvider:
+    name: platform-kargo
+    spec:
+      description: "Platform Kargo"
+      version: "v1.2.0"
+      kargoInstanceSpec:
+        backendIpAllowListEnabled: true
+        promoControllerEnabled: true
+        globalCredentialsNs:
+          - platform
+        globalServiceAccountNs:
+          - platform-sa
+  providerConfigRef:
+    kind: ProviderConfig
+    name: akuity
+---
+apiVersion: core.m.akuity.crossplane.io/v1alpha2
+kind: KargoAgent
+metadata:
+  name: prod-agent
+  namespace: default
+spec:
+  forProvider:
+    name: prod-agent
+    kargoInstanceRef:
+      name: platform-kargo
+    spec:
+      data:
+        size: medium
+        targetVersion: v1.1.0
+        akuityManaged: true
+        argocdNamespace: argocd
+  providerConfigRef:
+    kind: ProviderConfig
+    name: akuity
+  writeConnectionSecretToRef:
+    name: prod-agent-manifests
+---
+apiVersion: core.m.akuity.crossplane.io/v1alpha2
+kind: KargoDefaultShardAgent
+metadata:
+  name: platform-default-shard
+  namespace: default
+spec:
+  forProvider:
+    kargoInstanceRef:
+      name: platform-kargo
+    agentName: prod-agent
+  providerConfigRef:
+    kind: ProviderConfig
+    name: akuity
+---
+apiVersion: core.m.akuity.crossplane.io/v1alpha2
+kind: InstanceIpAllowList
+metadata:
+  name: my-instance-allowlist
+  namespace: default
+spec:
+  forProvider:
+    instanceRef:
+      name: my-instance
+    allowList:
+      - ip: "10.0.0.0/8"
+        description: "VPC"
+      - ip: "192.168.0.0/16"
+        description: "Lab"
+  providerConfigRef:
+    kind: ProviderConfig
+    name: akuity

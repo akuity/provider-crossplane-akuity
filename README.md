@@ -50,14 +50,41 @@ Once you have completed the steps above to replace the placeholders for API cred
 kubectl apply -f examples/provider/config.yaml
 ```
 
-Now you can start managing Akuity instances and clusters using Crossplane. You can view minimal examples of these resources
-in:
-- [Argo CD Instance](./examples/instance/basic.yaml)
-- [Cluster](./examples/cluster/basic.yaml)
+Now you can start managing Akuity instances and clusters using Crossplane.
 
-For detailed examples of these resources in:
-- [Argo CD Instance](./examples/instance/detailed.yaml)
-- [Cluster](./examples/cluster/detailed.yaml)
+### v2.0.0: namespaced managed resources (recommended)
+
+The v2 API group is `core.m.akuity.crossplane.io/v1alpha2` — namespaced
+managed resources, Crossplane v2 runtime. Examples:
+
+- [Namespaced + cluster-wide ProviderConfig](./examples/v1alpha2/provider.yaml)
+- [Instance + Cluster](./examples/v1alpha2/instance-and-cluster.yaml)
+- [KargoInstance, KargoAgent, KargoDefaultShardAgent, InstanceIpAllowList](./examples/v1alpha2/kargo.yaml)
+- [Composition wiring Cluster → provider-kubernetes for agent install](./examples/v1alpha2/cluster-with-agent-composition.yaml)
+
+The v2 Cluster/KargoAgent controllers publish the Akuity agent-install YAML
+on the MR's connection secret under a `manifests` key. Apply those
+manifests to the target cluster via `provider-kubernetes` in a Composition
+(see the linked example). `ClusterAgent` from v1alpha1 is gone — the
+Composition flow replaces it.
+
+### Legacy v1alpha1 examples (deprecated)
+
+The `core.akuity.crossplane.io/v1alpha1` API group is kept for a 6-month
+deprecation window. It emits a Warning event on every reconcile and the
+provider exposes `akuity_legacy_v1alpha1_cr_count{kind}` as a migration
+signal. Scheduled for removal in **v3.0.0**.
+
+- [Argo CD Instance (v1alpha1)](./examples/instance/basic.yaml)
+- [Cluster (v1alpha1)](./examples/cluster/basic.yaml)
+- [Argo CD Instance — detailed (v1alpha1)](./examples/instance/detailed.yaml)
+- [Cluster — detailed (v1alpha1)](./examples/cluster/detailed.yaml)
+
+Upgrading from v1.x? See the
+[v1alpha1 → v2 migration guide](./docs/migration/v1alpha1-to-v2.md). In
+particular it covers ESS removal (replace `publishConnectionDetailsTo` with
+`external-secrets-operator`, `provider-vault`, or `provider-sops` **before**
+the upgrade) and the new Composition-based agent-install flow.
 
 For all supported fields for Akuity resources, please check [https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity/).
 

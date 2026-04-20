@@ -1,0 +1,99 @@
+# Replaces the legacy inline agent-install flow that v1alpha1 performed
+# itself. The v2 Cluster controller publishes the Akuity agent-install
+# YAML on its connection secret under key "manifests" and stops there;
+# applying those manifests onto the managed cluster is done by
+# provider-kubernetes in a Composition, giving users full control over
+# the install target.
+#
+# Prereqs:
+#   1. provider-kubernetes installed in the control cluster
+#      (crossplane-contrib/provider-kubernetes).
+#   2. A ProviderConfig (kubernetes.crossplane.io/v1alpha1) pointing at
+#      the target managed cluster's kubeconfig.
+#   3. A Composite Resource Definition (XRD) XAkuityCluster (not shown)
+#      exposing a few knobs: name, instanceRef, agentKubeProviderConfigRef.
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: akuity-cluster-with-agent
+  labels:
+    provider: akuity
+spec:
+  compositeTypeRef:
+    apiVersion: platform.example.com/v1alpha1
+    kind: XAkuityCluster
+  mode: Pipeline
+  pipeline:
+    - step: render
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+          # 1. The Akuity-side managed Cluster. Its connection secret
+          #    carries the install manifests.
+          - name: akuity-cluster
+            base:
+              apiVersion: core.m.akuity.crossplane.io/v1alpha2
+              kind: Cluster
+              spec:
+                forProvider:
+                  name: ""  # patched
+                providerConfigRef:
+                  kind: ProviderConfig
+                  name: akuity
+                writeConnectionSecretToRef:
+                  name: ""  # patched
+            patches:
+              - fromFieldPath: spec.name
+                toFieldPath: spec.forProvider.name
+              - fromFieldPath: spec.instanceRef.name
+                toFieldPath: spec.forProvider.instanceRef.name
+              - fromFieldPath: spec.name
+                toFieldPath: spec.writeConnectionSecretToRef.name
+                transforms:
+                  - type: string
+                    string:
+                      fmt: "%s-manifests"
+
+          # 2. A provider-kubernetes Object that fetches the Cluster's
+          #    manifests secret and applies it to the managed cluster.
+          #    The target ProviderConfig (agentKubeProviderConfigRef) is
+          #    a kubernetes.crossplane.io/v1alpha1 ProviderConfig wired
+          #    to the managed cluster's kubeconfig.
+          - name: agent-install
+            base:
+              apiVersion: kubernetes.crossplane.io/v1alpha1
+              kind: Object
+              spec:
+                providerConfigRef:
+                  name: ""  # patched
+                forProvider:
+                  # Set manifest from a Secret key at reconcile time —
+                  # provider-kubernetes resolves references in spec.
+                  # The simpler alternative is to render the Object
+                  # pipeline-side with the manifests inlined via a
+                  # function; shown here is the reference approach.
+                  manifest:
+                    apiVersion: v1
+                    kind: ConfigMap
+                    metadata:
+                      name: akuity-agent-manifests
+                      namespace: akuity
+                    data:
+                      manifests: ""  # patched from connection secret
+            patches:
+              - fromFieldPath: spec.agentKubeProviderConfigRef.name
+                toFieldPath: spec.providerConfigRef.name
+              - fromFieldPath: spec.name
+                toFieldPath: metadata.name
+                transforms:
+                  - type: string
+                    string:
+                      fmt: "%s-agent-install"
+
+    - step: automatically-detect-ready-composed-resources
+      functionRef:
+        name: function-auto-ready

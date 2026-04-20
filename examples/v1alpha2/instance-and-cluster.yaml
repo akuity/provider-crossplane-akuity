@@ -1,0 +1,40 @@
+# A v1alpha2 namespaced Instance plus a Cluster that references it by
+# same-namespace InstanceRef. Note the `.m.akuity` group and
+# `providerConfigRef.kind: ProviderConfig` (set to `ClusterProviderConfig`
+# when using the cluster-wide variant).
+---
+apiVersion: core.m.akuity.crossplane.io/v1alpha2
+kind: Instance
+metadata:
+  name: my-instance
+  namespace: default
+spec:
+  forProvider:
+    name: my-instance
+    argocd:
+      spec:
+        version: "v3.1.9-ak.67"
+  providerConfigRef:
+    kind: ProviderConfig
+    name: akuity
+---
+apiVersion: core.m.akuity.crossplane.io/v1alpha2
+kind: Cluster
+metadata:
+  name: my-cluster
+  namespace: default
+spec:
+  forProvider:
+    name: my-cluster
+    # Either set instanceId directly, or reference an Instance in the
+    # same namespace via instanceRef.
+    instanceRef:
+      name: my-instance
+  providerConfigRef:
+    kind: ProviderConfig
+    name: akuity
+  # v2 stores the agent-install YAML on this secret under key "manifests".
+  # Feed it to a provider-kubernetes Object in a Composition (see
+  # cluster-with-agent-composition.yaml).
+  writeConnectionSecretToRef:
+    name: my-cluster-manifests
