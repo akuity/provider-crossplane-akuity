@@ -30,6 +30,7 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
+	"github.com/google/go-cmp/cmp"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
@@ -110,9 +111,15 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.InstanceIpAllowList
 	mg.Status.AtProvider = v1alpha2.InstanceIpAllowListObservation{AllowList: observed}
 	mg.SetConditions(xpv1.Available())
 
+	upToDate := reflect.DeepEqual(mg.Spec.ForProvider.AllowList, observed)
+	if !upToDate {
+		e.Logger.Debug("InstanceIpAllowList drift detected",
+			"diff", cmp.Diff(mg.Spec.ForProvider.AllowList, observed))
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: reflect.DeepEqual(mg.Spec.ForProvider.AllowList, observed),
+		ResourceUpToDate: upToDate,
 	}, nil
 }
 

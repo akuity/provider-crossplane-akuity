@@ -107,9 +107,15 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoDefaultShardAg
 	mg.Status.AtProvider = v1alpha2.KargoDefaultShardAgentObservation{AgentName: observed}
 	mg.SetConditions(xpv1.Available())
 
+	upToDate := observed == mg.Spec.ForProvider.AgentName
+	if !upToDate {
+		e.Logger.Debug("KargoDefaultShardAgent drift detected",
+			"observed", observed, "desired", mg.Spec.ForProvider.AgentName)
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
-		ResourceUpToDate: observed == mg.Spec.ForProvider.AgentName,
+		ResourceUpToDate: upToDate,
 	}, nil
 }
 
