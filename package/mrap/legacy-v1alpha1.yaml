@@ -1,0 +1,16 @@
+# Keeps the legacy v1alpha1 managed resources activated while the 6-month
+# deprecation window runs. Delete this file as part of the v3.0.0 cleanup
+# (§7 of REFACTOR_PLAN.md) so the legacy MRDs settle to Inactive before the
+# CRDs themselves are removed.
+apiVersion: apiextensions.crossplane.io/v1alpha1
+kind: ManagedResourceActivationPolicy
+metadata:
+  name: provider-crossplane-akuity-legacy
+  labels:
+    provider: provider-crossplane-akuity
+    apiGroup: core.akuity.crossplane.io
+    deprecation: v3.0.0
+spec:
+  activate:
+    - clusters.core.akuity.crossplane.io
+    - instances.core.akuity.crossplane.io

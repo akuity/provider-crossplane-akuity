@@ -173,6 +173,29 @@ echo_step "waiting for provider to be installed"
 
 kubectl wait "provider.pkg.crossplane.io/${PACKAGE_NAME}" --for=condition=healthy --timeout=180s
 
+# With spec.capabilities:[safe-start] the provider publishes every managed
+# resource's MRD as Inactive. Applying the shipped MRAPs (see package/mrap/)
+# activates both the v1alpha2 MRs and the legacy v1alpha1 MRs.
+echo_step "applying ManagedResourceActivationPolicies"
+"${KUBECTL}" apply -R -f "${projectdir}/package/mrap"
+
+echo_step "verifying v1alpha2 MRDs are Active"
+# Wait for each v1alpha2 MRD to report status.conditions[Active]=True. A
+# ten-second soft loop is enough: the MRD controller flips the condition as
+# soon as the MRAP lists the MRD name.
+V1ALPHA2_MRDS=(
+  clusters.core.m.akuity.crossplane.io
+  instances.core.m.akuity.crossplane.io
+  instanceipallowlists.core.m.akuity.crossplane.io
+  kargoinstances.core.m.akuity.crossplane.io
+  kargoagents.core.m.akuity.crossplane.io
+  kargodefaultshardagents.core.m.akuity.crossplane.io
+)
+for mrd in "${V1ALPHA2_MRDS[@]}"; do
+  "${KUBECTL}" wait "managedresourcedefinition.apiextensions.crossplane.io/${mrd}" \
+    --for=condition=Active=True --timeout=60s
+done
+
 echo_step "uninstalling ${PROJECT_NAME}"
 
 echo "${INSTALL_YAML}" | "${KUBECTL}" delete -f -

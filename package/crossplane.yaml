@@ -8,7 +8,6 @@ metadata:
     meta.crossplane.io/license: Apache-2.0
     meta.crossplane.io/description: |
       A Crossplane provider that can be used to manage Akuity resources.
-# NOTE: `spec.capabilities: [safe-start]` and MRAP activation manifests
-# will be added in WS-7 alongside per-resource MRAPs. Omitted now so the
-# v2.0.0 upgrade does not install existing CRDs as Inactive for users who
-# have not yet created ManagedResourceActivationPolicy manifests.
+spec:
+  capabilities:
+    - safe-start
