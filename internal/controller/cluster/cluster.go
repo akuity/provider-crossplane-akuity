@@ -45,6 +45,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
 	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
@@ -150,18 +151,11 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	akuityCluster, err := c.client.GetCluster(ctx, instanceID, meta.GetExternalName(managedCluster))
 	if err != nil {
-		c.logger.Debug("As we are not able to differentiate PermissionDenied/NotFound when calling GetCluster, we simply treat as not found here", "error", err)
-		return managed.ExternalObservation{ResourceExists: false}, nil
-
-		// As mentioned above, we simply treat PermissionDenied/NotFound as not found error here, otherwise, the provider
-		// is not able to create cluster.
-
-		// if reason.IsNotFound(err) {
-		// 	return managed.ExternalObservation{ResourceExists: false}, nil
-		// }
-		//
-		// managedCluster.SetConditions(xpv1.ReconcileError(err))
-		// return managed.ExternalObservation{}, err
+		if reason.IsNotFound(err) {
+			return managed.ExternalObservation{ResourceExists: false}, nil
+		}
+		managedCluster.SetConditions(xpv1.ReconcileError(err))
+		return managed.ExternalObservation{}, err
 	}
 
 	actualCluster, err := types.AkuityAPIToCrossplaneCluster(instanceID, managedCluster.Spec.ForProvider, akuityCluster)

@@ -79,9 +79,11 @@ func (c client) GetCluster(ctx context.Context, instanceID string, name string) 
 	})
 
 	if err != nil {
+		// The Akuity API does not distinguish NotFound from PermissionDenied
+		// when reading organisation-scoped clusters. See internal/reason/doc.go.
 		if e, ok := status.FromError(err); ok {
-			if e.Code() == codes.NotFound {
-				return nil, reason.AsNotFound(fmt.Errorf("could not get cluster %s from Akuity API, cluster was not found", name))
+			if e.Code() == codes.NotFound || e.Code() == codes.PermissionDenied {
+				return nil, reason.AsNotFound(fmt.Errorf("could not get cluster %s from Akuity API: %w", name, err))
 			}
 		}
 		return nil, fmt.Errorf("could not get cluster %s from Akuity API, error: %w", name, err)
