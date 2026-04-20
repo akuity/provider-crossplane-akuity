@@ -174,10 +174,10 @@ echo_step "waiting for provider to be installed"
 kubectl wait "provider.pkg.crossplane.io/${PACKAGE_NAME}" --for=condition=healthy --timeout=180s
 
 # With spec.capabilities:[safe-start] the provider publishes every managed
-# resource's MRD as Inactive. Applying the shipped MRAPs (see package/mrap/)
+# resource's MRD as Inactive. Applying the shipped MRAPs (see examples/mrap/)
 # activates both the v1alpha2 MRs and the legacy v1alpha1 MRs.
 echo_step "applying ManagedResourceActivationPolicies"
-"${KUBECTL}" apply -R -f "${projectdir}/package/mrap"
+"${KUBECTL}" apply -R -f "${projectdir}/examples/mrap"
 
 echo_step "verifying v1alpha2 MRDs are Active"
 # Wait for each v1alpha2 MRD to report status.conditions[Active]=True. A

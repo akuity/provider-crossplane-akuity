@@ -55,14 +55,14 @@ provider package — plan accordingly.
 
 3. **Upgrade the Akuity provider package to v2.0.0.** The package ships
    both API groups and two `ManagedResourceActivationPolicy` manifests
-   under `package/mrap/` that activate every v1alpha1 + v1alpha2 MR out of
+   under `examples/mrap/` that activate every v1alpha1 + v1alpha2 MR out of
    the box. Existing v1alpha1 CRs keep reconciling.
 
 4. **Migrate each v1alpha1 CR to its v1alpha2 equivalent** (§3). Migrate at
    your own pace inside the 6-month window.
 
 5. **(Optional, recommended)** Remove the legacy MRAP at
-   `package/mrap/legacy-v1alpha1.yaml` once all v1alpha1 CRs are gone. The
+   `examples/mrap/legacy-v1alpha1.yaml` once all v1alpha1 CRs are gone. The
    legacy MRDs go Inactive, reconcile stops, and the upcoming v3.0.0
    cleanup has nothing left to evict.
 
@@ -235,7 +235,7 @@ Composition flow hands that decision to operators.
 - **v2.x (months 1–6)**: bug/security fixes only for the legacy path; all
   feature work targets v1alpha2.
 - **v3.0.0 (day +180)**: legacy group removed. Delete
-  `package/mrap/legacy-v1alpha1.yaml` at this point if it is still present.
+  `examples/mrap/legacy-v1alpha1.yaml` at this point if it is still present.
 
 Calendar deadline is the only gate. The `akuity_legacy_v1alpha1_cr_count`
 gauge informs release-communications timing, not the removal itself.
