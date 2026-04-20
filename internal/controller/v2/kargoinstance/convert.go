@@ -29,7 +29,7 @@ import (
 
 // apiToSpec rebuilds the v1alpha2 KargoInstance parameters from the
 // Kargo-plane response. The nested KargoInstanceSpec sub-tree flows
-// through the WS-3 generated converter; wrapper-level fields
+// through the generated converter; wrapper-level fields
 // (Version, Description, Fqdn, Subdomain, OidcConfig) go through the
 // marshal bridge because the wire Kargo payload on the response side
 // carries them inline on *kargov1.KargoInstance rather than as
@@ -97,7 +97,7 @@ func kargoInstanceToWireSpec(ki *kargov1.KargoInstance) (akuitytypes.KargoInstan
 }
 
 // wireOIDC pulls the OidcConfig from the protobuf KargoInstance into
-// the hand-authored akuity wire type so the WS-3 converter can produce
+// the hand-authored akuity wire type so the generated converter can produce
 // a v1alpha2 KargoOidcConfig.
 func wireOIDC(ki *kargov1.KargoInstance) *akuitytypes.KargoOidcConfig {
 	oidc := ki.GetOidcConfig()

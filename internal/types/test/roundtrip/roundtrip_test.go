@@ -1,5 +1,5 @@
 // Package roundtrip_test locks the current converter behaviour as JSON
-// golden snapshots. WS-3 replaces internal/types with codegen output at
+// golden snapshots. The later codegen path emits output at
 // internal/convert/; the snapshots in ./testdata/ must round-trip
 // bit-identical across the swap. Refresh the snapshots with `-update`.
 package roundtrip_test
@@ -25,8 +25,8 @@ var update = flag.Bool("update", false, "rewrite testdata golden files")
 const testdataDir = "testdata"
 
 // TestCluster_CrossplaneToAkuityGolden snapshots the output of
-// CrossplaneToAkuityAPICluster for fixtures.CrossplaneCluster. WS-3 codegen
-// must reproduce this snapshot byte-identical.
+// CrossplaneToAkuityAPICluster for fixtures.CrossplaneCluster. The
+// codegen path must reproduce this snapshot byte-identical.
 func TestCluster_CrossplaneToAkuityGolden(t *testing.T) {
 	got, err := types.CrossplaneToAkuityAPICluster(fixtures.CrossplaneCluster)
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestCluster_AkuityToCrossplaneGolden(t *testing.T) {
 
 // Instance round-trip runs at the InstanceSpec level. The current fixtures
 // do not include a full *argocdv1.Instance + ExportInstanceResponse pair;
-// WS-3 should expand them when it lands v1alpha2 types. For now spec-level
+// the v1alpha2 codegen can expand them later. For now spec-level
 // conversion is the widest unit round-trip we can pin.
 func TestInstanceSpec_CrossplaneToAkuityGolden(t *testing.T) {
 	got, err := types.CrossplaneToAkuityAPIInstanceSpec(fixtures.CrossplaneInstanceSpec)

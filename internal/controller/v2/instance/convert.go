@@ -144,7 +144,7 @@ func apiToObservation(ai *argocdv1.Instance, exp *argocdv1.ExportInstanceRespons
 
 // lateInitialize fills in defaults from the actual (observed) instance
 // into the managed spec for fields the user commonly omits. Keep this
-// narrow to match WS-2 golden expectations.
+// narrow to match the legacy golden-snapshot expectations.
 func lateInitialize(in, actual *v1alpha2.InstanceParameters) {
 	if in.ArgoCD == nil || actual.ArgoCD == nil {
 		return
@@ -182,7 +182,7 @@ func isUpToDate(desired, actual v1alpha2.InstanceParameters) bool {
 }
 
 // buildApplyRequest materialises an ApplyInstanceRequest targeting the
-// Akuity API. Non-ConfigMap payloads flow through the WS-3 generated
+// Akuity API. Non-ConfigMap payloads flow through the generated
 // converters; ConfigMaps and plugins are marshalled directly via the
 // existing protobuf helper.
 func buildApplyRequest(_ context.Context, ac akuity.Client, mg *v1alpha2.Instance) (*argocdv1.ApplyInstanceRequest, error) {
@@ -442,7 +442,7 @@ func parametersFromWire(p *argocdtypes.Parameters) *v1alpha2.Parameters {
 }
 
 // pbInstanceSpecToSpec bridges the argocdv1 protobuf InstanceSpec
-// into the hand-authored akuitytypes.InstanceSpec that the WS-3
+// into the hand-authored akuitytypes.InstanceSpec that the
 // codegen operates on, then lets the generated converter project it
 // to v1alpha2. Going through marshal.ProtoToMap + RemarshalTo keeps
 // field-name semantics aligned (protojson camelCase ↔ JSON tags).

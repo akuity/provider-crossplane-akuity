@@ -158,9 +158,9 @@ func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoInstance) error 
 
 // specToPB marshals the curated v1alpha2 KargoInstance into the
 // structpb.Struct shape the Kargo ApplyKargoInstance endpoint expects
-// under the "kargo" field. The conversion goes through the WS-3
-// generated KargoSpec converter then through the JSON→map→structpb
-// bridge provided by internal/marshal.
+// under the "kargo" field. The conversion goes through the generated
+// KargoSpec converter then through the JSON→map→structpb bridge
+// provided by internal/marshal.
 func specToPB(in v1alpha2.KargoInstanceParameters) (*structpb.Struct, error) {
 	wire := akuitytypes.Kargo{
 		TypeMeta: metav1.TypeMeta{

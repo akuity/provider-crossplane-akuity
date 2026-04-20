@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package glue hosts hand-written adapters referenced by the WS-3
+// Package glue hosts hand-written adapters referenced by the
 // codegen output. Each adapter handles a shape mismatch between the
 // curated v1alpha2 types and the upstream Akuity wire types; the rest
 // of the convert layer is mechanical field copying emitted from

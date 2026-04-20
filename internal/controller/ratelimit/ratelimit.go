@@ -20,7 +20,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 )
 
-// Default rates. Conservative — tuned in WS-9 against staging load.
+// Default rates. Conservative — expected to be tuned against staging load.
 const (
 	DefaultRPS        = 10
 	DefaultBurstRatio = 10 // burst = rps * BurstRatio

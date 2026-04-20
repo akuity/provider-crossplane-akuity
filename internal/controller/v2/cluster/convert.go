@@ -31,7 +31,7 @@ import (
 )
 
 // specToAPI materialises the Akuity wire Cluster from the curated v2
-// spec. The sub-tree of ClusterData uses the WS-3 generated converter;
+// spec. The sub-tree of ClusterData uses the generated converter;
 // wrapping TypeMeta/ObjectMeta + top-level fields is hand-written
 // because codegen skips the wrapper (no akuity-side Cluster type in
 // the walker scope).

@@ -33,7 +33,7 @@ go run ./hack/fieldcov -update-baseline
 ```
 
 Audit the diff. New fields must either land in `apis/core/v1alpha2/` or be
-explicitly ignored via `hack/codegen/overrides.yaml` (WS-3). Removed fields
+explicitly ignored via `hack/codegen/overrides.yaml`. Removed fields
 mean upstream dropped something; mirror the removal in v1alpha2 or document
 why the provider keeps it.
 
@@ -41,5 +41,5 @@ why the provider keeps it.
 
 It does not check whether provider converters reach every upstream field.
 That signal comes from round-trip fixtures at `internal/types/test/roundtrip/`
-and from the WS-3 codegen coverage report. This tool only answers "what
+and from the codegen coverage report. This tool only answers "what
 exists upstream right now."

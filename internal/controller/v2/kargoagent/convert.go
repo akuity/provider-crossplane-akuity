@@ -41,7 +41,7 @@ func apiToSpec(desired v1alpha2.KargoAgentParameters, agent *kargov1.KargoAgent)
 		Labels:           desired.Labels,
 		Annotations:      desired.Annotations,
 	}
-	// Project the wire Data sub-tree via the WS-3 converter; the
+	// Project the wire Data sub-tree via the generated converter; the
 	// top-level KargoAgentSpec wrapper is constructed here because
 	// the wire KargoAgent doesn't expose a separate "spec" field.
 	spec := &v1alpha2.KargoAgentSpec{Description: agent.GetDescription()}
@@ -87,8 +87,8 @@ func agentDataPB(p v1alpha2.KargoAgentParameters) (*kargov1.KargoAgentData, erro
 }
 
 // convertAgentData folds the Kargo protobuf KargoAgentData into the
-// v1alpha2 spec shape. Goes through the marshal bridge + WS-3
-// generated converter the same way the KargoInstance controller does.
+// v1alpha2 spec shape. Goes through the marshal bridge + the
+// generated converter, the same way the KargoInstance controller does.
 func convertAgentData(pb *kargov1.KargoAgentData) *v1alpha2.KargoAgentData {
 	if pb == nil {
 		return nil

@@ -14,7 +14,7 @@
 //	go run ./hack/fieldcov -update-baseline   # rewrite baseline.json
 //
 // The tool does not attempt to detect "reachability" from the provider's
-// converters. That signal comes from round-trip fixtures and from the WS-3
+// converters. That signal comes from round-trip fixtures and from the
 // codegen overrides.yaml coverage report. fieldcov is intentionally simple:
 // it only tells you what upstream types exist.
 package main

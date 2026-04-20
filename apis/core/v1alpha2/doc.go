@@ -19,7 +19,7 @@ limitations under the License.
 //
 // Field shapes mirror the upstream akuity-platform wire types at
 // github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1
-// 1:1 (same field names, same pointer-vs-value decisions) so the WS-3
+// 1:1 (same field names, same pointer-vs-value decisions) so the
 // codegen tool can emit near-mechanical converters. The only blanket
 // transformation is Kustomization: upstream uses
 // runtime.RawExtension; v1alpha2 exposes the YAML string, converted by
