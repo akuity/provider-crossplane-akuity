@@ -6,9 +6,10 @@ PROJECT_REPO := github.com/akuityio/$(PROJECT_NAME)
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
 
-# Export so recursive make invocations (e.g. build/makelib/golang.mk
-# uses `?=`) honour this pin instead of inheriting a stale value from
-# the calling environment.
+# The version used here must match .github/workflows/ci.yml's
+# GOLANGCILINT_VERSION env var. Export so recursive make invocations
+# (e.g. build/makelib/golang.mk declares the same variable with `?=`)
+# honour this pin consistently.
 GOLANGCILINT_VERSION := 2.11.4
 export GOLANGCILINT_VERSION
 GO_LINT_ARGS := --timeout=10m

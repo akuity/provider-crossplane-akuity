@@ -9,11 +9,14 @@ on:
 
 env:
   GO_VERSION: "1.25"
-  # GOLANGCILINT_VERSION intentionally unset here: the Makefile pins the
-  # lint version (see GOLANGCILINT_VERSION in Makefile) and is the single
-  # source of truth. A workflow-level env var leaks into sub-make calls
-  # where build/makelib/golang.mk uses `?=`, which would silently shadow
-  # the Makefile pin and diverge CI from local.
+  # Keep GOLANGCILINT_VERSION in sync with the Makefile pin (see
+  # GOLANGCILINT_VERSION there). Setting it here too makes the CI
+  # toolchain visible at a glance; the Makefile's `export` on the same
+  # variable is what guarantees recursive make calls (where
+  # build/makelib/golang.mk declares it with `?=`) honour the pin. Drift
+  # between this value and the Makefile will surface as version
+  # mismatches at lint time.
+  GOLANGCILINT_VERSION: "2.11.4"
 
 jobs:
   detect-noop:
