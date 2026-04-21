@@ -55,6 +55,7 @@ func setupProviderConfigV2(mgr ctrl.Manager, o controller.Options) error {
 	name := providerconfig.ControllerName(apisv1alpha2.ProviderConfigGroupKind)
 	of := resource.ProviderConfigKinds{
 		Config:    apisv1alpha2.ProviderConfigGroupVersionKind,
+		Usage:     apisv1alpha2.ProviderConfigUsageGroupVersionKind,
 		UsageList: apisv1alpha2.ProviderConfigUsageListGroupVersionKind,
 	}
 	r := providerconfig.NewReconciler(mgr, of,
@@ -73,6 +74,7 @@ func setupClusterProviderConfigV2(mgr ctrl.Manager, o controller.Options) error 
 	name := providerconfig.ControllerName(apisv1alpha2.ClusterProviderConfigGroupKind)
 	of := resource.ProviderConfigKinds{
 		Config:    apisv1alpha2.ClusterProviderConfigGroupVersionKind,
+		Usage:     apisv1alpha2.ProviderConfigUsageGroupVersionKind,
 		UsageList: apisv1alpha2.ProviderConfigUsageListGroupVersionKind,
 	}
 	r := providerconfig.NewReconciler(mgr, of,
