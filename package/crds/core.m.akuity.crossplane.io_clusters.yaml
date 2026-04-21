@@ -68,207 +68,108 @@ spec:
                     description: Data holds the cluster data configuration.
                     properties:
                       appReplication:
-                        description: |-
-                          AppReplication toggles ArgoCD application replication to the
-                          managed cluster.
                         type: boolean
                       argocdNotificationsSettings:
-                        description: ArgocdNotificationsSettings enables in-cluster
-                          notifications.
                         properties:
                           inClusterSettings:
-                            description: |-
-                              InClusterSettings runs notifications from the agent instead of
-                              the Akuity control plane.
                             type: boolean
                         type: object
                       autoUpgradeDisabled:
-                        description: AutoUpgradeDisabled disables automatic agent
-                          upgrades.
                         type: boolean
                       autoscalerConfig:
-                        description: |-
-                          AutoscalerConfig configures horizontal autoscaling for agent
-                          components.
                         properties:
                           applicationController:
-                            description: ApplicationController autoscaler config.
                             properties:
                               resourceMaximum:
-                                description: ResourceMaximum allowed for the application
-                                  controller.
                                 properties:
                                   cpu:
-                                    description: Cpu is the CPU request/limit (Kubernetes
-                                      resource quantity).
                                     type: string
                                   mem:
-                                    description: Mem is the memory request/limit (Kubernetes
-                                      resource quantity).
                                     type: string
                                 type: object
                               resourceMinimum:
-                                description: ResourceMinimum requested for the application
-                                  controller.
                                 properties:
                                   cpu:
-                                    description: Cpu is the CPU request/limit (Kubernetes
-                                      resource quantity).
                                     type: string
                                   mem:
-                                    description: Mem is the memory request/limit (Kubernetes
-                                      resource quantity).
                                     type: string
                                 type: object
                             type: object
                           repoServer:
-                            description: RepoServer autoscaler config.
                             properties:
                               replicaMaximum:
-                                description: ReplicaMaximum caps the number of repo-server
-                                  replicas.
                                 format: int32
                                 type: integer
                               replicaMinimum:
-                                description: ReplicaMinimum floors the number of repo-server
-                                  replicas.
                                 format: int32
                                 type: integer
                               resourceMaximum:
-                                description: ResourceMaximum allowed for each repo-server
-                                  replica.
                                 properties:
                                   cpu:
-                                    description: Cpu is the CPU request/limit (Kubernetes
-                                      resource quantity).
                                     type: string
                                   mem:
-                                    description: Mem is the memory request/limit (Kubernetes
-                                      resource quantity).
                                     type: string
                                 type: object
                               resourceMinimum:
-                                description: ResourceMinimum requested for each repo-server
-                                  replica.
                                 properties:
                                   cpu:
-                                    description: Cpu is the CPU request/limit (Kubernetes
-                                      resource quantity).
                                     type: string
                                   mem:
-                                    description: Mem is the memory request/limit (Kubernetes
-                                      resource quantity).
                                     type: string
                                 type: object
                             type: object
                         type: object
                       compatibility:
-                        description: Compatibility captures platform-compatibility
-                          toggles.
                         properties:
                           ipv6Only:
-                            description: Ipv6Only restricts the agent to IPv6 networking.
                             type: boolean
                         type: object
                       datadogAnnotationsEnabled:
-                        description: DatadogAnnotationsEnabled toggles emission of
-                          Datadog annotations.
                         type: boolean
                       directClusterSpec:
-                        description: DirectClusterSpec configures direct-attach cluster
-                          credentials.
                         properties:
                           caData:
-                            description: CaData is the PEM-encoded CA bundle for the
-                              direct cluster.
                             type: string
                           clusterType:
-                            description: ClusterType selects the direct-attach strategy.
                             type: string
                           kargoInstanceId:
-                            description: |-
-                              KargoInstanceId pins the owning Kargo instance when ClusterType
-                              is Kargo-shaped.
                             type: string
                           organization:
-                            description: Organization is a direct-attach organization
-                              identifier.
                             type: string
                           server:
-                            description: Server is the API server URL for the direct
-                              cluster.
                             type: string
                           token:
-                            description: Token is a bearer-token credential for the
-                              direct cluster.
                             type: string
                         type: object
                       eksAddonEnabled:
-                        description: EksAddonEnabled toggles the EKS add-on installer
-                          path.
                         type: boolean
                       kustomization:
-                        description: |-
-                          Kustomization is a YAML-encoded Kustomization applied to the
-                          agent manifests before they are installed.
                         type: string
                       maintenanceMode:
-                        description: |-
-                          MaintenanceMode pauses agent reconciliation on the managed
-                          cluster.
                         type: boolean
                       maintenanceModeExpiry:
-                        description: |-
-                          MaintenanceModeExpiry scopes MaintenanceMode to an absolute
-                          deadline (RFC 3339).
                         format: date-time
                         type: string
                       managedClusterConfig:
-                        description: ManagedClusterConfig references a cluster-credentials
-                          Secret.
                         properties:
                           secretKey:
-                            description: SecretKey is the key within the Secret.
                             type: string
                           secretName:
-                            description: |-
-                              SecretName is the name of the Secret (in the Akuity managed
-                              namespace) storing the credentials.
                             type: string
                         type: object
                       multiClusterK8sDashboardEnabled:
-                        description: |-
-                          MultiClusterK8SDashboardEnabled toggles the multi-cluster K8s
-                          dashboard integration for this cluster.
                         type: boolean
                       podInheritMetadata:
-                        description: |-
-                          PodInheritMetadata copies selected labels/annotations from the
-                          agent pod template to the agent workload.
                         type: boolean
                       project:
-                        description: Project assigns the cluster to an ArgoCD project.
                         type: string
                       redisTunneling:
-                        description: RedisTunneling toggles Redis tunneling.
                         type: boolean
                       serverSideDiffEnabled:
-                        description: ServerSideDiffEnabled toggles server-side diff
-                          on the agent.
                         type: boolean
                       size:
-                        description: |-
-                          Size selects the agent sizing profile. Defaults to small when
-                          unset.
-                        enum:
-                        - unspecified
-                        - small
-                        - medium
-                        - large
-                        - auto
                         type: string
                       targetVersion:
-                        description: TargetVersion pins the agent to a specific version.
                         type: string
                     type: object
                   description:
@@ -390,8 +291,9 @@ spec:
                         type: string
                       statuses:
                         additionalProperties:
-                          description: ClusterObservationAgentHealthStatus is a per-agent
-                            status snapshot.
+                          description: |-
+                            ClusterObservationAgentHealthStatus is a per-agent status snapshot.
+                            Shell-owned; see ClusterObservationAgentState.
                           properties:
                             code:
                               description: Code reports the agent's numeric status

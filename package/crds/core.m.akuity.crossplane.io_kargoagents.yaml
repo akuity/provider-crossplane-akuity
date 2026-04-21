@@ -101,100 +101,56 @@ spec:
                     description: Spec is the KargoAgent configuration.
                     properties:
                       data:
-                        description: Data carries the agent configuration.
                         properties:
                           akuityManaged:
-                            description: AkuityManaged marks the agent as Akuity-managed.
                             type: boolean
                           allowedJobSa:
-                            description: |-
-                              AllowedJobSa lists service-account names allowed to run jobs for
-                              this agent.
                             items:
                               type: string
                             type: array
                           argocdNamespace:
-                            description: ArgocdNamespace is the ArgoCD namespace the
-                              agent observes.
                             type: string
                           autoUpgradeDisabled:
-                            description: AutoUpgradeDisabled disables automatic agent
-                              upgrades.
                             type: boolean
                           autoscalerConfig:
-                            description: AutoscalerConfig configures Kargo-controller
-                              autoscaling.
                             properties:
                               kargoController:
-                                description: KargoController autoscaler config.
                                 properties:
                                   resourceMaximum:
-                                    description: ResourceMaximum allowed for the controller.
                                     properties:
                                       cpu:
-                                        description: Cpu is the CPU request/limit.
                                         type: string
                                       mem:
-                                        description: Mem is the memory request/limit.
                                         type: string
                                     type: object
                                   resourceMinimum:
-                                    description: ResourceMinimum requested for the
-                                      controller.
                                     properties:
                                       cpu:
-                                        description: Cpu is the CPU request/limit.
                                         type: string
                                       mem:
-                                        description: Mem is the memory request/limit.
                                         type: string
                                     type: object
                                 type: object
                             type: object
                           kustomization:
-                            description: Kustomization YAML applied to agent manifests.
                             type: string
                           maintenanceMode:
-                            description: MaintenanceMode pauses reconciliation.
                             type: boolean
                           maintenanceModeExpiry:
-                            description: |-
-                              MaintenanceModeExpiry scopes MaintenanceMode to an absolute
-                              deadline.
                             format: date-time
                             type: string
                           podInheritMetadata:
-                            description: |-
-                              PodInheritMetadata copies selected labels/annotations from the
-                              agent pod template to the agent workload.
                             type: boolean
                           remoteArgocd:
-                            description: |-
-                              RemoteArgocd is the URL of a remote ArgoCD instance the agent
-                              should talk to.
                             type: string
                           selfManagedArgocdUrl:
-                            description: |-
-                              SelfManagedArgocdUrl is the URL of a self-managed ArgoCD
-                              instance bound to this agent.
                             type: string
                           size:
-                            description: Size selects the agent sizing profile.
-                            enum:
-                            - unspecified
-                            - small
-                            - medium
-                            - large
-                            - auto
                             type: string
                           targetVersion:
-                            description: TargetVersion pins the agent to a specific
-                              version.
                             type: string
                         type: object
                       description:
-                        description: Description is a free-form description of the
-                          agent.
                         type: string
                     type: object
                   workspace:

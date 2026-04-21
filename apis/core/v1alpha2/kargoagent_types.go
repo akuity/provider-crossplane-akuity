@@ -25,10 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// KargoAgentSize is the agent-sizing enum accepted by the Kargo API.
-// +kubebuilder:validation:Enum=unspecified;small;medium;large;auto
-type KargoAgentSize string
-
 // KargoAgentParameters are the configurable fields of a KargoAgent.
 //
 // +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) != has(self.kargoInstanceRef)",message="exactly one of kargoInstanceId or kargoInstanceRef must be set"
@@ -67,91 +63,6 @@ type KargoAgentParameters struct {
 	// Spec is the KargoAgent configuration.
 	// +optional
 	Spec *KargoAgentSpec `json:"spec,omitempty"`
-}
-
-// KargoAgentSpec is the Kargo-agent wire-level spec.
-type KargoAgentSpec struct {
-	// Description is a free-form description of the agent.
-	// +optional
-	Description string `json:"description,omitempty"`
-	// Data carries the agent configuration.
-	// +optional
-	Data KargoAgentData `json:"data,omitempty"`
-}
-
-// KargoAgentData configures a Kargo agent.
-type KargoAgentData struct {
-	// Size selects the agent sizing profile.
-	// +optional
-	Size KargoAgentSize `json:"size,omitempty"`
-	// AutoUpgradeDisabled disables automatic agent upgrades.
-	// +optional
-	AutoUpgradeDisabled *bool `json:"autoUpgradeDisabled,omitempty"`
-	// TargetVersion pins the agent to a specific version.
-	// +optional
-	TargetVersion string `json:"targetVersion,omitempty"`
-	// Kustomization YAML applied to agent manifests.
-	// +optional
-	Kustomization string `json:"kustomization,omitempty"`
-	// RemoteArgocd is the URL of a remote ArgoCD instance the agent
-	// should talk to.
-	// +optional
-	RemoteArgocd string `json:"remoteArgocd,omitempty"`
-	// AkuityManaged marks the agent as Akuity-managed.
-	// +optional
-	AkuityManaged bool `json:"akuityManaged,omitempty"`
-	// ArgocdNamespace is the ArgoCD namespace the agent observes.
-	// +optional
-	ArgocdNamespace string `json:"argocdNamespace,omitempty"`
-	// SelfManagedArgocdUrl is the URL of a self-managed ArgoCD
-	// instance bound to this agent.
-	// +optional
-	SelfManagedArgocdUrl string `json:"selfManagedArgocdUrl,omitempty"`
-	// AllowedJobSa lists service-account names allowed to run jobs for
-	// this agent.
-	// +optional
-	AllowedJobSa []string `json:"allowedJobSa,omitempty"`
-	// MaintenanceMode pauses reconciliation.
-	// +optional
-	MaintenanceMode *bool `json:"maintenanceMode,omitempty"`
-	// MaintenanceModeExpiry scopes MaintenanceMode to an absolute
-	// deadline.
-	// +optional
-	MaintenanceModeExpiry *metav1.Time `json:"maintenanceModeExpiry,omitempty"`
-	// PodInheritMetadata copies selected labels/annotations from the
-	// agent pod template to the agent workload.
-	// +optional
-	PodInheritMetadata *bool `json:"podInheritMetadata,omitempty"`
-	// AutoscalerConfig configures Kargo-controller autoscaling.
-	// +optional
-	AutoscalerConfig *KargoAutoscalerConfig `json:"autoscalerConfig,omitempty"`
-}
-
-// KargoResources captures a CPU/memory resource pair for Kargo.
-type KargoResources struct {
-	// Mem is the memory request/limit.
-	// +optional
-	Mem string `json:"mem,omitempty"`
-	// Cpu is the CPU request/limit.
-	// +optional
-	Cpu string `json:"cpu,omitempty"`
-}
-
-// KargoControllerAutoScalingConfig bounds Kargo-controller resources.
-type KargoControllerAutoScalingConfig struct {
-	// ResourceMinimum requested for the controller.
-	// +optional
-	ResourceMinimum *KargoResources `json:"resourceMinimum,omitempty"`
-	// ResourceMaximum allowed for the controller.
-	// +optional
-	ResourceMaximum *KargoResources `json:"resourceMaximum,omitempty"`
-}
-
-// KargoAutoscalerConfig configures Kargo-controller autoscaling.
-type KargoAutoscalerConfig struct {
-	// KargoController autoscaler config.
-	// +optional
-	KargoController *KargoControllerAutoScalingConfig `json:"kargoController,omitempty"`
 }
 
 // KargoAgentObservation are the observable fields of a KargoAgent.

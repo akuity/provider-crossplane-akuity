@@ -74,14 +74,10 @@ spec:
                       AllowList is the set of IP/CIDR entries to enforce on the
                       instance.
                     items:
-                      description: IPAllowListEntry grants access for a single IP
-                        or CIDR.
                       properties:
                         description:
-                          description: Description is free-form context.
                           type: string
                         ip:
-                          description: Ip is the IP address or CIDR.
                           type: string
                       type: object
                     type: array
@@ -181,14 +177,10 @@ spec:
                       AllowList is the set of IP/CIDR entries currently enforced on
                       the instance.
                     items:
-                      description: IPAllowListEntry grants access for a single IP
-                        or CIDR.
                       properties:
                         description:
-                          description: Description is free-form context.
                           type: string
                         ip:
-                          description: Ip is the IP address or CIDR.
                           type: string
                       type: object
                     type: array

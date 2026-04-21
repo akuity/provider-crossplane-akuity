@@ -72,163 +72,93 @@ spec:
                     description: Spec describes the Kargo configuration. Required.
                     properties:
                       description:
-                        description: Description is a free-form description of the
-                          instance.
                         type: string
                       fqdn:
-                        description: Fqdn overrides the default Kargo FQDN.
                         type: string
                       kargoInstanceSpec:
-                        description: KargoInstanceSpec captures instance-level Kargo
-                          configuration.
                         properties:
                           agentCustomizationDefaults:
-                            description: |-
-                              AgentCustomizationDefaults configures default agent
-                              customization.
                             properties:
                               autoUpgradeDisabled:
-                                description: AutoUpgradeDisabled disables automatic
-                                  agent upgrades.
                                 type: boolean
                               kustomization:
-                                description: Kustomization YAML applied to agent manifests.
                                 type: string
                             type: object
                           akuityIntelligence:
-                            description: |-
-                              AkuityIntelligence configures the Akuity Intelligence
-                              integration.
                             properties:
                               aiSupportEngineerEnabled:
-                                description: AiSupportEngineerEnabled toggles the
-                                  AI support engineer persona.
                                 type: boolean
                               allowedGroups:
-                                description: AllowedGroups grants access to named
-                                  groups.
                                 items:
                                   type: string
                                 type: array
                               allowedUsernames:
-                                description: AllowedUsernames grants access to named
-                                  users.
                                 items:
                                   type: string
                                 type: array
                               enabled:
-                                description: Enabled toggles the integration.
                                 type: boolean
                               modelVersion:
-                                description: ModelVersion pins the AI model version.
                                 type: string
                             type: object
                           argocdUi:
-                            description: ArgocdUi configures the Kargo-side ArgoCD
-                              UI integration.
                             properties:
                               idpGroupsMapping:
-                                description: IdpGroupsMapping toggles IdP-group mapping
-                                  in the ArgoCD UI.
                                 type: boolean
                             type: object
                           backendIpAllowListEnabled:
-                            description: BackendIpAllowListEnabled toggles the backend
-                              IP allow list.
                             type: boolean
                           defaultShardAgent:
-                            description: |-
-                              DefaultShardAgent is the name of the default shard agent used
-                              for new projects. Managed by KargoDefaultShardAgent MRs when
-                              present.
                             type: string
                           gcConfig:
-                            description: GcConfig configures the garbage collector.
                             properties:
                               maxRetainedFreight:
-                                description: MaxRetainedFreight caps retained freight
-                                  per warehouse.
                                 format: int32
                                 type: integer
                               maxRetainedPromotions:
-                                description: MaxRetainedPromotions caps retained promotions
-                                  per stage.
                                 format: int32
                                 type: integer
                               minFreightDeletionAge:
-                                description: MinFreightDeletionAge floors freight
-                                  retention in seconds.
                                 format: int32
                                 type: integer
                               minPromotionDeletionAge:
-                                description: MinPromotionDeletionAge floors promotion
-                                  retention in seconds.
                                 format: int32
                                 type: integer
                             type: object
                           globalCredentialsNs:
-                            description: |-
-                              GlobalCredentialsNs lists namespaces where credentials are
-                              shared across projects.
                             items:
                               type: string
                             type: array
                           globalServiceAccountNs:
-                            description: |-
-                              GlobalServiceAccountNs lists namespaces where service accounts
-                              are shared across projects.
                             items:
                               type: string
                             type: array
                           ipAllowList:
-                            description: IpAllowList restricts which IPs can reach
-                              the instance.
                             items:
-                              description: KargoIPAllowListEntry grants Kargo access
-                                for an IP/CIDR.
                               properties:
                                 description:
-                                  description: Description is free-form context.
                                   type: string
                                 ip:
-                                  description: Ip is the IP address or CIDR.
                                   type: string
                               type: object
                             type: array
                           promoControllerEnabled:
-                            description: PromoControllerEnabled toggles the promotion
-                              controller.
                             type: boolean
                           secrets:
-                            description: Secrets configures cross-cluster secret management
-                              for Kargo.
                             properties:
                               destinations:
-                                description: Destinations identify destination mappings.
                                 items:
-                                  description: ClusterSecretMapping maps clusters
-                                    to secrets.
                                   properties:
                                     clusters:
-                                      description: Clusters selects source/destination
-                                        clusters.
                                       properties:
                                         matchExpressions:
-                                          description: MatchExpressions selects by
-                                            compound label expression.
                                           items:
-                                            description: LabelSelectorRequirement
-                                              is a single label-selector expression.
                                             properties:
                                               key:
-                                                description: Key is the label key.
                                                 type: string
                                               operator:
-                                                description: Operator applied to values.
                                                 type: string
                                               values:
-                                                description: Values compared against
-                                                  the label.
                                                 items:
                                                   type: string
                                                 type: array
@@ -237,29 +167,18 @@ spec:
                                         matchLabels:
                                           additionalProperties:
                                             type: string
-                                          description: MatchLabels selects by label
-                                            equality.
                                           type: object
                                       type: object
                                     secrets:
-                                      description: Secrets selects secret resources.
                                       properties:
                                         matchExpressions:
-                                          description: MatchExpressions selects by
-                                            compound label expression.
                                           items:
-                                            description: LabelSelectorRequirement
-                                              is a single label-selector expression.
                                             properties:
                                               key:
-                                                description: Key is the label key.
                                                 type: string
                                               operator:
-                                                description: Operator applied to values.
                                                 type: string
                                               values:
-                                                description: Values compared against
-                                                  the label.
                                                 items:
                                                   type: string
                                                 type: array
@@ -268,38 +187,23 @@ spec:
                                         matchLabels:
                                           additionalProperties:
                                             type: string
-                                          description: MatchLabels selects by label
-                                            equality.
                                           type: object
                                       type: object
                                   type: object
                                 type: array
                               sources:
-                                description: Sources identify source mappings.
                                 items:
-                                  description: ClusterSecretMapping maps clusters
-                                    to secrets.
                                   properties:
                                     clusters:
-                                      description: Clusters selects source/destination
-                                        clusters.
                                       properties:
                                         matchExpressions:
-                                          description: MatchExpressions selects by
-                                            compound label expression.
                                           items:
-                                            description: LabelSelectorRequirement
-                                              is a single label-selector expression.
                                             properties:
                                               key:
-                                                description: Key is the label key.
                                                 type: string
                                               operator:
-                                                description: Operator applied to values.
                                                 type: string
                                               values:
-                                                description: Values compared against
-                                                  the label.
                                                 items:
                                                   type: string
                                                 type: array
@@ -308,29 +212,18 @@ spec:
                                         matchLabels:
                                           additionalProperties:
                                             type: string
-                                          description: MatchLabels selects by label
-                                            equality.
                                           type: object
                                       type: object
                                     secrets:
-                                      description: Secrets selects secret resources.
                                       properties:
                                         matchExpressions:
-                                          description: MatchExpressions selects by
-                                            compound label expression.
                                           items:
-                                            description: LabelSelectorRequirement
-                                              is a single label-selector expression.
                                             properties:
                                               key:
-                                                description: Key is the label key.
                                                 type: string
                                               operator:
-                                                description: Operator applied to values.
                                                 type: string
                                               values:
-                                                description: Values compared against
-                                                  the label.
                                                 items:
                                                   type: string
                                                 type: array
@@ -339,8 +232,6 @@ spec:
                                         matchLabels:
                                           additionalProperties:
                                             type: string
-                                          description: MatchLabels selects by label
-                                            equality.
                                           type: object
                                       type: object
                                   type: object
@@ -348,126 +239,84 @@ spec:
                             type: object
                         type: object
                       oidcConfig:
-                        description: OidcConfig configures OIDC authentication.
                         properties:
                           additionalScopes:
-                            description: AdditionalScopes requested from the OIDC
-                              provider.
                             items:
                               type: string
                             type: array
                           adminAccount:
-                            description: AdminAccount predefined admin account.
                             properties:
                               claims:
                                 additionalProperties:
-                                  description: |-
-                                    KargoPredefinedAccountClaimValue lists values that satisfy a
-                                    predefined claim.
                                   properties:
                                     values:
-                                      description: Values that satisfy the claim.
                                       items:
                                         type: string
                                       type: array
                                   required:
                                   - values
                                   type: object
-                                description: Claims maps a claim name to its accepted
-                                  values.
                                 type: object
                             type: object
                           cliClientId:
-                            description: CliClientID used by the Kargo CLI.
                             type: string
                           clientId:
-                            description: ClientID used by Kargo.
                             type: string
                           dexConfig:
-                            description: DexConfig is the Dex configuration (YAML).
                             type: string
                           dexConfigSecret:
                             additionalProperties:
-                              description: Value is a value reference inside DexConfigSecret.
                               properties:
                                 value:
-                                  description: Value is the literal value.
                                   type: string
                               type: object
-                            description: DexConfigSecret maps keys into Dex config
-                              values.
                             type: object
                           dexEnabled:
-                            description: DexEnabled toggles the Dex OIDC proxy.
                             type: boolean
                           enabled:
-                            description: Enabled toggles OIDC authentication.
                             type: boolean
                           issuerUrl:
-                            description: IssuerURL of the OIDC provider.
                             type: string
                           projectCreatorAccount:
-                            description: ProjectCreatorAccount predefined project-creator
-                              account.
                             properties:
                               claims:
                                 additionalProperties:
-                                  description: |-
-                                    KargoPredefinedAccountClaimValue lists values that satisfy a
-                                    predefined claim.
                                   properties:
                                     values:
-                                      description: Values that satisfy the claim.
                                       items:
                                         type: string
                                       type: array
                                   required:
                                   - values
                                   type: object
-                                description: Claims maps a claim name to its accepted
-                                  values.
                                 type: object
                             type: object
                           userAccount:
-                            description: UserAccount predefined user account.
                             properties:
                               claims:
                                 additionalProperties:
-                                  description: |-
-                                    KargoPredefinedAccountClaimValue lists values that satisfy a
-                                    predefined claim.
                                   properties:
                                     values:
-                                      description: Values that satisfy the claim.
                                       items:
                                         type: string
                                       type: array
                                   required:
                                   - values
                                   type: object
-                                description: Claims maps a claim name to its accepted
-                                  values.
                                 type: object
                             type: object
                           viewerAccount:
-                            description: ViewerAccount predefined viewer account.
                             properties:
                               claims:
                                 additionalProperties:
-                                  description: |-
-                                    KargoPredefinedAccountClaimValue lists values that satisfy a
-                                    predefined claim.
                                   properties:
                                     values:
-                                      description: Values that satisfy the claim.
                                       items:
                                         type: string
                                       type: array
                                   required:
                                   - values
                                   type: object
-                                description: Claims maps a claim name to its accepted
-                                  values.
                                 type: object
                             type: object
                         required:
@@ -485,11 +334,8 @@ spec:
                         - viewerAccount
                         type: object
                       subdomain:
-                        description: Subdomain overrides the default Kargo subdomain.
                         type: string
                       version:
-                        description: Version of Kargo to run. Required.
-                        minLength: 1
                         type: string
                     required:
                     - description
