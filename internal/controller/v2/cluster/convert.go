@@ -156,10 +156,7 @@ func pbToAkuityClusterData(d *argocdv1.ClusterData) *akuitytypes.ClusterData {
 		ServerSideDiffEnabled:           d.ServerSideDiffEnabled,
 		MaintenanceModeExpiry:           timestampPBToMetav1(d.GetMaintenanceModeExpiry()),
 		Project:                         d.GetProject(),
-		// PodInheritMetadata exists on the upstream Go wire type and
-		// v1alpha2 spec but is not yet on the proto — leave zero in the
-		// projection so drift is only compared where the API can
-		// round-trip the value.
+		PodInheritMetadata:              d.PodInheritMetadata,
 	}
 	if ds := d.GetDirectClusterSpec(); ds != nil {
 		out.DirectClusterSpec = &akuitytypes.DirectClusterSpec{

@@ -36,7 +36,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,17 +55,12 @@ import (
 // Compositions consume the value as YAML.
 const ConnectionKeyManifests = "manifests"
 
-// clusterDriftOpts filters fields that are known to be write-only in
-// the current api-client-go proto, i.e. the controller can send them
-// on apply (via the upstream Go wire type's JSON round-trip) but
-// cannot read them back because the proto response type lacks the
-// field. Including them in cmp.Equal would cause permanent drift
-// flapping until the proto catches up. Changes to these fields alone
-// therefore will not trigger Update — users must touch another field
-// to propagate a mutation until the proto adds read support.
-var clusterDriftOpts = []cmp.Option{
-	cmpopts.IgnoreFields(v1alpha2.ClusterData{}, "PodInheritMetadata"),
-}
+// clusterDriftOpts filters fields that are write-only on the current
+// api-client-go proto — i.e. the controller can send them on apply but
+// cannot read them back, so including them in cmp.Equal would drift
+// flap forever. Empty post the v0.29.1 bump which added proto read
+// support for PodInheritMetadata; retained as an extension point.
+var clusterDriftOpts = []cmp.Option{}
 
 // Setup registers the v1alpha2 Cluster controller.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
