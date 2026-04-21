@@ -839,6 +839,21 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) RefreshInstanceAddonRepo(a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshInstanceAddonRepo", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).RefreshInstanceAddonRepo), arg0, arg1)
 }
 
+// RefreshInstanceRunbookRepo mocks base method.
+func (m *MockArgoCDServiceGatewayClient) RefreshInstanceRunbookRepo(arg0 context.Context, arg1 *argocdv1.RefreshInstanceRunbookRepoRequest) (*argocdv1.RefreshInstanceRunbookRepoResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefreshInstanceRunbookRepo", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.RefreshInstanceRunbookRepoResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RefreshInstanceRunbookRepo indicates an expected call of RefreshInstanceRunbookRepo.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) RefreshInstanceRunbookRepo(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshInstanceRunbookRepo", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).RefreshInstanceRunbookRepo), arg0, arg1)
+}
+
 // RegenerateInstanceAccountPassword mocks base method.
 func (m *MockArgoCDServiceGatewayClient) RegenerateInstanceAccountPassword(arg0 context.Context, arg1 *argocdv1.RegenerateInstanceAccountPasswordRequest) (*argocdv1.RegenerateInstanceAccountPasswordResponse, error) {
 	m.ctrl.T.Helper()
