@@ -19,6 +19,7 @@ package instance
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -145,20 +146,27 @@ func apiToObservation(ai *argocdv1.Instance, exp *argocdv1.ExportInstanceRespons
 }
 
 // lateInitialize fills in defaults from the actual (observed) instance
-// into the managed spec for fields the user commonly omits. Keep this
-// narrow to match the legacy golden-snapshot expectations. Returns true
-// when any field on in was mutated so the caller can signal
+// into the managed spec for fields the user commonly omits. Returns
+// true when any field on in was mutated so the caller can signal
 // ResourceLateInitialized to the managed.Reconciler.
+//
+// ArgoCDInstanceSpec has ~13 pointer fields that the Akuity server
+// populates with defaults on first Apply (e.g. DeclarativeManagement
+// Enabled=true, ClusterCustomizationDefaults, KubeVisionConfig, ...).
+// If those defaults are never copied back into the managed resource's
+// spec, every subsequent reconcile sees nil-vs-populated drift and
+// fires another Apply — the customer-reported infinite-reconcile
+// pattern. Rather than listing each field explicitly (and forgetting
+// the next one the server adds), walk the struct reflectively and
+// adopt any nil→non-nil pointer and "" → non-empty string field.
 func lateInitialize(in, actual *v1alpha2.InstanceParameters) bool {
 	before := in.DeepCopy()
 
 	if in.ArgoCD != nil && actual.ArgoCD != nil {
-		if in.ArgoCD.Spec.InstanceSpec.Subdomain == "" {
-			in.ArgoCD.Spec.InstanceSpec.Subdomain = actual.ArgoCD.Spec.InstanceSpec.Subdomain
-		}
-		if in.ArgoCD.Spec.InstanceSpec.Fqdn == "" {
-			in.ArgoCD.Spec.InstanceSpec.Fqdn = actual.ArgoCD.Spec.InstanceSpec.Fqdn
-		}
+		lateInitializeStruct(
+			reflect.ValueOf(&in.ArgoCD.Spec.InstanceSpec).Elem(),
+			reflect.ValueOf(&actual.ArgoCD.Spec.InstanceSpec).Elem(),
+		)
 	}
 
 	if in.ArgoCDConfigMap == nil {
@@ -178,6 +186,34 @@ func lateInitialize(in, actual *v1alpha2.InstanceParameters) bool {
 	}
 
 	return !cmp.Equal(before, in)
+}
+
+// lateInitializeStruct walks two matching structs and, for every field
+// that is unset on `in` but populated on `actual`, copies actual into
+// in. Handles pointer fields (nil → non-nil) and string fields
+// ("" → non-empty). Leaves already-set fields untouched so that a
+// user's explicit value wins over a server default.
+func lateInitializeStruct(in, actual reflect.Value) {
+	if in.Kind() != reflect.Struct || actual.Kind() != reflect.Struct {
+		return
+	}
+	for i := 0; i < in.NumField(); i++ {
+		inField := in.Field(i)
+		acField := actual.Field(i)
+		if !inField.CanSet() {
+			continue
+		}
+		switch inField.Kind() {
+		case reflect.Pointer, reflect.Slice, reflect.Map:
+			if inField.IsNil() && !acField.IsNil() {
+				inField.Set(acField)
+			}
+		case reflect.String:
+			if inField.Len() == 0 && acField.Len() > 0 {
+				inField.Set(acField)
+			}
+		}
+	}
 }
 
 // isUpToDate compares managed spec against observed spec with
