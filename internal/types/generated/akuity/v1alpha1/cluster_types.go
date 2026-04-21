@@ -40,7 +40,7 @@ func init() {
 
 type ClusterSpec struct {
 	Description     string      `json:"description,omitempty"`
-	NamespaceScoped bool        `json:"namespaceScoped,omitempty"`
+	NamespaceScoped *bool       `json:"namespaceScoped,omitempty"`
 	Data            ClusterData `json:"data,omitempty"`
 }
 
@@ -81,11 +81,11 @@ type RepoServerAutoScalingConfig struct {
 }
 
 type ClusterCompatibility struct {
-	Ipv6Only bool `json:"ipv6Only,omitempty"`
+	Ipv6Only *bool `json:"ipv6Only,omitempty"`
 }
 
 type ClusterArgoCDNotificationsSettings struct {
-	InClusterSettings bool `json:"inClusterSettings,omitempty"`
+	InClusterSettings *bool `json:"inClusterSettings,omitempty"`
 }
 
 type ClusterData struct {

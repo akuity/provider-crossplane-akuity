@@ -52,8 +52,8 @@ type KargoPredefinedAccountData struct {
 }
 
 type KargoOidcConfig struct {
-	Enabled               bool                       `json:"enabled"`
-	DexEnabled            bool                       `json:"dexEnabled"`
+	Enabled               *bool                      `json:"enabled"`
+	DexEnabled            *bool                      `json:"dexEnabled"`
 	DexConfig             string                     `json:"dexConfig"`
 	DexConfigSecret       map[string]Value           `json:"dexConfigSecret"`
 	IssuerURL             string                     `json:"issuerUrl"`
@@ -76,12 +76,12 @@ type KargoIPAllowListEntry struct {
 }
 
 type KargoAgentCustomization struct {
-	AutoUpgradeDisabled bool                 `json:"autoUpgradeDisabled,omitempty"`
+	AutoUpgradeDisabled *bool                `json:"autoUpgradeDisabled,omitempty"`
 	Kustomization       runtime.RawExtension `json:"kustomization,omitempty"`
 }
 
 type KargoInstanceSpec struct {
-	BackendIpAllowListEnabled  bool                     `json:"backendIpAllowListEnabled,omitempty"`
+	BackendIpAllowListEnabled  *bool                    `json:"backendIpAllowListEnabled,omitempty"`
 	IpAllowList                []*KargoIPAllowListEntry `json:"ipAllowList,omitempty"`
 	AgentCustomizationDefaults *KargoAgentCustomization `json:"agentCustomizationDefaults,omitempty"`
 	DefaultShardAgent          string                   `json:"defaultShardAgent,omitempty"`
@@ -89,18 +89,18 @@ type KargoInstanceSpec struct {
 	GlobalServiceAccountNs     []string                 `json:"globalServiceAccountNs,omitempty"`
 	AkuityIntelligence         *AkuityIntelligence      `json:"akuityIntelligence,omitempty"`
 	GcConfig                   *GarbageCollectorConfig  `json:"gcConfig,omitempty"`
-	PromoControllerEnabled     bool                     `json:"promoControllerEnabled,omitempty"`
+	PromoControllerEnabled     *bool                    `json:"promoControllerEnabled,omitempty"`
 	Secrets                    SecretsManagementConfig  `json:"secrets,omitempty"`
 	ArgocdUi                   *KargoArgoCDUIConfig     `json:"argocdUi,omitempty"`
 }
 
 type KargoArgoCDUIConfig struct {
-	IdpGroupsMapping bool `json:"idpGroupsMapping,omitempty"`
+	IdpGroupsMapping *bool `json:"idpGroupsMapping,omitempty"`
 }
 
 type AkuityIntelligence struct {
-	AiSupportEngineerEnabled bool     `json:"aiSupportEngineerEnabled,omitempty"`
-	Enabled                  bool     `json:"enabled,omitempty"`
+	AiSupportEngineerEnabled *bool    `json:"aiSupportEngineerEnabled,omitempty"`
+	Enabled                  *bool    `json:"enabled,omitempty"`
 	AllowedUsernames         []string `json:"allowedUsernames,omitempty"`
 	AllowedGroups            []string `json:"allowedGroups,omitempty"`
 	ModelVersion             string   `json:"modelVersion,omitempty"`
