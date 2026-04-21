@@ -217,11 +217,23 @@ func lateInitializeStruct(in, actual reflect.Value) {
 }
 
 // isUpToDate compares managed spec against observed spec with
-// structural equality; reduces to a standard cmp.Equal call now that
-// both sides come from the codegen converters with consistent
-// zero-value semantics.
+// structural equality. `*bool` fields are compared by their effective
+// boolean value (nil and &false are treated as equal) because the
+// Akuity proto3 wire drops `false` as the primitive-bool zero value —
+// observed state round-trips back as `nil` even when the user wrote
+// `false` into their spec. Treating the two as equal avoids spec ==
+// &false vs observed == nil being a permanent apparent drift that
+// fires `ApplyInstance` every poll.
 func isUpToDate(desired, actual v1alpha2.InstanceParameters) bool {
-	return cmp.Equal(desired, actual)
+	return cmp.Equal(desired, actual, cmp.Comparer(boolPtrEqualEffective))
+}
+
+// boolPtrEqualEffective returns true if two `*bool` values represent
+// the same effective boolean (nil == &false; &true == &true).
+func boolPtrEqualEffective(a, b *bool) bool {
+	aVal := a != nil && *a
+	bVal := b != nil && *b
+	return aVal == bVal
 }
 
 // buildApplyRequest materialises an ApplyInstanceRequest targeting the
