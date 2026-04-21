@@ -97,4 +97,6 @@ type ClusterData struct {
 	Compatibility                   *ClusterCompatibility               `json:"compatibility,omitempty"`
 	ArgocdNotificationsSettings     *ClusterArgoCDNotificationsSettings `json:"argocdNotificationsSettings,omitempty"`
 	ServerSideDiffEnabled           *bool                               `json:"serverSideDiffEnabled,omitempty"`
+	MaintenanceModeExpiry           *string                             `json:"maintenanceModeExpiry,omitempty"`
+	PodInheritMetadata              *bool                               `json:"podInheritMetadata,omitempty"`
 }
