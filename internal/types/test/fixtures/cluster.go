@@ -125,7 +125,7 @@ patches:
 		},
 		Spec: akuitytypes.ClusterSpec{
 			Description:     "test-description",
-			NamespaceScoped:  ptr.To(true),
+			NamespaceScoped: ptr.To(true),
 			Data: akuitytypes.ClusterData{
 				Size:                akuitytypes.ClusterSize("medium"),
 				AutoUpgradeDisabled: &AutoUpgradeDisabled,

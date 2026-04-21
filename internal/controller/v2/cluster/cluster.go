@@ -26,8 +26,8 @@ import (
 	"context"
 	"fmt"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
@@ -40,6 +40,8 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
 	apisv1alpha2 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha2"
@@ -114,20 +116,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Cluster) (managed.E
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
-	ac, err := e.Client.GetCluster(ctx, instanceID, meta.GetExternalName(mg))
-	if err != nil {
-		if reason.IsNotFound(err) {
-			return managed.ExternalObservation{ResourceExists: false}, nil
-		}
-		if reason.IsProvisioningWait(err) {
-			// Transient wait-state — surface as Unavailable rather
-			// than escalating to ReconcileError. UpToDate=true avoids
-			// the provisioning hot-loop.
-			mg.SetConditions(xpv1.Unavailable())
-			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
-		}
-		mg.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
+	ac, obs, done, err := e.fetchCluster(ctx, mg, instanceID)
+	if done {
+		return obs, err
 	}
 
 	// Project the observed cluster into the v1alpha2 shape and the
@@ -173,6 +164,30 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Cluster) (managed.E
 	}
 
 	return observation, nil
+}
+
+// fetchCluster wraps e.Client.GetCluster and folds the three
+// transient/error classifications into an ExternalObservation ready to
+// return. The `done` return is true when the caller (Observe) should
+// short-circuit with the returned observation/err; on done=false the
+// cluster was fetched successfully and the caller continues.
+func (e *external) fetchCluster(ctx context.Context, mg *v1alpha2.Cluster, instanceID string) (*argocdv1.Cluster, managed.ExternalObservation, bool, error) {
+	ac, err := e.Client.GetCluster(ctx, instanceID, meta.GetExternalName(mg))
+	if err == nil {
+		return ac, managed.ExternalObservation{}, false, nil
+	}
+	if reason.IsNotFound(err) {
+		return nil, managed.ExternalObservation{ResourceExists: false}, true, nil
+	}
+	if reason.IsProvisioningWait(err) {
+		// Transient wait-state — surface as Unavailable rather than
+		// escalating to ReconcileError. UpToDate=true avoids the
+		// provisioning hot-loop.
+		mg.SetConditions(xpv1.Unavailable())
+		return nil, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, true, nil
+	}
+	mg.SetConditions(xpv1.ReconcileError(err))
+	return nil, managed.ExternalObservation{}, true, err
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.Cluster) (managed.ExternalCreation, error) {

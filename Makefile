@@ -73,6 +73,18 @@ generate-convert:
 # converters and the controller-gen / angryjet output in one shot.
 generate.init: generate-convert
 
+# Run gofmt + goimports across the repo, then let golangci-lint auto-fix
+# the remaining formatter-adjacent rules (gofumpt, goimports,
+# protogetter, etc.). Idempotent; run locally before committing to
+# keep CI green.
+format: $(GOLANGCILINT)
+	@$(INFO) gofmt + goimports
+	@gofmt -w $$(find . -name '*.go' -not -path './build/*' -not -path './.work/*' -not -path './.cache/*')
+	@$(GO) run golang.org/x/tools/cmd/goimports@latest -w -local github.com/akuityio/provider-crossplane-akuity $$(find . -name '*.go' -not -path './build/*' -not -path './.work/*' -not -path './.cache/*')
+	@$(INFO) golangci-lint --fix
+	@$(GOLANGCILINT) run --fix $(GO_LINT_ARGS) || true
+	@$(OK) format
+
 # integration tests
 e2e.run: test-integration
 

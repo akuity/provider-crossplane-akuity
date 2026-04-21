@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
@@ -35,6 +34,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
 	apisv1alpha2 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha2"

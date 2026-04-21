@@ -18,6 +18,7 @@ package cluster
 
 import (
 	"encoding/json"
+
 	"k8s.io/utils/ptr"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -153,7 +154,7 @@ func pbToAkuityClusterData(d *argocdv1.ClusterData) *akuitytypes.ClusterData {
 		MaintenanceMode:                 d.MaintenanceMode,
 		MultiClusterK8SDashboardEnabled: d.MultiClusterK8SDashboardEnabled,
 		ServerSideDiffEnabled:           d.ServerSideDiffEnabled,
-		MaintenanceModeExpiry:           timestampPBToMetav1(d.MaintenanceModeExpiry),
+		MaintenanceModeExpiry:           timestampPBToMetav1(d.GetMaintenanceModeExpiry()),
 		Project:                         d.GetProject(),
 		// PodInheritMetadata exists on the upstream Go wire type and
 		// v1alpha2 spec but is not yet on the proto — leave zero in the

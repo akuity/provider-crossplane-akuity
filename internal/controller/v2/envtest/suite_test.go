@@ -1,3 +1,5 @@
+//go:build envtest
+
 /*
 Copyright 2026 The Crossplane Authors.
 
@@ -13,8 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-//go:build envtest
 
 // Package envtest hosts cross-controller integration tests that boot a
 // real kube-apiserver (via sigs.k8s.io/controller-runtime/pkg/envtest),

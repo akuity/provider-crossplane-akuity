@@ -27,7 +27,6 @@ import (
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
@@ -40,6 +39,8 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
 	apisv1alpha2 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha2"
@@ -112,17 +113,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoAgent) (manage
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
-	agent, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, meta.GetExternalName(mg))
-	if err != nil {
-		if reason.IsNotFound(err) {
-			return managed.ExternalObservation{ResourceExists: false}, nil
-		}
-		if reason.IsProvisioningWait(err) {
-			mg.SetConditions(xpv1.Unavailable())
-			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
-		}
-		mg.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
+	agent, obs, done, err := e.fetchAgent(ctx, mg, instanceID)
+	if done {
+		return obs, err
 	}
 
 	actual := apiToSpec(mg.Spec.ForProvider, agent)
@@ -160,6 +153,25 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoAgent) (manage
 	}
 
 	return observation, nil
+}
+
+// fetchAgent wraps e.Client.GetKargoInstanceAgent and folds the
+// transient/error classifications into an ExternalObservation ready
+// to return. See (cluster).fetchCluster for the shape rationale.
+func (e *external) fetchAgent(ctx context.Context, mg *v1alpha2.KargoAgent, instanceID string) (*kargov1.KargoAgent, managed.ExternalObservation, bool, error) {
+	agent, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, meta.GetExternalName(mg))
+	if err == nil {
+		return agent, managed.ExternalObservation{}, false, nil
+	}
+	if reason.IsNotFound(err) {
+		return nil, managed.ExternalObservation{ResourceExists: false}, true, nil
+	}
+	if reason.IsProvisioningWait(err) {
+		mg.SetConditions(xpv1.Unavailable())
+		return nil, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, true, nil
+	}
+	mg.SetConditions(xpv1.ReconcileError(err))
+	return nil, managed.ExternalObservation{}, true, err
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoAgent) (managed.ExternalCreation, error) {
