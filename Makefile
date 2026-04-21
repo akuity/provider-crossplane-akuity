@@ -6,7 +6,7 @@ PROJECT_REPO := github.com/akuityio/$(PROJECT_NAME)
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
 
-GOLANGCILINT_VERSION := 2.5.0
+GOLANGCILINT_VERSION := 2.11.4
 GO_LINT_ARGS := --timeout=10m
 CROSSPLANE_CLI_VERSION = v1.20.1
 
