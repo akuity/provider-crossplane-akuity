@@ -21,8 +21,9 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
@@ -114,23 +115,141 @@ func apiToObservation(cl *argocdv1.Cluster) v1alpha2.ClusterObservation {
 }
 
 // clusterDataFromPB translates the protobuf ClusterData into the v2
-// spec shape. Pointer-valued booleans in the spec model the distinction
-// between "unset" and "false" to preserve server-side defaults during
-// drift detection.
+// spec shape. The heavy lifting — every nested struct and the full
+// field set — is delegated to the generated ClusterDataAPIToSpec
+// converter; this function only bridges the proto wire to the upstream
+// Go wire type the generated code expects. Optional-bool presence is
+// preserved by reading the proto pointer fields directly rather than
+// through the flattening Get*() accessors.
 func clusterDataFromPB(d *argocdv1.ClusterData) v1alpha2.ClusterData {
 	if d == nil {
 		return v1alpha2.ClusterData{}
 	}
-	out := v1alpha2.ClusterData{
-		Size:                v1alpha2.ClusterSize(clusterSizeString(d.GetSize())),
-		AutoUpgradeDisabled: ptr.To(d.GetAutoUpgradeDisabled()),
-		Kustomization:       pbStructToYAML(d.GetKustomization()),
-		AppReplication:      ptr.To(d.GetAppReplication()),
-		TargetVersion:       d.GetTargetVersion(),
-		RedisTunneling:      ptr.To(d.GetRedisTunneling()),
-		Project:             d.GetProject(),
+	spec := convert.ClusterDataAPIToSpec(pbToAkuityClusterData(d))
+	if spec == nil {
+		return v1alpha2.ClusterData{}
+	}
+	return *spec
+}
+
+// pbToAkuityClusterData projects the proto ClusterData onto the upstream
+// Akuity Go wire type. Optional fields that the proto models as *bool /
+// message pointers are copied without dereference so the generated
+// converter can distinguish "absent" from "explicit false/empty".
+func pbToAkuityClusterData(d *argocdv1.ClusterData) *akuitytypes.ClusterData {
+	if d == nil {
+		return nil
+	}
+	out := &akuitytypes.ClusterData{
+		Size:                            akuitytypes.ClusterSize(clusterSizeString(d.GetSize())),
+		AutoUpgradeDisabled:             d.AutoUpgradeDisabled,
+		Kustomization:                   pbStructToRawExtension(d.GetKustomization()),
+		AppReplication:                  d.AppReplication,
+		TargetVersion:                   d.GetTargetVersion(),
+		RedisTunneling:                  d.RedisTunneling,
+		DatadogAnnotationsEnabled:       d.DatadogAnnotationsEnabled,
+		EksAddonEnabled:                 d.EksAddonEnabled,
+		MaintenanceMode:                 d.MaintenanceMode,
+		MultiClusterK8SDashboardEnabled: d.MultiClusterK8SDashboardEnabled,
+		ServerSideDiffEnabled:           d.ServerSideDiffEnabled,
+		MaintenanceModeExpiry:           timestampPBToMetav1(d.MaintenanceModeExpiry),
+		Project:                         d.GetProject(),
+		// PodInheritMetadata exists on the upstream Go wire type and
+		// v1alpha2 spec but is not yet on the proto — leave zero in the
+		// projection so drift is only compared where the API can
+		// round-trip the value.
+	}
+	if ds := d.GetDirectClusterSpec(); ds != nil {
+		out.DirectClusterSpec = &akuitytypes.DirectClusterSpec{
+			ClusterType:     akuitytypes.DirectClusterType(ds.GetClusterType().String()),
+			KargoInstanceId: strPtrFromPB(ds.KargoInstanceId),
+			Server:          strPtrFromPB(ds.Server),
+			Organization:    strPtrFromPB(ds.Organization),
+			Token:           strPtrFromPB(ds.Token),
+			CaData:          strPtrFromPB(ds.CaData),
+		}
+	}
+	if mc := d.GetManagedClusterConfig(); mc != nil {
+		out.ManagedClusterConfig = &akuitytypes.ManagedClusterConfig{
+			SecretName: mc.GetSecretName(),
+			SecretKey:  mc.GetSecretKey(),
+		}
+	}
+	if asc := d.GetAutoscalerConfig(); asc != nil {
+		out.AutoscalerConfig = pbToAutoscalerConfig(asc)
+	}
+	if c := d.GetCompatibility(); c != nil {
+		out.Compatibility = &akuitytypes.ClusterCompatibility{Ipv6Only: c.GetIpv6Only()}
+	}
+	if n := d.GetArgocdNotificationsSettings(); n != nil {
+		out.ArgocdNotificationsSettings = &akuitytypes.ClusterArgoCDNotificationsSettings{
+			InClusterSettings: n.GetInClusterSettings(),
+		}
 	}
 	return out
+}
+
+func pbToAutoscalerConfig(asc *argocdv1.AutoScalerConfig) *akuitytypes.AutoScalerConfig {
+	if asc == nil {
+		return nil
+	}
+	out := &akuitytypes.AutoScalerConfig{}
+	if a := asc.GetApplicationController(); a != nil {
+		out.ApplicationController = &akuitytypes.AppControllerAutoScalingConfig{
+			ResourceMinimum: pbResources(a.GetResourceMinimum()),
+			ResourceMaximum: pbResources(a.GetResourceMaximum()),
+		}
+	}
+	if r := asc.GetRepoServer(); r != nil {
+		out.RepoServer = &akuitytypes.RepoServerAutoScalingConfig{
+			ResourceMinimum: pbResources(r.GetResourceMinimum()),
+			ResourceMaximum: pbResources(r.GetResourceMaximum()),
+			ReplicaMaximum:  r.GetReplicaMaximum(),
+			ReplicaMinimum:  r.GetReplicaMinimum(),
+		}
+	}
+	return out
+}
+
+func pbResources(r *argocdv1.Resources) *akuitytypes.Resources {
+	if r == nil {
+		return nil
+	}
+	return &akuitytypes.Resources{Mem: r.GetMem(), Cpu: r.GetCpu()}
+}
+
+func strPtrFromPB(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	v := *s
+	return &v
+}
+
+// timestampPBToMetav1 maps an optional protobuf timestamp onto the
+// metav1.Time pointer shape used on the akuity Go wire type. Nil
+// preserves presence semantics through the generated converter.
+func timestampPBToMetav1(t *timestamppb.Timestamp) *metav1.Time {
+	if t == nil {
+		return nil
+	}
+	mt := metav1.NewTime(t.AsTime())
+	return &mt
+}
+
+// pbStructToRawExtension renders a protobuf Struct into the
+// runtime.RawExtension shape that akuitytypes.ClusterData.Kustomization
+// exposes. The downstream generated converter then formats it as a YAML
+// string for the v1alpha2 spec.
+func pbStructToRawExtension(s *structpb.Struct) runtime.RawExtension {
+	if s == nil || len(s.GetFields()) == 0 {
+		return runtime.RawExtension{}
+	}
+	b, err := json.Marshal(s.AsMap())
+	if err != nil {
+		return runtime.RawExtension{}
+	}
+	return runtime.RawExtension{Raw: b}
 }
 
 // pbStructToYAML renders a structpb.Struct (the Akuity API's on-wire

@@ -36,6 +36,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,6 +51,18 @@ import (
 // ConnectionKeyManifests is the connection-secret key holding the
 // Akuity-generated agent install manifests.
 const ConnectionKeyManifests = "manifests"
+
+// kargoAgentDriftOpts filters fields that are known to be write-only
+// in the current api-client-go proto, i.e. the controller can send
+// them on apply (via the upstream Go wire type's JSON round-trip) but
+// cannot read them back because the proto response type lacks the
+// field. Including them in cmp.Equal would cause permanent drift
+// flapping until the proto catches up. Changes to these fields alone
+// therefore will not trigger Update — users must touch another field
+// to propagate a mutation until the proto adds read support.
+var kargoAgentDriftOpts = []cmp.Option{
+	cmpopts.IgnoreFields(v1alpha2.KargoAgentData{}, "PodInheritMetadata", "AutoscalerConfig"),
+}
 
 // Setup registers the controller with the manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
@@ -104,6 +117,10 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoAgent) (manage
 		if reason.IsNotFound(err) {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
+		if reason.IsProvisioningWait(err) {
+			mg.SetConditions(xpv1.Unavailable())
+			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+		}
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
@@ -116,26 +133,33 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoAgent) (manage
 		mg.SetConditions(xpv1.Available())
 	}
 
-	reconCode := agent.GetReconciliationStatus().GetCode()
-	if reconCode != reconv1.StatusCode_STATUS_CODE_SUCCESSFUL && reconCode != reconv1.StatusCode_STATUS_CODE_FAILED {
-		return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: false}, nil
-	}
-
-	manifests, err := e.Client.GetKargoInstanceAgentManifestsOnce(ctx, instanceID, agent.GetId())
-	if err != nil {
-		mg.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
-	}
-
-	upToDate := cmp.Equal(mg.Spec.ForProvider, actual)
+	// Always compare spec so a matching desired/observed pair does not
+	// trigger Update() on every poll while reconciliation is still
+	// pending. Returning ResourceUpToDate=false during provisioning
+	// caused a hot-loop of UpdateKargoInstanceAgent calls on the Akuity
+	// API.
+	upToDate := cmp.Equal(mg.Spec.ForProvider, actual, kargoAgentDriftOpts...)
 	if !upToDate {
-		e.Logger.Debug("KargoAgent drift detected", "diff", cmp.Diff(mg.Spec.ForProvider, actual))
+		e.Logger.Debug("KargoAgent drift detected", "diff", cmp.Diff(mg.Spec.ForProvider, actual, kargoAgentDriftOpts...))
 	}
-	return managed.ExternalObservation{
-		ResourceExists:    true,
-		ResourceUpToDate:  upToDate,
-		ConnectionDetails: managed.ConnectionDetails{ConnectionKeyManifests: []byte(manifests)},
-	}, nil
+
+	observation := managed.ExternalObservation{
+		ResourceExists:   true,
+		ResourceUpToDate: upToDate,
+	}
+
+	// Manifests are only fetched once reconciliation is terminal.
+	reconCode := agent.GetReconciliationStatus().GetCode()
+	if reconCode == reconv1.StatusCode_STATUS_CODE_SUCCESSFUL || reconCode == reconv1.StatusCode_STATUS_CODE_FAILED {
+		manifests, err := e.Client.GetKargoInstanceAgentManifestsOnce(ctx, instanceID, agent.GetId())
+		if err != nil {
+			mg.SetConditions(xpv1.ReconcileError(err))
+			return managed.ExternalObservation{}, err
+		}
+		observation.ConnectionDetails = managed.ConnectionDetails{ConnectionKeyManifests: []byte(manifests)}
+	}
+
+	return observation, nil
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoAgent) (managed.ExternalCreation, error) {

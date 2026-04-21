@@ -96,12 +96,20 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Instance) (managed.
 		if reason.IsNotFound(err) {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
+		if reason.IsProvisioningWait(err) {
+			mg.SetConditions(xpv1.Unavailable())
+			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+		}
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 
 	exp, err := e.Client.ExportInstance(ctx, name)
 	if err != nil {
+		if reason.IsProvisioningWait(err) {
+			mg.SetConditions(xpv1.Unavailable())
+			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+		}
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
@@ -113,7 +121,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Instance) (managed.
 		return managed.ExternalObservation{}, wrap
 	}
 
-	lateInitialize(&mg.Spec.ForProvider, &actual)
+	lateInitialized := lateInitialize(&mg.Spec.ForProvider, &actual)
 
 	mg.Status.AtProvider = apiToObservation(ai, exp)
 
@@ -129,8 +137,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Instance) (managed.
 	}
 
 	return managed.ExternalObservation{
-		ResourceExists:   true,
-		ResourceUpToDate: upToDate,
+		ResourceExists:          true,
+		ResourceUpToDate:        upToDate,
+		ResourceLateInitialized: lateInitialized,
 	}, nil
 }
 

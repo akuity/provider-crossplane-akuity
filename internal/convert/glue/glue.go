@@ -22,9 +22,35 @@ limitations under the License.
 package glue
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 )
+
+// ValidateKustomizationYAML returns an error when s is non-empty and
+// cannot be parsed as YAML, OR parses to a non-object top level.
+// Controllers call this at Create/Update entry to reject malformed
+// payloads before the generated converter silently drops them. Object
+// shape is required because the downstream bridge feeds a
+// runtime.RawExtension / protobuf Struct that only accepts a mapping
+// top-level; a scalar or sequence is syntactically valid YAML but
+// produces a semantically broken kustomization document.
+func ValidateKustomizationYAML(s string) error {
+	if s == "" {
+		return nil
+	}
+	raw, err := yaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return fmt.Errorf("invalid kustomization YAML: %w", err)
+	}
+	var top map[string]any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return fmt.Errorf("kustomization YAML must be an object at the top level: %w", err)
+	}
+	return nil
+}
 
 // KustomizationStringToRaw parses a YAML Kustomization payload into a
 // runtime.RawExtension. Empty input maps to a zero RawExtension, which

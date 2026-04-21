@@ -44,6 +44,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/convert"
+	"github.com/akuityio/provider-crossplane-akuity/internal/convert/glue"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -96,6 +97,10 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoInstance) (man
 		if reason.IsNotFound(err) {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
+		if reason.IsProvisioningWait(err) {
+			mg.SetConditions(xpv1.Unavailable())
+			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+		}
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
@@ -144,6 +149,12 @@ func (e *external) Disconnect(ctx context.Context) error { return nil }
 
 // apply is shared by Create and Update.
 func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoInstance) error {
+	if acd := mg.Spec.ForProvider.Spec.KargoInstanceSpec.AgentCustomizationDefaults; acd != nil {
+		if err := glue.ValidateKustomizationYAML(acd.Kustomization); err != nil {
+			return fmt.Errorf("spec.forProvider.spec.kargoInstanceSpec.agentCustomizationDefaults.kustomization: %w", err)
+		}
+	}
+
 	kargoPB, err := specToPB(mg.Spec.ForProvider)
 	if err != nil {
 		return err

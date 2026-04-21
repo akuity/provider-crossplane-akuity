@@ -36,6 +36,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,6 +45,7 @@ import (
 	apisv1alpha2 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha2"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/convert/glue"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
@@ -51,6 +53,18 @@ import (
 // Akuity-generated install manifests are published. Downstream
 // Compositions consume the value as YAML.
 const ConnectionKeyManifests = "manifests"
+
+// clusterDriftOpts filters fields that are known to be write-only in
+// the current api-client-go proto, i.e. the controller can send them
+// on apply (via the upstream Go wire type's JSON round-trip) but
+// cannot read them back because the proto response type lacks the
+// field. Including them in cmp.Equal would cause permanent drift
+// flapping until the proto catches up. Changes to these fields alone
+// therefore will not trigger Update — users must touch another field
+// to propagate a mutation until the proto adds read support.
+var clusterDriftOpts = []cmp.Option{
+	cmpopts.IgnoreFields(v1alpha2.ClusterData{}, "PodInheritMetadata"),
+}
 
 // Setup registers the v1alpha2 Cluster controller.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
@@ -105,6 +119,13 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Cluster) (managed.E
 		if reason.IsNotFound(err) {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
+		if reason.IsProvisioningWait(err) {
+			// Transient wait-state — surface as Unavailable rather
+			// than escalating to ReconcileError. UpToDate=true avoids
+			// the provisioning hot-loop.
+			mg.SetConditions(xpv1.Unavailable())
+			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+		}
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
@@ -114,42 +135,44 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Cluster) (managed.E
 	actual := apiToSpec(instanceID, mg.Spec.ForProvider, ac)
 	mg.Status.AtProvider = apiToObservation(ac)
 
-	// Surface health conditions.
+	// Surface health conditions. Reconciliation-in-progress clusters
+	// report Unavailable via their HealthStatus; terminal reconciliation
+	// produces the Available signal.
 	if mg.Status.AtProvider.HealthStatus.Code != 1 {
 		mg.SetConditions(xpv1.Unavailable())
 	} else {
 		mg.SetConditions(xpv1.Available())
 	}
 
-	// Plan §4: no blocking reconciliation waits. Until the Akuity API
-	// reports a terminal reconciliation status, we treat the resource
-	// as not-yet-up-to-date; controller-runtime requeues automatically
-	// on the next poll interval.
-	reconCode := ac.GetReconciliationStatus().GetCode()
-	if reconCode != reconv1.StatusCode_STATUS_CODE_SUCCESSFUL && reconCode != reconv1.StatusCode_STATUS_CODE_FAILED {
-		return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: false}, nil
+	// Always compare spec so a matching desired/observed pair does not
+	// trigger Update() on every poll while reconciliation is still
+	// pending. Returning ResourceUpToDate=false during provisioning
+	// caused a hot-loop of ApplyCluster calls on the Akuity API.
+	upToDate := cmp.Equal(mg.Spec.ForProvider, actual, clusterDriftOpts...)
+	if !upToDate {
+		e.Logger.Debug("Cluster drift detected", "diff", cmp.Diff(mg.Spec.ForProvider, actual, clusterDriftOpts...))
+	}
+
+	observation := managed.ExternalObservation{
+		ResourceExists:   true,
+		ResourceUpToDate: upToDate,
 	}
 
 	// Manifests are only fetched once reconciliation is terminal; a
 	// fetch before that returns partial content.
-	manifests, err := e.Client.GetClusterManifestsOnce(ctx, instanceID, ac.GetId())
-	if err != nil {
-		mg.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
-	}
-
-	upToDate := cmp.Equal(mg.Spec.ForProvider, actual)
-	if !upToDate {
-		e.Logger.Debug("Cluster drift detected", "diff", cmp.Diff(mg.Spec.ForProvider, actual))
-	}
-
-	return managed.ExternalObservation{
-		ResourceExists:   true,
-		ResourceUpToDate: upToDate,
-		ConnectionDetails: managed.ConnectionDetails{
+	reconCode := ac.GetReconciliationStatus().GetCode()
+	if reconCode == reconv1.StatusCode_STATUS_CODE_SUCCESSFUL || reconCode == reconv1.StatusCode_STATUS_CODE_FAILED {
+		manifests, err := e.Client.GetClusterManifestsOnce(ctx, instanceID, ac.GetId())
+		if err != nil {
+			mg.SetConditions(xpv1.ReconcileError(err))
+			return managed.ExternalObservation{}, err
+		}
+		observation.ConnectionDetails = managed.ConnectionDetails{
 			ConnectionKeyManifests: []byte(manifests),
-		},
-	}, nil
+		}
+	}
+
+	return observation, nil
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.Cluster) (managed.ExternalCreation, error) {
@@ -180,6 +203,10 @@ func (e *external) Disconnect(ctx context.Context) error { return nil }
 // apply is shared by Create and Update — the Akuity ApplyCluster call
 // is idempotent.
 func (e *external) apply(ctx context.Context, mg *v1alpha2.Cluster) error {
+	if err := glue.ValidateKustomizationYAML(mg.Spec.ForProvider.Data.Kustomization); err != nil {
+		return fmt.Errorf("spec.forProvider.data.kustomization: %w", err)
+	}
+
 	instanceID, err := e.resolveInstanceID(ctx, mg)
 	if err != nil {
 		return err

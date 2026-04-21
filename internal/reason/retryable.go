@@ -23,6 +23,25 @@ func IsRetryable(err error) bool {
 	return isRetryableGRPC(err)
 }
 
+// IsProvisioningWait returns true when err signals that the target
+// Akuity resource is still being provisioned. Controllers use this to
+// mark the managed resource Unavailable in Observe without escalating
+// to ReconcileError — the gRPC error is a transient wait-state, not a
+// reconcile failure.
+func IsProvisioningWait(err error) bool {
+	if err == nil {
+		return false
+	}
+	s, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	if s.Code() != codes.InvalidArgument {
+		return false
+	}
+	return strings.Contains(s.Message(), "still being provisioned")
+}
+
 func (r Retryable) Is(err error) bool {
 	return err == Retryable{}
 }

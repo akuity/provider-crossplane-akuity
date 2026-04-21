@@ -30,6 +30,7 @@ import (
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/types/known/structpb"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -101,12 +102,19 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.InstanceIpAllowList
 		if reason.IsNotFound(err) {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
+		if reason.IsProvisioningWait(err) {
+			mg.SetConditions(xpv1.Unavailable())
+			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+		}
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 
 	observed := pbEntriesToSpec(ai.GetSpec().GetIpAllowList())
-	mg.Status.AtProvider = v1alpha2.InstanceIpAllowListObservation{AllowList: observed}
+	mg.Status.AtProvider = v1alpha2.InstanceIpAllowListObservation{
+		AllowList:  observed,
+		InstanceID: instanceID,
+	}
 	mg.SetConditions(xpv1.Available())
 
 	upToDate := reflect.DeepEqual(mg.Spec.ForProvider.AllowList, observed)
@@ -179,8 +187,14 @@ func (e *external) patch(ctx context.Context, mg *v1alpha2.InstanceIpAllowList, 
 // resolveInstanceID returns the opaque Akuity ID of the target Instance.
 // ForProvider.InstanceID takes precedence; if absent, InstanceRef is
 // resolved against an Instance MR in the same namespace and its
-// Status.AtProvider.ID is used. A pending Instance (ID not yet reported)
-// is surfaced as a reconcile error so controller-runtime requeues.
+// Status.AtProvider.ID is used.
+//
+// The cached Status.AtProvider.InstanceID is consulted only as a
+// last-resort during deletion when the referenced Instance MR has
+// itself been removed (typical composition teardown). It is NOT used
+// to paper over transient kube-apiserver errors or a pending new
+// parent, since that would let a live ref retarget silently keep
+// patching the previous Akuity Instance.
 func (e *external) resolveInstanceID(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (string, error) {
 	if id := mg.Spec.ForProvider.InstanceID; id != "" {
 		return id, nil
@@ -192,6 +206,11 @@ func (e *external) resolveInstanceID(ctx context.Context, mg *v1alpha2.InstanceI
 	inst := &v1alpha2.Instance{}
 	key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.InstanceRef.Name, Namespace: mg.GetNamespace()}
 	if err := e.Kube.Get(ctx, key, inst); err != nil {
+		if apierrors.IsNotFound(err) && meta.WasDeleted(mg) {
+			if cached := mg.Status.AtProvider.InstanceID; cached != "" {
+				return cached, nil
+			}
+		}
 		return "", fmt.Errorf("could not resolve InstanceRef %s/%s: %w", key.Namespace, key.Name, err)
 	}
 	if inst.Status.AtProvider.ID == "" {

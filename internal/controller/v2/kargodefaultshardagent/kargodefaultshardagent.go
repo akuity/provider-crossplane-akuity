@@ -26,6 +26,7 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/types/known/structpb"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -97,12 +98,19 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoDefaultShardAg
 		if reason.IsNotFound(err) {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
+		if reason.IsProvisioningWait(err) {
+			mg.SetConditions(xpv1.Unavailable())
+			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
+		}
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 
 	observed := ki.GetSpec().GetDefaultShardAgent()
-	mg.Status.AtProvider = v1alpha2.KargoDefaultShardAgentObservation{AgentName: observed}
+	mg.Status.AtProvider = v1alpha2.KargoDefaultShardAgentObservation{
+		AgentName:       observed,
+		KargoInstanceID: kargoID,
+	}
 	mg.SetConditions(xpv1.Available())
 
 	upToDate := observed == mg.Spec.ForProvider.AgentName
@@ -164,6 +172,13 @@ func (e *external) patch(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgen
 // instance. ForProvider.KargoInstanceID takes precedence; if absent,
 // KargoInstanceRef is resolved against a KargoInstance MR in the same
 // namespace and its Status.AtProvider.ID is used.
+//
+// The cached Status.AtProvider.KargoInstanceID is consulted only as a
+// last-resort during deletion when the referenced KargoInstance MR has
+// itself been removed (typical composition teardown). It is NOT used
+// to paper over transient kube-apiserver errors or a pending new
+// parent, since that would let a live ref retarget silently keep
+// patching the previous Kargo instance.
 func (e *external) resolveKargoID(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (string, error) {
 	if id := mg.Spec.ForProvider.KargoInstanceID; id != "" {
 		return id, nil
@@ -174,6 +189,11 @@ func (e *external) resolveKargoID(ctx context.Context, mg *v1alpha2.KargoDefault
 	ki := &v1alpha2.KargoInstance{}
 	key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.KargoInstanceRef.Name, Namespace: mg.GetNamespace()}
 	if err := e.Kube.Get(ctx, key, ki); err != nil {
+		if apierrors.IsNotFound(err) && meta.WasDeleted(mg) {
+			if cached := mg.Status.AtProvider.KargoInstanceID; cached != "" {
+				return cached, nil
+			}
+		}
 		return "", fmt.Errorf("could not resolve KargoInstanceRef %s/%s: %w", key.Namespace, key.Name, err)
 	}
 	if ki.Status.AtProvider.ID == "" {

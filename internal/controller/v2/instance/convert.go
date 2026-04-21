@@ -31,6 +31,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/convert"
+	"github.com/akuityio/provider-crossplane-akuity/internal/convert/glue"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	argocdtypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/argocd/v1alpha1"
@@ -145,16 +146,19 @@ func apiToObservation(ai *argocdv1.Instance, exp *argocdv1.ExportInstanceRespons
 
 // lateInitialize fills in defaults from the actual (observed) instance
 // into the managed spec for fields the user commonly omits. Keep this
-// narrow to match the legacy golden-snapshot expectations.
-func lateInitialize(in, actual *v1alpha2.InstanceParameters) {
-	if in.ArgoCD == nil || actual.ArgoCD == nil {
-		return
-	}
-	if in.ArgoCD.Spec.InstanceSpec.Subdomain == "" {
-		in.ArgoCD.Spec.InstanceSpec.Subdomain = actual.ArgoCD.Spec.InstanceSpec.Subdomain
-	}
-	if in.ArgoCD.Spec.InstanceSpec.Fqdn == "" {
-		in.ArgoCD.Spec.InstanceSpec.Fqdn = actual.ArgoCD.Spec.InstanceSpec.Fqdn
+// narrow to match the legacy golden-snapshot expectations. Returns true
+// when any field on in was mutated so the caller can signal
+// ResourceLateInitialized to the managed.Reconciler.
+func lateInitialize(in, actual *v1alpha2.InstanceParameters) bool {
+	before := in.DeepCopy()
+
+	if in.ArgoCD != nil && actual.ArgoCD != nil {
+		if in.ArgoCD.Spec.InstanceSpec.Subdomain == "" {
+			in.ArgoCD.Spec.InstanceSpec.Subdomain = actual.ArgoCD.Spec.InstanceSpec.Subdomain
+		}
+		if in.ArgoCD.Spec.InstanceSpec.Fqdn == "" {
+			in.ArgoCD.Spec.InstanceSpec.Fqdn = actual.ArgoCD.Spec.InstanceSpec.Fqdn
+		}
 	}
 
 	if in.ArgoCDConfigMap == nil {
@@ -172,6 +176,8 @@ func lateInitialize(in, actual *v1alpha2.InstanceParameters) {
 	if in.ConfigManagementPlugins == nil {
 		in.ConfigManagementPlugins = actual.ConfigManagementPlugins
 	}
+
+	return !cmp.Equal(before, in)
 }
 
 // isUpToDate compares managed spec against observed spec with
@@ -190,6 +196,12 @@ func buildApplyRequest(_ context.Context, ac akuity.Client, mg *v1alpha2.Instanc
 	p := &mg.Spec.ForProvider
 	if p.ArgoCD == nil {
 		return nil, fmt.Errorf("managed Instance %q is missing spec.forProvider.argocd", mg.Name)
+	}
+
+	if ccd := p.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults; ccd != nil {
+		if err := glue.ValidateKustomizationYAML(ccd.Kustomization); err != nil {
+			return nil, fmt.Errorf("spec.forProvider.argocd.spec.instanceSpec.clusterCustomizationDefaults.kustomization: %w", err)
+		}
 	}
 
 	argocdPB, err := argoCDToPB(p.Name, p.ArgoCD)
