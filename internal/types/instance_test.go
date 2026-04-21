@@ -1,6 +1,7 @@
 package types_test
 
 import (
+	"k8s.io/utils/ptr"
 	"testing"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -394,7 +395,7 @@ func TestAkuityAPIToCrossplaneParameters(t *testing.T) {
 				Name:           "param1",
 				Title:          "Parameter 1",
 				Tooltip:        "Tooltip 1",
-				Required:       true,
+				Required:        ptr.To(true),
 				ItemType:       "item1",
 				CollectionType: "collection1",
 				String_:        "string1",
@@ -405,7 +406,7 @@ func TestAkuityAPIToCrossplaneParameters(t *testing.T) {
 				Name:           "param2",
 				Title:          "Parameter 2",
 				Tooltip:        "Tooltip 2",
-				Required:       false,
+				Required:        ptr.To(false),
 				ItemType:       "item2",
 				CollectionType: "collection2",
 				String_:        "string2",

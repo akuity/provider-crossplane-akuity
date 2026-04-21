@@ -38,12 +38,12 @@ func TestClusterData_RoundTrip(t *testing.T) {
 func TestArgoCDInstanceSpec_RoundTrip(t *testing.T) {
 	in := &v1alpha2.ArgoCDInstanceSpec{
 		Subdomain:                    "team-platform",
-		DeclarativeManagementEnabled: true,
-		ImageUpdaterEnabled:          true,
-		BackendIpAllowListEnabled:    true,
-		AuditExtensionEnabled:        false,
-		SyncHistoryExtensionEnabled:  true,
-		AssistantExtensionEnabled:    false,
+		DeclarativeManagementEnabled:  ptr.To(true),
+		ImageUpdaterEnabled:           ptr.To(true),
+		BackendIpAllowListEnabled:     ptr.To(true),
+		AuditExtensionEnabled:         ptr.To(false),
+		SyncHistoryExtensionEnabled:   ptr.To(true),
+		AssistantExtensionEnabled:     ptr.To(false),
 	}
 
 	out := convert.InstanceSpecAPIToSpec(convert.InstanceSpecSpecToAPI(in))
@@ -59,11 +59,11 @@ func TestKargoSpec_RoundTrip(t *testing.T) {
 		Fqdn:        "kargo.example.com",
 		Subdomain:   "kargo",
 		KargoInstanceSpec: v1alpha2.KargoInstanceSpec{
-			BackendIpAllowListEnabled: true,
+			BackendIpAllowListEnabled:  ptr.To(true),
 			DefaultShardAgent:         "default",
 			GlobalCredentialsNs:       []string{"platform"},
 			GlobalServiceAccountNs:    []string{"platform-sa"},
-			PromoControllerEnabled:    true,
+			PromoControllerEnabled:     ptr.To(true),
 		},
 	}
 
@@ -75,7 +75,7 @@ func TestKargoSpec_RoundTrip(t *testing.T) {
 
 func TestKargoInstanceSpec_RoundTrip(t *testing.T) {
 	in := &v1alpha2.KargoInstanceSpec{
-		BackendIpAllowListEnabled: true,
+		BackendIpAllowListEnabled:  ptr.To(true),
 		IpAllowList: []*v1alpha2.KargoIPAllowListEntry{
 			{Ip: "10.0.0.0/8", Description: "vpc"},
 			{Ip: "192.168.0.0/16", Description: "lab"},
@@ -83,7 +83,7 @@ func TestKargoInstanceSpec_RoundTrip(t *testing.T) {
 		DefaultShardAgent:      "prod",
 		GlobalCredentialsNs:    []string{"ns-a", "ns-b"},
 		GlobalServiceAccountNs: []string{"sa-a"},
-		PromoControllerEnabled: true,
+		PromoControllerEnabled:  ptr.To(true),
 	}
 
 	out := convert.KargoInstanceSpecAPIToSpec(convert.KargoInstanceSpecSpecToAPI(in))
@@ -99,7 +99,7 @@ func TestKargoAgentData_RoundTrip(t *testing.T) {
 		TargetVersion:        "v1.1.0",
 		Kustomization:        "patchesJson6902:\n- patch: noop\n",
 		RemoteArgocd:         "https://argocd.example.com",
-		AkuityManaged:        true,
+		AkuityManaged:         ptr.To(true),
 		ArgocdNamespace:      "argocd",
 		SelfManagedArgocdUrl: "",
 	}

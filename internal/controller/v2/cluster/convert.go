@@ -18,6 +18,7 @@ package cluster
 
 import (
 	"encoding/json"
+	"k8s.io/utils/ptr"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -59,7 +60,7 @@ func specToAPI(in v1alpha2.ClusterParameters) akuitytypes.Cluster {
 		},
 		Spec: akuitytypes.ClusterSpec{
 			Description:     in.Description,
-			NamespaceScoped: in.NamespaceScoped,
+			NamespaceScoped: ptr.To(in.NamespaceScoped),
 			Data:            data,
 		},
 	}
@@ -179,11 +180,11 @@ func pbToAkuityClusterData(d *argocdv1.ClusterData) *akuitytypes.ClusterData {
 		out.AutoscalerConfig = pbToAutoscalerConfig(asc)
 	}
 	if c := d.GetCompatibility(); c != nil {
-		out.Compatibility = &akuitytypes.ClusterCompatibility{Ipv6Only: c.GetIpv6Only()}
+		out.Compatibility = &akuitytypes.ClusterCompatibility{Ipv6Only: ptr.To(c.GetIpv6Only())}
 	}
 	if n := d.GetArgocdNotificationsSettings(); n != nil {
 		out.ArgocdNotificationsSettings = &akuitytypes.ClusterArgoCDNotificationsSettings{
-			InClusterSettings: n.GetInClusterSettings(),
+			InClusterSettings: ptr.To(n.GetInClusterSettings()),
 		}
 	}
 	return out
