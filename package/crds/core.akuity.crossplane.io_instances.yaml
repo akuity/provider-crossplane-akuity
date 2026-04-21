@@ -333,6 +333,29 @@ spec:
                                                   type: string
                                                 type: array
                                             type: object
+                                          investigationApproval:
+                                            properties:
+                                              scopes:
+                                                items:
+                                                  properties:
+                                                    argocdApplications:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    clusters:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    consecutiveAutoClosures:
+                                                      format: int32
+                                                      type: integer
+                                                    k8sNamespaces:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                            type: object
                                           triggers:
                                             items:
                                               properties:
@@ -357,6 +380,8 @@ spec:
                                               properties:
                                                 argocdApplicationNamePath:
                                                   type: string
+                                                argocdApplicationNamespacePath:
+                                                  type: string
                                                 clusterPath:
                                                   type: string
                                                 descriptionPath:
@@ -365,9 +390,41 @@ spec:
                                                   type: string
                                                 name:
                                                   type: string
+                                                titlePath:
+                                                  type: string
                                               type: object
                                             type: array
                                         type: object
+                                      runbookRepos:
+                                        items:
+                                          properties:
+                                            appliedFor:
+                                              additionalProperties:
+                                                properties:
+                                                  argocdApplications:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  clusters:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  degradedFor:
+                                                    type: string
+                                                  k8sNamespaces:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: object
+                                            path:
+                                              type: string
+                                            repoUrl:
+                                              type: string
+                                            revision:
+                                              type: string
+                                          type: object
+                                        type: array
                                       runbooks:
                                         items:
                                           properties:
@@ -405,6 +462,18 @@ spec:
                                         type: string
                                       scanEnabled:
                                         type: boolean
+                                    type: object
+                                type: object
+                              manifestGeneration:
+                                properties:
+                                  kustomize:
+                                    properties:
+                                      additionalVersions:
+                                        items:
+                                          type: string
+                                        type: array
+                                      defaultVersion:
+                                        type: string
                                     type: object
                                 type: object
                               metricsIngressPasswordHash:
@@ -1117,6 +1186,29 @@ spec:
                                                   type: string
                                                 type: array
                                             type: object
+                                          investigationApproval:
+                                            properties:
+                                              scopes:
+                                                items:
+                                                  properties:
+                                                    argocdApplications:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    clusters:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    consecutiveAutoClosures:
+                                                      format: int32
+                                                      type: integer
+                                                    k8sNamespaces:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                            type: object
                                           triggers:
                                             items:
                                               properties:
@@ -1141,6 +1233,8 @@ spec:
                                               properties:
                                                 argocdApplicationNamePath:
                                                   type: string
+                                                argocdApplicationNamespacePath:
+                                                  type: string
                                                 clusterPath:
                                                   type: string
                                                 descriptionPath:
@@ -1149,9 +1243,41 @@ spec:
                                                   type: string
                                                 name:
                                                   type: string
+                                                titlePath:
+                                                  type: string
                                               type: object
                                             type: array
                                         type: object
+                                      runbookRepos:
+                                        items:
+                                          properties:
+                                            appliedFor:
+                                              additionalProperties:
+                                                properties:
+                                                  argocdApplications:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  clusters:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  degradedFor:
+                                                    type: string
+                                                  k8sNamespaces:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: object
+                                            path:
+                                              type: string
+                                            repoUrl:
+                                              type: string
+                                            revision:
+                                              type: string
+                                          type: object
+                                        type: array
                                       runbooks:
                                         items:
                                           properties:
@@ -1189,6 +1315,18 @@ spec:
                                         type: string
                                       scanEnabled:
                                         type: boolean
+                                    type: object
+                                type: object
+                              manifestGeneration:
+                                properties:
+                                  kustomize:
+                                    properties:
+                                      additionalVersions:
+                                        items:
+                                          type: string
+                                        type: array
+                                      defaultVersion:
+                                        type: string
                                     type: object
                                 type: object
                               metricsIngressPasswordHash:
