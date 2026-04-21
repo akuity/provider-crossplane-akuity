@@ -30,6 +30,8 @@ import (
 type KargoAgentSize string
 
 // KargoAgentParameters are the configurable fields of a KargoAgent.
+//
+// +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) != has(self.kargoInstanceRef)",message="exactly one of kargoInstanceId or kargoInstanceRef must be set"
 type KargoAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by ID.
 	// Either KargoInstanceID or KargoInstanceRef must be set.

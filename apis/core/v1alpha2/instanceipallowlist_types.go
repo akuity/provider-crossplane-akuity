@@ -32,7 +32,7 @@ import (
 // which case the controller resolves the ID from the Instance's
 // Status.AtProvider.ID field.
 //
-// +kubebuilder:validation:XValidation:rule="has(self.instanceId) || has(self.instanceRef)",message="one of instanceId or instanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="has(self.instanceId) != has(self.instanceRef)",message="exactly one of instanceId or instanceRef must be set"
 type InstanceIpAllowListParameters struct {
 	// InstanceID references the target ArgoCD Instance by its opaque
 	// Akuity ID. Mutually exclusive with InstanceRef.
@@ -58,6 +58,12 @@ type InstanceIpAllowListObservation struct {
 	// AllowList is the set of IP/CIDR entries currently enforced on
 	// the instance.
 	AllowList []*IPAllowListEntry `json:"allowList,omitempty"`
+
+	// InstanceID is the resolved opaque Akuity ID of the target
+	// Instance, cached on first successful Observe so Delete can clear
+	// the remote allow list even if the referenced Instance MR has
+	// already been removed.
+	InstanceID string `json:"instanceId,omitempty"`
 }
 
 // An InstanceIpAllowListSpec defines the desired state of an

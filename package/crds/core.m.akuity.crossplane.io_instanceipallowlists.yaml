@@ -106,8 +106,8 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: one of instanceId or instanceRef must be set
-                  rule: has(self.instanceId) || has(self.instanceRef)
+                - message: exactly one of instanceId or instanceRef must be set
+                  rule: has(self.instanceId) != has(self.instanceRef)
               managementPolicies:
                 default:
                 - '*'
@@ -192,6 +192,13 @@ spec:
                           type: string
                       type: object
                     type: array
+                  instanceId:
+                    description: |-
+                      InstanceID is the resolved opaque Akuity ID of the target
+                      Instance, cached on first successful Observe so Delete can clear
+                      the remote allow list even if the referenced Instance MR has
+                      already been removed.
+                    type: string
                 type: object
               conditions:
                 description: Conditions of the resource.

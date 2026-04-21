@@ -32,7 +32,7 @@ import (
 // KargoInstanceRef, in which case the controller resolves the ID from
 // the KargoInstance's Status.AtProvider.ID field.
 //
-// +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) || has(self.kargoInstanceRef)",message="one of kargoInstanceId or kargoInstanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) != has(self.kargoInstanceRef)",message="exactly one of kargoInstanceId or kargoInstanceRef must be set"
 type KargoDefaultShardAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by its
 	// opaque Akuity ID. Mutually exclusive with KargoInstanceRef.
@@ -60,6 +60,12 @@ type KargoDefaultShardAgentObservation struct {
 	// AgentName is the default shard agent currently set on the Kargo
 	// instance.
 	AgentName string `json:"agentName,omitempty"`
+
+	// KargoInstanceID is the resolved opaque Akuity ID of the target
+	// Kargo instance, cached on first successful Observe so Delete can
+	// clear the remote field even if the referenced KargoInstance MR
+	// has already been removed.
+	KargoInstanceID string `json:"kargoInstanceId,omitempty"`
 }
 
 // A KargoDefaultShardAgentSpec defines the desired state of a

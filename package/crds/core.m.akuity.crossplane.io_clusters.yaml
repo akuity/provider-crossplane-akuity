@@ -312,6 +312,9 @@ spec:
                 required:
                 - name
                 type: object
+                x-kubernetes-validations:
+                - message: exactly one of instanceId or instanceRef must be set
+                  rule: has(self.instanceId) != has(self.instanceRef)
               managementPolicies:
                 default:
                 - '*'

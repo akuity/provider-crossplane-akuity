@@ -99,8 +99,9 @@ spec:
                 - agentName
                 type: object
                 x-kubernetes-validations:
-                - message: one of kargoInstanceId or kargoInstanceRef must be set
-                  rule: has(self.kargoInstanceId) || has(self.kargoInstanceRef)
+                - message: exactly one of kargoInstanceId or kargoInstanceRef must
+                    be set
+                  rule: has(self.kargoInstanceId) != has(self.kargoInstanceRef)
               managementPolicies:
                 default:
                 - '*'
@@ -173,6 +174,13 @@ spec:
                     description: |-
                       AgentName is the default shard agent currently set on the Kargo
                       instance.
+                    type: string
+                  kargoInstanceId:
+                    description: |-
+                      KargoInstanceID is the resolved opaque Akuity ID of the target
+                      Kargo instance, cached on first successful Observe so Delete can
+                      clear the remote field even if the referenced KargoInstance MR
+                      has already been removed.
                     type: string
                 type: object
               conditions:

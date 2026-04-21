@@ -56,7 +56,21 @@ func TestInstanceIpAllowList_ValidatesIDOrRefRequired(t *testing.T) {
 	}
 	err := kube.Create(ctx, missing)
 	require.Error(t, err, "apiserver must reject InstanceIpAllowList missing id+ref")
-	assert.Contains(t, err.Error(), "one of instanceId or instanceRef must be set")
+	assert.Contains(t, err.Error(), "exactly one of instanceId or instanceRef must be set")
+
+	both := &corev1alpha2.InstanceIpAllowList{
+		ObjectMeta: newMeta("ipa-both"),
+		Spec: corev1alpha2.InstanceIpAllowListSpec{
+			ForProvider: corev1alpha2.InstanceIpAllowListParameters{
+				InstanceID:  "inst-abc",
+				InstanceRef: &corev1alpha2.LocalReference{Name: "my-instance"},
+				AllowList:   []*corev1alpha2.IPAllowListEntry{{Ip: "10.0.0.1"}},
+			},
+		},
+	}
+	err = kube.Create(ctx, both)
+	require.Error(t, err, "apiserver must reject InstanceIpAllowList with both id and ref")
+	assert.Contains(t, err.Error(), "exactly one of instanceId or instanceRef must be set")
 
 	withID := &corev1alpha2.InstanceIpAllowList{
 		ObjectMeta: newMeta("ipa-id"),
@@ -102,7 +116,21 @@ func TestKargoDefaultShardAgent_ValidatesIDOrRefRequired(t *testing.T) {
 	}
 	err := kube.Create(ctx, missing)
 	require.Error(t, err, "apiserver must reject KargoDefaultShardAgent missing id+ref")
-	assert.Contains(t, err.Error(), "one of kargoInstanceId or kargoInstanceRef must be set")
+	assert.Contains(t, err.Error(), "exactly one of kargoInstanceId or kargoInstanceRef must be set")
+
+	both := &corev1alpha2.KargoDefaultShardAgent{
+		ObjectMeta: newMeta("dsa-both"),
+		Spec: corev1alpha2.KargoDefaultShardAgentSpec{
+			ForProvider: corev1alpha2.KargoDefaultShardAgentParameters{
+				KargoInstanceID:  "ki-abc",
+				KargoInstanceRef: &corev1alpha2.LocalReference{Name: "my-kargo"},
+				AgentName:        "shard-a",
+			},
+		},
+	}
+	err = kube.Create(ctx, both)
+	require.Error(t, err, "apiserver must reject KargoDefaultShardAgent with both id and ref")
+	assert.Contains(t, err.Error(), "exactly one of kargoInstanceId or kargoInstanceRef must be set")
 
 	withID := &corev1alpha2.KargoDefaultShardAgent{
 		ObjectMeta: newMeta("dsa-id"),
@@ -110,6 +138,96 @@ func TestKargoDefaultShardAgent_ValidatesIDOrRefRequired(t *testing.T) {
 			ForProvider: corev1alpha2.KargoDefaultShardAgentParameters{
 				KargoInstanceID: "ki-abc",
 				AgentName:       "shard-a",
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withID))
+	t.Cleanup(func() { _ = kube.Delete(ctx, withID) })
+}
+
+// TestCluster_ValidatesIDOrRefRequired exercises the CEL rule on
+// ClusterParameters: exactly one of instanceId or instanceRef must be
+// set.
+func TestCluster_ValidatesIDOrRefRequired(t *testing.T) {
+	ctx := context.Background()
+
+	missing := &corev1alpha2.Cluster{
+		ObjectMeta: newMeta("cluster-missing"),
+		Spec: corev1alpha2.ClusterSpec{
+			ForProvider: corev1alpha2.ClusterParameters{
+				Name: "c1",
+			},
+		},
+	}
+	err := kube.Create(ctx, missing)
+	require.Error(t, err, "apiserver must reject Cluster missing id+ref")
+	assert.Contains(t, err.Error(), "exactly one of instanceId or instanceRef must be set")
+
+	both := &corev1alpha2.Cluster{
+		ObjectMeta: newMeta("cluster-both"),
+		Spec: corev1alpha2.ClusterSpec{
+			ForProvider: corev1alpha2.ClusterParameters{
+				InstanceID:  "inst-abc",
+				InstanceRef: &corev1alpha2.LocalReference{Name: "my-instance"},
+				Name:        "c1",
+			},
+		},
+	}
+	err = kube.Create(ctx, both)
+	require.Error(t, err, "apiserver must reject Cluster with both id and ref")
+	assert.Contains(t, err.Error(), "exactly one of instanceId or instanceRef must be set")
+
+	withID := &corev1alpha2.Cluster{
+		ObjectMeta: newMeta("cluster-id"),
+		Spec: corev1alpha2.ClusterSpec{
+			ForProvider: corev1alpha2.ClusterParameters{
+				InstanceID: "inst-abc",
+				Name:       "c1",
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withID))
+	t.Cleanup(func() { _ = kube.Delete(ctx, withID) })
+}
+
+// TestKargoAgent_ValidatesIDOrRefRequired exercises the CEL rule on
+// KargoAgentParameters: exactly one of kargoInstanceId or
+// kargoInstanceRef must be set.
+func TestKargoAgent_ValidatesIDOrRefRequired(t *testing.T) {
+	ctx := context.Background()
+
+	missing := &corev1alpha2.KargoAgent{
+		ObjectMeta: newMeta("ka-missing"),
+		Spec: corev1alpha2.KargoAgentResourceSpec{
+			ForProvider: corev1alpha2.KargoAgentParameters{
+				Name: "agent-a",
+			},
+		},
+	}
+	err := kube.Create(ctx, missing)
+	require.Error(t, err, "apiserver must reject KargoAgent missing id+ref")
+	assert.Contains(t, err.Error(), "exactly one of kargoInstanceId or kargoInstanceRef must be set")
+
+	both := &corev1alpha2.KargoAgent{
+		ObjectMeta: newMeta("ka-both"),
+		Spec: corev1alpha2.KargoAgentResourceSpec{
+			ForProvider: corev1alpha2.KargoAgentParameters{
+				KargoInstanceID:  "ki-abc",
+				KargoInstanceRef: &corev1alpha2.LocalReference{Name: "my-kargo"},
+				Name:             "agent-a",
+			},
+		},
+	}
+	err = kube.Create(ctx, both)
+	require.Error(t, err, "apiserver must reject KargoAgent with both id and ref")
+	assert.Contains(t, err.Error(), "exactly one of kargoInstanceId or kargoInstanceRef must be set")
+
+	withID := &corev1alpha2.KargoAgent{
+		ObjectMeta: newMeta("ka-id"),
+		Spec: corev1alpha2.KargoAgentResourceSpec{
+			ForProvider: corev1alpha2.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-a",
 			},
 		},
 	}

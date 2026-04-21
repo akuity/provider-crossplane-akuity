@@ -34,6 +34,8 @@ type ClusterSize string
 type DirectClusterType string
 
 // ClusterParameters are the configurable fields of a Cluster.
+//
+// +kubebuilder:validation:XValidation:rule="has(self.instanceId) != has(self.instanceRef)",message="exactly one of instanceId or instanceRef must be set"
 type ClusterParameters struct {
 	// InstanceID references the Akuity ArgoCD Instance the cluster
 	// belongs to by its opaque ID. Either InstanceID or InstanceRef must

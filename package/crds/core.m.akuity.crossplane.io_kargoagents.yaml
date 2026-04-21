@@ -204,6 +204,10 @@ spec:
                 required:
                 - name
                 type: object
+                x-kubernetes-validations:
+                - message: exactly one of kargoInstanceId or kargoInstanceRef must
+                    be set
+                  rule: has(self.kargoInstanceId) != has(self.kargoInstanceRef)
               managementPolicies:
                 default:
                 - '*'
