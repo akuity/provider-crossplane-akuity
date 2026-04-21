@@ -3,7 +3,7 @@ module github.com/akuityio/provider-crossplane-akuity
 go 1.25.0
 
 require (
-	github.com/akuity/api-client-go v0.25.1
+	github.com/akuity/api-client-go v0.29.0
 	github.com/akuity/grpc-gateway-client v0.0.0-20240912082144-55a48e8b4b89
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/avast/retry-go/v4 v4.7.0

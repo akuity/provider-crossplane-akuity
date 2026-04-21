@@ -283,6 +283,21 @@ func (mr *MockKargoServiceGatewayClientMockRecorder) PatchKargoInstance(arg0, ar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchKargoInstance", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).PatchKargoInstance), arg0, arg1)
 }
 
+// RegenerateManifests mocks base method.
+func (m *MockKargoServiceGatewayClient) RegenerateManifests(arg0 context.Context, arg1 *kargov1.RegenerateManifestsRequest) (*kargov1.RegenerateManifestsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegenerateManifests", arg0, arg1)
+	ret0, _ := ret[0].(*kargov1.RegenerateManifestsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RegenerateManifests indicates an expected call of RegenerateManifests.
+func (mr *MockKargoServiceGatewayClientMockRecorder) RegenerateManifests(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegenerateManifests", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).RegenerateManifests), arg0, arg1)
+}
+
 // RotateInstanceAgentCredentials mocks base method.
 func (m *MockKargoServiceGatewayClient) RotateInstanceAgentCredentials(arg0 context.Context, arg1 *kargov1.RotateInstanceAgentCredentialsRequest) (*kargov1.RotateInstanceAgentCredentialsResponse, error) {
 	m.ctrl.T.Helper()
@@ -296,6 +311,21 @@ func (m *MockKargoServiceGatewayClient) RotateInstanceAgentCredentials(arg0 cont
 func (mr *MockKargoServiceGatewayClientMockRecorder) RotateInstanceAgentCredentials(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RotateInstanceAgentCredentials", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).RotateInstanceAgentCredentials), arg0, arg1)
+}
+
+// SetAgentMaintenanceMode mocks base method.
+func (m *MockKargoServiceGatewayClient) SetAgentMaintenanceMode(arg0 context.Context, arg1 *kargov1.SetAgentMaintenanceModeRequest) (*kargov1.SetAgentMaintenanceModeResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAgentMaintenanceMode", arg0, arg1)
+	ret0, _ := ret[0].(*kargov1.SetAgentMaintenanceModeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAgentMaintenanceMode indicates an expected call of SetAgentMaintenanceMode.
+func (mr *MockKargoServiceGatewayClientMockRecorder) SetAgentMaintenanceMode(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAgentMaintenanceMode", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).SetAgentMaintenanceMode), arg0, arg1)
 }
 
 // UpdateInstanceAgentVersion mocks base method.
