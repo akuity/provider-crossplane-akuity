@@ -104,7 +104,7 @@ test-envtest:
 	@$(INFO) installing setup-envtest + k8s $(ENVTEST_K8S_VERSION) binaries
 	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.23
 	@KUBEBUILDER_ASSETS="$$($$(go env GOPATH)/bin/setup-envtest use -p path $(ENVTEST_K8S_VERSION))" \
-		go test -tags=envtest ./internal/controller/v2/envtest/... || $(FAIL)
+		go test -tags=envtest -v -count=1 ./internal/controller/v2/envtest/... || $(FAIL)
 	@$(OK) envtest suite passed
 
 # Update the submodules, such as the common build scripts.

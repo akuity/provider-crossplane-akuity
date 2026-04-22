@@ -136,4 +136,3 @@ func TestWire_KargoOidcConfigFieldsOptional(t *testing.T) {
 		}
 	}
 }
-
