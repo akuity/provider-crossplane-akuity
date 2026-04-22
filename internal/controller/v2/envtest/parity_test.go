@@ -166,7 +166,7 @@ func TestInstance_ArgocdResourcesRoundTrip(t *testing.T) {
 			ForProvider: corev1alpha2.InstanceParameters{
 				Name:   "inst-argocd-resources",
 				ArgoCD: &corev1alpha2.ArgoCDSpec{Version: "v3.1.0"},
-				ArgocdResources: []runtime.RawExtension{
+				Resources: []runtime.RawExtension{
 					mustRawExt(t, map[string]interface{}{
 						"apiVersion": "argoproj.io/v1alpha1",
 						"kind":       "AppProject",
@@ -227,7 +227,7 @@ func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 	}
 	err := kube.Create(ctx, both)
 	require.Error(t, err, "apiserver must reject both dexConfigSecret and dexConfigSecretRef")
-	assert.Contains(t, err.Error(), "set either spec.oidcConfig.dexConfigSecretRef or spec.oidcConfig.dexConfigSecret")
+	assert.Contains(t, err.Error(), "set either kargo.oidcConfig.dexConfigSecretRef or kargo.oidcConfig.dexConfigSecret")
 
 	onlyRef := &corev1alpha2.KargoInstance{
 		ObjectMeta: newMeta("ki-dex-ref-only"),
@@ -278,7 +278,7 @@ func TestKargoInstance_KargoResourcesRoundTrip(t *testing.T) {
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name:  "ki-resources",
 				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
-				KargoResources: []runtime.RawExtension{
+				Resources: []runtime.RawExtension{
 					mustRawExt(t, map[string]interface{}{
 						"apiVersion": "kargo.akuity.io/v1alpha1",
 						"kind":       "Project",
@@ -364,73 +364,15 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 	assert.Contains(t, err.Error(), "unique")
 }
 
-// TestKargoInstance_SecretInKargoResourcesRejected locks in the 8.B3
-// admission-time CEL rule: v1/Secret manifests are refused before they
-// can land in etcd. Prior behavior (prove the apiserver admitted them
-// and the controller rejected at reconcile) was a plaintext leak at the
-// trust boundary — callers with only list/get on the MR could read
-// inline credential data. The controller-level rejection in
-// splitKargoResources remains as defense-in-depth.
-func TestKargoInstance_SecretInKargoResourcesRejected(t *testing.T) {
-	ctx := context.Background()
-
-	ki := &corev1alpha2.KargoInstance{
-		ObjectMeta: newMeta("ki-inline-secret"),
-		Spec: corev1alpha2.KargoInstanceResourceSpec{
-			ForProvider: corev1alpha2.KargoInstanceParameters{
-				Name:  "ki-inline-secret",
-				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
-				KargoResources: []runtime.RawExtension{
-					mustRawExt(t, map[string]interface{}{
-						"apiVersion": "v1",
-						"kind":       "Secret",
-						"metadata": map[string]interface{}{
-							"name": "repo-github",
-							"labels": map[string]interface{}{
-								"kargo.akuity.io/cred-type": "git",
-							},
-						},
-						"stringData": map[string]interface{}{
-							"password": "leaked-if-admitted",
-						},
-					}),
-				},
-			},
-		},
-	}
-	err := kube.Create(ctx, ki)
-	require.Error(t, err, "apiserver must reject v1/Secret inside kargoResources before it can land in etcd")
-	assert.Contains(t, err.Error(), "kargoRepoCredentialSecretRefs")
-}
-
-// TestInstance_SecretInArgocdResourcesRejected mirrors the Kargo rule
-// for the Instance surface. argocdResources is schemaless, so without
-// the parent-level CEL rule a user could leak plaintext credentials
-// through the MR spec. Typed *SecretRef fields are the supported path.
-func TestInstance_SecretInArgocdResourcesRejected(t *testing.T) {
-	ctx := context.Background()
-
-	inst := &corev1alpha2.Instance{
-		ObjectMeta: newMeta("inst-inline-secret"),
-		Spec: corev1alpha2.InstanceSpec{
-			ForProvider: corev1alpha2.InstanceParameters{
-				Name:   "inst-inline-secret",
-				ArgoCD: &corev1alpha2.ArgoCDSpec{Version: "v2.12.4"},
-				ArgocdResources: []runtime.RawExtension{
-					mustRawExt(t, map[string]interface{}{
-						"apiVersion": "v1",
-						"kind":       "Secret",
-						"metadata":   map[string]interface{}{"name": "repo-github"},
-						"stringData": map[string]interface{}{"password": "leaked-if-admitted"},
-					}),
-				},
-			},
-		},
-	}
-	err := kube.Create(ctx, inst)
-	require.Error(t, err, "apiserver must reject v1/Secret inside argocdResources")
-	assert.Contains(t, err.Error(), "*SecretRef")
-}
+// v1/Secret entries inside the schemaless Resources slice cannot be
+// rejected at admission time: Kubernetes CEL cannot iterate a
+// preserve-unknown-fields slice (it has no element schema to bind the
+// `r` variable against), so any `self.resources.all(r, ...)` rule is
+// rejected at CRD install with "undefined field 'resources'". The
+// rejection therefore happens at the controller boundary, in
+// splitArgocdResources / splitKargoResources, and is covered by the
+// unit tests on those helpers rather than here. Documented rather
+// than asserted so future readers don't try to re-add the CEL rule.
 
 // TestCluster_MaintenanceModeExpiryRequiresMode exercises the CEL rule
 // that guards ClusterData: a maintenance-expiry timestamp without

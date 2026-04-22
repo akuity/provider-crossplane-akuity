@@ -28,15 +28,14 @@ import (
 
 // InstanceParameters are the configurable fields of an ArgoCD Instance.
 //
-// CEL rules:
-//   - v1/Secret manifests are forbidden inside resources. The field is
-//     schemaless/preserve-unknown-fields, so without this rule the
-//     apiserver would persist inline Secret data in etcd before the
-//     controller could reject it at reconcile time. Secret payloads
-//     must flow through the typed *SecretRef fields (argocdSecretRef,
-//     repoCredentialSecretRefs, ...).
-//
-// +kubebuilder:validation:XValidation:rule="!has(self.resources) || self.resources.all(r, !(has(r.apiVersion) && has(r.kind) && r.apiVersion == 'v1' && r.kind == 'Secret'))",message="v1/Secret entries are not accepted in spec.forProvider.resources; use the typed *SecretRef fields instead"
+// v1/Secret manifests are forbidden inside resources, but the check
+// lives in the controller (splitArgocdResources) rather than CEL: the
+// field is schemaless/preserve-unknown-fields, which hides its element
+// shape from the apiserver's CEL compiler and would fail CRD install
+// with "undefined field 'resources'". Secret payloads must flow
+// through the typed *SecretRef fields (argocdSecretRef,
+// repoCredentialSecretRefs, ...); inline v1/Secret entries in
+// resources are rejected at reconcile time.
 type InstanceParameters struct {
 	// Name of the instance in the Akuity Platform. Required.
 	// +kubebuilder:validation:Required
@@ -124,7 +123,10 @@ type InstanceParameters struct {
 	// on submission. The stricter regex (vs bare prefix) rejects
 	// whitespace, case drift, and other sneaky inputs that would
 	// otherwise parse as a valid prefix but fail downstream.
+	// MaxItems=128 caps the regex-per-element CEL cost inside the
+	// apiserver's per-rule budget; an unbounded slice blows it by 6x.
 	// +optional
+	// +kubebuilder:validation:MaxItems=128
 	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
 	RepoCredentialSecretRefs []NamedLocalSecretReference `json:"repoCredentialSecretRefs,omitempty"`
 
@@ -132,7 +134,10 @@ type InstanceParameters struct {
 	// template credentials. Same shape + regex constraint as
 	// RepoCredentialSecretRefs; the controller applies
 	// argocd.argoproj.io/secret-type=repo-creds on submission.
+	// MaxItems=128 caps the regex-per-element CEL cost inside the
+	// apiserver's per-rule budget; see RepoCredentialSecretRefs.
 	// +optional
+	// +kubebuilder:validation:MaxItems=128
 	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoTemplateCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
 	RepoTemplateCredentialSecretRefs []NamedLocalSecretReference `json:"repoTemplateCredentialSecretRefs,omitempty"`
 

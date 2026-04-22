@@ -35,15 +35,16 @@ import (
 //     adopters that inlined the secret map can keep doing so; new
 //     deployments should use dexConfigSecretRef so plaintext never
 //     lives on the managed resource spec.
-//   - v1/Secret manifests are forbidden inside resources. The field is
-//     schemaless/preserve-unknown-fields, which means the apiserver
-//     would otherwise persist inline Secret data in etcd before the
-//     controller could reject it at reconcile time. Repository
-//     credentials must flow through kargoRepoCredentialSecretRefs
-//     (typed refs).
+//
+// v1/Secret manifests are forbidden inside resources, but the check
+// lives in the controller (splitKargoResources) rather than CEL: the
+// field is schemaless/preserve-unknown-fields, which hides its element
+// shape from the apiserver's CEL compiler and would fail CRD install
+// with "undefined field 'resources'". Repository credentials must
+// flow through kargoRepoCredentialSecretRefs (typed refs); inline
+// v1/Secret entries in resources are rejected at reconcile time.
 //
 // +kubebuilder:validation:XValidation:rule="!has(self.kargo.oidcConfig) || !has(self.kargo.oidcConfig.dexConfigSecretRef) || !has(self.kargo.oidcConfig.dexConfigSecret) || size(self.kargo.oidcConfig.dexConfigSecret) == 0",message="set either kargo.oidcConfig.dexConfigSecretRef or kargo.oidcConfig.dexConfigSecret, not both"
-// +kubebuilder:validation:XValidation:rule="!has(self.resources) || self.resources.all(r, !(has(r.apiVersion) && has(r.kind) && r.apiVersion == 'v1' && r.kind == 'Secret'))",message="v1/Secret entries are not accepted in spec.forProvider.resources; use spec.forProvider.kargoRepoCredentialSecretRefs instead"
 type KargoInstanceParameters struct {
 	// Name of the Kargo instance in the Akuity Platform. Required.
 	// +kubebuilder:validation:Required
@@ -79,8 +80,13 @@ type KargoInstanceParameters struct {
 	// status.atProvider. Removal from spec does NOT delete the
 	// Secret on the gateway; see the additive-semantics note on
 	// resources below.
+	// The uniqueness rule is written with exists_one rather than
+	// size(self.map(...)) == size(self): CEL's .map() returns a list
+	// (not a set) so the size comparison never catches duplicates.
+	// exists_one is O(n²), kept in budget by the MaxItems=128 cap.
 	// +optional
-	// +kubebuilder:validation:XValidation:rule="size(self.map(e, e.projectNamespace + '/' + e.name)) == size(self)",message="kargoRepoCredentialSecretRefs entries must have unique (projectNamespace, name) pairs"
+	// +kubebuilder:validation:MaxItems=128
+	// +kubebuilder:validation:XValidation:rule="self.all(i, self.exists_one(j, j.projectNamespace == i.projectNamespace && j.name == i.name))",message="kargoRepoCredentialSecretRefs entries must have unique (projectNamespace, name) pairs"
 	KargoRepoCredentialSecretRefs []KargoRepoCredentialSecretRef `json:"kargoRepoCredentialSecretRefs,omitempty"`
 
 	// Resources carries raw YAML manifests for declarative Kargo
