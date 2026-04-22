@@ -36,6 +36,14 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 )
 
+// ObservedManaged is the subset of v2 managed resources handled by the
+// shared connector. In addition to the modern managed-resource surface,
+// they expose top-level observedGeneration accessors.
+type ObservedManaged interface {
+	resource.ModernManaged
+	resource.ReconciliationObserver
+}
+
 // ClientFactory constructs the per-reconcile Akuity API client from a
 // managed resource's ProviderConfigReference. It is extracted so tests
 // can plug in a fake without reaching into the credentials path.
@@ -52,13 +60,13 @@ func DefaultClientFactory(ctx context.Context, kube client.Client, mg resource.M
 // ExternalClientBuilder turns a typed managed resource plus a resolved
 // Akuity client into a concrete TypedExternalClient. Per-resource
 // controllers supply this.
-type ExternalClientBuilder[T resource.ModernManaged] func(client akuity.Client, kube client.Client, logger logging.Logger, recorder event.Recorder) managed.TypedExternalClient[T]
+type ExternalClientBuilder[T ObservedManaged] func(client akuity.Client, kube client.Client, logger logging.Logger, recorder event.Recorder) managed.TypedExternalClient[T]
 
 // Connector is a generic TypedExternalConnector[T]. It tracks
 // ProviderConfig usage via the modern (typed) tracker, resolves the
 // Akuity client through the supplied ClientFactory, and hands both
 // client and kube client off to the per-resource builder.
-type Connector[T resource.ModernManaged] struct {
+type Connector[T ObservedManaged] struct {
 	Kube      client.Client
 	Usage     *resource.ProviderConfigUsageTracker
 	Logger    logging.Logger
@@ -69,6 +77,8 @@ type Connector[T resource.ModernManaged] struct {
 
 // Connect implements managed.TypedExternalConnector.
 func (c *Connector[T]) Connect(ctx context.Context, mg T) (managed.TypedExternalClient[T], error) {
+	PropagateObservedGeneration(mg)
+
 	if err := c.Usage.Track(ctx, mg); err != nil {
 		return nil, errors.Wrap(err, "cannot track ProviderConfig usage")
 	}
