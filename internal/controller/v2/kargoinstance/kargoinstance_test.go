@@ -48,7 +48,7 @@ func newKI() *v1alpha2.KargoInstance {
 		Spec: v1alpha2.KargoInstanceResourceSpec{
 			ForProvider: v1alpha2.KargoInstanceParameters{
 				Name: "ki",
-				Spec: v1alpha2.KargoSpec{Version: "v1.0.0"},
+				Kargo: v1alpha2.KargoSpec{Version: "v1.0.0"},
 			},
 		},
 	}

@@ -29,14 +29,14 @@ import (
 // InstanceParameters are the configurable fields of an ArgoCD Instance.
 //
 // CEL rules:
-//   - v1/Secret manifests are forbidden inside argocdResources. The
-//     field is schemaless/preserve-unknown-fields, so without this
-//     rule the apiserver would persist inline Secret data in etcd
-//     before the controller could reject it at reconcile time.
-//     Secret payloads must flow through the typed *SecretRef fields
-//     (argocdSecretRef, repoCredentialSecretRefs, ...).
+//   - v1/Secret manifests are forbidden inside resources. The field is
+//     schemaless/preserve-unknown-fields, so without this rule the
+//     apiserver would persist inline Secret data in etcd before the
+//     controller could reject it at reconcile time. Secret payloads
+//     must flow through the typed *SecretRef fields (argocdSecretRef,
+//     repoCredentialSecretRefs, ...).
 //
-// +kubebuilder:validation:XValidation:rule="!has(self.argocdResources) || self.argocdResources.all(r, !(has(r.apiVersion) && has(r.kind) && r.apiVersion == 'v1' && r.kind == 'Secret'))",message="v1/Secret entries are not accepted in spec.forProvider.argocdResources; use the typed *SecretRef fields instead"
+// +kubebuilder:validation:XValidation:rule="!has(self.resources) || self.resources.all(r, !(has(r.apiVersion) && has(r.kind) && r.apiVersion == 'v1' && r.kind == 'Secret'))",message="v1/Secret entries are not accepted in spec.forProvider.resources; use the typed *SecretRef fields instead"
 type InstanceParameters struct {
 	// Name of the instance in the Akuity Platform. Required.
 	// +kubebuilder:validation:Required
@@ -44,8 +44,15 @@ type InstanceParameters struct {
 	Name string `json:"name"`
 
 	// ArgoCD contains the ArgoCD configuration. Required.
+	//
+	// Points at the upstream ArgoCDSpec wire type directly. The prior
+	// shell-level ArgoCD{Spec ArgoCDSpec} wrapper was pure indirection
+	// and has been removed to flatten the user-facing YAML by one
+	// level: .spec.forProvider.argocd.* now reaches the wire fields
+	// (description, version, shard, instanceSpec) that used to live
+	// at .spec.forProvider.argocd.spec.* .
 	// +kubebuilder:validation:Required
-	ArgoCD *ArgoCD `json:"argocd"`
+	ArgoCD *ArgoCDSpec `json:"argocd"`
 
 	// ArgoCDConfigMap sets keys in the argocd-cm ConfigMap.
 	// +optional
@@ -117,12 +124,7 @@ type InstanceParameters struct {
 	// on submission. The stricter regex (vs bare prefix) rejects
 	// whitespace, case drift, and other sneaky inputs that would
 	// otherwise parse as a valid prefix but fail downstream.
-	//
-	// MaxItems caps the CEL cost estimate so kube-apiserver accepts
-	// the rule; 128 slots is far above the realistic usage ceiling
-	// and can be raised with a CRD bump if a need emerges.
 	// +optional
-	// +kubebuilder:validation:MaxItems=128
 	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
 	RepoCredentialSecretRefs []NamedLocalSecretReference `json:"repoCredentialSecretRefs,omitempty"`
 
@@ -131,12 +133,11 @@ type InstanceParameters struct {
 	// RepoCredentialSecretRefs; the controller applies
 	// argocd.argoproj.io/secret-type=repo-creds on submission.
 	// +optional
-	// +kubebuilder:validation:MaxItems=128
 	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoTemplateCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
 	RepoTemplateCredentialSecretRefs []NamedLocalSecretReference `json:"repoTemplateCredentialSecretRefs,omitempty"`
 
-	// ArgocdResources carries raw YAML manifests for declarative
-	// ArgoCD child resources. The controller validates each entry's
+	// Resources carries raw YAML manifests for declarative ArgoCD
+	// child resources. The controller validates each entry's
 	// apiVersion/kind (argoproj.io/v1alpha1 Application,
 	// ApplicationSet, or AppProject), groups them by kind, and sends
 	// them alongside the instance spec on every ApplyInstance call.
@@ -154,22 +155,10 @@ type InstanceParameters struct {
 	// Akuity UI or another tool) would be collateral damage. To
 	// remove a resource, delete it through the Akuity platform UI or
 	// API. See PARITY_PLAN.md for the rationale.
-	//
-	// MaxItems caps the CEL-reachable list length so the cost
-	// estimator stays within kube-apiserver's budget; 256 is well
-	// above any realistic declarative child count.
 	// +optional
-	// +kubebuilder:validation:MaxItems=256
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
-	ArgocdResources []runtime.RawExtension `json:"argocdResources,omitempty"`
-}
-
-// ArgoCD is the v1alpha2 wrapper around the upstream ArgoCD wire type.
-// The upstream ArgoCD carries Kubernetes metadata we don't need on the
-// CRD surface; this shell-level wrapper reduces it to the Spec.
-type ArgoCD struct {
-	Spec ArgoCDSpec `json:"spec,omitempty"`
+	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
 // ConfigManagementPlugin registers a v2 config-management plugin on the
@@ -209,7 +198,7 @@ type InstanceObservation struct {
 	// instance.
 	OwnerOrganizationName string `json:"ownerOrganizationName,omitempty"`
 	// ArgoCD is the observed ArgoCD configuration.
-	ArgoCD ArgoCD `json:"argocd,omitempty"`
+	ArgoCD ArgoCDSpec `json:"argocd,omitempty"`
 	// ArgoCDConfigMap is the observed argocd-cm ConfigMap.
 	ArgoCDConfigMap map[string]string `json:"argocdConfigMap,omitempty"`
 	// ArgoCDImageUpdaterConfigMap is the observed
@@ -234,9 +223,9 @@ type InstanceObservation struct {
 
 	// ApplicationsStatus surfaces aggregated counts for the
 	// Applications / ApplicationSets / AppProjects managed through
-	// spec.forProvider.argocdResources. Compositions and dashboards
-	// can use these to gate promotion without querying the Akuity
-	// platform UI.
+	// spec.forProvider.resources. Compositions and dashboards can use
+	// these to gate promotion without querying the Akuity platform
+	// UI.
 	ApplicationsStatus *ApplicationsStatus `json:"applicationsStatus,omitempty"`
 
 	// SecretHash is the SHA256 of the concatenation of every resolved

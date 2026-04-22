@@ -163,7 +163,7 @@ func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha2.KargoInstanceResourceSpec{
 			ForProvider: v1alpha2.KargoInstanceParameters{
-				Spec: v1alpha2.KargoSpec{
+				Kargo: v1alpha2.KargoSpec{
 					OidcConfig: &v1alpha2.KargoOidcConfig{
 						DexConfigSecretRef: &xpv1.LocalSecretReference{Name: "dex-creds"},
 					},
@@ -193,7 +193,7 @@ func TestResolvedKargoSecrets_HashChangesOnRefRename(t *testing.T) {
 func TestSpecToPB_InjectsResolvedDex(t *testing.T) {
 	in := v1alpha2.KargoInstanceParameters{
 		Name: "my-kargo",
-		Spec: v1alpha2.KargoSpec{
+		Kargo: v1alpha2.KargoSpec{
 			Version: "v1.4.0",
 			OidcConfig: &v1alpha2.KargoOidcConfig{
 				ClientID:           "app",
@@ -221,7 +221,7 @@ func TestSpecToPB_InjectsResolvedDex(t *testing.T) {
 func TestSpecToPB_NoResolvedDexLeavesSpecAlone(t *testing.T) {
 	in := v1alpha2.KargoInstanceParameters{
 		Name: "my-kargo",
-		Spec: v1alpha2.KargoSpec{
+		Kargo: v1alpha2.KargoSpec{
 			Version:    "v1.4.0",
 			OidcConfig: &v1alpha2.KargoOidcConfig{ClientID: "app"},
 		},

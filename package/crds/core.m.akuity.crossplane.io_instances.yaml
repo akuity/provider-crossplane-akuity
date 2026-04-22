@@ -57,8 +57,16 @@ spec:
             description: An InstanceSpec defines the desired state of an Instance.
             properties:
               forProvider:
-                description: InstanceParameters are the configurable fields of an
-                  ArgoCD Instance.
+                description: |-
+                  InstanceParameters are the configurable fields of an ArgoCD Instance.
+
+                  CEL rules:
+                    - v1/Secret manifests are forbidden inside resources. The field is
+                      schemaless/preserve-unknown-fields, so without this rule the
+                      apiserver would persist inline Secret data in etcd before the
+                      controller could reject it at reconcile time. Secret payloads
+                      must flow through the typed *SecretRef fields (argocdSecretRef,
+                      repoCredentialSecretRefs, ...).
                 properties:
                   applicationSetSecretRef:
                     description: |-
@@ -73,533 +81,538 @@ spec:
                     - name
                     type: object
                   argocd:
-                    description: ArgoCD contains the ArgoCD configuration. Required.
+                    description: |-
+                      ArgoCD contains the ArgoCD configuration. Required.
+
+                      Points at the upstream ArgoCDSpec wire type directly. The prior
+                      shell-level ArgoCD{Spec ArgoCDSpec} wrapper was pure indirection
+                      and has been removed to flatten the user-facing YAML by one
+                      level: .spec.forProvider.argocd.* now reaches the wire fields
+                      (description, version, shard, instanceSpec) that used to live
+                      at .spec.forProvider.argocd.spec.* .
                     properties:
-                      spec:
+                      description:
+                        type: string
+                      instanceSpec:
                         properties:
-                          description:
-                            type: string
-                          instanceSpec:
+                          agentPermissionsRules:
+                            items:
+                              properties:
+                                apiGroups:
+                                  items:
+                                    type: string
+                                  type: array
+                                resources:
+                                  items:
+                                    type: string
+                                  type: array
+                                verbs:
+                                  items:
+                                    type: string
+                                  type: array
+                              type: object
+                            type: array
+                          akuityIntelligenceExtension:
                             properties:
-                              agentPermissionsRules:
+                              aiSupportEngineerEnabled:
+                                type: boolean
+                              allowedGroups:
                                 items:
-                                  properties:
-                                    apiGroups:
-                                      items:
-                                        type: string
-                                      type: array
-                                    resources:
-                                      items:
-                                        type: string
-                                      type: array
-                                    verbs:
-                                      items:
-                                        type: string
-                                      type: array
-                                  type: object
+                                  type: string
                                 type: array
-                              akuityIntelligenceExtension:
+                              allowedUsernames:
+                                items:
+                                  type: string
+                                type: array
+                              enabled:
+                                type: boolean
+                              modelVersion:
+                                type: string
+                            type: object
+                          appInAnyNamespaceConfig:
+                            properties:
+                              enabled:
+                                type: boolean
+                            type: object
+                          appReconciliationsRateLimiting:
+                            properties:
+                              bucketRateLimiting:
                                 properties:
-                                  aiSupportEngineerEnabled:
-                                    type: boolean
-                                  allowedGroups:
-                                    items:
-                                      type: string
-                                    type: array
-                                  allowedUsernames:
-                                    items:
-                                      type: string
-                                    type: array
+                                  bucketQps:
+                                    format: int32
+                                    type: integer
+                                  bucketSize:
+                                    format: int32
+                                    type: integer
                                   enabled:
                                     type: boolean
-                                  modelVersion:
+                                type: object
+                              itemRateLimiting:
+                                properties:
+                                  backoffFactor:
+                                    type: number
+                                  baseDelay:
+                                    format: int32
+                                    type: integer
+                                  enabled:
+                                    type: boolean
+                                  failureCooldown:
+                                    format: int32
+                                    type: integer
+                                  maxDelay:
+                                    format: int32
+                                    type: integer
+                                type: object
+                            type: object
+                          appSetDelegate:
+                            properties:
+                              managedCluster:
+                                properties:
+                                  clusterName:
                                     type: string
                                 type: object
-                              appInAnyNamespaceConfig:
-                                properties:
-                                  enabled:
-                                    type: boolean
-                                type: object
-                              appReconciliationsRateLimiting:
-                                properties:
-                                  bucketRateLimiting:
-                                    properties:
-                                      bucketQps:
-                                        format: int32
-                                        type: integer
-                                      bucketSize:
-                                        format: int32
-                                        type: integer
-                                      enabled:
-                                        type: boolean
-                                    type: object
-                                  itemRateLimiting:
-                                    properties:
-                                      backoffFactor:
-                                        type: number
-                                      baseDelay:
-                                        format: int32
-                                        type: integer
-                                      enabled:
-                                        type: boolean
-                                      failureCooldown:
-                                        format: int32
-                                        type: integer
-                                      maxDelay:
-                                        format: int32
-                                        type: integer
-                                    type: object
-                                type: object
-                              appSetDelegate:
-                                properties:
-                                  managedCluster:
-                                    properties:
-                                      clusterName:
-                                        type: string
-                                    type: object
-                                type: object
-                              applicationSetExtension:
-                                properties:
-                                  enabled:
-                                    type: boolean
-                                type: object
-                              appsetPlugins:
+                            type: object
+                          applicationSetExtension:
+                            properties:
+                              enabled:
+                                type: boolean
+                            type: object
+                          appsetPlugins:
+                            items:
+                              properties:
+                                baseUrl:
+                                  type: string
+                                name:
+                                  type: string
+                                requestTimeout:
+                                  format: int32
+                                  type: integer
+                                token:
+                                  type: string
+                              type: object
+                            type: array
+                          appsetPolicy:
+                            properties:
+                              overridePolicy:
+                                type: boolean
+                              policy:
+                                type: string
+                            type: object
+                          appsetProgressiveSyncsEnabled:
+                            type: boolean
+                          assistantExtensionEnabled:
+                            type: boolean
+                          auditExtensionEnabled:
+                            type: boolean
+                          backendIpAllowListEnabled:
+                            type: boolean
+                          basepath:
+                            type: string
+                          clusterAddonsExtension:
+                            properties:
+                              allowedGroups:
+                                items:
+                                  type: string
+                                type: array
+                              allowedUsernames:
+                                items:
+                                  type: string
+                                type: array
+                              enabled:
+                                type: boolean
+                            type: object
+                          clusterCustomizationDefaults:
+                            properties:
+                              appReplication:
+                                type: boolean
+                              autoUpgradeDisabled:
+                                type: boolean
+                              kustomization:
+                                type: string
+                              redisTunneling:
+                                type: boolean
+                              serverSideDiffEnabled:
+                                type: boolean
+                            type: object
+                          crossplaneExtension:
+                            properties:
+                              resources:
                                 items:
                                   properties:
-                                    baseUrl:
-                                      type: string
-                                    name:
-                                      type: string
-                                    requestTimeout:
-                                      format: int32
-                                      type: integer
-                                    token:
+                                    group:
                                       type: string
                                   type: object
                                 type: array
-                              appsetPolicy:
+                            type: object
+                          customDeprecatedApis:
+                            items:
+                              properties:
+                                apiVersion:
+                                  type: string
+                                deprecatedInKubernetesVersion:
+                                  type: string
+                                newApiVersion:
+                                  type: string
+                                unavailableInKubernetesVersion:
+                                  type: string
+                              type: object
+                            type: array
+                          declarativeManagementEnabled:
+                            type: boolean
+                          extensions:
+                            items:
+                              properties:
+                                id:
+                                  type: string
+                                version:
+                                  type: string
+                              type: object
+                            type: array
+                          fqdn:
+                            type: string
+                          hostAliases:
+                            items:
+                              properties:
+                                hostnames:
+                                  items:
+                                    type: string
+                                  type: array
+                                ip:
+                                  type: string
+                              type: object
+                            type: array
+                          imageUpdaterDelegate:
+                            properties:
+                              controlPlane:
+                                type: boolean
+                              managedCluster:
                                 properties:
-                                  overridePolicy:
-                                    type: boolean
-                                  policy:
+                                  clusterName:
                                     type: string
                                 type: object
-                              appsetProgressiveSyncsEnabled:
-                                type: boolean
-                              assistantExtensionEnabled:
-                                type: boolean
-                              auditExtensionEnabled:
-                                type: boolean
-                              backendIpAllowListEnabled:
-                                type: boolean
-                              basepath:
-                                type: string
-                              clusterAddonsExtension:
-                                properties:
-                                  allowedGroups:
-                                    items:
-                                      type: string
-                                    type: array
-                                  allowedUsernames:
-                                    items:
-                                      type: string
-                                    type: array
-                                  enabled:
-                                    type: boolean
-                                type: object
-                              clusterCustomizationDefaults:
-                                properties:
-                                  appReplication:
-                                    type: boolean
-                                  autoUpgradeDisabled:
-                                    type: boolean
-                                  kustomization:
-                                    type: string
-                                  redisTunneling:
-                                    type: boolean
-                                  serverSideDiffEnabled:
-                                    type: boolean
-                                type: object
-                              crossplaneExtension:
-                                properties:
-                                  resources:
-                                    items:
-                                      properties:
-                                        group:
-                                          type: string
-                                      type: object
-                                    type: array
-                                type: object
-                              customDeprecatedApis:
+                            type: object
+                          imageUpdaterEnabled:
+                            type: boolean
+                          imageUpdaterVersion:
+                            type: string
+                          ipAllowList:
+                            items:
+                              properties:
+                                description:
+                                  type: string
+                                ip:
+                                  type: string
+                              type: object
+                            type: array
+                          kubeVisionConfig:
+                            properties:
+                              additionalAttributes:
                                 items:
                                   properties:
-                                    apiVersion:
-                                      type: string
-                                    deprecatedInKubernetesVersion:
-                                      type: string
-                                    newApiVersion:
-                                      type: string
-                                    unavailableInKubernetesVersion:
-                                      type: string
-                                  type: object
-                                type: array
-                              declarativeManagementEnabled:
-                                type: boolean
-                              extensions:
-                                items:
-                                  properties:
-                                    id:
-                                      type: string
-                                    version:
-                                      type: string
-                                  type: object
-                                type: array
-                              fqdn:
-                                type: string
-                              hostAliases:
-                                items:
-                                  properties:
-                                    hostnames:
+                                    annotations:
                                       items:
                                         type: string
                                       type: array
-                                    ip:
+                                    group:
                                       type: string
-                                  type: object
-                                type: array
-                              imageUpdaterDelegate:
-                                properties:
-                                  controlPlane:
-                                    type: boolean
-                                  managedCluster:
-                                    properties:
-                                      clusterName:
+                                    kind:
+                                      type: string
+                                    labels:
+                                      items:
                                         type: string
-                                    type: object
-                                type: object
-                              imageUpdaterEnabled:
-                                type: boolean
-                              imageUpdaterVersion:
-                                type: string
-                              ipAllowList:
-                                items:
-                                  properties:
-                                    description:
-                                      type: string
-                                    ip:
+                                      type: array
+                                    namespace:
                                       type: string
                                   type: object
                                 type: array
-                              kubeVisionConfig:
+                              aiConfig:
                                 properties:
-                                  additionalAttributes:
+                                  argocdSlackChannels:
                                     items:
-                                      properties:
-                                        annotations:
-                                          items:
-                                            type: string
-                                          type: array
-                                        group:
-                                          type: string
-                                        kind:
-                                          type: string
-                                        labels:
-                                          items:
-                                            type: string
-                                          type: array
-                                        namespace:
-                                          type: string
-                                      type: object
+                                      type: string
                                     type: array
-                                  aiConfig:
+                                  argocdSlackService:
+                                    type: string
+                                  incidents:
                                     properties:
-                                      argocdSlackChannels:
-                                        items:
-                                          type: string
-                                        type: array
-                                      argocdSlackService:
-                                        type: string
-                                      incidents:
+                                      grouping:
                                         properties:
-                                          grouping:
+                                          argocdApplicationNames:
+                                            items:
+                                              type: string
+                                            type: array
+                                          k8sNamespaces:
+                                            items:
+                                              type: string
+                                            type: array
+                                        type: object
+                                      investigationApproval:
+                                        properties:
+                                          scopes:
+                                            items:
+                                              properties:
+                                                argocdApplications:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                clusters:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                consecutiveAutoClosures:
+                                                  format: int32
+                                                  type: integer
+                                                k8sNamespaces:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                        type: object
+                                      triggers:
+                                        items:
+                                          properties:
+                                            argocdApplications:
+                                              items:
+                                                type: string
+                                              type: array
+                                            clusters:
+                                              items:
+                                                type: string
+                                              type: array
+                                            degradedFor:
+                                              type: string
+                                            k8sNamespaces:
+                                              items:
+                                                type: string
+                                              type: array
+                                          type: object
+                                        type: array
+                                      webhooks:
+                                        items:
+                                          properties:
+                                            argocdApplicationNamePath:
+                                              type: string
+                                            argocdApplicationNamespacePath:
+                                              type: string
+                                            clusterPath:
+                                              type: string
+                                            descriptionPath:
+                                              type: string
+                                            k8sNamespacePath:
+                                              type: string
+                                            name:
+                                              type: string
+                                            titlePath:
+                                              type: string
+                                          type: object
+                                        type: array
+                                    type: object
+                                  runbookRepos:
+                                    items:
+                                      properties:
+                                        appliedFor:
+                                          additionalProperties:
                                             properties:
-                                              argocdApplicationNames:
+                                              argocdApplications:
                                                 items:
                                                   type: string
                                                 type: array
+                                              clusters:
+                                                items:
+                                                  type: string
+                                                type: array
+                                              degradedFor:
+                                                type: string
                                               k8sNamespaces:
                                                 items:
                                                   type: string
                                                 type: array
                                             type: object
-                                          investigationApproval:
+                                          type: object
+                                        path:
+                                          type: string
+                                        repoUrl:
+                                          type: string
+                                        revision:
+                                          type: string
+                                      type: object
+                                    type: array
+                                  runbooks:
+                                    items:
+                                      properties:
+                                        appliedTo:
+                                          properties:
+                                            argocdApplications:
+                                              items:
+                                                type: string
+                                              type: array
+                                            clusters:
+                                              items:
+                                                type: string
+                                              type: array
+                                            degradedFor:
+                                              type: string
+                                            k8sNamespaces:
+                                              items:
+                                                type: string
+                                              type: array
+                                          type: object
+                                        content:
+                                          type: string
+                                        name:
+                                          type: string
+                                        slackChannelNames:
+                                          items:
+                                            type: string
+                                          type: array
+                                      type: object
+                                    type: array
+                                type: object
+                              cveScanConfig:
+                                properties:
+                                  rescanInterval:
+                                    type: string
+                                  scanEnabled:
+                                    type: boolean
+                                type: object
+                            type: object
+                          manifestGeneration:
+                            properties:
+                              kustomize:
+                                properties:
+                                  additionalVersions:
+                                    items:
+                                      type: string
+                                    type: array
+                                  defaultVersion:
+                                    type: string
+                                type: object
+                            type: object
+                          metricsIngressPasswordHash:
+                            type: string
+                          metricsIngressUsername:
+                            type: string
+                          multiClusterK8sDashboardEnabled:
+                            type: boolean
+                          privilegedNotificationCluster:
+                            type: string
+                          repoServerDelegate:
+                            properties:
+                              controlPlane:
+                                type: boolean
+                              managedCluster:
+                                properties:
+                                  clusterName:
+                                    type: string
+                                type: object
+                            type: object
+                          secrets:
+                            properties:
+                              destinations:
+                                items:
+                                  properties:
+                                    clusters:
+                                      properties:
+                                        matchExpressions:
+                                          items:
                                             properties:
-                                              scopes:
+                                              key:
+                                                type: string
+                                              operator:
+                                                type: string
+                                              values:
                                                 items:
-                                                  properties:
-                                                    argocdApplications:
-                                                      items:
-                                                        type: string
-                                                      type: array
-                                                    clusters:
-                                                      items:
-                                                        type: string
-                                                      type: array
-                                                    consecutiveAutoClosures:
-                                                      format: int32
-                                                      type: integer
-                                                    k8sNamespaces:
-                                                      items:
-                                                        type: string
-                                                      type: array
-                                                  type: object
+                                                  type: string
                                                 type: array
                                             type: object
-                                          triggers:
-                                            items:
-                                              properties:
-                                                argocdApplications:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                                clusters:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                                degradedFor:
-                                                  type: string
-                                                k8sNamespaces:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                              type: object
-                                            type: array
-                                          webhooks:
-                                            items:
-                                              properties:
-                                                argocdApplicationNamePath:
-                                                  type: string
-                                                argocdApplicationNamespacePath:
-                                                  type: string
-                                                clusterPath:
-                                                  type: string
-                                                descriptionPath:
-                                                  type: string
-                                                k8sNamespacePath:
-                                                  type: string
-                                                name:
-                                                  type: string
-                                                titlePath:
-                                                  type: string
-                                              type: object
-                                            type: array
-                                        type: object
-                                      runbookRepos:
-                                        items:
-                                          properties:
-                                            appliedFor:
-                                              additionalProperties:
-                                                properties:
-                                                  argocdApplications:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                  clusters:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                  degradedFor:
-                                                    type: string
-                                                  k8sNamespaces:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: object
-                                            path:
-                                              type: string
-                                            repoUrl:
-                                              type: string
-                                            revision:
-                                              type: string
-                                          type: object
-                                        type: array
-                                      runbooks:
-                                        items:
-                                          properties:
-                                            appliedTo:
-                                              properties:
-                                                argocdApplications:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                                clusters:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                                degradedFor:
-                                                  type: string
-                                                k8sNamespaces:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                              type: object
-                                            content:
-                                              type: string
-                                            name:
-                                              type: string
-                                            slackChannelNames:
-                                              items:
-                                                type: string
-                                              type: array
-                                          type: object
-                                        type: array
-                                    type: object
-                                  cveScanConfig:
-                                    properties:
-                                      rescanInterval:
-                                        type: string
-                                      scanEnabled:
-                                        type: boolean
-                                    type: object
-                                type: object
-                              manifestGeneration:
-                                properties:
-                                  kustomize:
-                                    properties:
-                                      additionalVersions:
-                                        items:
-                                          type: string
-                                        type: array
-                                      defaultVersion:
-                                        type: string
-                                    type: object
-                                type: object
-                              metricsIngressPasswordHash:
-                                type: string
-                              metricsIngressUsername:
-                                type: string
-                              multiClusterK8sDashboardEnabled:
-                                type: boolean
-                              privilegedNotificationCluster:
-                                type: string
-                              repoServerDelegate:
-                                properties:
-                                  controlPlane:
-                                    type: boolean
-                                  managedCluster:
-                                    properties:
-                                      clusterName:
-                                        type: string
-                                    type: object
-                                type: object
-                              secrets:
-                                properties:
-                                  destinations:
-                                    items:
-                                      properties:
-                                        clusters:
-                                          properties:
-                                            matchExpressions:
-                                              items:
-                                                properties:
-                                                  key:
-                                                    type: string
-                                                  operator:
-                                                    type: string
-                                                  values:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: array
-                                            matchLabels:
-                                              additionalProperties:
-                                                type: string
-                                              type: object
-                                          type: object
-                                        secrets:
-                                          properties:
-                                            matchExpressions:
-                                              items:
-                                                properties:
-                                                  key:
-                                                    type: string
-                                                  operator:
-                                                    type: string
-                                                  values:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: array
-                                            matchLabels:
-                                              additionalProperties:
-                                                type: string
-                                              type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
                                           type: object
                                       type: object
-                                    type: array
-                                  sources:
-                                    items:
+                                    secrets:
                                       properties:
-                                        clusters:
-                                          properties:
-                                            matchExpressions:
-                                              items:
-                                                properties:
-                                                  key:
-                                                    type: string
-                                                  operator:
-                                                    type: string
-                                                  values:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: array
-                                            matchLabels:
-                                              additionalProperties:
+                                        matchExpressions:
+                                          items:
+                                            properties:
+                                              key:
                                                 type: string
-                                              type: object
-                                          type: object
-                                        secrets:
-                                          properties:
-                                            matchExpressions:
-                                              items:
-                                                properties:
-                                                  key:
-                                                    type: string
-                                                  operator:
-                                                    type: string
-                                                  values:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: array
-                                            matchLabels:
-                                              additionalProperties:
+                                              operator:
                                                 type: string
-                                              type: object
+                                              values:
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
                                           type: object
                                       type: object
-                                    type: array
-                                type: object
-                              subdomain:
-                                type: string
-                              syncHistoryExtensionEnabled:
-                                type: boolean
+                                  type: object
+                                type: array
+                              sources:
+                                items:
+                                  properties:
+                                    clusters:
+                                      properties:
+                                        matchExpressions:
+                                          items:
+                                            properties:
+                                              key:
+                                                type: string
+                                              operator:
+                                                type: string
+                                              values:
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
+                                          type: object
+                                      type: object
+                                    secrets:
+                                      properties:
+                                        matchExpressions:
+                                          items:
+                                            properties:
+                                              key:
+                                                type: string
+                                              operator:
+                                                type: string
+                                              values:
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
+                                          type: object
+                                      type: object
+                                  type: object
+                                type: array
                             type: object
-                          shard:
+                          subdomain:
                             type: string
-                          version:
-                            type: string
-                        required:
-                        - description
-                        - shard
-                        - version
+                          syncHistoryExtensionEnabled:
+                            type: boolean
                         type: object
+                      shard:
+                        type: string
+                      version:
+                        type: string
+                    required:
+                    - description
+                    - shard
+                    - version
                     type: object
                   argocdConfigMap:
                     additionalProperties:
@@ -657,31 +670,6 @@ spec:
                     description: ArgoCDRBACConfigMap sets keys in the argocd-rbac-cm
                       ConfigMap.
                     type: object
-                  argocdResources:
-                    description: |-
-                      ArgocdResources carries raw YAML manifests for declarative
-                      ArgoCD child resources. The controller validates each entry's
-                      apiVersion/kind (argoproj.io/v1alpha1 Application,
-                      ApplicationSet, or AppProject), groups them by kind, and sends
-                      them alongside the instance spec on every ApplyInstance call.
-                      Write the YAML as an object, not a string; the CRD schema is
-                      preserve-unknown-fields so the payload is opaque to kube-
-                      apiserver structural validation (CEL on specific kinds still
-                      runs — the parent-level rule rejects v1/Secret here so
-                      plaintext credential data cannot land in etcd). Each entry
-                      must still be valid ArgoCD YAML — the Akuity gateway rejects
-                      malformed payloads server-side.
-
-                      Additive semantics: removing an entry from this list does NOT
-                      delete the corresponding resource on the Akuity platform. The
-                      controller intentionally does not enable ApplyInstance's
-                      PruneResourceTypes for Applications, ApplicationSets, or
-                      AppProjects because out-of-band resources (created via the
-                      Akuity UI or another tool) would be collateral damage. To
-                      remove a resource, delete it through the Akuity platform UI or
-                      API. See PARITY_PLAN.md for the rationale.
-                    maxItems: 256
-                    x-kubernetes-preserve-unknown-fields: true
                   argocdSecretRef:
                     description: |-
                       ArgoCDSecretRef references a Secret whose data is sent verbatim
@@ -836,10 +824,6 @@ spec:
                       on submission. The stricter regex (vs bare prefix) rejects
                       whitespace, case drift, and other sneaky inputs that would
                       otherwise parse as a valid prefix but fail downstream.
-
-                      MaxItems caps the CEL cost estimate so kube-apiserver accepts
-                      the rule; 128 slots is far above the realistic usage ceiling
-                      and can be raised with a CRD bump if a need emerges.
                     items:
                       description: |-
                         NamedLocalSecretReference binds a gateway-facing credential name to a
@@ -874,7 +858,6 @@ spec:
                       - name
                       - secretRef
                       type: object
-                    maxItems: 128
                     type: array
                     x-kubernetes-validations:
                     - message: each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$
@@ -919,22 +902,42 @@ spec:
                       - name
                       - secretRef
                       type: object
-                    maxItems: 128
                     type: array
                     x-kubernetes-validations:
                     - message: each repoTemplateCredentialSecretRefs[].name must match
                         ^repo-[a-z0-9][a-z0-9-]*$
                       rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
+                  resources:
+                    description: |-
+                      Resources carries raw YAML manifests for declarative ArgoCD
+                      child resources. The controller validates each entry's
+                      apiVersion/kind (argoproj.io/v1alpha1 Application,
+                      ApplicationSet, or AppProject), groups them by kind, and sends
+                      them alongside the instance spec on every ApplyInstance call.
+                      Write the YAML as an object, not a string; the CRD schema is
+                      preserve-unknown-fields so the payload is opaque to kube-
+                      apiserver validation. Each entry must still be valid ArgoCD
+                      YAML — the Akuity gateway rejects malformed payloads server-
+                      side.
+
+                      Additive semantics: removing an entry from this list does NOT
+                      delete the corresponding resource on the Akuity platform. The
+                      controller intentionally does not enable ApplyInstance's
+                      PruneResourceTypes for Applications, ApplicationSets, or
+                      AppProjects because out-of-band resources (created via the
+                      Akuity UI or another tool) would be collateral damage. To
+                      remove a resource, delete it through the Akuity platform UI or
+                      API. See PARITY_PLAN.md for the rationale.
+                    x-kubernetes-preserve-unknown-fields: true
                 required:
                 - argocd
                 - name
                 type: object
                 x-kubernetes-validations:
-                - message: v1/Secret entries are not accepted in spec.forProvider.argocdResources;
+                - message: v1/Secret entries are not accepted in spec.forProvider.resources;
                     use the typed *SecretRef fields instead
-                  rule: '!has(self.argocdResources) || self.argocdResources.all(r,
-                    !(has(r.apiVersion) && has(r.kind) && r.apiVersion == ''v1'' &&
-                    r.kind == ''Secret''))'
+                  rule: '!has(self.resources) || self.resources.all(r, !(has(r.apiVersion)
+                    && has(r.kind) && r.apiVersion == ''v1'' && r.kind == ''Secret''))'
               managementPolicies:
                 default:
                 - '*'
@@ -1003,9 +1006,9 @@ spec:
                     description: |-
                       ApplicationsStatus surfaces aggregated counts for the
                       Applications / ApplicationSets / AppProjects managed through
-                      spec.forProvider.argocdResources. Compositions and dashboards
-                      can use these to gate promotion without querying the Akuity
-                      platform UI.
+                      spec.forProvider.resources. Compositions and dashboards can use
+                      these to gate promotion without querying the Akuity platform
+                      UI.
                     properties:
                       appOfAppCount:
                         description: AppOfAppCount is the subset that are app-of-apps
@@ -1077,531 +1080,528 @@ spec:
                   argocd:
                     description: ArgoCD is the observed ArgoCD configuration.
                     properties:
-                      spec:
+                      description:
+                        type: string
+                      instanceSpec:
                         properties:
-                          description:
-                            type: string
-                          instanceSpec:
+                          agentPermissionsRules:
+                            items:
+                              properties:
+                                apiGroups:
+                                  items:
+                                    type: string
+                                  type: array
+                                resources:
+                                  items:
+                                    type: string
+                                  type: array
+                                verbs:
+                                  items:
+                                    type: string
+                                  type: array
+                              type: object
+                            type: array
+                          akuityIntelligenceExtension:
                             properties:
-                              agentPermissionsRules:
+                              aiSupportEngineerEnabled:
+                                type: boolean
+                              allowedGroups:
                                 items:
-                                  properties:
-                                    apiGroups:
-                                      items:
-                                        type: string
-                                      type: array
-                                    resources:
-                                      items:
-                                        type: string
-                                      type: array
-                                    verbs:
-                                      items:
-                                        type: string
-                                      type: array
-                                  type: object
+                                  type: string
                                 type: array
-                              akuityIntelligenceExtension:
+                              allowedUsernames:
+                                items:
+                                  type: string
+                                type: array
+                              enabled:
+                                type: boolean
+                              modelVersion:
+                                type: string
+                            type: object
+                          appInAnyNamespaceConfig:
+                            properties:
+                              enabled:
+                                type: boolean
+                            type: object
+                          appReconciliationsRateLimiting:
+                            properties:
+                              bucketRateLimiting:
                                 properties:
-                                  aiSupportEngineerEnabled:
-                                    type: boolean
-                                  allowedGroups:
-                                    items:
-                                      type: string
-                                    type: array
-                                  allowedUsernames:
-                                    items:
-                                      type: string
-                                    type: array
+                                  bucketQps:
+                                    format: int32
+                                    type: integer
+                                  bucketSize:
+                                    format: int32
+                                    type: integer
                                   enabled:
                                     type: boolean
-                                  modelVersion:
+                                type: object
+                              itemRateLimiting:
+                                properties:
+                                  backoffFactor:
+                                    type: number
+                                  baseDelay:
+                                    format: int32
+                                    type: integer
+                                  enabled:
+                                    type: boolean
+                                  failureCooldown:
+                                    format: int32
+                                    type: integer
+                                  maxDelay:
+                                    format: int32
+                                    type: integer
+                                type: object
+                            type: object
+                          appSetDelegate:
+                            properties:
+                              managedCluster:
+                                properties:
+                                  clusterName:
                                     type: string
                                 type: object
-                              appInAnyNamespaceConfig:
-                                properties:
-                                  enabled:
-                                    type: boolean
-                                type: object
-                              appReconciliationsRateLimiting:
-                                properties:
-                                  bucketRateLimiting:
-                                    properties:
-                                      bucketQps:
-                                        format: int32
-                                        type: integer
-                                      bucketSize:
-                                        format: int32
-                                        type: integer
-                                      enabled:
-                                        type: boolean
-                                    type: object
-                                  itemRateLimiting:
-                                    properties:
-                                      backoffFactor:
-                                        type: number
-                                      baseDelay:
-                                        format: int32
-                                        type: integer
-                                      enabled:
-                                        type: boolean
-                                      failureCooldown:
-                                        format: int32
-                                        type: integer
-                                      maxDelay:
-                                        format: int32
-                                        type: integer
-                                    type: object
-                                type: object
-                              appSetDelegate:
-                                properties:
-                                  managedCluster:
-                                    properties:
-                                      clusterName:
-                                        type: string
-                                    type: object
-                                type: object
-                              applicationSetExtension:
-                                properties:
-                                  enabled:
-                                    type: boolean
-                                type: object
-                              appsetPlugins:
+                            type: object
+                          applicationSetExtension:
+                            properties:
+                              enabled:
+                                type: boolean
+                            type: object
+                          appsetPlugins:
+                            items:
+                              properties:
+                                baseUrl:
+                                  type: string
+                                name:
+                                  type: string
+                                requestTimeout:
+                                  format: int32
+                                  type: integer
+                                token:
+                                  type: string
+                              type: object
+                            type: array
+                          appsetPolicy:
+                            properties:
+                              overridePolicy:
+                                type: boolean
+                              policy:
+                                type: string
+                            type: object
+                          appsetProgressiveSyncsEnabled:
+                            type: boolean
+                          assistantExtensionEnabled:
+                            type: boolean
+                          auditExtensionEnabled:
+                            type: boolean
+                          backendIpAllowListEnabled:
+                            type: boolean
+                          basepath:
+                            type: string
+                          clusterAddonsExtension:
+                            properties:
+                              allowedGroups:
+                                items:
+                                  type: string
+                                type: array
+                              allowedUsernames:
+                                items:
+                                  type: string
+                                type: array
+                              enabled:
+                                type: boolean
+                            type: object
+                          clusterCustomizationDefaults:
+                            properties:
+                              appReplication:
+                                type: boolean
+                              autoUpgradeDisabled:
+                                type: boolean
+                              kustomization:
+                                type: string
+                              redisTunneling:
+                                type: boolean
+                              serverSideDiffEnabled:
+                                type: boolean
+                            type: object
+                          crossplaneExtension:
+                            properties:
+                              resources:
                                 items:
                                   properties:
-                                    baseUrl:
-                                      type: string
-                                    name:
-                                      type: string
-                                    requestTimeout:
-                                      format: int32
-                                      type: integer
-                                    token:
+                                    group:
                                       type: string
                                   type: object
                                 type: array
-                              appsetPolicy:
+                            type: object
+                          customDeprecatedApis:
+                            items:
+                              properties:
+                                apiVersion:
+                                  type: string
+                                deprecatedInKubernetesVersion:
+                                  type: string
+                                newApiVersion:
+                                  type: string
+                                unavailableInKubernetesVersion:
+                                  type: string
+                              type: object
+                            type: array
+                          declarativeManagementEnabled:
+                            type: boolean
+                          extensions:
+                            items:
+                              properties:
+                                id:
+                                  type: string
+                                version:
+                                  type: string
+                              type: object
+                            type: array
+                          fqdn:
+                            type: string
+                          hostAliases:
+                            items:
+                              properties:
+                                hostnames:
+                                  items:
+                                    type: string
+                                  type: array
+                                ip:
+                                  type: string
+                              type: object
+                            type: array
+                          imageUpdaterDelegate:
+                            properties:
+                              controlPlane:
+                                type: boolean
+                              managedCluster:
                                 properties:
-                                  overridePolicy:
-                                    type: boolean
-                                  policy:
+                                  clusterName:
                                     type: string
                                 type: object
-                              appsetProgressiveSyncsEnabled:
-                                type: boolean
-                              assistantExtensionEnabled:
-                                type: boolean
-                              auditExtensionEnabled:
-                                type: boolean
-                              backendIpAllowListEnabled:
-                                type: boolean
-                              basepath:
-                                type: string
-                              clusterAddonsExtension:
-                                properties:
-                                  allowedGroups:
-                                    items:
-                                      type: string
-                                    type: array
-                                  allowedUsernames:
-                                    items:
-                                      type: string
-                                    type: array
-                                  enabled:
-                                    type: boolean
-                                type: object
-                              clusterCustomizationDefaults:
-                                properties:
-                                  appReplication:
-                                    type: boolean
-                                  autoUpgradeDisabled:
-                                    type: boolean
-                                  kustomization:
-                                    type: string
-                                  redisTunneling:
-                                    type: boolean
-                                  serverSideDiffEnabled:
-                                    type: boolean
-                                type: object
-                              crossplaneExtension:
-                                properties:
-                                  resources:
-                                    items:
-                                      properties:
-                                        group:
-                                          type: string
-                                      type: object
-                                    type: array
-                                type: object
-                              customDeprecatedApis:
+                            type: object
+                          imageUpdaterEnabled:
+                            type: boolean
+                          imageUpdaterVersion:
+                            type: string
+                          ipAllowList:
+                            items:
+                              properties:
+                                description:
+                                  type: string
+                                ip:
+                                  type: string
+                              type: object
+                            type: array
+                          kubeVisionConfig:
+                            properties:
+                              additionalAttributes:
                                 items:
                                   properties:
-                                    apiVersion:
-                                      type: string
-                                    deprecatedInKubernetesVersion:
-                                      type: string
-                                    newApiVersion:
-                                      type: string
-                                    unavailableInKubernetesVersion:
-                                      type: string
-                                  type: object
-                                type: array
-                              declarativeManagementEnabled:
-                                type: boolean
-                              extensions:
-                                items:
-                                  properties:
-                                    id:
-                                      type: string
-                                    version:
-                                      type: string
-                                  type: object
-                                type: array
-                              fqdn:
-                                type: string
-                              hostAliases:
-                                items:
-                                  properties:
-                                    hostnames:
+                                    annotations:
                                       items:
                                         type: string
                                       type: array
-                                    ip:
+                                    group:
                                       type: string
-                                  type: object
-                                type: array
-                              imageUpdaterDelegate:
-                                properties:
-                                  controlPlane:
-                                    type: boolean
-                                  managedCluster:
-                                    properties:
-                                      clusterName:
+                                    kind:
+                                      type: string
+                                    labels:
+                                      items:
                                         type: string
-                                    type: object
-                                type: object
-                              imageUpdaterEnabled:
-                                type: boolean
-                              imageUpdaterVersion:
-                                type: string
-                              ipAllowList:
-                                items:
-                                  properties:
-                                    description:
-                                      type: string
-                                    ip:
+                                      type: array
+                                    namespace:
                                       type: string
                                   type: object
                                 type: array
-                              kubeVisionConfig:
+                              aiConfig:
                                 properties:
-                                  additionalAttributes:
+                                  argocdSlackChannels:
                                     items:
-                                      properties:
-                                        annotations:
-                                          items:
-                                            type: string
-                                          type: array
-                                        group:
-                                          type: string
-                                        kind:
-                                          type: string
-                                        labels:
-                                          items:
-                                            type: string
-                                          type: array
-                                        namespace:
-                                          type: string
-                                      type: object
+                                      type: string
                                     type: array
-                                  aiConfig:
+                                  argocdSlackService:
+                                    type: string
+                                  incidents:
                                     properties:
-                                      argocdSlackChannels:
-                                        items:
-                                          type: string
-                                        type: array
-                                      argocdSlackService:
-                                        type: string
-                                      incidents:
+                                      grouping:
                                         properties:
-                                          grouping:
+                                          argocdApplicationNames:
+                                            items:
+                                              type: string
+                                            type: array
+                                          k8sNamespaces:
+                                            items:
+                                              type: string
+                                            type: array
+                                        type: object
+                                      investigationApproval:
+                                        properties:
+                                          scopes:
+                                            items:
+                                              properties:
+                                                argocdApplications:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                clusters:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                                consecutiveAutoClosures:
+                                                  format: int32
+                                                  type: integer
+                                                k8sNamespaces:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                        type: object
+                                      triggers:
+                                        items:
+                                          properties:
+                                            argocdApplications:
+                                              items:
+                                                type: string
+                                              type: array
+                                            clusters:
+                                              items:
+                                                type: string
+                                              type: array
+                                            degradedFor:
+                                              type: string
+                                            k8sNamespaces:
+                                              items:
+                                                type: string
+                                              type: array
+                                          type: object
+                                        type: array
+                                      webhooks:
+                                        items:
+                                          properties:
+                                            argocdApplicationNamePath:
+                                              type: string
+                                            argocdApplicationNamespacePath:
+                                              type: string
+                                            clusterPath:
+                                              type: string
+                                            descriptionPath:
+                                              type: string
+                                            k8sNamespacePath:
+                                              type: string
+                                            name:
+                                              type: string
+                                            titlePath:
+                                              type: string
+                                          type: object
+                                        type: array
+                                    type: object
+                                  runbookRepos:
+                                    items:
+                                      properties:
+                                        appliedFor:
+                                          additionalProperties:
                                             properties:
-                                              argocdApplicationNames:
+                                              argocdApplications:
                                                 items:
                                                   type: string
                                                 type: array
+                                              clusters:
+                                                items:
+                                                  type: string
+                                                type: array
+                                              degradedFor:
+                                                type: string
                                               k8sNamespaces:
                                                 items:
                                                   type: string
                                                 type: array
                                             type: object
-                                          investigationApproval:
+                                          type: object
+                                        path:
+                                          type: string
+                                        repoUrl:
+                                          type: string
+                                        revision:
+                                          type: string
+                                      type: object
+                                    type: array
+                                  runbooks:
+                                    items:
+                                      properties:
+                                        appliedTo:
+                                          properties:
+                                            argocdApplications:
+                                              items:
+                                                type: string
+                                              type: array
+                                            clusters:
+                                              items:
+                                                type: string
+                                              type: array
+                                            degradedFor:
+                                              type: string
+                                            k8sNamespaces:
+                                              items:
+                                                type: string
+                                              type: array
+                                          type: object
+                                        content:
+                                          type: string
+                                        name:
+                                          type: string
+                                        slackChannelNames:
+                                          items:
+                                            type: string
+                                          type: array
+                                      type: object
+                                    type: array
+                                type: object
+                              cveScanConfig:
+                                properties:
+                                  rescanInterval:
+                                    type: string
+                                  scanEnabled:
+                                    type: boolean
+                                type: object
+                            type: object
+                          manifestGeneration:
+                            properties:
+                              kustomize:
+                                properties:
+                                  additionalVersions:
+                                    items:
+                                      type: string
+                                    type: array
+                                  defaultVersion:
+                                    type: string
+                                type: object
+                            type: object
+                          metricsIngressPasswordHash:
+                            type: string
+                          metricsIngressUsername:
+                            type: string
+                          multiClusterK8sDashboardEnabled:
+                            type: boolean
+                          privilegedNotificationCluster:
+                            type: string
+                          repoServerDelegate:
+                            properties:
+                              controlPlane:
+                                type: boolean
+                              managedCluster:
+                                properties:
+                                  clusterName:
+                                    type: string
+                                type: object
+                            type: object
+                          secrets:
+                            properties:
+                              destinations:
+                                items:
+                                  properties:
+                                    clusters:
+                                      properties:
+                                        matchExpressions:
+                                          items:
                                             properties:
-                                              scopes:
+                                              key:
+                                                type: string
+                                              operator:
+                                                type: string
+                                              values:
                                                 items:
-                                                  properties:
-                                                    argocdApplications:
-                                                      items:
-                                                        type: string
-                                                      type: array
-                                                    clusters:
-                                                      items:
-                                                        type: string
-                                                      type: array
-                                                    consecutiveAutoClosures:
-                                                      format: int32
-                                                      type: integer
-                                                    k8sNamespaces:
-                                                      items:
-                                                        type: string
-                                                      type: array
-                                                  type: object
+                                                  type: string
                                                 type: array
                                             type: object
-                                          triggers:
-                                            items:
-                                              properties:
-                                                argocdApplications:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                                clusters:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                                degradedFor:
-                                                  type: string
-                                                k8sNamespaces:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                              type: object
-                                            type: array
-                                          webhooks:
-                                            items:
-                                              properties:
-                                                argocdApplicationNamePath:
-                                                  type: string
-                                                argocdApplicationNamespacePath:
-                                                  type: string
-                                                clusterPath:
-                                                  type: string
-                                                descriptionPath:
-                                                  type: string
-                                                k8sNamespacePath:
-                                                  type: string
-                                                name:
-                                                  type: string
-                                                titlePath:
-                                                  type: string
-                                              type: object
-                                            type: array
-                                        type: object
-                                      runbookRepos:
-                                        items:
-                                          properties:
-                                            appliedFor:
-                                              additionalProperties:
-                                                properties:
-                                                  argocdApplications:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                  clusters:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                  degradedFor:
-                                                    type: string
-                                                  k8sNamespaces:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: object
-                                            path:
-                                              type: string
-                                            repoUrl:
-                                              type: string
-                                            revision:
-                                              type: string
-                                          type: object
-                                        type: array
-                                      runbooks:
-                                        items:
-                                          properties:
-                                            appliedTo:
-                                              properties:
-                                                argocdApplications:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                                clusters:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                                degradedFor:
-                                                  type: string
-                                                k8sNamespaces:
-                                                  items:
-                                                    type: string
-                                                  type: array
-                                              type: object
-                                            content:
-                                              type: string
-                                            name:
-                                              type: string
-                                            slackChannelNames:
-                                              items:
-                                                type: string
-                                              type: array
-                                          type: object
-                                        type: array
-                                    type: object
-                                  cveScanConfig:
-                                    properties:
-                                      rescanInterval:
-                                        type: string
-                                      scanEnabled:
-                                        type: boolean
-                                    type: object
-                                type: object
-                              manifestGeneration:
-                                properties:
-                                  kustomize:
-                                    properties:
-                                      additionalVersions:
-                                        items:
-                                          type: string
-                                        type: array
-                                      defaultVersion:
-                                        type: string
-                                    type: object
-                                type: object
-                              metricsIngressPasswordHash:
-                                type: string
-                              metricsIngressUsername:
-                                type: string
-                              multiClusterK8sDashboardEnabled:
-                                type: boolean
-                              privilegedNotificationCluster:
-                                type: string
-                              repoServerDelegate:
-                                properties:
-                                  controlPlane:
-                                    type: boolean
-                                  managedCluster:
-                                    properties:
-                                      clusterName:
-                                        type: string
-                                    type: object
-                                type: object
-                              secrets:
-                                properties:
-                                  destinations:
-                                    items:
-                                      properties:
-                                        clusters:
-                                          properties:
-                                            matchExpressions:
-                                              items:
-                                                properties:
-                                                  key:
-                                                    type: string
-                                                  operator:
-                                                    type: string
-                                                  values:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: array
-                                            matchLabels:
-                                              additionalProperties:
-                                                type: string
-                                              type: object
-                                          type: object
-                                        secrets:
-                                          properties:
-                                            matchExpressions:
-                                              items:
-                                                properties:
-                                                  key:
-                                                    type: string
-                                                  operator:
-                                                    type: string
-                                                  values:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: array
-                                            matchLabels:
-                                              additionalProperties:
-                                                type: string
-                                              type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
                                           type: object
                                       type: object
-                                    type: array
-                                  sources:
-                                    items:
+                                    secrets:
                                       properties:
-                                        clusters:
-                                          properties:
-                                            matchExpressions:
-                                              items:
-                                                properties:
-                                                  key:
-                                                    type: string
-                                                  operator:
-                                                    type: string
-                                                  values:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: array
-                                            matchLabels:
-                                              additionalProperties:
+                                        matchExpressions:
+                                          items:
+                                            properties:
+                                              key:
                                                 type: string
-                                              type: object
-                                          type: object
-                                        secrets:
-                                          properties:
-                                            matchExpressions:
-                                              items:
-                                                properties:
-                                                  key:
-                                                    type: string
-                                                  operator:
-                                                    type: string
-                                                  values:
-                                                    items:
-                                                      type: string
-                                                    type: array
-                                                type: object
-                                              type: array
-                                            matchLabels:
-                                              additionalProperties:
+                                              operator:
                                                 type: string
-                                              type: object
+                                              values:
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
                                           type: object
                                       type: object
-                                    type: array
-                                type: object
-                              subdomain:
-                                type: string
-                              syncHistoryExtensionEnabled:
-                                type: boolean
+                                  type: object
+                                type: array
+                              sources:
+                                items:
+                                  properties:
+                                    clusters:
+                                      properties:
+                                        matchExpressions:
+                                          items:
+                                            properties:
+                                              key:
+                                                type: string
+                                              operator:
+                                                type: string
+                                              values:
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
+                                          type: object
+                                      type: object
+                                    secrets:
+                                      properties:
+                                        matchExpressions:
+                                          items:
+                                            properties:
+                                              key:
+                                                type: string
+                                              operator:
+                                                type: string
+                                              values:
+                                                items:
+                                                  type: string
+                                                type: array
+                                            type: object
+                                          type: array
+                                        matchLabels:
+                                          additionalProperties:
+                                            type: string
+                                          type: object
+                                      type: object
+                                  type: object
+                                type: array
                             type: object
-                          shard:
+                          subdomain:
                             type: string
-                          version:
-                            type: string
-                        required:
-                        - description
-                        - shard
-                        - version
+                          syncHistoryExtensionEnabled:
+                            type: boolean
                         type: object
+                      shard:
+                        type: string
+                      version:
+                        type: string
+                    required:
+                    - description
+                    - shard
+                    - version
                     type: object
                   argocdConfigMap:
                     additionalProperties:

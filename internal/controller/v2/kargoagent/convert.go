@@ -45,14 +45,13 @@ func apiToSpec(desired v1alpha2.KargoAgentParameters, agent *kargov1.KargoAgent)
 		Labels:           data.GetLabels(),
 		Annotations:      data.GetAnnotations(),
 	}
-	// Project the wire Data sub-tree via the generated converter; the
-	// top-level KargoAgentSpec wrapper is constructed here because
-	// the wire KargoAgent doesn't expose a separate "spec" field.
-	spec := &v1alpha2.KargoAgentSpec{Description: agent.GetDescription()}
+	// Description hoisted to a forProvider sibling; the wire
+	// KargoAgentSpec envelope is discarded on the shell side so users
+	// write .forProvider.data.<wire fields> directly.
+	out.Description = agent.GetDescription()
 	if d := convertAgentData(data); d != nil {
-		spec.Data = *d
+		out.Data = *d
 	}
-	out.Spec = spec
 	return out
 }
 
@@ -79,17 +78,15 @@ func apiToObservation(agent *kargov1.KargoAgent) v1alpha2.KargoAgentObservation 
 // after the bridge.
 func agentDataPB(p v1alpha2.KargoAgentParameters) (*kargov1.KargoAgentData, error) {
 	pb := &kargov1.KargoAgentData{}
-	if p.Spec != nil {
-		if err := glue.ValidateKustomizationYAML(p.Spec.Data.Kustomization); err != nil {
-			return nil, fmt.Errorf("spec.forProvider.spec.data.kustomization: %w", err)
-		}
-		wire := convert.KargoAgentDataSpecToAPI(&p.Spec.Data)
-		if wire == nil {
-			wire = &akuitytypes.KargoAgentData{}
-		}
-		if err := marshal.GoModelToProto(wire, pb); err != nil {
-			return nil, fmt.Errorf("encode KargoAgentData: %w", err)
-		}
+	if err := glue.ValidateKustomizationYAML(p.Data.Kustomization); err != nil {
+		return nil, fmt.Errorf("spec.forProvider.data.kustomization: %w", err)
+	}
+	wire := convert.KargoAgentDataSpecToAPI(&p.Data)
+	if wire == nil {
+		wire = &akuitytypes.KargoAgentData{}
+	}
+	if err := marshal.GoModelToProto(wire, pb); err != nil {
+		return nil, fmt.Errorf("encode KargoAgentData: %w", err)
 	}
 	pb.Namespace = p.Namespace
 	pb.Labels = p.Labels

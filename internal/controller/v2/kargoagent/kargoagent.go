@@ -272,10 +272,7 @@ func (e *external) resolveKargoInstanceID(ctx context.Context, mg *v1alpha2.Karg
 }
 
 func agentDescription(p v1alpha2.KargoAgentParameters) string {
-	if p.Spec == nil {
-		return ""
-	}
-	return p.Spec.Description
+	return p.Description
 }
 
 // isConnectedAgentDeleteError recognises the Akuity API error surface

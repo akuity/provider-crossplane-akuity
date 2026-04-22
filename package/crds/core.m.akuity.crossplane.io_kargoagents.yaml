@@ -67,6 +67,66 @@ spec:
                       type: string
                     description: Annotations applied to the agent.
                     type: object
+                  data:
+                    description: |-
+                      Data is the KargoAgent configuration payload. Points at the
+                      upstream KargoAgentData wire type directly so the user-facing
+                      YAML stays one level under .data, matching the Cluster shape
+                      (where .data points at ClusterData directly). Description is
+                      hoisted as a forProvider sibling — same pattern Cluster uses
+                      for its free-form description.
+                    properties:
+                      akuityManaged:
+                        type: boolean
+                      allowedJobSa:
+                        items:
+                          type: string
+                        type: array
+                      argocdNamespace:
+                        type: string
+                      autoUpgradeDisabled:
+                        type: boolean
+                      autoscalerConfig:
+                        properties:
+                          kargoController:
+                            properties:
+                              resourceMaximum:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                              resourceMinimum:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                            type: object
+                        type: object
+                      kustomization:
+                        type: string
+                      maintenanceMode:
+                        type: boolean
+                      maintenanceModeExpiry:
+                        format: date-time
+                        type: string
+                      podInheritMetadata:
+                        type: boolean
+                      remoteArgocd:
+                        type: string
+                      selfManagedArgocdUrl:
+                        type: string
+                      size:
+                        type: string
+                      targetVersion:
+                        type: string
+                    type: object
+                  description:
+                    description: Description is a free-form description of the agent.
+                    type: string
                   kargoInstanceId:
                     description: |-
                       KargoInstanceID references the owning Kargo instance by ID.
@@ -97,62 +157,6 @@ spec:
                     description: Namespace in the managed cluster where the agent
                       is installed.
                     type: string
-                  spec:
-                    description: Spec is the KargoAgent configuration.
-                    properties:
-                      data:
-                        properties:
-                          akuityManaged:
-                            type: boolean
-                          allowedJobSa:
-                            items:
-                              type: string
-                            type: array
-                          argocdNamespace:
-                            type: string
-                          autoUpgradeDisabled:
-                            type: boolean
-                          autoscalerConfig:
-                            properties:
-                              kargoController:
-                                properties:
-                                  resourceMaximum:
-                                    properties:
-                                      cpu:
-                                        type: string
-                                      mem:
-                                        type: string
-                                    type: object
-                                  resourceMinimum:
-                                    properties:
-                                      cpu:
-                                        type: string
-                                      mem:
-                                        type: string
-                                    type: object
-                                type: object
-                            type: object
-                          kustomization:
-                            type: string
-                          maintenanceMode:
-                            type: boolean
-                          maintenanceModeExpiry:
-                            format: date-time
-                            type: string
-                          podInheritMetadata:
-                            type: boolean
-                          remoteArgocd:
-                            type: string
-                          selfManagedArgocdUrl:
-                            type: string
-                          size:
-                            type: string
-                          targetVersion:
-                            type: string
-                        type: object
-                      description:
-                        type: string
-                    type: object
                   workspace:
                     description: Workspace is the Kargo project/workspace the agent
                       is bound to.
@@ -229,6 +233,62 @@ spec:
                 description: KargoAgentObservation are the observable fields of a
                   KargoAgent.
                 properties:
+                  data:
+                    description: |-
+                      Data is the observed KargoAgent configuration payload,
+                      mirroring spec.forProvider.data on the most recent reconcile.
+                    properties:
+                      akuityManaged:
+                        type: boolean
+                      allowedJobSa:
+                        items:
+                          type: string
+                        type: array
+                      argocdNamespace:
+                        type: string
+                      autoUpgradeDisabled:
+                        type: boolean
+                      autoscalerConfig:
+                        properties:
+                          kargoController:
+                            properties:
+                              resourceMaximum:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                              resourceMinimum:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                            type: object
+                        type: object
+                      kustomization:
+                        type: string
+                      maintenanceMode:
+                        type: boolean
+                      maintenanceModeExpiry:
+                        format: date-time
+                        type: string
+                      podInheritMetadata:
+                        type: boolean
+                      remoteArgocd:
+                        type: string
+                      selfManagedArgocdUrl:
+                        type: string
+                      size:
+                        type: string
+                      targetVersion:
+                        type: string
+                    type: object
+                  description:
+                    description: Description is the observed agent description.
+                    type: string
                   healthStatus:
                     description: HealthStatus is the agent health.
                     properties:

@@ -63,7 +63,7 @@ func TestInstance_RepoCredentialNamesMustStartWithRepoPrefix(t *testing.T) {
 		Spec: corev1alpha2.InstanceSpec{
 			ForProvider: corev1alpha2.InstanceParameters{
 				Name:   "inst-bad-repo-name",
-				ArgoCD: &corev1alpha2.ArgoCD{Spec: corev1alpha2.ArgoCDSpec{Version: "v3.1.0"}},
+				ArgoCD: &corev1alpha2.ArgoCDSpec{Version: "v3.1.0"},
 				RepoCredentialSecretRefs: []corev1alpha2.NamedLocalSecretReference{{
 					Name:      "github-prod", // missing repo- prefix
 					SecretRef: xpv1.LocalSecretReference{Name: "gh-prod"},
@@ -80,7 +80,7 @@ func TestInstance_RepoCredentialNamesMustStartWithRepoPrefix(t *testing.T) {
 		Spec: corev1alpha2.InstanceSpec{
 			ForProvider: corev1alpha2.InstanceParameters{
 				Name:   "inst-bad-repo-tmpl",
-				ArgoCD: &corev1alpha2.ArgoCD{Spec: corev1alpha2.ArgoCDSpec{Version: "v3.1.0"}},
+				ArgoCD: &corev1alpha2.ArgoCDSpec{Version: "v3.1.0"},
 				RepoTemplateCredentialSecretRefs: []corev1alpha2.NamedLocalSecretReference{{
 					Name:      "tmpl",
 					SecretRef: xpv1.LocalSecretReference{Name: "tmpl"},
@@ -97,7 +97,7 @@ func TestInstance_RepoCredentialNamesMustStartWithRepoPrefix(t *testing.T) {
 		Spec: corev1alpha2.InstanceSpec{
 			ForProvider: corev1alpha2.InstanceParameters{
 				Name:   "inst-good-repo-name",
-				ArgoCD: &corev1alpha2.ArgoCD{Spec: corev1alpha2.ArgoCDSpec{Version: "v3.1.0"}},
+				ArgoCD: &corev1alpha2.ArgoCDSpec{Version: "v3.1.0"},
 				RepoCredentialSecretRefs: []corev1alpha2.NamedLocalSecretReference{{
 					Name:      "repo-github-prod",
 					SecretRef: xpv1.LocalSecretReference{Name: "gh-prod"},
@@ -138,7 +138,7 @@ func TestInstance_RepoCredentialNameRegexRejectsBypasses(t *testing.T) {
 				Spec: corev1alpha2.InstanceSpec{
 					ForProvider: corev1alpha2.InstanceParameters{
 						Name:   fmt.Sprintf("inst-regex-%d", i),
-						ArgoCD: &corev1alpha2.ArgoCD{Spec: corev1alpha2.ArgoCDSpec{Version: "v3.1.0"}},
+						ArgoCD: &corev1alpha2.ArgoCDSpec{Version: "v3.1.0"},
 						RepoCredentialSecretRefs: []corev1alpha2.NamedLocalSecretReference{{
 							Name:      tc.name,
 							SecretRef: xpv1.LocalSecretReference{Name: "x"},
@@ -165,7 +165,7 @@ func TestInstance_ArgocdResourcesRoundTrip(t *testing.T) {
 		Spec: corev1alpha2.InstanceSpec{
 			ForProvider: corev1alpha2.InstanceParameters{
 				Name:   "inst-argocd-resources",
-				ArgoCD: &corev1alpha2.ArgoCD{Spec: corev1alpha2.ArgoCDSpec{Version: "v3.1.0"}},
+				ArgoCD: &corev1alpha2.ArgoCDSpec{Version: "v3.1.0"},
 				ArgocdResources: []runtime.RawExtension{
 					mustRawExt(t, map[string]interface{}{
 						"apiVersion": "argoproj.io/v1alpha1",
@@ -184,12 +184,12 @@ func TestInstance_ArgocdResourcesRoundTrip(t *testing.T) {
 
 	got := &corev1alpha2.Instance{}
 	require.NoError(t, kube.Get(ctx, client.ObjectKey{Namespace: inst.Namespace, Name: inst.Name}, got))
-	require.Len(t, got.Spec.ForProvider.ArgocdResources, 1)
+	require.Len(t, got.Spec.ForProvider.Resources, 1)
 
 	// Decoded payload must still carry the allowlisted apiVersion/kind,
 	// independent of whether kube-apiserver reserialized the bytes.
 	var obj map[string]interface{}
-	require.NoError(t, json.Unmarshal(got.Spec.ForProvider.ArgocdResources[0].Raw, &obj))
+	require.NoError(t, json.Unmarshal(got.Spec.ForProvider.Resources[0].Raw, &obj))
 	assert.Equal(t, "argoproj.io/v1alpha1", obj["apiVersion"])
 	assert.Equal(t, "AppProject", obj["kind"])
 }
@@ -213,7 +213,7 @@ func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name: "ki-dex-both",
-				Spec: corev1alpha2.KargoSpec{
+				Kargo: corev1alpha2.KargoSpec{
 					Version: "v1.4.0",
 					OidcConfig: &corev1alpha2.KargoOidcConfig{
 						DexConfigSecret: map[string]corev1alpha2.Value{
@@ -234,7 +234,7 @@ func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name: "ki-dex-ref-only",
-				Spec: corev1alpha2.KargoSpec{
+				Kargo: corev1alpha2.KargoSpec{
 					Version: "v1.4.0",
 					OidcConfig: &corev1alpha2.KargoOidcConfig{
 						DexConfigSecretRef: &xpv1.LocalSecretReference{Name: "dex-creds"},
@@ -251,7 +251,7 @@ func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name: "ki-dex-inline-only",
-				Spec: corev1alpha2.KargoSpec{
+				Kargo: corev1alpha2.KargoSpec{
 					Version: "v1.4.0",
 					OidcConfig: &corev1alpha2.KargoOidcConfig{
 						DexConfigSecret: map[string]corev1alpha2.Value{
@@ -277,7 +277,7 @@ func TestKargoInstance_KargoResourcesRoundTrip(t *testing.T) {
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name: "ki-resources",
-				Spec: corev1alpha2.KargoSpec{Version: "v1.4.0"},
+				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoResources: []runtime.RawExtension{
 					mustRawExt(t, map[string]interface{}{
 						"apiVersion": "kargo.akuity.io/v1alpha1",
@@ -298,7 +298,7 @@ func TestKargoInstance_KargoResourcesRoundTrip(t *testing.T) {
 
 	got := &corev1alpha2.KargoInstance{}
 	require.NoError(t, kube.Get(ctx, client.ObjectKey{Namespace: ki.Namespace, Name: ki.Name}, got))
-	require.Len(t, got.Spec.ForProvider.KargoResources, 2)
+	require.Len(t, got.Spec.ForProvider.Resources, 2)
 }
 
 // TestKargoInstance_RepoCredentialSecretRefs covers the typed
@@ -314,7 +314,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name: "ki-repocreds-ok",
-				Spec: corev1alpha2.KargoSpec{Version: "v1.4.0"},
+				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoRepoCredentialSecretRefs: []corev1alpha2.KargoRepoCredentialSecretRef{{
 					Name:             "repo-github",
 					ProjectNamespace: "platform",
@@ -332,7 +332,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name: "ki-repocreds-badtype",
-				Spec: corev1alpha2.KargoSpec{Version: "v1.4.0"},
+				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoRepoCredentialSecretRefs: []corev1alpha2.KargoRepoCredentialSecretRef{{
 					Name:             "repo-github",
 					ProjectNamespace: "platform",
@@ -351,7 +351,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name: "ki-repocreds-dup",
-				Spec: corev1alpha2.KargoSpec{Version: "v1.4.0"},
+				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoRepoCredentialSecretRefs: []corev1alpha2.KargoRepoCredentialSecretRef{
 					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "a"}},
 					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "b"}},
@@ -379,7 +379,7 @@ func TestKargoInstance_SecretInKargoResourcesRejected(t *testing.T) {
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
 				Name: "ki-inline-secret",
-				Spec: corev1alpha2.KargoSpec{Version: "v1.4.0"},
+				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoResources: []runtime.RawExtension{
 					mustRawExt(t, map[string]interface{}{
 						"apiVersion": "v1",
@@ -415,7 +415,7 @@ func TestInstance_SecretInArgocdResourcesRejected(t *testing.T) {
 		Spec: corev1alpha2.InstanceSpec{
 			ForProvider: corev1alpha2.InstanceParameters{
 				Name:   "inst-inline-secret",
-				ArgoCD: &corev1alpha2.ArgoCD{Spec: corev1alpha2.ArgoCDSpec{Version: "v2.12.4"}},
+				ArgoCD: &corev1alpha2.ArgoCDSpec{Version: "v2.12.4"},
 				ArgocdResources: []runtime.RawExtension{
 					mustRawExt(t, map[string]interface{}{
 						"apiVersion": "v1",

@@ -73,7 +73,7 @@ const (
 )
 
 // Declarative ArgoCD child-resource contract. Each entry in
-// spec.forProvider.argocdResources must carry one of these apiVersion /
+// spec.forProvider.resources must carry one of these apiVersion /
 // kind pairs; anything else is rejected at reconcile entry.
 const (
 	argoprojAPIVersion     = "argoproj.io/v1alpha1"
@@ -88,19 +88,17 @@ const (
 func apiToSpec(ai *argocdv1.Instance, exp *argocdv1.ExportInstanceResponse) (v1alpha2.InstanceParameters, error) {
 	spec := v1alpha2.InstanceParameters{
 		Name: ai.GetName(),
-		ArgoCD: &v1alpha2.ArgoCD{
-			Spec: v1alpha2.ArgoCDSpec{
-				Description: ai.GetDescription(),
-				Version:     ai.GetVersion(),
-				Shard:       ai.GetShard(),
-			},
+		ArgoCD: &v1alpha2.ArgoCDSpec{
+			Description: ai.GetDescription(),
+			Version:     ai.GetVersion(),
+			Shard:       ai.GetShard(),
 		},
 	}
 
 	if is, err := pbInstanceSpecToSpec(ai); err != nil {
 		return spec, err
 	} else if is != nil {
-		spec.ArgoCD.Spec.InstanceSpec = *is
+		spec.ArgoCD.InstanceSpec = *is
 	}
 
 	cms := []struct {
@@ -145,13 +143,11 @@ func apiToObservation(ai *argocdv1.Instance, exp *argocdv1.ExportInstanceRespons
 	}
 
 	if is, err := pbInstanceSpecToSpec(ai); err == nil && is != nil {
-		obs.ArgoCD = v1alpha2.ArgoCD{
-			Spec: v1alpha2.ArgoCDSpec{
-				Description:  ai.GetDescription(),
-				Version:      ai.GetVersion(),
-				Shard:        ai.GetShard(),
-				InstanceSpec: *is,
-			},
+		obs.ArgoCD = v1alpha2.ArgoCDSpec{
+			Description:  ai.GetDescription(),
+			Version:      ai.GetVersion(),
+			Shard:        ai.GetShard(),
+			InstanceSpec: *is,
 		}
 	}
 
@@ -248,8 +244,8 @@ func lateInitialize(in, actual *v1alpha2.InstanceParameters) bool {
 
 	if in.ArgoCD != nil && actual.ArgoCD != nil {
 		lateInitializeStruct(
-			reflect.ValueOf(&in.ArgoCD.Spec.InstanceSpec).Elem(),
-			reflect.ValueOf(&actual.ArgoCD.Spec.InstanceSpec).Elem(),
+			reflect.ValueOf(&in.ArgoCD.InstanceSpec).Elem(),
+			reflect.ValueOf(&actual.ArgoCD.InstanceSpec).Elem(),
 		)
 	}
 
@@ -319,7 +315,7 @@ func lateInitializeStruct(in, actual reflect.Value) {
 func isUpToDate(desired, actual v1alpha2.InstanceParameters) bool {
 	return cmp.Equal(desired, actual,
 		cmp.Comparer(boolPtrEqualEffective),
-		cmpopts.IgnoreFields(v1alpha2.InstanceParameters{}, "ArgocdResources"),
+		cmpopts.IgnoreFields(v1alpha2.InstanceParameters{}, "Resources"),
 	)
 }
 
@@ -509,9 +505,9 @@ func buildApplyRequest(_ context.Context, ac akuity.Client, mg *v1alpha2.Instanc
 		return nil, fmt.Errorf("managed Instance %q is missing spec.forProvider.argocd", mg.Name)
 	}
 
-	if ccd := p.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults; ccd != nil {
+	if ccd := p.ArgoCD.InstanceSpec.ClusterCustomizationDefaults; ccd != nil {
 		if err := glue.ValidateKustomizationYAML(ccd.Kustomization); err != nil {
-			return nil, fmt.Errorf("spec.forProvider.argocd.spec.instanceSpec.clusterCustomizationDefaults.kustomization: %w", err)
+			return nil, fmt.Errorf("spec.forProvider.argocd.instanceSpec.clusterCustomizationDefaults.kustomization: %w", err)
 		}
 	}
 
@@ -571,7 +567,7 @@ func buildApplyRequest(_ context.Context, ac akuity.Client, mg *v1alpha2.Instanc
 		return nil, err
 	}
 
-	apps, appSets, appProjects, err := splitArgocdResources(p.ArgocdResources)
+	apps, appSets, appProjects, err := splitArgocdResources(p.Resources)
 	if err != nil {
 		return nil, err
 	}
@@ -615,7 +611,7 @@ func buildApplyRequest(_ context.Context, ac akuity.Client, mg *v1alpha2.Instanc
 }
 
 // argocdResourcesUpToDate reports whether every child declared in
-// spec.forProvider.argocdResources is present on the gateway with an
+// spec.forProvider.resources is present on the gateway with an
 // equivalent payload. Removal of an entry from spec does NOT trigger
 // server-side deletion — the provider runs with additive semantics
 // around declarative children to avoid clobbering resources managed by
@@ -633,7 +629,7 @@ func argocdResourcesUpToDate(desired []runtime.RawExtension, exp *argocdv1.Expor
 	}
 	desiredIdx, err := children.Index(desired)
 	if err != nil {
-		return false, children.DriftReport{}, fmt.Errorf("argocdResources: %w", err)
+		return false, children.DriftReport{}, fmt.Errorf("resources: %w", err)
 	}
 	// Combine Applications/ApplicationSets/AppProjects into a single
 	// observed index. Identity carries apiVersion + kind so there is
@@ -661,7 +657,7 @@ func argocdResourcesUpToDate(desired []runtime.RawExtension, exp *argocdv1.Expor
 	return report.Empty(), report, nil
 }
 
-// splitArgocdResources validates each spec.forProvider.argocdResources
+// splitArgocdResources validates each spec.forProvider.resources
 // entry, enforces the argoproj.io/v1alpha1 kind allowlist, and returns
 // the per-kind slices of structpb.Structs expected by
 // ApplyInstanceRequest.{Applications, ApplicationSets, AppProjects}.
@@ -676,20 +672,20 @@ func splitArgocdResources(in []runtime.RawExtension) (apps, appSets, appProjects
 			// Empty entries are meaningless in a typed spec; fail loudly
 			// so the user catches a bad YAML snippet at reconcile time
 			// instead of it being silently dropped.
-			return nil, nil, nil, fmt.Errorf("argocdResources[%d]: empty payload", i)
+			return nil, nil, nil, fmt.Errorf("resources[%d]: empty payload", i)
 		}
 		obj := map[string]interface{}{}
 		if err := json.Unmarshal(raw.Raw, &obj); err != nil {
-			return nil, nil, nil, fmt.Errorf("argocdResources[%d]: invalid JSON: %w", i, err)
+			return nil, nil, nil, fmt.Errorf("resources[%d]: invalid JSON: %w", i, err)
 		}
 		apiVersion, _ := obj["apiVersion"].(string)
 		kind, _ := obj["kind"].(string)
 		if apiVersion != argoprojAPIVersion {
-			return nil, nil, nil, fmt.Errorf("argocdResources[%d]: unsupported apiVersion %q (want %s)", i, apiVersion, argoprojAPIVersion)
+			return nil, nil, nil, fmt.Errorf("resources[%d]: unsupported apiVersion %q (want %s)", i, apiVersion, argoprojAPIVersion)
 		}
 		pb, err := structpb.NewStruct(obj)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("argocdResources[%d]: structpb encode: %w", i, err)
+			return nil, nil, nil, fmt.Errorf("resources[%d]: structpb encode: %w", i, err)
 		}
 		switch kind {
 		case argoKindApplication:
@@ -699,7 +695,7 @@ func splitArgocdResources(in []runtime.RawExtension) (apps, appSets, appProjects
 		case argoKindAppProject:
 			appProjects = append(appProjects, pb)
 		default:
-			return nil, nil, nil, fmt.Errorf("argocdResources[%d]: unsupported kind %q (want one of %s, %s, %s)",
+			return nil, nil, nil, fmt.Errorf("resources[%d]: unsupported kind %q (want one of %s, %s, %s)",
 				i, kind, argoKindApplication, argoKindApplicationSet, argoKindAppProject)
 		}
 	}
@@ -761,7 +757,7 @@ func namedSecretsToPB(in []resolvedNamedSecret, labels map[string]string) ([]*st
 	return out, nil
 }
 
-func argoCDToPB(name string, in *v1alpha2.ArgoCD) (*structpb.Struct, error) {
+func argoCDToPB(name string, in *v1alpha2.ArgoCDSpec) (*structpb.Struct, error) {
 	argocd := akuitytypes.ArgoCD{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ArgoCD",
@@ -769,12 +765,12 @@ func argoCDToPB(name string, in *v1alpha2.ArgoCD) (*structpb.Struct, error) {
 		},
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: akuitytypes.ArgoCDSpec{
-			Description: in.Spec.Description,
-			Version:     in.Spec.Version,
-			Shard:       in.Spec.Shard,
+			Description: in.Description,
+			Version:     in.Version,
+			Shard:       in.Shard,
 		},
 	}
-	if is := convert.InstanceSpecSpecToAPI(&in.Spec.InstanceSpec); is != nil {
+	if is := convert.InstanceSpecSpecToAPI(&in.InstanceSpec); is != nil {
 		argocd.Spec.InstanceSpec = *is
 	}
 	pb, err := protobuf.MarshalObjectToProtobufStruct(argocd)

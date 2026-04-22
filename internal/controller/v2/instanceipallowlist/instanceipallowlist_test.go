@@ -82,9 +82,7 @@ func newInst() *v1alpha2.Instance {
 		Spec: v1alpha2.InstanceSpec{
 			ForProvider: v1alpha2.InstanceParameters{
 				Name: "inst",
-				ArgoCD: &v1alpha2.ArgoCD{
-					Spec: v1alpha2.ArgoCDSpec{Version: "v2.13.0"},
-				},
+				ArgoCD: &v1alpha2.ArgoCDSpec{Version: "v2.13.0"},
 			},
 		},
 		Status: v1alpha2.InstanceStatus{AtProvider: v1alpha2.InstanceObservation{ID: "inst-1"}},

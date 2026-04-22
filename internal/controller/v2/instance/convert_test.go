@@ -257,7 +257,7 @@ func TestSplitArgocdResources_EmptyEntryFailsLoudly(t *testing.T) {
 
 func TestBuildApplyRequest_WiresArgocdResources(t *testing.T) {
 	mg := newInstance()
-	mg.Spec.ForProvider.ArgocdResources = []runtime.RawExtension{
+	mg.Spec.ForProvider.Resources = []runtime.RawExtension{
 		mustRaw(t, map[string]interface{}{
 			"apiVersion": "argoproj.io/v1alpha1", "kind": "AppProject",
 			"metadata": map[string]interface{}{"name": "proj"},

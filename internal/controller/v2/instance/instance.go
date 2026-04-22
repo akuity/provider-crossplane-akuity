@@ -175,7 +175,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Instance) (managed.
 	// on purpose so removing an entry from spec does not delete it
 	// on the gateway.
 	if upToDate {
-		ok, report, rerr := argocdResourcesUpToDate(mg.Spec.ForProvider.ArgocdResources, exp)
+		ok, report, rerr := argocdResourcesUpToDate(mg.Spec.ForProvider.Resources, exp)
 		if rerr != nil {
 			mg.SetConditions(xpv1.ReconcileError(rerr))
 			return managed.ExternalObservation{}, rerr

@@ -12,8 +12,7 @@ spec:
   forProvider:
     name: my-instance
     argocd:
-      spec:
-        version: "v3.1.9-ak.67"
+      version: "v3.1.9-ak.67"
   providerConfigRef:
     kind: ProviderConfig
     name: akuity

@@ -60,9 +60,18 @@ type KargoAgentParameters struct {
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 
-	// Spec is the KargoAgent configuration.
+	// Description is a free-form description of the agent.
 	// +optional
-	Spec *KargoAgentSpec `json:"spec,omitempty"`
+	Description string `json:"description,omitempty"`
+
+	// Data is the KargoAgent configuration payload. Points at the
+	// upstream KargoAgentData wire type directly so the user-facing
+	// YAML stays one level under .data, matching the Cluster shape
+	// (where .data points at ClusterData directly). Description is
+	// hoisted as a forProvider sibling — same pattern Cluster uses
+	// for its free-form description.
+	// +optional
+	Data KargoAgentData `json:"data,omitempty"`
 }
 
 // KargoAgentObservation are the observable fields of a KargoAgent.
@@ -75,6 +84,13 @@ type KargoAgentObservation struct {
 	HealthStatus ResourceStatusCode `json:"healthStatus,omitempty"`
 	// ReconciliationStatus is the agent reconciliation status.
 	ReconciliationStatus ResourceStatusCode `json:"reconciliationStatus,omitempty"`
+
+	// Description is the observed agent description.
+	Description string `json:"description,omitempty"`
+
+	// Data is the observed KargoAgent configuration payload,
+	// mirroring spec.forProvider.data on the most recent reconcile.
+	Data KargoAgentData `json:"data,omitempty"`
 }
 
 // A KargoAgentResourceSpec defines the desired state of a KargoAgent.

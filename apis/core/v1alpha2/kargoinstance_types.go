@@ -31,28 +31,28 @@ import (
 //
 // CEL rules:
 //   - dexConfigSecretRef and dexConfigSecret (both on
-//     spec.oidcConfig) are mutually exclusive. Existing v1alpha2
+//     kargo.oidcConfig) are mutually exclusive. Existing v1alpha2
 //     adopters that inlined the secret map can keep doing so; new
 //     deployments should use dexConfigSecretRef so plaintext never
 //     lives on the managed resource spec.
-//   - v1/Secret manifests are forbidden inside kargoResources. The
-//     field is schemaless/preserve-unknown-fields, which means the
-//     apiserver would otherwise persist inline Secret data in etcd
-//     before the controller could reject it at reconcile time.
-//     Repository credentials must flow through
-//     kargoRepoCredentialSecretRefs (typed refs).
+//   - v1/Secret manifests are forbidden inside resources. The field is
+//     schemaless/preserve-unknown-fields, which means the apiserver
+//     would otherwise persist inline Secret data in etcd before the
+//     controller could reject it at reconcile time. Repository
+//     credentials must flow through kargoRepoCredentialSecretRefs
+//     (typed refs).
 //
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.oidcConfig) || !has(self.spec.oidcConfig.dexConfigSecretRef) || !has(self.spec.oidcConfig.dexConfigSecret) || size(self.spec.oidcConfig.dexConfigSecret) == 0",message="set either spec.oidcConfig.dexConfigSecretRef or spec.oidcConfig.dexConfigSecret, not both"
-// +kubebuilder:validation:XValidation:rule="!has(self.kargoResources) || self.kargoResources.all(r, !(has(r.apiVersion) && has(r.kind) && r.apiVersion == 'v1' && r.kind == 'Secret'))",message="v1/Secret entries are not accepted in spec.forProvider.kargoResources; use spec.forProvider.kargoRepoCredentialSecretRefs instead"
+// +kubebuilder:validation:XValidation:rule="!has(self.kargo.oidcConfig) || !has(self.kargo.oidcConfig.dexConfigSecretRef) || !has(self.kargo.oidcConfig.dexConfigSecret) || size(self.kargo.oidcConfig.dexConfigSecret) == 0",message="set either kargo.oidcConfig.dexConfigSecretRef or kargo.oidcConfig.dexConfigSecret, not both"
+// +kubebuilder:validation:XValidation:rule="!has(self.resources) || self.resources.all(r, !(has(r.apiVersion) && has(r.kind) && r.apiVersion == 'v1' && r.kind == 'Secret'))",message="v1/Secret entries are not accepted in spec.forProvider.resources; use spec.forProvider.kargoRepoCredentialSecretRefs instead"
 type KargoInstanceParameters struct {
 	// Name of the Kargo instance in the Akuity Platform. Required.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// Spec describes the Kargo configuration. Required.
+	// Kargo describes the Kargo configuration. Required.
 	// +kubebuilder:validation:Required
-	Spec KargoSpec `json:"spec"`
+	Kargo KargoSpec `json:"kargo"`
 
 	// KargoConfigMap sets keys in the kargo-cm ConfigMap shipped to
 	// the Kargo control plane.
@@ -78,18 +78,13 @@ type KargoInstanceParameters struct {
 	// participates in drift via the SecretHash on
 	// status.atProvider. Removal from spec does NOT delete the
 	// Secret on the gateway; see the additive-semantics note on
-	// KargoResources below.
-	//
-	// MaxItems caps the CEL cost estimate so kube-apiserver accepts
-	// the uniqueness rule; 128 slots is far above realistic usage
-	// and can be raised with a CRD bump if a need emerges.
+	// resources below.
 	// +optional
-	// +kubebuilder:validation:MaxItems=128
 	// +kubebuilder:validation:XValidation:rule="size(self.map(e, e.projectNamespace + '/' + e.name)) == size(self)",message="kargoRepoCredentialSecretRefs entries must have unique (projectNamespace, name) pairs"
 	KargoRepoCredentialSecretRefs []KargoRepoCredentialSecretRef `json:"kargoRepoCredentialSecretRefs,omitempty"`
 
-	// KargoResources carries raw YAML manifests for declarative
-	// Kargo child resources (Projects, Warehouses, Stages,
+	// Resources carries raw YAML manifests for declarative Kargo
+	// child resources (Projects, Warehouses, Stages,
 	// AnalysisTemplates, PromotionTasks, ClusterPromotionTasks).
 	// Repository-credential Secrets are NOT accepted here — the
 	// parent-level CEL rule rejects v1/Secret entries at admission
@@ -105,10 +100,6 @@ type KargoInstanceParameters struct {
 	// (CEL on specific kinds still runs). The Akuity gateway
 	// rejects malformed payloads server-side.
 	//
-	// MaxItems caps the CEL-reachable list length so the cost
-	// estimator stays within kube-apiserver's budget; 256 is well
-	// above any realistic declarative child count.
-	//
 	// Additive semantics: removing an entry from this list does NOT
 	// delete the corresponding resource on the Akuity platform. The
 	// controller does not enable ApplyKargoInstance's
@@ -117,10 +108,9 @@ type KargoInstanceParameters struct {
 	// damage. To remove a resource, delete it via the Akuity
 	// platform UI or API. See PARITY_PLAN.md for the rationale.
 	// +optional
-	// +kubebuilder:validation:MaxItems=256
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
-	KargoResources []runtime.RawExtension `json:"kargoResources,omitempty"`
+	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
 // KargoInstanceObservation are the observable fields of a Kargo
@@ -139,6 +129,12 @@ type KargoInstanceObservation struct {
 	// OwnerOrganizationName is the Akuity organization owning the
 	// instance.
 	OwnerOrganizationName string `json:"ownerOrganizationName,omitempty"`
+
+	// Kargo is the observed Kargo configuration, mirroring
+	// spec.forProvider.kargo on the most recent reconcile. Included
+	// so atProvider is a faithful reflection of forProvider for
+	// compositions and dashboards (parity with InstanceObservation).
+	Kargo KargoSpec `json:"kargo,omitempty"`
 
 	// SecretHash is the SHA256 of the concatenation of every resolved
 	// Secret referenced by spec.forProvider on the most recent Apply.

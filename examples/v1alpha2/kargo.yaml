@@ -18,9 +18,12 @@ metadata:
 spec:
   forProvider:
     name: platform-kargo
-    spec:
+    kargo:
       description: "Platform Kargo"
       version: "v1.2.0"
+      # kargoInstanceSpec keeps the nesting from the upstream wire type.
+      # oidcConfig, fqdn, subdomain are siblings of kargoInstanceSpec
+      # inside .spec.* (not hoisted to forProvider).
       kargoInstanceSpec:
         backendIpAllowListEnabled: true
         promoControllerEnabled: true
@@ -42,12 +45,14 @@ spec:
     name: prod-agent
     kargoInstanceRef:
       name: platform-kargo
-    spec:
-      data:
-        size: medium
-        targetVersion: v1.1.0
-        akuityManaged: true
-        argocdNamespace: argocd
+    # Description is a forProvider sibling (like Cluster); .data points
+    # at the wire KargoAgentData directly — same shape as Cluster.data.
+    description: "production agent"
+    data:
+      size: medium
+      targetVersion: v1.1.0
+      akuityManaged: true
+      argocdNamespace: argocd
   providerConfigRef:
     kind: ProviderConfig
     name: akuity

@@ -42,7 +42,7 @@ func apiToSpec(ki *kargov1.KargoInstance) (v1alpha2.KargoInstanceParameters, err
 
 	params := v1alpha2.KargoInstanceParameters{
 		Name: ki.GetName(),
-		Spec: v1alpha2.KargoSpec{
+		Kargo: v1alpha2.KargoSpec{
 			Description: ki.GetDescription(),
 			Version:     ki.GetVersion(),
 			Fqdn:        ki.GetFqdn(),
@@ -50,10 +50,10 @@ func apiToSpec(ki *kargov1.KargoInstance) (v1alpha2.KargoInstanceParameters, err
 		},
 	}
 	if s := convert.KargoInstanceSpecAPIToSpec(&wire); s != nil {
-		params.Spec.KargoInstanceSpec = *s
+		params.Kargo.KargoInstanceSpec = *s
 	}
 	if oidc := convert.KargoOidcConfigAPIToSpec(wireOIDC(ki)); oidc != nil {
-		params.Spec.OidcConfig = oidc
+		params.Kargo.OidcConfig = oidc
 	}
 	return params, nil
 }

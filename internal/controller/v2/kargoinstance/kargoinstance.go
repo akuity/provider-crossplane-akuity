@@ -66,7 +66,7 @@ const (
 )
 
 // Declarative Kargo child-resource contract. Each entry in
-// spec.forProvider.kargoResources must carry one of these
+// spec.forProvider.resources must carry one of these
 // apiVersion / kind pairs; anything else is rejected at reconcile
 // entry.
 const (
@@ -85,10 +85,10 @@ const (
 )
 
 // errSecretInKargoResources is surfaced when a user puts a v1/Secret
-// entry into spec.forProvider.kargoResources. Repo-credential Secrets
+// entry into spec.forProvider.resources. Repo-credential Secrets
 // now flow through the typed KargoRepoCredentialSecretRefs slot so
 // plaintext never lives on the MR spec.
-const errSecretInKargoResources = "kargoResources[%d]: v1/Secret entries are not accepted; use spec.forProvider.kargoRepoCredentialSecretRefs"
+const errSecretInKargoResources = "resources[%d]: v1/Secret entries are not accepted; use spec.forProvider.kargoRepoCredentialSecretRefs"
 
 // repoCredsReapplyTTL is the upper bound between two successful
 // Applies of spec.forProvider.kargoRepoCredentialSecretRefs. Because
@@ -181,11 +181,11 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoInstance) (man
 	// flag it as drift. Inline spec.oidcConfig.dexConfigSecret values
 	// DO round-trip through apiToSpec, so they stay under the control
 	// of the comparator.
-	if desired := mg.Spec.ForProvider.Spec.OidcConfig; desired != nil && desired.DexConfigSecretRef != nil {
-		if actual.Spec.OidcConfig == nil {
-			actual.Spec.OidcConfig = &v1alpha2.KargoOidcConfig{}
+	if desired := mg.Spec.ForProvider.Kargo.OidcConfig; desired != nil && desired.DexConfigSecretRef != nil {
+		if actual.Kargo.OidcConfig == nil {
+			actual.Kargo.OidcConfig = &v1alpha2.KargoOidcConfig{}
 		}
-		actual.Spec.OidcConfig.DexConfigSecretRef = desired.DexConfigSecretRef
+		actual.Kargo.OidcConfig.DexConfigSecretRef = desired.DexConfigSecretRef
 	}
 
 	// Preserve controller-authored AtProvider fields across the refresh.
@@ -208,7 +208,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoInstance) (man
 	}
 
 	upToDate := cmp.Equal(mg.Spec.ForProvider, actual,
-		cmpopts.IgnoreFields(v1alpha2.KargoInstanceParameters{}, "KargoResources", "KargoConfigMap", "KargoRepoCredentialSecretRefs"),
+		cmpopts.IgnoreFields(v1alpha2.KargoInstanceParameters{}, "Resources", "KargoConfigMap", "KargoRepoCredentialSecretRefs"),
 	)
 	if !upToDate {
 		e.Logger.Debug("KargoInstance drift detected", "diff", cmp.Diff(mg.Spec.ForProvider, actual))
@@ -239,7 +239,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoInstance) (man
 	// gateway round-trips.
 	needsExport := len(mg.Spec.ForProvider.KargoConfigMap) > 0 ||
 		prevCMHash != "" ||
-		len(mg.Spec.ForProvider.KargoResources) > 0
+		len(mg.Spec.ForProvider.Resources) > 0
 	if upToDate && needsExport {
 		exp, err := e.Client.ExportKargoInstance(ctx, meta.GetExternalName(mg))
 		if err != nil {
@@ -260,14 +260,14 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoInstance) (man
 					upToDate = false
 				}
 			}
-			if upToDate && len(mg.Spec.ForProvider.KargoResources) > 0 {
-				ok, report, rerr := kargoResourcesUpToDate(mg.Spec.ForProvider.KargoResources, exp)
+			if upToDate && len(mg.Spec.ForProvider.Resources) > 0 {
+				ok, report, rerr := kargoResourcesUpToDate(mg.Spec.ForProvider.Resources, exp)
 				if rerr != nil {
 					mg.SetConditions(xpv1.ReconcileError(rerr))
 					return managed.ExternalObservation{}, rerr
 				}
 				if !ok {
-					e.Logger.Debug("kargoResources drift detected",
+					e.Logger.Debug("resources drift detected",
 						"missing", report.Missing, "changed", report.Changed)
 					upToDate = false
 				}
@@ -328,7 +328,7 @@ func (e *external) Disconnect(ctx context.Context) error { return nil }
 //
 //nolint:gocyclo // apply orchestrates 6 independent subsystems (secrets, configmap, spec, children, repo creds, status writeback); splitting them yields 6 trivial wrappers without clarity gain.
 func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoInstance) error {
-	if acd := mg.Spec.ForProvider.Spec.KargoInstanceSpec.AgentCustomizationDefaults; acd != nil {
+	if acd := mg.Spec.ForProvider.Kargo.KargoInstanceSpec.AgentCustomizationDefaults; acd != nil {
 		if err := glue.ValidateKustomizationYAML(acd.Kustomization); err != nil {
 			return fmt.Errorf("spec.forProvider.spec.kargoInstanceSpec.agentCustomizationDefaults.kustomization: %w", err)
 		}
@@ -358,7 +358,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoInstance) error 
 	if err != nil {
 		return err
 	}
-	children, err := splitKargoResources(mg.Spec.ForProvider.KargoResources)
+	children, err := splitKargoResources(mg.Spec.ForProvider.Resources)
 	if err != nil {
 		return err
 	}
@@ -395,7 +395,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha2.KargoInstance) error 
 }
 
 // kargoChildren is the per-kind breakdown of the user's
-// spec.forProvider.kargoResources bundle, already marshalled into the
+// spec.forProvider.resources bundle, already marshalled into the
 // structpb.Struct shape the ApplyKargoInstance proto expects.
 // Repo-credential Secrets intentionally live in
 // KargoRepoCredentialSecretRefs (typed refs) rather than this bundle
@@ -466,7 +466,7 @@ func extractKargoConfigMapData(pb *structpb.Struct) (map[string]string, error) {
 }
 
 // kargoResourcesUpToDate reports whether every declarative Kargo
-// child listed in spec.forProvider.kargoResources is present on the
+// child listed in spec.forProvider.resources is present on the
 // gateway with an equivalent payload. Mirrors argocdResourcesUpToDate
 // on the Instance controller: additive semantics, desired ⊆ observed.
 // Removal from spec does NOT trigger server-side deletion — operators
@@ -477,7 +477,7 @@ func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportK
 	}
 	desiredIdx, err := children.Index(desired)
 	if err != nil {
-		return false, children.DriftReport{}, fmt.Errorf("kargoResources: %w", err)
+		return false, children.DriftReport{}, fmt.Errorf("resources: %w", err)
 	}
 	// Every ApplyKargoInstance-supported collection gets folded into
 	// a single observed index. Identity carries apiVersion+kind so
@@ -516,7 +516,7 @@ func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportK
 	return report.Empty(), report, nil
 }
 
-// splitKargoResources validates each spec.forProvider.kargoResources
+// splitKargoResources validates each spec.forProvider.resources
 // entry and routes it into kargoChildren by (apiVersion, kind). Empty
 // input yields a zero struct and no error so callers can compose the
 // result without pre-checks.
@@ -529,17 +529,17 @@ func splitKargoResources(in []runtime.RawExtension) (kargoChildren, error) {
 	}
 	for i, raw := range in {
 		if len(raw.Raw) == 0 {
-			return out, fmt.Errorf("kargoResources[%d]: empty payload", i)
+			return out, fmt.Errorf("resources[%d]: empty payload", i)
 		}
 		obj := map[string]interface{}{}
 		if err := json.Unmarshal(raw.Raw, &obj); err != nil {
-			return out, fmt.Errorf("kargoResources[%d]: invalid JSON: %w", i, err)
+			return out, fmt.Errorf("resources[%d]: invalid JSON: %w", i, err)
 		}
 		apiVersion, _ := obj["apiVersion"].(string)
 		kind, _ := obj["kind"].(string)
 		pb, err := structpb.NewStruct(obj)
 		if err != nil {
-			return out, fmt.Errorf("kargoResources[%d]: structpb encode: %w", i, err)
+			return out, fmt.Errorf("resources[%d]: structpb encode: %w", i, err)
 		}
 		switch {
 		case apiVersion == kargoAPIVersion && kind == kargoKindProject:
@@ -557,7 +557,7 @@ func splitKargoResources(in []runtime.RawExtension) (kargoChildren, error) {
 		case apiVersion == coreAPIVersion && kind == coreKindSecret:
 			return out, fmt.Errorf(errSecretInKargoResources, i)
 		default:
-			return out, fmt.Errorf("kargoResources[%d]: unsupported %s/%s", i, apiVersion, kind)
+			return out, fmt.Errorf("resources[%d]: unsupported %s/%s", i, apiVersion, kind)
 		}
 	}
 	return out, nil
@@ -668,7 +668,7 @@ func resolveKargoSecrets(ctx context.Context, kube client.Client, mg *v1alpha2.K
 		out.Kargo = kargoResolvedSecret{Name: ref.Name, Data: kargoData}
 	}
 	var dexRef *xpv1.LocalSecretReference
-	if oidc := mg.Spec.ForProvider.Spec.OidcConfig; oidc != nil {
+	if oidc := mg.Spec.ForProvider.Kargo.OidcConfig; oidc != nil {
 		dexRef = oidc.DexConfigSecretRef
 	}
 	if dexRef != nil {
@@ -860,7 +860,7 @@ func specToPB(in v1alpha2.KargoInstanceParameters, resolvedDex map[string]string
 		},
 		ObjectMeta: metav1.ObjectMeta{Name: in.Name},
 	}
-	if s := convert.KargoSpecSpecToAPI(&in.Spec); s != nil {
+	if s := convert.KargoSpecSpecToAPI(&in.Kargo); s != nil {
 		wire.Spec = *s
 	}
 	if len(resolvedDex) > 0 {
