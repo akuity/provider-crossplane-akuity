@@ -28,13 +28,23 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"os"
-	"path/filepath"
+	_ "embed"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 )
+
+// wireSource is the on-disk zz_generated_wire.go content, baked into
+// the test binary at compile time. Using embed rather than a
+// runtime.Caller + os.ReadFile is required for the repo's
+// `-trimpath`-enabled `make test`: trimpath replaces the filesystem
+// path in runtime.Caller with the package's import path, which then
+// cannot be opened by os.ReadFile. go:embed operates at build time
+// before trimpath mangles anything, so the content is correct under
+// both local `go test` and CI's `make test`.
+//
+//go:embed zz_generated_wire.go
+var wireSource string
 
 // TestWire_KargoOidcConfigHasDexConfigSecretRef asserts that the
 // parity-added DexConfigSecretRef field on the generated KargoOidcConfig
@@ -59,7 +69,7 @@ func TestWire_KargoOidcConfigHasDexConfigSecretRef(t *testing.T) {
 // clobbering it. Using a file read (not an embed) keeps the test's
 // expectation aligned with what lives on disk today.
 func TestWire_ManualAdditionsBanner(t *testing.T) {
-	content := readWire(t)
+	content := wireSource
 	markers := []string{
 		"MANUAL ADDITIONS",
 		"KargoOidcConfig.DexConfigSecretRef",
@@ -83,7 +93,7 @@ func TestWire_ManualAdditionsBanner(t *testing.T) {
 // `// +optional` lives in comments and disappears from the reflected
 // type at runtime.
 func TestWire_KargoOidcConfigFieldsOptional(t *testing.T) {
-	content := readWire(t)
+	content := wireSource
 	// Cut to the KargoOidcConfig struct so matches elsewhere in the
 	// file don't produce false positives.
 	const marker = "type KargoOidcConfig struct {"
@@ -127,16 +137,3 @@ func TestWire_KargoOidcConfigFieldsOptional(t *testing.T) {
 	}
 }
 
-func readWire(t *testing.T) string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed — can't locate wire file")
-	}
-	wire := filepath.Join(filepath.Dir(thisFile), "zz_generated_wire.go")
-	b, err := os.ReadFile(wire)
-	if err != nil {
-		t.Fatalf("read wire file: %v", err)
-	}
-	return string(b)
-}
