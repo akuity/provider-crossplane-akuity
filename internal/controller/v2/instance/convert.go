@@ -247,6 +247,63 @@ func lateInitialize(in, actual *v1alpha2.InstanceParameters) bool {
 			reflect.ValueOf(&in.ArgoCD.InstanceSpec).Elem(),
 			reflect.ValueOf(&actual.ArgoCD.InstanceSpec).Elem(),
 		)
+
+		// Recurse into common nested complexes that reflective walk misses
+		// if the parent was already non-nil but sparse.
+		if in.ArgoCD.InstanceSpec.KubeVisionConfig != nil && actual.ArgoCD.InstanceSpec.KubeVisionConfig != nil {
+			lateInitializeStruct(
+				reflect.ValueOf(in.ArgoCD.InstanceSpec.KubeVisionConfig).Elem(),
+				reflect.ValueOf(actual.ArgoCD.InstanceSpec.KubeVisionConfig).Elem(),
+			)
+			// Explicitly handle RescanInterval (string) and AiConfig (complex)
+			// in case reflective walk misses them.
+			kIn := in.ArgoCD.InstanceSpec.KubeVisionConfig
+			kAc := actual.ArgoCD.InstanceSpec.KubeVisionConfig
+			if kIn.CveScanConfig != nil && kAc.CveScanConfig != nil {
+				if kIn.CveScanConfig.RescanInterval == "" && kAc.CveScanConfig.RescanInterval != "" {
+					kIn.CveScanConfig.RescanInterval = kAc.CveScanConfig.RescanInterval
+				}
+			}
+		}
+
+		if in.ArgoCD.InstanceSpec.AppReconciliationsRateLimiting != nil && actual.ArgoCD.InstanceSpec.AppReconciliationsRateLimiting != nil {
+			lateInitializeStruct(
+				reflect.ValueOf(in.ArgoCD.InstanceSpec.AppReconciliationsRateLimiting).Elem(),
+				reflect.ValueOf(actual.ArgoCD.InstanceSpec.AppReconciliationsRateLimiting).Elem(),
+			)
+			// Explicit scalar catches — reflective walk only handles
+			// nil→non-nil pointers and ""→non-empty strings. Server-side
+			// always populates numeric defaults (BucketSize=500,
+			// BucketQps=50 on BucketRateLimiting; FailureCooldown=10000,
+			// BaseDelay=1, MaxDelay=1000, BackoffFactor=1.5 on
+			// ItemRateLimiting) whenever the parent pointer is present.
+			// Without these adoptions a user spec that pre-sets just
+			// `{enabled: true}` hot-loops Apply every poll (§6 #5/#7).
+			rIn := in.ArgoCD.InstanceSpec.AppReconciliationsRateLimiting
+			rAc := actual.ArgoCD.InstanceSpec.AppReconciliationsRateLimiting
+			if rIn.BucketRateLimiting != nil && rAc.BucketRateLimiting != nil {
+				if rIn.BucketRateLimiting.BucketSize == 0 && rAc.BucketRateLimiting.BucketSize != 0 {
+					rIn.BucketRateLimiting.BucketSize = rAc.BucketRateLimiting.BucketSize
+				}
+				if rIn.BucketRateLimiting.BucketQps == 0 && rAc.BucketRateLimiting.BucketQps != 0 {
+					rIn.BucketRateLimiting.BucketQps = rAc.BucketRateLimiting.BucketQps
+				}
+			}
+			if rIn.ItemRateLimiting != nil && rAc.ItemRateLimiting != nil {
+				if rIn.ItemRateLimiting.FailureCooldown == 0 && rAc.ItemRateLimiting.FailureCooldown != 0 {
+					rIn.ItemRateLimiting.FailureCooldown = rAc.ItemRateLimiting.FailureCooldown
+				}
+				if rIn.ItemRateLimiting.BaseDelay == 0 && rAc.ItemRateLimiting.BaseDelay != 0 {
+					rIn.ItemRateLimiting.BaseDelay = rAc.ItemRateLimiting.BaseDelay
+				}
+				if rIn.ItemRateLimiting.MaxDelay == 0 && rAc.ItemRateLimiting.MaxDelay != 0 {
+					rIn.ItemRateLimiting.MaxDelay = rAc.ItemRateLimiting.MaxDelay
+				}
+				if rIn.ItemRateLimiting.BackoffFactor == 0 && rAc.ItemRateLimiting.BackoffFactor != 0 {
+					rIn.ItemRateLimiting.BackoffFactor = rAc.ItemRateLimiting.BackoffFactor
+				}
+			}
+		}
 	}
 
 	if in.ArgoCDConfigMap == nil {
@@ -261,6 +318,8 @@ func lateInitialize(in, actual *v1alpha2.InstanceParameters) bool {
 	if in.ArgoCDTLSCertsConfigMap == nil {
 		in.ArgoCDTLSCertsConfigMap = actual.ArgoCDTLSCertsConfigMap
 	}
+	// Note: we adopt the whole map if it's nil. Merging individual
+	// plugins is not supported via late-init.
 	if in.ConfigManagementPlugins == nil {
 		in.ConfigManagementPlugins = actual.ConfigManagementPlugins
 	}
@@ -314,17 +373,11 @@ func lateInitializeStruct(in, actual reflect.Value) {
 // children.Compare helper against the ExportInstance response.
 func isUpToDate(desired, actual v1alpha2.InstanceParameters) bool {
 	return cmp.Equal(desired, actual,
-		cmp.Comparer(boolPtrEqualEffective),
+		cmp.Comparer(func(a, b *bool) bool {
+			return (a != nil && *a) == (b != nil && *b)
+		}),
 		cmpopts.IgnoreFields(v1alpha2.InstanceParameters{}, "Resources"),
 	)
-}
-
-// boolPtrEqualEffective returns true if two `*bool` values represent
-// the same effective boolean (nil == &false; &true == &true).
-func boolPtrEqualEffective(a, b *bool) bool {
-	aVal := a != nil && *a
-	bVal := b != nil && *b
-	return aVal == bVal
 }
 
 // resolvedSecret captures the name of the referenced kube Secret
