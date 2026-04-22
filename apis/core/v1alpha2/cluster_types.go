@@ -34,6 +34,10 @@ import (
 //   - size=custom requires autoscalerConfig.
 //   - autoscalerConfig is only valid for size=auto or size=custom
 //     (fixed-size tiers don't autoscale).
+//   - kubeconfigSecretRef and enableInClusterKubeconfig are mutually
+//     exclusive (both pick the kubeconfig for the agent apply).
+//   - removeAgentResourcesOnDestroy requires one of the kubeconfig
+//     sources (otherwise the controller has no target to clean).
 //
 // Rules on nested ClusterData fields live here rather than on
 // ClusterData itself because ClusterData is emitted by gencrossplane
@@ -50,6 +54,8 @@ import (
 // +kubebuilder:validation:XValidation:rule="!has(self.data.maintenanceModeExpiry) || (has(self.data.maintenanceMode) && self.data.maintenanceMode)",message="maintenanceModeExpiry requires maintenanceMode=true"
 // +kubebuilder:validation:XValidation:rule="!has(self.data.size) || self.data.size != 'custom' || has(self.data.autoscalerConfig)",message="size=custom requires autoscalerConfig"
 // +kubebuilder:validation:XValidation:rule="!has(self.data.autoscalerConfig) || (has(self.data.size) && (self.data.size == 'auto' || self.data.size == 'custom'))",message="autoscalerConfig only valid for size=auto or size=custom"
+// +kubebuilder:validation:XValidation:rule="!(has(self.kubeconfigSecretRef) && has(self.enableInClusterKubeconfig) && self.enableInClusterKubeconfig)",message="kubeconfigSecretRef and enableInClusterKubeconfig are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!(has(self.removeAgentResourcesOnDestroy) && self.removeAgentResourcesOnDestroy) || has(self.kubeconfigSecretRef) || (has(self.enableInClusterKubeconfig) && self.enableInClusterKubeconfig)",message="removeAgentResourcesOnDestroy requires kubeconfigSecretRef or enableInClusterKubeconfig"
 type ClusterParameters struct {
 	// InstanceID references the Akuity ArgoCD Instance the cluster
 	// belongs to by its opaque ID. Either InstanceID or InstanceRef must
@@ -91,6 +97,36 @@ type ClusterParameters struct {
 	// Data holds the cluster data configuration.
 	// +optional
 	Data ClusterData `json:"data,omitempty"`
+
+	// KubeConfigSecretRef references a Secret in the same namespace as
+	// this Cluster whose "kubeconfig" data key holds a kubeconfig for
+	// the managed Kubernetes cluster. When set, the controller uses
+	// that kubeconfig to server-side apply the Akuity-generated agent
+	// install manifests on Create/Update. Mutually exclusive with
+	// EnableInClusterKubeConfig.
+	//
+	// Cross-namespace kubeconfig Secrets are not supported — the
+	// v1alpha2 same-namespace rule applies.
+	// +optional
+	KubeConfigSecretRef *xpv1.LocalSecretReference `json:"kubeconfigSecretRef,omitempty"`
+
+	// EnableInClusterKubeConfig directs the controller to apply the
+	// Akuity agent install manifests using the provider pod's own
+	// in-cluster service-account config. Only meaningful when the
+	// managed cluster is the same cluster the provider runs in. The
+	// provider pod's ServiceAccount must carry permissions sufficient
+	// to install the agent (Deployments, CRDs, RBAC, etc.).
+	// Mutually exclusive with KubeConfigSecretRef.
+	// +optional
+	EnableInClusterKubeConfig bool `json:"enableInClusterKubeconfig,omitempty"`
+
+	// RemoveAgentResourcesOnDestroy, when true, causes the controller
+	// to delete the Akuity agent resources from the managed cluster on
+	// MR deletion — using the same kubeconfig source as install.
+	// Only meaningful when one of the kubeconfig fields is set; guarded
+	// by a CEL rule on ClusterParameters. Defaults to false.
+	// +optional
+	RemoveAgentResourcesOnDestroy bool `json:"removeAgentResourcesOnDestroy,omitempty"`
 }
 
 // ClusterObservation are the observable fields of a Cluster.
@@ -128,6 +164,14 @@ type ClusterObservation struct {
 	HealthStatus ResourceStatusCode `json:"healthStatus,omitempty"`
 	// ReconciliationStatus captures the cluster reconciliation status.
 	ReconciliationStatus ResourceStatusCode `json:"reconciliationStatus,omitempty"`
+	// AgentManifestsHash records the SHA256 of the Akuity-generated
+	// agent install manifests that the controller last successfully
+	// applied to the managed cluster via KubeConfigSecretRef or
+	// EnableInClusterKubeConfig. Empty when inline agent apply is not
+	// configured or install has not yet succeeded. Drives re-apply
+	// on manifest drift (e.g. when an upgrade on the Akuity side
+	// regenerates the bundle).
+	AgentManifestsHash string `json:"agentManifestsHash,omitempty"`
 }
 
 // ClusterObservationAgentState captures versions and per-agent status.

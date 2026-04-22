@@ -47,7 +47,7 @@ func newKI() *v1alpha2.KargoInstance {
 		ObjectMeta: metav1.ObjectMeta{Name: "ki", Namespace: "ns"},
 		Spec: v1alpha2.KargoInstanceResourceSpec{
 			ForProvider: v1alpha2.KargoInstanceParameters{
-				Name: "ki",
+				Name:  "ki",
 				Kargo: v1alpha2.KargoSpec{Version: "v1.0.0"},
 			},
 		},

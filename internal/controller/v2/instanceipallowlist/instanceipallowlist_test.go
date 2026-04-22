@@ -81,7 +81,7 @@ func newInst() *v1alpha2.Instance {
 		ObjectMeta: metav1.ObjectMeta{Name: "inst", Namespace: "ns"},
 		Spec: v1alpha2.InstanceSpec{
 			ForProvider: v1alpha2.InstanceParameters{
-				Name: "inst",
+				Name:   "inst",
 				ArgoCD: &v1alpha2.ArgoCDSpec{Version: "v2.13.0"},
 			},
 		},

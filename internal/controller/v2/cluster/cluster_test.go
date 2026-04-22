@@ -100,7 +100,7 @@ func TestObserve_NotYetReconciled(t *testing.T) {
 	assert.Nil(t, obs.ConnectionDetails)
 }
 
-func TestObserve_ReconciledPublishesManifests(t *testing.T) {
+func TestObserve_ReconciledNoKubeConfigSource(t *testing.T) {
 	e, mc := newExt(t)
 	cl := newCluster()
 	meta.SetExternalName(cl, "c")
@@ -114,15 +114,65 @@ func TestObserve_ReconciledPublishesManifests(t *testing.T) {
 		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}
 	mc.EXPECT().GetCluster(gomock.Any(), "inst-1", "c").Return(ac, nil).Times(1)
-	mc.EXPECT().GetClusterManifestsOnce(gomock.Any(), "inst-1", "cid-1").Return("apiVersion: v1\nkind: ConfigMap\n", nil).Times(1)
+	// No GetClusterManifestsOnce — user did not opt into inline apply.
 
 	obs, err := e.Observe(context.Background(), cl)
 	require.NoError(t, err)
 	assert.True(t, obs.ResourceExists)
-	require.NotNil(t, obs.ConnectionDetails)
-	assert.Equal(t, []byte("apiVersion: v1\nkind: ConfigMap\n"), obs.ConnectionDetails[ConnectionKeyManifests])
+	assert.True(t, obs.ResourceUpToDate)
+	assert.Nil(t, obs.ConnectionDetails)
 	assert.Equal(t, "cid-1", cl.Status.AtProvider.ID)
 	assert.Equal(t, int32(health.StatusCode_STATUS_CODE_HEALTHY), cl.Status.AtProvider.HealthStatus.Code)
+}
+
+func TestObserve_InlineKubeConfigDriftsWhenHashMissing(t *testing.T) {
+	e, mc := newExt(t)
+	cl := newCluster()
+	meta.SetExternalName(cl, "c")
+	cl.Spec.ForProvider.EnableInClusterKubeConfig = true
+
+	ac := &argocdv1.Cluster{
+		Id:                   "cid-1",
+		Name:                 "c",
+		Description:          "test cluster",
+		Data:                 &argocdv1.ClusterData{Size: argocdv1.ClusterSize_CLUSTER_SIZE_SMALL},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}
+	mc.EXPECT().GetCluster(gomock.Any(), "inst-1", "c").Return(ac, nil).Times(1)
+	mc.EXPECT().GetClusterManifestsOnce(gomock.Any(), "inst-1", "cid-1").
+		Return("apiVersion: v1\nkind: ConfigMap\n", nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), cl)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.False(t, obs.ResourceUpToDate)
+	assert.Equal(t, "cid-1", cl.Status.AtProvider.ID)
+}
+
+func TestObserve_InlineKubeConfigUpToDateWhenHashMatches(t *testing.T) {
+	e, mc := newExt(t)
+	cl := newCluster()
+	meta.SetExternalName(cl, "c")
+	cl.Spec.ForProvider.EnableInClusterKubeConfig = true
+
+	manifests := "apiVersion: v1\nkind: ConfigMap\n"
+	cl.Status.AtProvider.AgentManifestsHash = hashManifests(manifests)
+
+	ac := &argocdv1.Cluster{
+		Id:                   "cid-1",
+		Name:                 "c",
+		Description:          "test cluster",
+		Data:                 &argocdv1.ClusterData{Size: argocdv1.ClusterSize_CLUSTER_SIZE_SMALL},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}
+	mc.EXPECT().GetCluster(gomock.Any(), "inst-1", "c").Return(ac, nil).Times(1)
+	mc.EXPECT().GetClusterManifestsOnce(gomock.Any(), "inst-1", "cid-1").Return(manifests, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), cl)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceUpToDate)
 }
 
 func TestCreate_CallsApply(t *testing.T) {
@@ -156,6 +206,24 @@ func TestDelete_CallsDeleteCluster(t *testing.T) {
 	e, mc := newExt(t)
 	cl := newCluster()
 	meta.SetExternalName(cl, "c")
+
+	mc.EXPECT().DeleteCluster(gomock.Any(), "inst-1", "c").Return(nil).Times(1)
+
+	_, err := e.Delete(context.Background(), cl)
+	require.NoError(t, err)
+}
+
+// TestDelete_RemoveAgentNoKubeConfigSourceSkipsTargetCleanup verifies
+// the controller-side defensive check (belt-and-suspenders alongside
+// the CEL rule): even if RemoveAgentResourcesOnDestroy is true, when
+// neither kubeconfig field is set we skip the target-cluster teardown
+// entirely and only call the platform DeleteCluster. No GetCluster or
+// GetClusterManifestsOnce expectation means they must not be called.
+func TestDelete_RemoveAgentNoKubeConfigSourceSkipsTargetCleanup(t *testing.T) {
+	e, mc := newExt(t)
+	cl := newCluster()
+	meta.SetExternalName(cl, "c")
+	cl.Spec.ForProvider.RemoveAgentResourcesOnDestroy = true
 
 	mc.EXPECT().DeleteCluster(gomock.Any(), "inst-1", "c").Return(nil).Times(1)
 

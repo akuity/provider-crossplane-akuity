@@ -67,6 +67,10 @@ spec:
                     - size=custom requires autoscalerConfig.
                     - autoscalerConfig is only valid for size=auto or size=custom
                       (fixed-size tiers don't autoscale).
+                    - kubeconfigSecretRef and enableInClusterKubeconfig are mutually
+                      exclusive (both pick the kubeconfig for the agent apply).
+                    - removeAgentResourcesOnDestroy requires one of the kubeconfig
+                      sources (otherwise the controller has no target to clean).
 
                   Rules on nested ClusterData fields live here rather than on
                   ClusterData itself because ClusterData is emitted by gencrossplane
@@ -195,6 +199,16 @@ spec:
                   description:
                     description: Description is a free-form description of the cluster.
                     type: string
+                  enableInClusterKubeconfig:
+                    description: |-
+                      EnableInClusterKubeConfig directs the controller to apply the
+                      Akuity agent install manifests using the provider pod's own
+                      in-cluster service-account config. Only meaningful when the
+                      managed cluster is the same cluster the provider runs in. The
+                      provider pod's ServiceAccount must carry permissions sufficient
+                      to install the agent (Deployments, CRDs, RBAC, etc.).
+                      Mutually exclusive with KubeConfigSecretRef.
+                    type: boolean
                   instanceId:
                     description: |-
                       InstanceID references the Akuity ArgoCD Instance the cluster
@@ -209,6 +223,24 @@ spec:
                       name:
                         description: Name of the referenced object. Required.
                         minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  kubeconfigSecretRef:
+                    description: |-
+                      KubeConfigSecretRef references a Secret in the same namespace as
+                      this Cluster whose "kubeconfig" data key holds a kubeconfig for
+                      the managed Kubernetes cluster. When set, the controller uses
+                      that kubeconfig to server-side apply the Akuity-generated agent
+                      install manifests on Create/Update. Mutually exclusive with
+                      EnableInClusterKubeConfig.
+
+                      Cross-namespace kubeconfig Secrets are not supported — the
+                      v1alpha2 same-namespace rule applies.
+                    properties:
+                      name:
+                        description: Name of the secret.
                         type: string
                     required:
                     - name
@@ -230,6 +262,14 @@ spec:
                   namespaceScoped:
                     description: NamespaceScoped toggles whether the agent is namespace-scoped.
                     type: boolean
+                  removeAgentResourcesOnDestroy:
+                    description: |-
+                      RemoveAgentResourcesOnDestroy, when true, causes the controller
+                      to delete the Akuity agent resources from the managed cluster on
+                      MR deletion — using the same kubeconfig source as install.
+                      Only meaningful when one of the kubeconfig fields is set; guarded
+                      by a CEL rule on ClusterParameters. Defaults to false.
+                    type: boolean
                 required:
                 - name
                 type: object
@@ -244,6 +284,15 @@ spec:
                 - message: autoscalerConfig only valid for size=auto or size=custom
                   rule: '!has(self.data.autoscalerConfig) || (has(self.data.size)
                     && (self.data.size == ''auto'' || self.data.size == ''custom''))'
+                - message: kubeconfigSecretRef and enableInClusterKubeconfig are mutually
+                    exclusive
+                  rule: '!(has(self.kubeconfigSecretRef) && has(self.enableInClusterKubeconfig)
+                    && self.enableInClusterKubeconfig)'
+                - message: removeAgentResourcesOnDestroy requires kubeconfigSecretRef
+                    or enableInClusterKubeconfig
+                  rule: '!(has(self.removeAgentResourcesOnDestroy) && self.removeAgentResourcesOnDestroy)
+                    || has(self.kubeconfigSecretRef) || (has(self.enableInClusterKubeconfig)
+                    && self.enableInClusterKubeconfig)'
               managementPolicies:
                 default:
                 - '*'
@@ -308,6 +357,16 @@ spec:
               atProvider:
                 description: ClusterObservation are the observable fields of a Cluster.
                 properties:
+                  agentManifestsHash:
+                    description: |-
+                      AgentManifestsHash records the SHA256 of the Akuity-generated
+                      agent install manifests that the controller last successfully
+                      applied to the managed cluster via KubeConfigSecretRef or
+                      EnableInClusterKubeConfig. Empty when inline agent apply is not
+                      configured or install has not yet succeeded. Drives re-apply
+                      on manifest drift (e.g. when an upgrade on the Akuity side
+                      regenerates the bundle).
+                    type: string
                   agentSize:
                     description: AgentSize is the observed agent sizing profile.
                     type: string

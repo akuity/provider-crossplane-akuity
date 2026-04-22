@@ -44,7 +44,7 @@ func newAgent() *v1alpha2.KargoAgent {
 			ForProvider: v1alpha2.KargoAgentParameters{
 				KargoInstanceID: "ki-1",
 				Name:            "agt",
-				Data: v1alpha2.KargoAgentData{Size: v1alpha2.KargoAgentSize("small")},
+				Data:            v1alpha2.KargoAgentData{Size: v1alpha2.KargoAgentSize("small")},
 			},
 		},
 	}

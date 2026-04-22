@@ -29,11 +29,9 @@ spec:
     # same namespace via instanceRef.
     instanceRef:
       name: my-instance
+    # To have the provider install the Akuity agent onto the managed
+    # cluster directly, set exactly one of kubeconfigSecretRef or
+    # enableInClusterKubeconfig. See cluster-with-kubeconfig.yaml.
   providerConfigRef:
     kind: ProviderConfig
     name: akuity
-  # v2 stores the agent-install YAML on this secret under key "manifests".
-  # Feed it to a provider-kubernetes Object in a Composition (see
-  # cluster-with-agent-composition.yaml).
-  writeConnectionSecretToRef:
-    name: my-cluster-manifests

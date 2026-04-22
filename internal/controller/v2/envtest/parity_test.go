@@ -276,7 +276,7 @@ func TestKargoInstance_KargoResourcesRoundTrip(t *testing.T) {
 		ObjectMeta: newMeta("ki-resources"),
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
-				Name: "ki-resources",
+				Name:  "ki-resources",
 				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoResources: []runtime.RawExtension{
 					mustRawExt(t, map[string]interface{}{
@@ -313,7 +313,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 		ObjectMeta: newMeta("ki-repocreds-ok"),
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
-				Name: "ki-repocreds-ok",
+				Name:  "ki-repocreds-ok",
 				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoRepoCredentialSecretRefs: []corev1alpha2.KargoRepoCredentialSecretRef{{
 					Name:             "repo-github",
@@ -331,7 +331,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 		ObjectMeta: newMeta("ki-repocreds-badtype"),
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
-				Name: "ki-repocreds-badtype",
+				Name:  "ki-repocreds-badtype",
 				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoRepoCredentialSecretRefs: []corev1alpha2.KargoRepoCredentialSecretRef{{
 					Name:             "repo-github",
@@ -350,7 +350,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 		ObjectMeta: newMeta("ki-repocreds-dup"),
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
-				Name: "ki-repocreds-dup",
+				Name:  "ki-repocreds-dup",
 				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoRepoCredentialSecretRefs: []corev1alpha2.KargoRepoCredentialSecretRef{
 					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "a"}},
@@ -378,7 +378,7 @@ func TestKargoInstance_SecretInKargoResourcesRejected(t *testing.T) {
 		ObjectMeta: newMeta("ki-inline-secret"),
 		Spec: corev1alpha2.KargoInstanceResourceSpec{
 			ForProvider: corev1alpha2.KargoInstanceParameters{
-				Name: "ki-inline-secret",
+				Name:  "ki-inline-secret",
 				Kargo: corev1alpha2.KargoSpec{Version: "v1.4.0"},
 				KargoResources: []runtime.RawExtension{
 					mustRawExt(t, map[string]interface{}{

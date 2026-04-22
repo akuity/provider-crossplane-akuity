@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -188,6 +189,90 @@ func TestCluster_ValidatesIDOrRefRequired(t *testing.T) {
 	}
 	require.NoError(t, kube.Create(ctx, withID))
 	t.Cleanup(func() { _ = kube.Delete(ctx, withID) })
+}
+
+// TestCluster_KubeConfigSourceMutualExclusion exercises the CEL rule
+// that forbids setting both kubeconfigSecretRef and
+// enableInClusterKubeconfig on the same Cluster.
+func TestCluster_KubeConfigSourceMutualExclusion(t *testing.T) {
+	ctx := context.Background()
+
+	both := &corev1alpha2.Cluster{
+		ObjectMeta: newMeta("cluster-kc-both"),
+		Spec: corev1alpha2.ClusterSpec{
+			ForProvider: corev1alpha2.ClusterParameters{
+				InstanceID:                "inst-abc",
+				Name:                      "c1",
+				KubeConfigSecretRef:       &xpv1.LocalSecretReference{Name: "kc"},
+				EnableInClusterKubeConfig: true,
+			},
+		},
+	}
+	err := kube.Create(ctx, both)
+	require.Error(t, err, "apiserver must reject Cluster with both kubeconfig sources")
+	assert.Contains(t, err.Error(), "kubeconfigSecretRef and enableInClusterKubeconfig are mutually exclusive")
+
+	withRef := &corev1alpha2.Cluster{
+		ObjectMeta: newMeta("cluster-kc-ref"),
+		Spec: corev1alpha2.ClusterSpec{
+			ForProvider: corev1alpha2.ClusterParameters{
+				InstanceID:          "inst-abc",
+				Name:                "c1",
+				KubeConfigSecretRef: &xpv1.LocalSecretReference{Name: "kc"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withRef))
+	t.Cleanup(func() { _ = kube.Delete(ctx, withRef) })
+
+	withInCluster := &corev1alpha2.Cluster{
+		ObjectMeta: newMeta("cluster-kc-local"),
+		Spec: corev1alpha2.ClusterSpec{
+			ForProvider: corev1alpha2.ClusterParameters{
+				InstanceID:                "inst-abc",
+				Name:                      "c1",
+				EnableInClusterKubeConfig: true,
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withInCluster))
+	t.Cleanup(func() { _ = kube.Delete(ctx, withInCluster) })
+}
+
+// TestCluster_RemoveAgentRequiresKubeConfigSource exercises the CEL
+// rule that gates removeAgentResourcesOnDestroy on one of the two
+// kubeconfig sources being set — otherwise the controller has no way
+// to reach the managed cluster to clean anything up.
+func TestCluster_RemoveAgentRequiresKubeConfigSource(t *testing.T) {
+	ctx := context.Background()
+
+	orphan := &corev1alpha2.Cluster{
+		ObjectMeta: newMeta("cluster-rm-orphan"),
+		Spec: corev1alpha2.ClusterSpec{
+			ForProvider: corev1alpha2.ClusterParameters{
+				InstanceID:                    "inst-abc",
+				Name:                          "c1",
+				RemoveAgentResourcesOnDestroy: true,
+			},
+		},
+	}
+	err := kube.Create(ctx, orphan)
+	require.Error(t, err, "apiserver must reject removeAgentResourcesOnDestroy without a kubeconfig source")
+	assert.Contains(t, err.Error(), "removeAgentResourcesOnDestroy requires kubeconfigSecretRef or enableInClusterKubeconfig")
+
+	ok := &corev1alpha2.Cluster{
+		ObjectMeta: newMeta("cluster-rm-ok"),
+		Spec: corev1alpha2.ClusterSpec{
+			ForProvider: corev1alpha2.ClusterParameters{
+				InstanceID:                    "inst-abc",
+				Name:                          "c1",
+				EnableInClusterKubeConfig:     true,
+				RemoveAgentResourcesOnDestroy: true,
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, ok))
+	t.Cleanup(func() { _ = kube.Delete(ctx, ok) })
 }
 
 // TestKargoAgent_ValidatesIDOrRefRequired exercises the CEL rule on

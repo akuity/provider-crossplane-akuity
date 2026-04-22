@@ -18,10 +18,12 @@ package cluster
 
 import (
 	"encoding/json"
+	"maps"
 
 	"k8s.io/utils/ptr"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -113,7 +115,44 @@ func apiToObservation(cl *argocdv1.Cluster) v1alpha2.ClusterObservation {
 	if r := cl.GetReconciliationStatus(); r != nil {
 		obs.ReconciliationStatus = v1alpha2.ResourceStatusCode{Code: int32(r.GetCode()), Message: r.GetMessage()}
 	}
+	obs.AgentState = apiToAgentState(cl.GetAgentState())
 	return obs
+}
+
+// apiToAgentState projects the Akuity per-component AgentState onto the
+// v2 ClusterObservationAgentState. Mirrors the v1alpha1 mapping in
+// internal/types/cluster.go: all four bucket maps (Healthy, Progressing,
+// Degraded, Unknown) are flattened into a single keyed map on
+// observation.Statuses; the per-agent Code reflects the health enum.
+func apiToAgentState(s *argocdv1.AgentState) v1alpha2.ClusterObservationAgentState {
+	if s == nil {
+		return v1alpha2.ClusterObservationAgentState{}
+	}
+	out := v1alpha2.ClusterObservationAgentState{
+		Version:       s.GetVersion(),
+		ArgoCdVersion: s.GetArgoCdVersion(),
+	}
+	if st := s.GetStatus(); st != nil {
+		statuses := agentHealthStatusMap(st.GetHealthy())
+		maps.Copy(statuses, agentHealthStatusMap(st.GetProgressing()))
+		maps.Copy(statuses, agentHealthStatusMap(st.GetDegraded()))
+		maps.Copy(statuses, agentHealthStatusMap(st.GetUnknown()))
+		if len(statuses) > 0 {
+			out.Statuses = statuses
+		}
+	}
+	return out
+}
+
+func agentHealthStatusMap(in map[string]*health.AgentHealthStatus) map[string]v1alpha2.ClusterObservationAgentHealthStatus {
+	out := make(map[string]v1alpha2.ClusterObservationAgentHealthStatus, len(in))
+	for id, hs := range in {
+		out[id] = v1alpha2.ClusterObservationAgentHealthStatus{
+			Code:    int32(hs.GetStatus()),
+			Message: hs.GetMessage(),
+		}
+	}
+	return out
 }
 
 // clusterDataFromPB translates the protobuf ClusterData into the v2
