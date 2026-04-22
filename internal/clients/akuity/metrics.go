@@ -19,11 +19,11 @@ import (
 // apiWriteCallsTotal counts every write-path gateway call the Akuity
 // client makes. Labels:
 //   - method:      gRPC method name on the gateway (e.g. "ApplyInstance",
-//                  "PatchKargoInstance", "CreateKargoInstanceAgent").
+//     "PatchKargoInstance", "CreateKargoInstanceAgent").
 //   - resource_id: the canonical Akuity ID (or name, if that is what the
-//                  caller passes in) the call targets. Unbounded in theory
-//                  but in practice there are only a handful of IDs in a
-//                  test run.
+//     caller passes in) the call targets. Unbounded in theory
+//     but in practice there are only a handful of IDs in a
+//     test run.
 var apiWriteCallsTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "akuity_api_client_writes_total",

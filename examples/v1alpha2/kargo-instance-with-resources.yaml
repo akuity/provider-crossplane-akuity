@@ -1,0 +1,73 @@
+# KargoInstance with declarative Kargo child resources (Projects,
+# Warehouses, Stages, etc.) bundled in spec.forProvider.kargoResources.
+# The controller validates each entry's apiVersion + kind and routes it
+# into the appropriate field on ApplyKargoInstanceRequest.
+#
+# Repository credentials use the typed kargoRepoCredentialSecretRefs
+# slot below — v1/Secret entries in kargoResources are rejected so
+# plaintext stays out of the MR spec and rotation participates in
+# SecretHash drift.
+#
+# Additive semantics: removing an entry from kargoResources does NOT
+# delete the corresponding resource on the Akuity platform. To remove a
+# resource, delete it via the Akuity UI or API. The controller compares
+# desired children against the ExportKargoInstance response and
+# re-Applies only children that are missing or divergent server-side.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-github
+  namespace: default
+type: Opaque
+stringData:
+  repoURL: "https://github.com/acme/platform.git"
+  username: bot
+  password: "ghp_replace"
+---
+apiVersion: core.m.akuity.crossplane.io/v1alpha2
+kind: KargoInstance
+metadata:
+  name: my-kargo
+  namespace: default
+spec:
+  forProvider:
+    name: my-kargo
+    spec:
+      version: "v1.4.0"
+      subdomain: "my-kargo"
+    kargoRepoCredentialSecretRefs:
+      - name: repo-github          # Secret name written into the Kargo project
+        projectNamespace: platform # Kargo project namespace
+        credType: git              # kargo.akuity.io/cred-type label
+        secretRef:
+          name: repo-github        # Kubernetes Secret in the MR's namespace
+    kargoResources:
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: Project
+        metadata:
+          name: platform
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: Warehouse
+        metadata:
+          name: platform-warehouse
+          namespace: platform
+        spec:
+          subscriptions:
+            - git:
+                repoURL: "https://github.com/acme/platform.git"
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: Stage
+        metadata:
+          name: dev
+          namespace: platform
+        spec:
+          requestedFreight:
+            - origin:
+                kind: Warehouse
+                name: platform-warehouse
+              sources:
+                direct: true
+  providerConfigRef:
+    kind: ProviderConfig
+    name: akuity

@@ -23,6 +23,51 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+func TestDexConfigSecretResolvedToAPI_EmptyReturnsNil(t *testing.T) {
+	if got := DexConfigSecretResolvedToAPI(nil); got != nil {
+		t.Fatalf("nil input: got=%v, want nil", got)
+	}
+	if got := DexConfigSecretResolvedToAPI(map[string]string{}); got != nil {
+		t.Fatalf("empty input: got=%v, want nil", got)
+	}
+}
+
+func TestDexConfigSecretResolvedToAPI_WrapsEachValue(t *testing.T) {
+	in := map[string]string{
+		"github-client-secret": "gh-abc",
+		"google-client-secret": "goog-def",
+	}
+	got := DexConfigSecretResolvedToAPI(in)
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2", len(got))
+	}
+	for k, want := range in {
+		v, ok := got[k]
+		if !ok {
+			t.Fatalf("missing key %q", k)
+		}
+		if v.Value == nil {
+			t.Fatalf("key %q: Value is nil, want &%q", k, want)
+		}
+		if *v.Value != want {
+			t.Fatalf("key %q: got %q, want %q", k, *v.Value, want)
+		}
+	}
+}
+
+func TestDexConfigSecretResolvedToAPI_PointerCapture(t *testing.T) {
+	// Go's range-by-value capture is a classic bug vector. Ensure each
+	// entry in the output keeps a pointer to its own value, not to the
+	// last iteration's loop variable.
+	in := map[string]string{"a": "1", "b": "2", "c": "3"}
+	got := DexConfigSecretResolvedToAPI(in)
+	for k, want := range in {
+		if got[k].Value == nil || *got[k].Value != want {
+			t.Fatalf("key %q: got %v, want %q", k, got[k].Value, want)
+		}
+	}
+}
+
 func TestKustomizationRoundtrip(t *testing.T) {
 	in := "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: foo\n"
 	raw := KustomizationStringToRaw(in)

@@ -27,7 +27,29 @@ import (
 
 // ClusterParameters are the configurable fields of a Cluster.
 //
+// CEL rules:
+//   - Exactly one of instanceId or instanceRef must be set.
+//   - maintenanceModeExpiry requires maintenanceMode=true (a non-zero
+//     expiry without the gate is meaningless).
+//   - size=custom requires autoscalerConfig.
+//   - autoscalerConfig is only valid for size=auto or size=custom
+//     (fixed-size tiers don't autoscale).
+//
+// Rules on nested ClusterData fields live here rather than on
+// ClusterData itself because ClusterData is emitted by gencrossplane
+// types from the upstream Akuity wire type; marker edits on the leaf
+// would be wiped by the next generator sync.
+//
+// Note: self.data is a non-pointer inline struct on the Go side, so
+// kube-apiserver treats it as always-present (it never evaluates to
+// absent at admission time). We therefore guard only the
+// omitempty-tagged children (size, maintenanceModeExpiry,
+// autoscalerConfig) with has() — not data itself.
+//
 // +kubebuilder:validation:XValidation:rule="has(self.instanceId) != has(self.instanceRef)",message="exactly one of instanceId or instanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.data.maintenanceModeExpiry) || (has(self.data.maintenanceMode) && self.data.maintenanceMode)",message="maintenanceModeExpiry requires maintenanceMode=true"
+// +kubebuilder:validation:XValidation:rule="!has(self.data.size) || self.data.size != 'custom' || has(self.data.autoscalerConfig)",message="size=custom requires autoscalerConfig"
+// +kubebuilder:validation:XValidation:rule="!has(self.data.autoscalerConfig) || (has(self.data.size) && (self.data.size == 'auto' || self.data.size == 'custom'))",message="autoscalerConfig only valid for size=auto or size=custom"
 type ClusterParameters struct {
 	// InstanceID references the Akuity ArgoCD Instance the cluster
 	// belongs to by its opaque ID. Either InstanceID or InstanceRef must

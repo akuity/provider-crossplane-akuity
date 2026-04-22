@@ -51,3 +51,4 @@ KargoAgentData:
     - field: Kustomization
       via: glue.KustomizationStringToRaw
       back: glue.KustomizationRawToString
+

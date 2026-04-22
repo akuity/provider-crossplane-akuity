@@ -27,6 +27,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
+
+	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 )
 
 // ValidateKustomizationYAML returns an error when s is non-empty and
@@ -88,4 +90,23 @@ func KustomizationRawToString(r runtime.RawExtension) string {
 		return ""
 	}
 	return string(y)
+}
+
+// DexConfigSecretResolvedToAPI wraps a flat map of dex configuration
+// secret values into the map[string]akuitytypes.Value shape the Akuity
+// gateway expects. Each entry becomes {value: "..."}; nil/empty input
+// yields nil so callers can compose without pre-checks. Exposed so the
+// KargoInstance controller can inject resolved Secret data into the
+// wire payload after the generated converter has run (the v1alpha2
+// surface stores only a LocalSecretReference, not the wire-shape map).
+func DexConfigSecretResolvedToAPI(resolved map[string]string) map[string]akuitytypes.Value {
+	if len(resolved) == 0 {
+		return nil
+	}
+	out := make(map[string]akuitytypes.Value, len(resolved))
+	for k, v := range resolved {
+		v := v
+		out[k] = akuitytypes.Value{Value: &v}
+	}
+	return out
 }

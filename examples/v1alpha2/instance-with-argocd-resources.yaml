@@ -1,0 +1,77 @@
+# Instance with declarative ArgoCD child resources (Applications,
+# ApplicationSets, AppProjects) bundled in spec.forProvider.argocdResources.
+# The controller validates each entry (argoproj.io/v1alpha1 + allowed kind),
+# groups them by kind, and sends them to the Akuity gateway alongside the
+# instance spec on every ApplyInstance call.
+#
+# Additive semantics: removing an entry from argocdResources does NOT
+# delete the corresponding resource on the Akuity platform. To remove a
+# resource, delete it via the Akuity UI or API. The controller compares
+# desired children against the ExportInstance response and re-Applies
+# only children that are missing or divergent server-side; extra
+# server-side children are intentionally left alone.
+---
+apiVersion: core.m.akuity.crossplane.io/v1alpha2
+kind: Instance
+metadata:
+  name: my-instance
+  namespace: default
+spec:
+  forProvider:
+    name: my-instance
+    argocd:
+      spec:
+        version: "v3.1.9-ak.67"
+    argocdResources:
+      - apiVersion: argoproj.io/v1alpha1
+        kind: AppProject
+        metadata:
+          name: team-a
+        spec:
+          description: Team A workloads
+          destinations:
+            - namespace: "team-a-*"
+              server: "*"
+          sourceRepos:
+            - "https://github.com/acme/*"
+      - apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: platform-bootstrap
+        spec:
+          project: team-a
+          source:
+            repoURL: "https://github.com/acme/platform.git"
+            path: "bootstrap"
+            targetRevision: main
+          destination:
+            server: "https://kubernetes.default.svc"
+            namespace: bootstrap
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+      - apiVersion: argoproj.io/v1alpha1
+        kind: ApplicationSet
+        metadata:
+          name: tenants
+        spec:
+          generators:
+            - list:
+                elements:
+                  - name: alpha
+                  - name: beta
+          template:
+            metadata:
+              name: "{{name}}-tenant"
+            spec:
+              project: team-a
+              source:
+                repoURL: "https://github.com/acme/tenants.git"
+                path: "{{name}}"
+              destination:
+                server: "https://kubernetes.default.svc"
+                namespace: "tenant-{{name}}"
+  providerConfigRef:
+    kind: ProviderConfig
+    name: akuity

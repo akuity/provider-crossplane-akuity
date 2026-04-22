@@ -4,10 +4,42 @@
 // transcluded into the v1alpha2 package so hand-authored shells in
 // provider-crossplane-akuity's apis/core/v1alpha2 can reference the
 // leaves directly without crossing a package boundary.
+//
+// ============================================================
+// MANUAL ADDITIONS — guard against accidental loss on regen
+// ============================================================
+// gencrossplanetypes in akuity-platform owns this file's contents, but
+// a small set of provider-crossplane-akuity-specific fields and
+// kubebuilder markers has been added by hand because upstream has no
+// corresponding concept:
+//
+//   - KargoOidcConfig.DexConfigSecretRef (*xpv1.LocalSecretReference)
+//     Nested same-namespace Secret reference for dex credentials. The
+//     controller resolves it at reconcile time and injects the wire-
+//     shape Value map; plaintext never lives on the managed resource
+//     spec.
+//
+//   - KargoOidcConfig.{Enabled,DexEnabled,DexConfig,DexConfigSecret,
+//     IssuerURL,ClientID,CliClientID,AdminAccount,ViewerAccount,
+//     AdditionalScopes,UserAccount,ProjectCreatorAccount}
+//     Tagged with `// +optional` so controller-gen drops them from the
+//     CRD's `required` array. Upstream emits these without omitempty
+//     on every field, which made the generated CRD reject perfectly
+//     valid ref-only OIDC manifests at admission time. The wire shape
+//     is unchanged; only the OpenAPI schema is relaxed.
+//
+// A guard test in zz_generated_wire_guard_test.go fails CI if any of
+// these additions disappear after a sync from upstream. When that
+// fires, the correct fix is to re-add the missing pieces here AND
+// either (a) land the upstream overlay feature tracked as Follow-up Z
+// in PARITY_PLAN.md so future syncs stop clobbering them, or (b) mirror
+// the additions into the upstream generator's emission path.
+// ============================================================
 
 package v1alpha2
 
 import (
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -370,17 +402,39 @@ type KargoPredefinedAccountData struct {
 }
 
 type KargoOidcConfig struct {
-	Enabled               *bool                      `json:"enabled"`
-	DexEnabled            *bool                      `json:"dexEnabled"`
-	DexConfig             string                     `json:"dexConfig"`
-	DexConfigSecret       map[string]Value           `json:"dexConfigSecret"`
-	IssuerURL             string                     `json:"issuerUrl"`
-	ClientID              string                     `json:"clientId"`
-	CliClientID           string                     `json:"cliClientId"`
-	AdminAccount          KargoPredefinedAccountData `json:"adminAccount"`
-	ViewerAccount         KargoPredefinedAccountData `json:"viewerAccount"`
-	AdditionalScopes      []string                   `json:"additionalScopes"`
-	UserAccount           KargoPredefinedAccountData `json:"userAccount"`
+	// +optional
+	Enabled *bool `json:"enabled"`
+	// +optional
+	DexEnabled *bool `json:"dexEnabled"`
+	// +optional
+	DexConfig string `json:"dexConfig"`
+	// +optional
+	DexConfigSecret map[string]Value `json:"dexConfigSecret"`
+	// DexConfigSecretRef (MANUAL ADDITION — see banner at top of
+	// file) references a Secret whose data is resolved at reconcile
+	// time and forwarded to the Akuity gateway as the wire-shape
+	// DexConfigSecret map. Mutually exclusive with the inline
+	// DexConfigSecret above; CEL rule on KargoInstanceParameters
+	// enforces it. Present here rather than on a hand-authored
+	// shell so the user-facing YAML stays nested under
+	// spec.oidcConfig alongside the other OIDC settings.
+	// +optional
+	DexConfigSecretRef *xpv1.LocalSecretReference `json:"dexConfigSecretRef,omitempty"`
+	// +optional
+	IssuerURL string `json:"issuerUrl"`
+	// +optional
+	ClientID string `json:"clientId"`
+	// +optional
+	CliClientID string `json:"cliClientId"`
+	// +optional
+	AdminAccount KargoPredefinedAccountData `json:"adminAccount"`
+	// +optional
+	ViewerAccount KargoPredefinedAccountData `json:"viewerAccount"`
+	// +optional
+	AdditionalScopes []string `json:"additionalScopes"`
+	// +optional
+	UserAccount KargoPredefinedAccountData `json:"userAccount"`
+	// +optional
 	ProjectCreatorAccount KargoPredefinedAccountData `json:"projectCreatorAccount"`
 }
 

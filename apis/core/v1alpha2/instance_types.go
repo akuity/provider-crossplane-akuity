@@ -22,10 +22,21 @@ import (
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // InstanceParameters are the configurable fields of an ArgoCD Instance.
+//
+// CEL rules:
+//   - v1/Secret manifests are forbidden inside argocdResources. The
+//     field is schemaless/preserve-unknown-fields, so without this
+//     rule the apiserver would persist inline Secret data in etcd
+//     before the controller could reject it at reconcile time.
+//     Secret payloads must flow through the typed *SecretRef fields
+//     (argocdSecretRef, repoCredentialSecretRefs, ...).
+//
+// +kubebuilder:validation:XValidation:rule="!has(self.argocdResources) || self.argocdResources.all(r, !(has(r.apiVersion) && has(r.kind) && r.apiVersion == 'v1' && r.kind == 'Secret'))",message="v1/Secret entries are not accepted in spec.forProvider.argocdResources; use the typed *SecretRef fields instead"
 type InstanceParameters struct {
 	// Name of the instance in the Akuity Platform. Required.
 	// +kubebuilder:validation:Required
@@ -72,6 +83,86 @@ type InstanceParameters struct {
 	// ConfigManagementPlugins keys plugin names to their definitions.
 	// +optional
 	ConfigManagementPlugins map[string]ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
+
+	// ArgoCDSecretRef references a Secret whose data is sent verbatim
+	// as the argocd-secret payload. Typical keys: admin.password,
+	// server.secretkey, dex.config, webhook.*.secret, oidc.*.clientSecret.
+	// +optional
+	ArgoCDSecretRef *xpv1.LocalSecretReference `json:"argocdSecretRef,omitempty"`
+
+	// ArgoCDNotificationsSecretRef references a Secret whose data is
+	// sent verbatim as the argocd-notifications-secret payload
+	// (SMTP, Slack, webhook tokens).
+	// +optional
+	ArgoCDNotificationsSecretRef *xpv1.LocalSecretReference `json:"argocdNotificationsSecretRef,omitempty"`
+
+	// ArgoCDImageUpdaterSecretRef references a Secret whose data is
+	// sent verbatim as the argocd-image-updater-secret payload
+	// (container registry credentials).
+	// +optional
+	ArgoCDImageUpdaterSecretRef *xpv1.LocalSecretReference `json:"argocdImageUpdaterSecretRef,omitempty"`
+
+	// ApplicationSetSecretRef references a Secret whose data is sent
+	// verbatim as the argocd-application-set-secret payload
+	// (ApplicationSet plugin credentials).
+	// +optional
+	ApplicationSetSecretRef *xpv1.LocalSecretReference `json:"applicationSetSecretRef,omitempty"`
+
+	// RepoCredentialSecretRefs registers scoped repository credentials
+	// with the Akuity gateway. Each entry's Name (which must match
+	// ^repo-[a-z0-9][a-z0-9-]*$) becomes the server-side secret
+	// identifier; the pointed-at Secret's data supplies the credential
+	// key/value pairs (url, username, password, sshPrivateKey, etc.).
+	// The controller applies argocd.argoproj.io/secret-type=repository
+	// on submission. The stricter regex (vs bare prefix) rejects
+	// whitespace, case drift, and other sneaky inputs that would
+	// otherwise parse as a valid prefix but fail downstream.
+	//
+	// MaxItems caps the CEL cost estimate so kube-apiserver accepts
+	// the rule; 128 slots is far above the realistic usage ceiling
+	// and can be raised with a CRD bump if a need emerges.
+	// +optional
+	// +kubebuilder:validation:MaxItems=128
+	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
+	RepoCredentialSecretRefs []NamedLocalSecretReference `json:"repoCredentialSecretRefs,omitempty"`
+
+	// RepoTemplateCredentialSecretRefs registers scoped repository
+	// template credentials. Same shape + regex constraint as
+	// RepoCredentialSecretRefs; the controller applies
+	// argocd.argoproj.io/secret-type=repo-creds on submission.
+	// +optional
+	// +kubebuilder:validation:MaxItems=128
+	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoTemplateCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
+	RepoTemplateCredentialSecretRefs []NamedLocalSecretReference `json:"repoTemplateCredentialSecretRefs,omitempty"`
+
+	// ArgocdResources carries raw YAML manifests for declarative
+	// ArgoCD child resources. The controller validates each entry's
+	// apiVersion/kind (argoproj.io/v1alpha1 Application,
+	// ApplicationSet, or AppProject), groups them by kind, and sends
+	// them alongside the instance spec on every ApplyInstance call.
+	// Write the YAML as an object, not a string; the CRD schema is
+	// preserve-unknown-fields so the payload is opaque to kube-
+	// apiserver validation. Each entry must still be valid ArgoCD
+	// YAML — the Akuity gateway rejects malformed payloads server-
+	// side.
+	//
+	// Additive semantics: removing an entry from this list does NOT
+	// delete the corresponding resource on the Akuity platform. The
+	// controller intentionally does not enable ApplyInstance's
+	// PruneResourceTypes for Applications, ApplicationSets, or
+	// AppProjects because out-of-band resources (created via the
+	// Akuity UI or another tool) would be collateral damage. To
+	// remove a resource, delete it through the Akuity platform UI or
+	// API. See PARITY_PLAN.md for the rationale.
+	//
+	// MaxItems caps the CEL-reachable list length so the cost
+	// estimator stays within kube-apiserver's budget; 256 is well
+	// above any realistic declarative child count.
+	// +optional
+	// +kubebuilder:validation:MaxItems=256
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	ArgocdResources []runtime.RawExtension `json:"argocdResources,omitempty"`
 }
 
 // ArgoCD is the v1alpha2 wrapper around the upstream ArgoCD wire type.
@@ -140,6 +231,63 @@ type InstanceObservation struct {
 	ArgoCDTLSCertsConfigMap map[string]string `json:"argocdTlsCertsConfigMap,omitempty"`
 	// ConfigManagementPlugins is the observed plugin set.
 	ConfigManagementPlugins map[string]ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
+
+	// ApplicationsStatus surfaces aggregated counts for the
+	// Applications / ApplicationSets / AppProjects managed through
+	// spec.forProvider.argocdResources. Compositions and dashboards
+	// can use these to gate promotion without querying the Akuity
+	// platform UI.
+	ApplicationsStatus *ApplicationsStatus `json:"applicationsStatus,omitempty"`
+
+	// SecretHash is the SHA256 of the concatenation of every resolved
+	// Secret referenced by spec.forProvider on the most recent Apply.
+	// The gateway masks secret contents on Get, so the controller
+	// uses this stored digest as the drift signal for Secret rotation:
+	// when the hash of the currently-resolved content differs from
+	// this value, a re-Apply is scheduled. Stored in status rather
+	// than an annotation because managed.Reconciler persists status
+	// after Create/Update but does not persist arbitrary metadata.
+	SecretHash string `json:"secretHash,omitempty"`
+}
+
+// ApplicationsStatus aggregates the per-child health + sync counters
+// the Akuity gateway reports on InstanceInfo.ApplicationsStatus.
+type ApplicationsStatus struct {
+	// ApplicationCount is the total number of Applications observed.
+	ApplicationCount uint32 `json:"applicationCount,omitempty"`
+	// ResourcesCount is the total number of underlying kube resources
+	// owned by those Applications.
+	ResourcesCount uint32 `json:"resourcesCount,omitempty"`
+	// AppOfAppCount is the subset that are app-of-apps parents.
+	AppOfAppCount uint32 `json:"appOfAppCount,omitempty"`
+	// SyncInProgressCount is the number of Applications currently
+	// reconciling.
+	SyncInProgressCount uint32 `json:"syncInProgressCount,omitempty"`
+	// WarningCount counts Applications surfacing warnings.
+	WarningCount uint32 `json:"warningCount,omitempty"`
+	// ErrorCount counts Applications in an errored state.
+	ErrorCount uint32 `json:"errorCount,omitempty"`
+	// Health is the per-health-status roll-up.
+	Health *ApplicationsHealth `json:"health,omitempty"`
+	// SyncStatus is the per-sync-status roll-up.
+	SyncStatus *ApplicationsSyncStatus `json:"syncStatus,omitempty"`
+}
+
+// ApplicationsHealth is the roll-up of Application health states.
+type ApplicationsHealth struct {
+	HealthyCount     uint32 `json:"healthyCount,omitempty"`
+	DegradedCount    uint32 `json:"degradedCount,omitempty"`
+	ProgressingCount uint32 `json:"progressingCount,omitempty"`
+	UnknownCount     uint32 `json:"unknownCount,omitempty"`
+	SuspendedCount   uint32 `json:"suspendedCount,omitempty"`
+	MissingCount     uint32 `json:"missingCount,omitempty"`
+}
+
+// ApplicationsSyncStatus is the roll-up of Application sync states.
+type ApplicationsSyncStatus struct {
+	SyncedCount    uint32 `json:"syncedCount,omitempty"`
+	OutOfSyncCount uint32 `json:"outOfSyncCount,omitempty"`
+	UnknownCount   uint32 `json:"unknownCount,omitempty"`
 }
 
 // An InstanceSpec defines the desired state of an Instance.

@@ -60,6 +60,18 @@ spec:
                 description: InstanceParameters are the configurable fields of an
                   ArgoCD Instance.
                 properties:
+                  applicationSetSecretRef:
+                    description: |-
+                      ApplicationSetSecretRef references a Secret whose data is sent
+                      verbatim as the argocd-application-set-secret payload
+                      (ApplicationSet plugin credentials).
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                    required:
+                    - name
+                    type: object
                   argocd:
                     description: ArgoCD contains the ArgoCD configuration. Required.
                     properties:
@@ -601,6 +613,18 @@ spec:
                       ArgoCDImageUpdaterConfigMap sets keys in the
                       argocd-image-updater-config ConfigMap.
                     type: object
+                  argocdImageUpdaterSecretRef:
+                    description: |-
+                      ArgoCDImageUpdaterSecretRef references a Secret whose data is
+                      sent verbatim as the argocd-image-updater-secret payload
+                      (container registry credentials).
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                    required:
+                    - name
+                    type: object
                   argocdImageUpdaterSshConfigMap:
                     additionalProperties:
                       type: string
@@ -615,11 +639,60 @@ spec:
                       ArgoCDNotificationsConfigMap sets keys in the
                       argocd-notifications-cm ConfigMap.
                     type: object
+                  argocdNotificationsSecretRef:
+                    description: |-
+                      ArgoCDNotificationsSecretRef references a Secret whose data is
+                      sent verbatim as the argocd-notifications-secret payload
+                      (SMTP, Slack, webhook tokens).
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                    required:
+                    - name
+                    type: object
                   argocdRbacConfigMap:
                     additionalProperties:
                       type: string
                     description: ArgoCDRBACConfigMap sets keys in the argocd-rbac-cm
                       ConfigMap.
+                    type: object
+                  argocdResources:
+                    description: |-
+                      ArgocdResources carries raw YAML manifests for declarative
+                      ArgoCD child resources. The controller validates each entry's
+                      apiVersion/kind (argoproj.io/v1alpha1 Application,
+                      ApplicationSet, or AppProject), groups them by kind, and sends
+                      them alongside the instance spec on every ApplyInstance call.
+                      Write the YAML as an object, not a string; the CRD schema is
+                      preserve-unknown-fields so the payload is opaque to kube-
+                      apiserver structural validation (CEL on specific kinds still
+                      runs — the parent-level rule rejects v1/Secret here so
+                      plaintext credential data cannot land in etcd). Each entry
+                      must still be valid ArgoCD YAML — the Akuity gateway rejects
+                      malformed payloads server-side.
+
+                      Additive semantics: removing an entry from this list does NOT
+                      delete the corresponding resource on the Akuity platform. The
+                      controller intentionally does not enable ApplyInstance's
+                      PruneResourceTypes for Applications, ApplicationSets, or
+                      AppProjects because out-of-band resources (created via the
+                      Akuity UI or another tool) would be collateral damage. To
+                      remove a resource, delete it through the Akuity platform UI or
+                      API. See PARITY_PLAN.md for the rationale.
+                    maxItems: 256
+                    x-kubernetes-preserve-unknown-fields: true
+                  argocdSecretRef:
+                    description: |-
+                      ArgoCDSecretRef references a Secret whose data is sent verbatim
+                      as the argocd-secret payload. Typical keys: admin.password,
+                      server.secretkey, dex.config, webhook.*.secret, oidc.*.clientSecret.
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                    required:
+                    - name
                     type: object
                   argocdSshKnownHostsConfigMap:
                     additionalProperties:
@@ -752,10 +825,116 @@ spec:
                     description: Name of the instance in the Akuity Platform. Required.
                     minLength: 1
                     type: string
+                  repoCredentialSecretRefs:
+                    description: |-
+                      RepoCredentialSecretRefs registers scoped repository credentials
+                      with the Akuity gateway. Each entry's Name (which must match
+                      ^repo-[a-z0-9][a-z0-9-]*$) becomes the server-side secret
+                      identifier; the pointed-at Secret's data supplies the credential
+                      key/value pairs (url, username, password, sshPrivateKey, etc.).
+                      The controller applies argocd.argoproj.io/secret-type=repository
+                      on submission. The stricter regex (vs bare prefix) rejects
+                      whitespace, case drift, and other sneaky inputs that would
+                      otherwise parse as a valid prefix but fail downstream.
+
+                      MaxItems caps the CEL cost estimate so kube-apiserver accepts
+                      the rule; 128 slots is far above the realistic usage ceiling
+                      and can be raised with a CRD bump if a need emerges.
+                    items:
+                      description: |-
+                        NamedLocalSecretReference binds a gateway-facing credential name to a
+                        kube Secret in the same namespace as the referring managed resource.
+                        The Secret's data keys are forwarded to the Akuity gateway verbatim
+                        under the Name slot (e.g. repoCredentialSecrets["repo-github"] =
+                        {"url": "...", "password": "..."}).
+                      properties:
+                        name:
+                          description: |-
+                            Name is the identifier under which this Secret's data is sent
+                            to the Akuity gateway. For ArgoCD repo credentials this must
+                            start with "repo-"; per-field CEL rules enforce a stricter
+                            pattern. The MaxLength matches Kubernetes object-name bounds
+                            and keeps CEL cost estimates within the apiserver's budget.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                        secretRef:
+                          description: |-
+                            SecretRef points at a Secret in the same namespace as the
+                            referring managed resource. All keys of that Secret are
+                            forwarded to the gateway verbatim.
+                          properties:
+                            name:
+                              description: Name of the secret.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                      required:
+                      - name
+                      - secretRef
+                      type: object
+                    maxItems: 128
+                    type: array
+                    x-kubernetes-validations:
+                    - message: each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$
+                      rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
+                  repoTemplateCredentialSecretRefs:
+                    description: |-
+                      RepoTemplateCredentialSecretRefs registers scoped repository
+                      template credentials. Same shape + regex constraint as
+                      RepoCredentialSecretRefs; the controller applies
+                      argocd.argoproj.io/secret-type=repo-creds on submission.
+                    items:
+                      description: |-
+                        NamedLocalSecretReference binds a gateway-facing credential name to a
+                        kube Secret in the same namespace as the referring managed resource.
+                        The Secret's data keys are forwarded to the Akuity gateway verbatim
+                        under the Name slot (e.g. repoCredentialSecrets["repo-github"] =
+                        {"url": "...", "password": "..."}).
+                      properties:
+                        name:
+                          description: |-
+                            Name is the identifier under which this Secret's data is sent
+                            to the Akuity gateway. For ArgoCD repo credentials this must
+                            start with "repo-"; per-field CEL rules enforce a stricter
+                            pattern. The MaxLength matches Kubernetes object-name bounds
+                            and keeps CEL cost estimates within the apiserver's budget.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                        secretRef:
+                          description: |-
+                            SecretRef points at a Secret in the same namespace as the
+                            referring managed resource. All keys of that Secret are
+                            forwarded to the gateway verbatim.
+                          properties:
+                            name:
+                              description: Name of the secret.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                      required:
+                      - name
+                      - secretRef
+                      type: object
+                    maxItems: 128
+                    type: array
+                    x-kubernetes-validations:
+                    - message: each repoTemplateCredentialSecretRefs[].name must match
+                        ^repo-[a-z0-9][a-z0-9-]*$
+                      rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
                 required:
                 - argocd
                 - name
                 type: object
+                x-kubernetes-validations:
+                - message: v1/Secret entries are not accepted in spec.forProvider.argocdResources;
+                    use the typed *SecretRef fields instead
+                  rule: '!has(self.argocdResources) || self.argocdResources.all(r,
+                    !(has(r.apiVersion) && has(r.kind) && r.apiVersion == ''v1'' &&
+                    r.kind == ''Secret''))'
               managementPolicies:
                 default:
                 - '*'
@@ -820,6 +999,81 @@ spec:
               atProvider:
                 description: InstanceObservation are the observable fields of an Instance.
                 properties:
+                  applicationsStatus:
+                    description: |-
+                      ApplicationsStatus surfaces aggregated counts for the
+                      Applications / ApplicationSets / AppProjects managed through
+                      spec.forProvider.argocdResources. Compositions and dashboards
+                      can use these to gate promotion without querying the Akuity
+                      platform UI.
+                    properties:
+                      appOfAppCount:
+                        description: AppOfAppCount is the subset that are app-of-apps
+                          parents.
+                        format: int32
+                        type: integer
+                      applicationCount:
+                        description: ApplicationCount is the total number of Applications
+                          observed.
+                        format: int32
+                        type: integer
+                      errorCount:
+                        description: ErrorCount counts Applications in an errored
+                          state.
+                        format: int32
+                        type: integer
+                      health:
+                        description: Health is the per-health-status roll-up.
+                        properties:
+                          degradedCount:
+                            format: int32
+                            type: integer
+                          healthyCount:
+                            format: int32
+                            type: integer
+                          missingCount:
+                            format: int32
+                            type: integer
+                          progressingCount:
+                            format: int32
+                            type: integer
+                          suspendedCount:
+                            format: int32
+                            type: integer
+                          unknownCount:
+                            format: int32
+                            type: integer
+                        type: object
+                      resourcesCount:
+                        description: |-
+                          ResourcesCount is the total number of underlying kube resources
+                          owned by those Applications.
+                        format: int32
+                        type: integer
+                      syncInProgressCount:
+                        description: |-
+                          SyncInProgressCount is the number of Applications currently
+                          reconciling.
+                        format: int32
+                        type: integer
+                      syncStatus:
+                        description: SyncStatus is the per-sync-status roll-up.
+                        properties:
+                          outOfSyncCount:
+                            format: int32
+                            type: integer
+                          syncedCount:
+                            format: int32
+                            type: integer
+                          unknownCount:
+                            format: int32
+                            type: integer
+                        type: object
+                      warningCount:
+                        description: WarningCount counts Applications surfacing warnings.
+                        format: int32
+                        type: integer
+                    type: object
                   argocd:
                     description: ArgoCD is the observed ArgoCD configuration.
                     properties:
@@ -1548,6 +1802,17 @@ spec:
                         description: Message reported by the Akuity API.
                         type: string
                     type: object
+                  secretHash:
+                    description: |-
+                      SecretHash is the SHA256 of the concatenation of every resolved
+                      Secret referenced by spec.forProvider on the most recent Apply.
+                      The gateway masks secret contents on Get, so the controller
+                      uses this stored digest as the drift signal for Secret rotation:
+                      when the hash of the currently-resolved content differs from
+                      this value, a re-Apply is scheduled. Stored in status rather
+                      than an annotation because managed.Reconciler persists status
+                      after Create/Update but does not persist arbitrary metadata.
+                    type: string
                 type: object
               conditions:
                 description: Conditions of the resource.
