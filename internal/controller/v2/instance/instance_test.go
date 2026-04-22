@@ -90,6 +90,7 @@ func TestObserve_PropagatesGenericErr(t *testing.T) {
 func TestObserve_Available(t *testing.T) {
 	e, mc := newExternal(t)
 	inst := newInstance()
+	inst.SetGeneration(42)
 	meta.SetExternalName(inst, "inst")
 
 	ai := &argocdv1.Instance{
@@ -109,6 +110,7 @@ func TestObserve_Available(t *testing.T) {
 	assert.True(t, obs.ResourceExists)
 	assert.Equal(t, "id-1", inst.Status.AtProvider.ID)
 	assert.Equal(t, int32(health.StatusCode_STATUS_CODE_HEALTHY), inst.Status.AtProvider.HealthStatus.Code)
+	assert.Equal(t, int64(42), inst.Status.ObservedGeneration)
 }
 
 func TestCreate_SetsExternalName(t *testing.T) {

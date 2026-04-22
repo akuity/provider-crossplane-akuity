@@ -103,6 +103,7 @@ func getSecretHash(mg *v1alpha2.Instance) string {
 
 //nolint:gocyclo // Observe coordinates struct cmp + export-based child drift + secret hash; the linear branching is the simplest readable form.
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.Instance) (managed.ExternalObservation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
@@ -213,6 +214,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.Instance) (managed.
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.Instance) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	sec, err := resolveInstanceSecrets(ctx, e.Kube, mg)
 	if err != nil {
 		return managed.ExternalCreation{}, err
@@ -230,6 +232,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha2.Instance) (managed.E
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha2.Instance) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 	sec, err := resolveInstanceSecrets(ctx, e.Kube, mg)
 	if err != nil {
 		return managed.ExternalUpdate{}, err
@@ -246,6 +249,7 @@ func (e *external) Update(ctx context.Context, mg *v1alpha2.Instance) (managed.E
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha2.Instance) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 	name := meta.GetExternalName(mg)
 	if name == "" {
 		return managed.ExternalDelete{}, nil

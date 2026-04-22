@@ -96,6 +96,7 @@ type external struct {
 }
 
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoAgent) (managed.ExternalObservation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
@@ -168,6 +169,7 @@ func (e *external) fetchAgent(ctx context.Context, mg *v1alpha2.KargoAgent, inst
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoAgent) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
 	if err != nil {
 		return managed.ExternalCreation{}, err
@@ -194,6 +196,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoAgent) (managed
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha2.KargoAgent) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
 	if err != nil {
 		return managed.ExternalUpdate{}, err
@@ -221,6 +224,7 @@ func (e *external) Update(ctx context.Context, mg *v1alpha2.KargoAgent) (managed
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha2.KargoAgent) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 	name := meta.GetExternalName(mg)
 	if name == "" {
 		return managed.ExternalDelete{}, nil

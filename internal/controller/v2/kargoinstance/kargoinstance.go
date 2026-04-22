@@ -138,6 +138,7 @@ type external struct {
 
 //nolint:gocyclo // Observe coordinates struct cmp + 2 export-based drift checks + secret hash + repo-cred TTL; the linear branching is the simplest readable form.
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoInstance) (managed.ExternalObservation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
@@ -303,6 +304,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoInstance) (man
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoInstance) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	if err := e.apply(ctx, mg); err != nil {
 		return managed.ExternalCreation{}, err
 	}
@@ -311,10 +313,12 @@ func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoInstance) (mana
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha2.KargoInstance) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 	return managed.ExternalUpdate{}, e.apply(ctx, mg)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha2.KargoInstance) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 	name := meta.GetExternalName(mg)
 	if name == "" {
 		return managed.ExternalDelete{}, nil

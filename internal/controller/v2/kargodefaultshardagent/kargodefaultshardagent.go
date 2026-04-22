@@ -86,6 +86,7 @@ type external struct {
 }
 
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalObservation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	kargoID, err := e.resolveKargoID(ctx, mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
@@ -127,6 +128,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.KargoDefaultShardAg
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	if err := e.patch(ctx, mg, mg.Spec.ForProvider.AgentName); err != nil {
 		return managed.ExternalCreation{}, err
 	}
@@ -135,10 +137,12 @@ func (e *external) Create(ctx context.Context, mg *v1alpha2.KargoDefaultShardAge
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 	return managed.ExternalUpdate{}, e.patch(ctx, mg, mg.Spec.ForProvider.AgentName)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha2.KargoDefaultShardAgent) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 	// Clearing the default is the API-neutral "no pinning" signal — we
 	// intentionally do not delete the Kargo instance itself.
 	return managed.ExternalDelete{}, e.patch(ctx, mg, "")

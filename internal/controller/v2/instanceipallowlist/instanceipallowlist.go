@@ -90,6 +90,7 @@ type external struct {
 }
 
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (managed.ExternalObservation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	instanceID, err := e.resolveInstanceID(ctx, mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
@@ -131,6 +132,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha2.InstanceIpAllowList
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	if err := e.patch(ctx, mg, mg.Spec.ForProvider.AllowList); err != nil {
 		return managed.ExternalCreation{}, err
 	}
@@ -139,10 +141,12 @@ func (e *external) Create(ctx context.Context, mg *v1alpha2.InstanceIpAllowList)
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 	return managed.ExternalUpdate{}, e.patch(ctx, mg, mg.Spec.ForProvider.AllowList)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha2.InstanceIpAllowList) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 	// Delete clears the allow list (empty list, not missing key) rather
 	// than deleting the Instance itself. This assumes the MR exclusively
 	// owns the instance's ipAllowList; mixed ownership must be modelled

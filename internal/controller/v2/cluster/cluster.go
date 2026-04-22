@@ -125,6 +125,7 @@ type external struct {
 }
 
 func (e *external) Observe(ctx context.Context, mg *v1alpha2.Cluster) (managed.ExternalObservation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	instanceID, err := e.resolveInstanceID(ctx, mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
@@ -244,6 +245,7 @@ func (e *external) fetchCluster(ctx context.Context, mg *v1alpha2.Cluster, insta
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha2.Cluster) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 	if err := e.apply(ctx, mg); err != nil {
 		return managed.ExternalCreation{}, err
 	}
@@ -252,10 +254,12 @@ func (e *external) Create(ctx context.Context, mg *v1alpha2.Cluster) (managed.Ex
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha2.Cluster) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 	return managed.ExternalUpdate{}, e.apply(ctx, mg)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha2.Cluster) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 	name := meta.GetExternalName(mg)
 	if name == "" {
 		return managed.ExternalDelete{}, nil
