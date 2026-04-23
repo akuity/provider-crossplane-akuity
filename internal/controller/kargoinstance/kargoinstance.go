@@ -48,9 +48,9 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/children"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
