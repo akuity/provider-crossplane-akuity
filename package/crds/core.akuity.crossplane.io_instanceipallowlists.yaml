@@ -15,6 +15,8 @@ spec:
     kind: InstanceIpAllowList
     listKind: InstanceIpAllowListList
     plural: instanceipallowlists
+    shortNames:
+    - ipallow
     singular: instanceipallowlist
   scope: Cluster
   versions:
@@ -118,6 +120,10 @@ spec:
                 x-kubernetes-validations:
                 - message: exactly one of instanceId or instanceRef must be set
                   rule: has(self.instanceId) != has(self.instanceRef)
+                - message: instanceId/instanceRef are immutable
+                  rule: self.instanceId == oldSelf.instanceId && has(self.instanceRef)
+                    == has(oldSelf.instanceRef) && (!has(self.instanceRef) || self.instanceRef.name
+                    == oldSelf.instanceRef.name)
               managementPolicies:
                 default:
                 - '*'

@@ -27,14 +27,22 @@ import (
 )
 
 // ClusterParameters are the configurable fields of a Cluster.
+//
+// +kubebuilder:validation:XValidation:rule="has(self.instanceId) != has(self.instanceRef)",message="exactly one of instanceId or instanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="self.instanceId == oldSelf.instanceId && has(self.instanceRef) == has(oldSelf.instanceRef) && (!has(self.instanceRef) || self.instanceRef.name == oldSelf.instanceRef.name)",message="instanceId/instanceRef are immutable"
+// +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type ClusterParameters struct {
-	// The ID of the Akuity ArgoCD instance the cluster belongs to. InstanceID
-	// or InstanceRef must be provided.
+	// The ID of the Akuity ArgoCD instance the cluster belongs to.
+	// Mutually exclusive with InstanceRef.
+	// +optional
 	InstanceID string `json:"instanceId,omitempty"`
 	// The reference to the Akuity ArgoCD instance the cluster belongs to.
-	// InstanceID or InstanceRef must be provided.
-	InstanceRef NameRef `json:"instanceRef,omitempty"`
+	// Mutually exclusive with InstanceID.
+	// +optional
+	InstanceRef *LocalReference `json:"instanceRef,omitempty"`
 	// The name of the cluster. Required.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 	// The Kubernetes namespace the Akuity agent should be installed in. Optional.
 	Namespace string `json:"namespace,omitempty"`
@@ -54,11 +62,6 @@ type ClusterParameters struct {
 	// Whether or not to remove the Akuity agent Kubernetes resources from the managed cluster
 	// when destroying the cluster. Optional. Defaults to true.
 	RemoveAgentResourcesOnDestroy bool `json:"removeAgentResourcesOnDestroy,omitempty"`
-}
-
-type NameRef struct {
-	// The name of the Kubernetes resource being referenced. Required.
-	Name string `json:"name"`
 }
 
 type SecretRef struct {
@@ -98,9 +101,9 @@ type ClusterObservation struct {
 	// The status of each agent running in the cluster.
 	AgentState ClusterObservationAgentState `json:"agentState,omitempty"`
 	// The health status of the cluster.
-	HealthStatus ClusterObservationStatus `json:"healthStatus,omitempty"`
+	HealthStatus ResourceStatusCode `json:"healthStatus,omitempty"`
 	// The reconciliation status of the cluster.
-	ReconciliationStatus ClusterObservationStatus `json:"reconciliationStatus,omitempty"`
+	ReconciliationStatus ResourceStatusCode `json:"reconciliationStatus,omitempty"`
 	// A Kustomization to apply to the cluster resource.
 	Kustomization string `json:"kustomization,omitempty"`
 	// The size of the agent to run on the cluster.
@@ -122,11 +125,6 @@ type ClusterObservationAgentState struct {
 }
 
 type ClusterObservationAgentHealthStatus struct {
-	Code    int32  `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
-}
-
-type ClusterObservationStatus struct {
 	Code    int32  `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`
 }

@@ -46,7 +46,7 @@ import (
 func newKI() *v1alpha1.KargoInstance {
 	return &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "ki", Namespace: "ns"},
-		Spec: v1alpha1.KargoInstanceResourceSpec{
+		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				Name:  "ki",
 				Kargo: crossplanetypes.KargoSpec{Version: "v1.0.0"},

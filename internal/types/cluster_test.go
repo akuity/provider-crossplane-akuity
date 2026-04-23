@@ -52,11 +52,11 @@ func TestAkuityAPIToCrossplaneClusterObservation(t *testing.T) {
 		Kustomization:       fixtures.CrossplaneCluster.ClusterSpec.Data.Kustomization,
 		AgentSize:           string(fixtures.CrossplaneCluster.ClusterSpec.Data.Size),
 		AgentState:          fixtures.CrossplaneClusterObservationAgentState,
-		HealthStatus: v1alpha1.ClusterObservationStatus{
+		HealthStatus: v1alpha1.ResourceStatusCode{
 			Code:    int32(fixtures.ArgocdCluster.GetHealthStatus().GetCode()),
 			Message: fixtures.ArgocdCluster.GetHealthStatus().GetMessage(),
 		},
-		ReconciliationStatus: v1alpha1.ClusterObservationStatus{
+		ReconciliationStatus: v1alpha1.ResourceStatusCode{
 			Code:    int32(fixtures.ArgocdCluster.GetReconciliationStatus().GetCode()),
 			Message: fixtures.ArgocdCluster.GetReconciliationStatus().GetMessage(),
 		},

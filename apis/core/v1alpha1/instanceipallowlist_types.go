@@ -34,6 +34,7 @@ import (
 // Status.AtProvider.ID field.
 //
 // +kubebuilder:validation:XValidation:rule="has(self.instanceId) != has(self.instanceRef)",message="exactly one of instanceId or instanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="self.instanceId == oldSelf.instanceId && has(self.instanceRef) == has(oldSelf.instanceRef) && (!has(self.instanceRef) || self.instanceRef.name == oldSelf.instanceRef.name)",message="instanceId/instanceRef are immutable"
 type InstanceIpAllowListParameters struct {
 	// InstanceID references the target ArgoCD Instance by its opaque
 	// Akuity ID. Mutually exclusive with InstanceRef.
@@ -90,7 +91,7 @@ type InstanceIpAllowListStatus struct {
 // +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,akuity}
+// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,akuity},shortName=ipallow
 type InstanceIpAllowList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -60,7 +60,7 @@ patches:
 
 	CrossplaneCluster = v1alpha1.ClusterParameters{
 		InstanceID: InstanceID,
-		InstanceRef: v1alpha1.NameRef{
+		InstanceRef: &v1alpha1.LocalReference{
 			Name: "test-instance-ref",
 		},
 		Name:        ClusterName,

@@ -797,6 +797,7 @@ spec:
                     type: object
                   name:
                     description: The name of the instance. Required.
+                    minLength: 1
                     type: string
                   repoCredentialSecretRefs:
                     description: |-
@@ -896,6 +897,9 @@ spec:
                 - argocd
                 - name
                 type: object
+                x-kubernetes-validations:
+                - message: name is immutable
+                  rule: self.name == oldSelf.name
               managementPolicies:
                 default:
                 - '*'
@@ -1706,11 +1710,16 @@ spec:
                       type: object
                     type: object
                   healthStatus:
+                    description: |-
+                      ResourceStatusCode captures the Akuity API status code + message pair
+                      exposed on most observable resources.
                     properties:
                       code:
+                        description: Code reported by the Akuity API.
                         format: int32
                         type: integer
                       message:
+                        description: Message reported by the Akuity API.
                         type: string
                     type: object
                   hostname:
@@ -1722,11 +1731,16 @@ spec:
                   ownerOrganizationName:
                     type: string
                   reconciliationStatus:
+                    description: |-
+                      ResourceStatusCode captures the Akuity API status code + message pair
+                      exposed on most observable resources.
                     properties:
                       code:
+                        description: Code reported by the Akuity API.
                         format: int32
                         type: integer
                       message:
+                        description: Message reported by the Akuity API.
                         type: string
                     type: object
                   secretHash:

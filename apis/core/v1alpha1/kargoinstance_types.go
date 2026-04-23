@@ -46,6 +46,7 @@ import (
 // v1/Secret entries in resources are rejected at reconcile time.
 //
 // +kubebuilder:validation:XValidation:rule="!has(self.kargo.oidcConfig) || !has(self.kargo.oidcConfig.dexConfigSecretRef) || !has(self.kargo.oidcConfig.dexConfigSecret) || size(self.kargo.oidcConfig.dexConfigSecret) == 0",message="set either kargo.oidcConfig.dexConfigSecretRef or kargo.oidcConfig.dexConfigSecret, not both"
+// +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type KargoInstanceParameters struct {
 	// Name of the Kargo instance in the Akuity Platform. Required.
 	// +kubebuilder:validation:Required
@@ -152,13 +153,13 @@ type KargoInstanceObservation struct {
 	// but does not persist arbitrary metadata.
 	SecretHash string `json:"secretHash,omitempty"`
 
-	// KargoConfigMapHash is the SHA256 of the last-applied
+	// ConfigMapHash is the SHA256 of the last-applied
 	// spec.forProvider.kargoConfigMap key/value set. Observe compares
 	// the current desired digest against this to detect key removals
 	// — a case the export-based subset check misses. An empty value
 	// means either the field has never been applied or the last apply
 	// sent an explicit empty payload (tombstone).
-	KargoConfigMapHash string `json:"kargoConfigMapHash,omitempty"`
+	ConfigMapHash string `json:"configMapHash,omitempty"`
 
 	// RepoCredsAppliedAt records the wall-clock time of the most
 	// recent Apply that included spec.forProvider.kargoRepoCredentialSecretRefs.
@@ -169,9 +170,8 @@ type KargoInstanceObservation struct {
 	RepoCredsAppliedAt *metav1.Time `json:"repoCredsAppliedAt,omitempty"`
 }
 
-// A KargoInstanceResourceSpec defines the desired state of a Kargo
-// instance.
-type KargoInstanceResourceSpec struct {
+// A KargoInstanceSpec defines the desired state of a Kargo instance.
+type KargoInstanceSpec struct {
 	xpv1.ResourceSpec `json:",inline"`
 	ForProvider       KargoInstanceParameters `json:"forProvider"`
 }
@@ -191,13 +191,13 @@ type KargoInstanceStatus struct {
 // +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,akuity}
+// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,akuity},shortName=kinst
 type KargoInstance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KargoInstanceResourceSpec `json:"spec"`
-	Status KargoInstanceStatus       `json:"status,omitempty"`
+	Spec   KargoInstanceSpec   `json:"spec"`
+	Status KargoInstanceStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

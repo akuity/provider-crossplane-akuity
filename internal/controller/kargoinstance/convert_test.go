@@ -67,7 +67,7 @@ func TestResolveKargoSecret_ReadsSecret(t *testing.T) {
 
 	mg := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
-		Spec: v1alpha1.KargoInstanceResourceSpec{
+		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoSecretRef: &xpv1.LocalSecretReference{Name: "kargo-admin"},
 			},
@@ -134,17 +134,17 @@ func TestBuildKargoConfigMapPB_TombstoneSendsEmptyStruct(t *testing.T) {
 // stored hash reliably distinguishes "never applied" from "applied
 // and cleared" (stored hash non-empty → tombstone needed).
 func TestHashKargoConfigMap_EmptyIsEmpty(t *testing.T) {
-	assert.Empty(t, hashKargoConfigMap(nil))
-	assert.Empty(t, hashKargoConfigMap(map[string]string{}))
-	assert.NotEmpty(t, hashKargoConfigMap(map[string]string{"k": "v"}))
+	assert.Empty(t, hashConfigMap(nil))
+	assert.Empty(t, hashConfigMap(map[string]string{}))
+	assert.NotEmpty(t, hashConfigMap(map[string]string{"k": "v"}))
 }
 
 // TestHashKargoConfigMap_DetectsKeyRemoval is the core regression
 // guard for B1: removing a key from the desired map must produce a
 // different digest so Observe can trigger re-Apply.
 func TestHashKargoConfigMap_DetectsKeyRemoval(t *testing.T) {
-	a := hashKargoConfigMap(map[string]string{"foo": "bar", "baz": "qux"})
-	b := hashKargoConfigMap(map[string]string{"foo": "bar"})
+	a := hashConfigMap(map[string]string{"foo": "bar", "baz": "qux"})
+	b := hashConfigMap(map[string]string{"foo": "bar"})
 	assert.NotEqual(t, a, b, "removing a key must rotate the digest")
 }
 
@@ -162,7 +162,7 @@ func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
 
 	mg := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
-		Spec: v1alpha1.KargoInstanceResourceSpec{
+		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				Kargo: crossplanetypes.KargoSpec{
 					OidcConfig: &crossplanetypes.KargoOidcConfig{
@@ -351,7 +351,7 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
 	mg := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
-		Spec: v1alpha1.KargoInstanceResourceSpec{
+		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					Name:             "repo-github",
@@ -387,7 +387,7 @@ func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
 	mg := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
-		Spec: v1alpha1.KargoInstanceResourceSpec{
+		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{
 					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "s"}},

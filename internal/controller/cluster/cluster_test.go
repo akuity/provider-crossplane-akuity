@@ -333,7 +333,7 @@ func TestObserve_InstanceRefNotFoundErr(t *testing.T) {
 		},
 	}
 	managedCluster.Spec.ForProvider.InstanceID = ""
-	managedCluster.Spec.ForProvider.InstanceRef = v1alpha1.NameRef{
+	managedCluster.Spec.ForProvider.InstanceRef = &v1alpha1.LocalReference{
 		Name: fixtures.InstanceName,
 	}
 
@@ -362,7 +362,7 @@ func TestObserve_InstanceRefGetInstanceErr(t *testing.T) {
 		},
 	}
 	managedCluster.Spec.ForProvider.InstanceID = ""
-	managedCluster.Spec.ForProvider.InstanceRef = v1alpha1.NameRef{
+	managedCluster.Spec.ForProvider.InstanceRef = &v1alpha1.LocalReference{
 		Name: fixtures.InstanceName,
 	}
 

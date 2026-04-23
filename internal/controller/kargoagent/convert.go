@@ -90,6 +90,7 @@ func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAg
 func apiToObservation(agent *kargov1.KargoAgent) v1alpha1.KargoAgentObservation {
 	obs := v1alpha1.KargoAgentObservation{
 		ID:        agent.GetId(),
+		Name:      agent.GetName(),
 		Workspace: "",
 	}
 	if h := agent.GetHealthStatus(); h != nil {

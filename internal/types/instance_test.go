@@ -186,11 +186,11 @@ func TestAkuityAPIToCrossplaneInstanceObservation(t *testing.T) {
 		Name:         "test-name",
 		Hostname:     "test-hostname",
 		ClusterCount: 2,
-		HealthStatus: v1alpha1.InstanceObservationStatus{
+		HealthStatus: v1alpha1.ResourceStatusCode{
 			Code:    200,
 			Message: "OK",
 		},
-		ReconciliationStatus: v1alpha1.InstanceObservationStatus{
+		ReconciliationStatus: v1alpha1.ResourceStatusCode{
 			Code:    100,
 			Message: "Reconciled",
 		},

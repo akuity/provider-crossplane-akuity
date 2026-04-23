@@ -55,11 +55,11 @@ func AkuityAPIToCrossplaneClusterObservation(cluster *argocdv1.Cluster) (v1alpha
 		Kustomization:       string(kustomizationYAML),
 		AgentSize:           agentSize,
 		AgentState:          AkuityAPIToClusterObservationAgentState(cluster.GetAgentState()),
-		HealthStatus: v1alpha1.ClusterObservationStatus{
+		HealthStatus: v1alpha1.ResourceStatusCode{
 			Code:    int32(cluster.GetHealthStatus().GetCode()),
 			Message: cluster.GetHealthStatus().GetMessage(),
 		},
-		ReconciliationStatus: v1alpha1.ClusterObservationStatus{
+		ReconciliationStatus: v1alpha1.ResourceStatusCode{
 			Code:    int32(cluster.GetReconciliationStatus().GetCode()),
 			Message: cluster.GetReconciliationStatus().GetMessage(),
 		},
@@ -199,10 +199,8 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 	}
 
 	return v1alpha1.ClusterParameters{
-		InstanceID: instanceID,
-		InstanceRef: v1alpha1.NameRef{
-			Name: managedCluster.InstanceRef.Name,
-		},
+		InstanceID:  instanceID,
+		InstanceRef: managedCluster.InstanceRef,
 		Name:        cluster.GetName(),
 		Namespace:   cluster.GetData().GetNamespace(),
 		Labels:      cluster.GetData().GetLabels(),
@@ -250,7 +248,7 @@ func AkuityWireToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Cl
 	}
 	out := v1alpha1.ClusterParameters{
 		InstanceID:  instanceID,
-		InstanceRef: v1alpha1.NameRef{Name: managedCluster.InstanceRef.Name},
+		InstanceRef: managedCluster.InstanceRef,
 		Name:        wireCluster.GetName(),
 		Namespace:   wireCluster.Namespace,
 		Labels:      wireCluster.Labels,

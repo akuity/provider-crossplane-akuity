@@ -32,6 +32,7 @@ import (
 // the KargoInstance's Status.AtProvider.ID field.
 //
 // +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) != has(self.kargoInstanceRef)",message="exactly one of kargoInstanceId or kargoInstanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="self.kargoInstanceId == oldSelf.kargoInstanceId && has(self.kargoInstanceRef) == has(oldSelf.kargoInstanceRef) && (!has(self.kargoInstanceRef) || self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name)",message="kargoInstanceId/kargoInstanceRef are immutable"
 type KargoDefaultShardAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by its
 	// opaque Akuity ID. Mutually exclusive with KargoInstanceRef.
@@ -90,7 +91,7 @@ type KargoDefaultShardAgentStatus struct {
 // +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,akuity}
+// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,akuity},shortName=kdsa
 type KargoDefaultShardAgent struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -41,7 +41,7 @@ import (
 func newAgent() *v1alpha1.KargoAgent {
 	return &v1alpha1.KargoAgent{
 		ObjectMeta: metav1.ObjectMeta{Name: "agt", Namespace: "ns"},
-		Spec: v1alpha1.KargoAgentResourceSpec{
+		Spec: v1alpha1.KargoAgentSpec{
 			ForProvider: v1alpha1.KargoAgentParameters{
 				KargoInstanceID: "ki-1",
 				Name:            "agt",

@@ -29,6 +29,8 @@ import (
 // KargoAgentParameters are the configurable fields of a KargoAgent.
 //
 // +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) != has(self.kargoInstanceRef)",message="exactly one of kargoInstanceId or kargoInstanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="self.kargoInstanceId == oldSelf.kargoInstanceId && has(self.kargoInstanceRef) == has(oldSelf.kargoInstanceRef) && (!has(self.kargoInstanceRef) || self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name)",message="kargoInstanceId/kargoInstanceRef are immutable"
+// +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type KargoAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by ID.
 	// Either KargoInstanceID or KargoInstanceRef must be set.
@@ -79,6 +81,8 @@ type KargoAgentParameters struct {
 type KargoAgentObservation struct {
 	// ID assigned by the Akuity Platform.
 	ID string `json:"id,omitempty"`
+	// Name of the agent as reported by the Akuity Platform.
+	Name string `json:"name,omitempty"`
 	// Workspace the agent is bound to.
 	Workspace string `json:"workspace,omitempty"`
 	// HealthStatus is the agent health.
@@ -94,8 +98,8 @@ type KargoAgentObservation struct {
 	Data crossplanetypes.KargoAgentData `json:"data,omitempty"`
 }
 
-// A KargoAgentResourceSpec defines the desired state of a KargoAgent.
-type KargoAgentResourceSpec struct {
+// A KargoAgentSpec defines the desired state of a KargoAgent.
+type KargoAgentSpec struct {
 	xpv1.ResourceSpec `json:",inline"`
 	ForProvider       KargoAgentParameters `json:"forProvider"`
 }
@@ -115,13 +119,13 @@ type KargoAgentStatus struct {
 // +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,akuity}
+// +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,akuity},shortName=kagent
 type KargoAgent struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   KargoAgentResourceSpec `json:"spec"`
-	Status KargoAgentStatus       `json:"status,omitempty"`
+	Spec   KargoAgentSpec   `json:"spec"`
+	Status KargoAgentStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

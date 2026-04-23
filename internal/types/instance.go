@@ -99,14 +99,14 @@ func AkuityAPIToCrossplaneInstanceObservation(instance *argocdv1.Instance, expor
 	}
 
 	if instance.GetHealthStatus() != nil {
-		obs.HealthStatus = v1alpha1.InstanceObservationStatus{
+		obs.HealthStatus = v1alpha1.ResourceStatusCode{
 			Code:    int32(instance.GetHealthStatus().GetCode()),
 			Message: instance.GetHealthStatus().GetMessage(),
 		}
 	}
 
 	if instance.GetReconciliationStatus() != nil {
-		obs.ReconciliationStatus = v1alpha1.InstanceObservationStatus{
+		obs.ReconciliationStatus = v1alpha1.ResourceStatusCode{
 			Code:    int32(instance.GetReconciliationStatus().GetCode()),
 			Message: instance.GetReconciliationStatus().GetMessage(),
 		}

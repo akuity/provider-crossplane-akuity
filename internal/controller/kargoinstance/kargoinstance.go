@@ -205,16 +205,16 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 
 	// Preserve controller-authored AtProvider fields across the refresh.
 	// apiToObservation rebuilds the struct from gateway data, which has
-	// no SecretHash / KargoConfigMapHash / RepoCredsAppliedAt; without
+	// no SecretHash / ConfigMapHash / RepoCredsAppliedAt; without
 	// this carry-over every Observe would zero them, masking rotation
 	// and the CM-tombstone state until the next Create/Update writes
 	// new values.
 	prevSecretHash := mg.Status.AtProvider.SecretHash
-	prevCMHashCarry := mg.Status.AtProvider.KargoConfigMapHash
+	prevCMHashCarry := mg.Status.AtProvider.ConfigMapHash
 	prevRepoCredsAt := mg.Status.AtProvider.RepoCredsAppliedAt
 	mg.Status.AtProvider = apiToObservation(ki)
 	mg.Status.AtProvider.SecretHash = prevSecretHash
-	mg.Status.AtProvider.KargoConfigMapHash = prevCMHashCarry
+	mg.Status.AtProvider.ConfigMapHash = prevCMHashCarry
 	mg.Status.AtProvider.RepoCredsAppliedAt = prevRepoCredsAt
 	if mg.Status.AtProvider.HealthStatus.Code != 1 {
 		mg.SetConditions(xpv1.Unavailable())
@@ -249,8 +249,8 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	// Export must run whenever the MR has ever tracked a CM, not
 	// just when the desired map is currently non-empty; otherwise
 	// a transient clear would evade detection on the next reconcile.
-	prevCMHash := getKargoConfigMapHash(mg)
-	desiredCMHash := hashKargoConfigMap(mg.Spec.ForProvider.KargoConfigMap)
+	prevCMHash := getConfigMapHash(mg)
+	desiredCMHash := hashConfigMap(mg.Spec.ForProvider.KargoConfigMap)
 	if upToDate && desiredCMHash != prevCMHash {
 		e.Logger.Debug("kargoConfigMap hash changed since last apply; forcing re-Apply",
 			"previous", prevCMHash, "current", desiredCMHash)
@@ -374,7 +374,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	// explicit empty ConfigMap payload so the gateway can clear the
 	// previously-applied keys. Without the tombstone, emptying the
 	// field in spec would be an un-Applyable delete.
-	prevCMHash := getKargoConfigMapHash(mg)
+	prevCMHash := getConfigMapHash(mg)
 	desiredCM := mg.Spec.ForProvider.KargoConfigMap
 	cmPB, err := buildKargoConfigMapPB(desiredCM, prevCMHash != "")
 	if err != nil {
@@ -411,7 +411,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 		return err
 	}
 	setSecretHash(mg, sec.Hash())
-	setKargoConfigMapHash(mg, hashKargoConfigMap(desiredCM))
+	setConfigMapHash(mg, hashConfigMap(desiredCM))
 	if len(mg.Spec.ForProvider.KargoRepoCredentialSecretRefs) > 0 {
 		now := metav1.Now()
 		mg.Status.AtProvider.RepoCredsAppliedAt = &now
@@ -827,22 +827,22 @@ func getSecretHash(mg *v1alpha1.KargoInstance) string {
 	return mg.Status.AtProvider.SecretHash
 }
 
-// setKargoConfigMapHash records the SHA256 of the last-applied
+// setConfigMapHash records the SHA256 of the last-applied
 // kargo-cm payload so Observe can spot key removals that the
 // subset check on the Export response would otherwise miss.
-func setKargoConfigMapHash(mg *v1alpha1.KargoInstance, h string) {
-	mg.Status.AtProvider.KargoConfigMapHash = h
+func setConfigMapHash(mg *v1alpha1.KargoInstance, h string) {
+	mg.Status.AtProvider.ConfigMapHash = h
 }
 
-func getKargoConfigMapHash(mg *v1alpha1.KargoInstance) string {
-	return mg.Status.AtProvider.KargoConfigMapHash
+func getConfigMapHash(mg *v1alpha1.KargoInstance) string {
+	return mg.Status.AtProvider.ConfigMapHash
 }
 
-// hashKargoConfigMap returns a stable digest for a map[string]string.
+// hashConfigMap returns a stable digest for a map[string]string.
 // An empty / nil input yields the empty string so callers can
 // distinguish "never applied" (empty prev hash) from "applied then
 // cleared" by comparing against the stored value.
-func hashKargoConfigMap(m map[string]string) string {
+func hashConfigMap(m map[string]string) string {
 	if len(m) == 0 {
 		return ""
 	}

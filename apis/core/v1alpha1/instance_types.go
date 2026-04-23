@@ -28,8 +28,12 @@ import (
 )
 
 // InstanceParameters are the configurable fields of a Instance.
+//
+// +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type InstanceParameters struct {
 	// The name of the instance. Required.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
 	// The attributes of the instance. Required.
@@ -120,8 +124,8 @@ type InstanceObservation struct {
 	Name                           string                                            `json:"name,omitempty"`
 	Hostname                       string                                            `json:"hostname,omitempty"`
 	ClusterCount                   uint32                                            `json:"clusterCount,omitempty"`
-	HealthStatus                   InstanceObservationStatus                         `json:"healthStatus,omitempty"`
-	ReconciliationStatus           InstanceObservationStatus                         `json:"reconciliationStatus,omitempty"`
+	HealthStatus                   ResourceStatusCode                                `json:"healthStatus,omitempty"`
+	ReconciliationStatus           ResourceStatusCode                                `json:"reconciliationStatus,omitempty"`
 	OwnerOrganizationName          string                                            `json:"ownerOrganizationName,omitempty"`
 	ArgoCD                         crossplanetypes.ArgoCD                            `json:"argocd"`
 	ArgoCDConfigMap                map[string]string                                 `json:"argocdConfigMap,omitempty"`
@@ -174,11 +178,6 @@ type ApplicationsSyncStatus struct {
 	SyncedCount    uint32 `json:"syncedCount,omitempty"`
 	OutOfSyncCount uint32 `json:"outOfSyncCount,omitempty"`
 	UnknownCount   uint32 `json:"unknownCount,omitempty"`
-}
-
-type InstanceObservationStatus struct {
-	Code    int32  `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
 }
 
 // A InstanceSpec defines the desired state of a Instance.

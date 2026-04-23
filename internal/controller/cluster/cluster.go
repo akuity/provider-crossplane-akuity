@@ -353,12 +353,12 @@ func (c *External) exportedClusterSpec(ctx context.Context, instanceID, clusterN
 	return v1alpha1.ClusterParameters{}, false, nil
 }
 
-func (c *External) getInstanceID(ctx context.Context, instanceID string, instanceRef v1alpha1.NameRef) (string, error) {
+func (c *External) getInstanceID(ctx context.Context, instanceID string, instanceRef *v1alpha1.LocalReference) (string, error) {
 	if instanceID != "" {
 		return instanceID, nil
 	}
 
-	if instanceRef.Name == "" {
+	if instanceRef == nil || instanceRef.Name == "" {
 		return "", fmt.Errorf("one of InstanceID or InstanceRef must be provided")
 	}
 
