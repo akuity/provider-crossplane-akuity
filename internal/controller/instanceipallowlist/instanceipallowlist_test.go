@@ -21,11 +21,15 @@ import (
 	"testing"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,6 +40,14 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
+
+// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// gateway returns while a target resource is still being provisioned.
+// reason.IsProvisioningWait keys off codes.InvalidArgument + the
+// "still being provisioned" substring.
+func provisioningWaitErr() error {
+	return status.Error(codes.InvalidArgument, "instance still being provisioned")
+}
 
 func newScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
@@ -243,4 +255,76 @@ func TestResolveInstanceID_RefWithoutID_Errors(t *testing.T) {
 	_, err := e.resolveInstanceID(context.Background(), al)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "has not yet reported an ID")
+}
+
+// TestUpdate_PatchInstanceIsCalled covers the Update path: once the
+// external name is set, managed.Reconciler picks Update on every
+// drift flip, which must push the current AllowList via PatchInstance.
+func TestUpdate_PatchInstanceIsCalled(t *testing.T) {
+	e, mc := newExt(t, newInst())
+	al := newAllowListByRef()
+	meta.SetExternalName(al, al.Name)
+	al.Spec.ForProvider.AllowList = []*crossplanetypes.IPAllowListEntry{
+		{Ip: "10.0.0.2", Description: "new"},
+	}
+
+	var captured *structpb.Struct
+	mc.EXPECT().PatchInstance(gomock.Any(), "inst-1", gomock.Any()).DoAndReturn(func(_ context.Context, _ string, p *structpb.Struct) error {
+		captured = p
+		return nil
+	}).Times(1)
+
+	_, err := e.Update(context.Background(), al)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	spec := captured.AsMap()["spec"].(map[string]any)
+	ipList := spec["ipAllowList"].([]any)
+	require.Len(t, ipList, 1)
+	assert.Equal(t, "10.0.0.2", ipList[0].(map[string]any)["ip"])
+}
+
+// TestUpdate_PatchErr surfaces gateway errors on Update.
+func TestUpdate_PatchErr(t *testing.T) {
+	e, mc := newExt(t, newInst())
+	al := newAllowListByRef()
+	meta.SetExternalName(al, al.Name)
+	mc.EXPECT().PatchInstance(gomock.Any(), "inst-1", gomock.Any()).
+		Return(errors.New("boom")).Times(1)
+	_, err := e.Update(context.Background(), al)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+}
+
+// TestObserve_ProvisioningWait covers the short-circuit contract:
+// while the parent Instance is still bootstrapping the controller
+// parks the MR Unavailable + UpToDate rather than requeueing on what
+// is a predictable wait state.
+func TestObserve_ProvisioningWait(t *testing.T) {
+	e, mc := newExt(t, newInst())
+	al := newAllowListByRef()
+	meta.SetExternalName(al, al.Name)
+	mc.EXPECT().GetInstanceByID(gomock.Any(), "inst-1").
+		Return(nil, provisioningWaitErr()).Times(1)
+
+	obs, err := e.Observe(context.Background(), al)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+	got := al.Status.GetCondition(xpv1.TypeReady)
+	assert.Equal(t, xpv1.Unavailable().Type, got.Type)
+	assert.Equal(t, xpv1.Unavailable().Status, got.Status)
+	assert.Equal(t, xpv1.Unavailable().Reason, got.Reason)
+}
+
+// TestObserve_GenericErrPropagates: the error must surface so
+// managed.Reconciler can backoff-requeue with visible conditions.
+func TestObserve_GenericErrPropagates(t *testing.T) {
+	e, mc := newExt(t, newInst())
+	al := newAllowListByRef()
+	meta.SetExternalName(al, al.Name)
+	mc.EXPECT().GetInstanceByID(gomock.Any(), "inst-1").
+		Return(nil, errors.New("boom")).Times(1)
+	_, err := e.Observe(context.Background(), al)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
 }

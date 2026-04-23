@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -447,4 +448,78 @@ func TestKargoRepoCreds_HashChangesOnIdentityRotation(t *testing.T) {
 	payload := base
 	payload.Data = map[string]string{"k": "v2"}
 	assert.NotEqual(t, original, h(payload), "payload change must rotate hash")
+}
+
+// TestApiToSpec_WrapperFields locks in the hand-rolled wrapper
+// reconstruction: on the response side the Kargo wire payload carries
+// Name / Description / Version / Fqdn / Subdomain inline on the
+// top-level *kargov1.KargoInstance (not under KargoSpec), so apiToSpec
+// has to reassemble them manually. The generated round-trip suite only
+// covers the nested KargoInstanceSpec sub-tree; regressions here would
+// silently zero out wrapper-level fields on Observe.
+func TestApiToSpec_WrapperFields(t *testing.T) {
+	pb := &kargov1.KargoInstance{
+		Id:          "id-1",
+		Name:        "my-kargo",
+		Description: "team a",
+		Version:     "v1.4.0",
+		Fqdn:        "kargo.example.com",
+		Subdomain:   "my-kargo",
+	}
+	params, err := apiToSpec(pb)
+	require.NoError(t, err)
+	assert.Equal(t, "my-kargo", params.Name)
+	assert.Equal(t, "team a", params.Kargo.Description)
+	assert.Equal(t, "v1.4.0", params.Kargo.Version)
+	assert.Equal(t, "kargo.example.com", params.Kargo.Fqdn)
+	assert.Equal(t, "my-kargo", params.Kargo.Subdomain)
+	assert.Nil(t, params.Kargo.OidcConfig, "absent wire OidcConfig must leave Spec.OidcConfig nil")
+}
+
+// TestApiToSpec_PropagatesNestedSpec exercises the nested
+// KargoInstanceSpec sub-tree through the marshal bridge. Specifically,
+// DefaultShardAgent is a non-obvious field because it's inside the
+// KargoInstanceSpec blob rather than a top-level wrapper field.
+func TestApiToSpec_PropagatesNestedSpec(t *testing.T) {
+	pb := &kargov1.KargoInstance{
+		Name:    "my-kargo",
+		Version: "v1.4.0",
+		Spec: &kargov1.KargoInstanceSpec{
+			DefaultShardAgent: "shard-a",
+		},
+	}
+	params, err := apiToSpec(pb)
+	require.NoError(t, err)
+	assert.Equal(t, "shard-a", params.Kargo.KargoInstanceSpec.DefaultShardAgent)
+}
+
+// TestApiToSpec_PopulatesOidcConfig verifies the OidcConfig bridge:
+// the CRD marks DexConfigSecretRef as mutually-exclusive with the
+// inline DexConfigSecret, so Observe must hand back whichever shape
+// the gateway reported (ref-only in this case) without zeroing it on
+// the round-trip through marshal.ProtoToWire.
+func TestApiToSpec_PopulatesOidcConfig(t *testing.T) {
+	pb := &kargov1.KargoInstance{
+		Name: "my-kargo",
+		OidcConfig: &kargov1.KargoOidcConfig{
+			ClientId:  "app",
+			IssuerUrl: "https://example.com",
+		},
+	}
+	params, err := apiToSpec(pb)
+	require.NoError(t, err)
+	require.NotNil(t, params.Kargo.OidcConfig, "present wire OidcConfig must survive the bridge")
+	assert.Equal(t, "app", params.Kargo.OidcConfig.ClientID)
+	assert.Equal(t, "https://example.com", params.Kargo.OidcConfig.IssuerURL)
+}
+
+// TestApiToSpec_NilInputDoesNotPanic covers defensive behaviour:
+// Observe may be called with an empty response in degenerate cases,
+// and apiToSpec's protobuf getters all tolerate a nil receiver.
+func TestApiToSpec_NilInputDoesNotPanic(t *testing.T) {
+	params, err := apiToSpec(nil)
+	require.NoError(t, err)
+	assert.Empty(t, params.Name)
+	assert.Empty(t, params.Kargo.Version)
+	assert.Nil(t, params.Kargo.OidcConfig)
 }

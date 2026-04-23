@@ -23,12 +23,15 @@ import (
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -37,6 +40,14 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
+
+// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// gateway returns while a target resource is still being provisioned.
+// reason.IsProvisioningWait keys off codes.InvalidArgument + the
+// "still being provisioned" substring.
+func provisioningWaitErr() error {
+	return status.Error(codes.InvalidArgument, "instance still being provisioned")
+}
 
 func newAgent() *v1alpha1.KargoAgent {
 	return &v1alpha1.KargoAgent{
@@ -150,4 +161,116 @@ func TestDelete_ConnectedAgentError_WrapsRetryable(t *testing.T) {
 	_, err := e.Delete(context.Background(), a)
 	require.Error(t, err)
 	assert.True(t, reason.IsRetryable(err))
+}
+
+// TestDelete_EmptyExternalName short-circuits before the gateway call
+// so Crossplane can release the finalizer on MRs that never got an
+// external name (e.g. Create failed before SetExternalName).
+func TestDelete_EmptyExternalName(t *testing.T) {
+	e, _ := newExt(t)
+	a := newAgent()
+	// external-name deliberately unset.
+	_, err := e.Delete(context.Background(), a)
+	require.NoError(t, err)
+}
+
+// TestDelete_GenericErrPropagates: a non-retryable gateway error on
+// Delete must surface so managed.Reconciler backoff-requeues.
+func TestDelete_GenericErrPropagates(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().DeleteKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
+		Return(errors.New("boom")).Times(1)
+	_, err := e.Delete(context.Background(), a)
+	require.Error(t, err)
+	assert.False(t, reason.IsRetryable(err), "generic error must not be wrapped as retryable")
+}
+
+// TestUpdate_Happy exercises the Update path end-to-end: resolve
+// instance ID, Get existing agent, translate spec, call
+// UpdateKargoInstanceAgent with the resolved agent ID.
+func TestUpdate_Happy(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id: "ag-1", Name: "agt",
+	}, nil).Times(1)
+
+	var capturedReq *kargov1.UpdateKargoInstanceAgentRequest
+	mc.EXPECT().UpdateKargoInstanceAgent(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, req *kargov1.UpdateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error) {
+		capturedReq = req
+		return &kargov1.KargoAgent{Id: "ag-1", Name: "agt"}, nil
+	}).Times(1)
+
+	_, err := e.Update(context.Background(), a)
+	require.NoError(t, err)
+	require.NotNil(t, capturedReq)
+	assert.Equal(t, "ki-1", capturedReq.GetInstanceId())
+	assert.Equal(t, "ag-1", capturedReq.GetId())
+}
+
+// TestUpdate_GetErr covers the error path when the existing agent
+// lookup fails. Controller must surface rather than proceed with a
+// stale Id.
+func TestUpdate_GetErr(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
+		Return(nil, errors.New("boom")).Times(1)
+	_, err := e.Update(context.Background(), a)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+}
+
+// TestUpdate_ApplyErr covers the error path when
+// UpdateKargoInstanceAgent fails.
+func TestUpdate_ApplyErr(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id: "ag-1", Name: "agt",
+	}, nil).Times(1)
+	mc.EXPECT().UpdateKargoInstanceAgent(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("boom")).Times(1)
+	_, err := e.Update(context.Background(), a)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+}
+
+// TestObserve_ProvisioningWait covers the short-circuit: the Kargo
+// instance is still bootstrapping, so fetchAgent returns
+// ProvisioningWait and Observe reports Unavailable + UpToDate to park
+// the reconcile without escalating to ReconcileError.
+func TestObserve_ProvisioningWait(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
+		Return(nil, provisioningWaitErr()).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+	got := a.Status.GetCondition(xpv1.TypeReady)
+	assert.Equal(t, xpv1.Unavailable().Type, got.Type)
+	assert.Equal(t, xpv1.Unavailable().Status, got.Status)
+	assert.Equal(t, xpv1.Unavailable().Reason, got.Reason)
+}
+
+// TestObserve_GenericErrPropagates covers fetchAgent's non-transient
+// error branch.
+func TestObserve_GenericErrPropagates(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
+		Return(nil, errors.New("boom")).Times(1)
+	_, err := e.Observe(context.Background(), a)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
 }

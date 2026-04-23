@@ -30,6 +30,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +44,14 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
+
+// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// gateway returns while a target resource is still being provisioned.
+// reason.IsProvisioningWait keys off codes.InvalidArgument + the
+// "still being provisioned" substring.
+func provisioningWaitErr() error {
+	return grpcstatus.Error(codes.InvalidArgument, "instance still being provisioned")
+}
 
 func newKI() *v1alpha1.KargoInstance {
 	return &v1alpha1.KargoInstance{
@@ -251,4 +261,99 @@ func TestExtractKargoConfigMapData_ShapeGuards(t *testing.T) {
 	require.NoError(t, err)
 	_, err = extractKargoConfigMapData(pb)
 	require.Error(t, err, "non-object data must surface an error so drift doesn't silently pass")
+}
+
+// TestUpdate_DelegatesToApply covers the Update path: Update must reuse
+// apply() so the same orchestration (secrets, configmap, spec,
+// repo-creds) runs once the external name is set.
+func TestUpdate_DelegatesToApply(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	_, err := e.Update(context.Background(), ki)
+	require.NoError(t, err)
+}
+
+// TestUpdate_ApplyErr surfaces gateway errors on Update.
+func TestUpdate_ApplyErr(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(errors.New("boom")).Times(1)
+	_, err := e.Update(context.Background(), ki)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+}
+
+// TestCreate_ApplyErr covers the Create error path — currently only
+// the happy path is tested; a regression here would silently accept
+// ApplyKargoInstance failures.
+func TestCreate_ApplyErr(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(errors.New("boom")).Times(1)
+	_, err := e.Create(context.Background(), ki)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+	assert.Empty(t, meta.GetExternalName(ki), "external name must not be set on Apply failure")
+}
+
+// TestDelete_EmptyExternalName short-circuits before the gateway call
+// so Crossplane can release the finalizer on MRs that never got an
+// external name (Create failed before SetExternalName).
+func TestDelete_EmptyExternalName(t *testing.T) {
+	e, _ := newExt(t)
+	ki := newKI()
+	// external-name deliberately unset.
+	_, err := e.Delete(context.Background(), ki)
+	require.NoError(t, err)
+}
+
+// TestDelete_GenericErrPropagates surfaces gateway errors on Delete.
+func TestDelete_GenericErrPropagates(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().DeleteKargoInstance(gomock.Any(), "ki").
+		Return(errors.New("boom")).Times(1)
+	_, err := e.Delete(context.Background(), ki)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+}
+
+// TestObserve_ProvisioningWait covers the short-circuit contract: the
+// gateway reports the KargoInstance is still bootstrapping, so the
+// controller parks it Unavailable + UpToDate to stop re-applying while
+// Crossplane waits.
+func TestObserve_ProvisioningWait(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().GetKargoInstance(gomock.Any(), "ki").
+		Return(nil, provisioningWaitErr()).Times(1)
+
+	obs, err := e.Observe(context.Background(), ki)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+	got := ki.Status.GetCondition(xpv1.TypeReady)
+	assert.Equal(t, xpv1.Unavailable().Type, got.Type)
+	assert.Equal(t, xpv1.Unavailable().Status, got.Status)
+	assert.Equal(t, xpv1.Unavailable().Reason, got.Reason)
+}
+
+// TestObserve_GenericErrPropagates covers Get's non-transient error
+// branch — surface rather than swallow.
+func TestObserve_GenericErrPropagates(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().GetKargoInstance(gomock.Any(), "ki").
+		Return(nil, errors.New("boom")).Times(1)
+	_, err := e.Observe(context.Background(), ki)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
 }

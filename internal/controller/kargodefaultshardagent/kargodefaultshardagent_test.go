@@ -21,11 +21,15 @@ import (
 	"testing"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,6 +40,14 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
+
+// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// gateway returns while a target resource is still being provisioned.
+// reason.IsProvisioningWait keys off codes.InvalidArgument + the
+// "still being provisioned" substring.
+func provisioningWaitErr() error {
+	return status.Error(codes.InvalidArgument, "instance still being provisioned")
+}
 
 func newScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
@@ -189,4 +201,74 @@ func TestResolveKargoID_RefWithoutID_Errors(t *testing.T) {
 	_, err := e.resolveKargoID(context.Background(), newDSAByRef())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "has not yet reported an ID")
+}
+
+// TestUpdate_PatchIsCalled covers the Update path: once the external
+// name is set, managed.Reconciler picks Update on every drift flip.
+// Update must reuse patch() so the same narrow sub-tree lands on the
+// gateway.
+func TestUpdate_PatchIsCalled(t *testing.T) {
+	e, mc := newExt(t, newKI())
+	dsa := newDSAByRef()
+	meta.SetExternalName(dsa, dsa.Name)
+	dsa.Spec.ForProvider.AgentName = "shard-b"
+
+	var captured *structpb.Struct
+	mc.EXPECT().PatchKargoInstance(gomock.Any(), "ki-1", gomock.Any()).DoAndReturn(func(_ context.Context, _ string, p *structpb.Struct) error {
+		captured = p
+		return nil
+	}).Times(1)
+
+	_, err := e.Update(context.Background(), dsa)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	spec := captured.AsMap()["spec"].(map[string]any)
+	kis := spec["kargoInstanceSpec"].(map[string]any)
+	assert.Equal(t, "shard-b", kis["defaultShardAgent"])
+}
+
+// TestUpdate_PatchErr surfaces gateway errors on Update.
+func TestUpdate_PatchErr(t *testing.T) {
+	e, mc := newExt(t, newKI())
+	dsa := newDSAByRef()
+	meta.SetExternalName(dsa, dsa.Name)
+	mc.EXPECT().PatchKargoInstance(gomock.Any(), "ki-1", gomock.Any()).
+		Return(errors.New("boom")).Times(1)
+	_, err := e.Update(context.Background(), dsa)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+}
+
+// TestObserve_ProvisioningWait covers the short-circuit: gateway
+// reports the parent Kargo instance is still bootstrapping, so the
+// controller parks the MR Unavailable + UpToDate to stop re-applying
+// while Crossplane waits.
+func TestObserve_ProvisioningWait(t *testing.T) {
+	e, mc := newExt(t, newKI())
+	dsa := newDSAByRef()
+	meta.SetExternalName(dsa, dsa.Name)
+	mc.EXPECT().GetKargoInstanceByID(gomock.Any(), "ki-1").
+		Return(nil, provisioningWaitErr()).Times(1)
+
+	obs, err := e.Observe(context.Background(), dsa)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+	got := dsa.Status.GetCondition(xpv1.TypeReady)
+	assert.Equal(t, xpv1.Unavailable().Type, got.Type)
+	assert.Equal(t, xpv1.Unavailable().Status, got.Status)
+	assert.Equal(t, xpv1.Unavailable().Reason, got.Reason)
+}
+
+// TestObserve_GenericErrPropagates covers the non-transient error
+// branch — surface rather than swallow.
+func TestObserve_GenericErrPropagates(t *testing.T) {
+	e, mc := newExt(t, newKI())
+	dsa := newDSAByRef()
+	meta.SetExternalName(dsa, dsa.Name)
+	mc.EXPECT().GetKargoInstanceByID(gomock.Any(), "ki-1").
+		Return(nil, errors.New("boom")).Times(1)
+	_, err := e.Observe(context.Background(), dsa)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
 }
