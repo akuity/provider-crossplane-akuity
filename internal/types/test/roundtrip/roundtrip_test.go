@@ -49,8 +49,8 @@ func TestCluster_AkuityToCrossplaneGolden(t *testing.T) {
 
 // Instance round-trip runs at the InstanceSpec level. The current fixtures
 // do not include a full *argocdv1.Instance + ExportInstanceResponse pair;
-// the v1alpha2 codegen can expand them later. For now spec-level
-// conversion is the widest unit round-trip we can pin.
+// they can be expanded later. For now spec-level conversion is the
+// widest unit round-trip we can pin.
 func TestInstanceSpec_CrossplaneToAkuityGolden(t *testing.T) {
 	got, err := types.CrossplaneToAkuityAPIInstanceSpec(fixtures.CrossplaneInstanceSpec)
 	require.NoError(t, err)

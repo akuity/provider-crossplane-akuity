@@ -20,41 +20,31 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/cluster"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/legacy/cluster"
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/legacy/instance"
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/metrics"
-	clusterv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/cluster"
-	instancev2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/instance"
-	instanceipallowlistv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/instanceipallowlist"
-	kargoagentv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/kargoagent"
-	kargodefaultshardagentv2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/kargodefaultshardagent"
-	kargoinstancev2 "github.com/akuityio/provider-crossplane-akuity/internal/controller/v2/kargoinstance"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instance"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instanceipallowlist"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/kargoagent"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/kargodefaultshardagent"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/kargoinstance"
 )
 
 // Setup creates all akuity controllers with the supplied logger and adds them to
 // the supplied manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
-		// Legacy v1alpha1 provider config + managed resources.
 		config.Setup,
 		instance.Setup,
 		cluster.Setup,
-		// v1alpha2 namespaced provider configs + controllers.
-		config.SetupV2,
-		instancev2.Setup,
-		clusterv2.Setup,
-		instanceipallowlistv2.Setup,
-		kargoinstancev2.Setup,
-		kargoagentv2.Setup,
-		kargodefaultshardagentv2.Setup,
+		instanceipallowlist.Setup,
+		kargoinstance.Setup,
+		kargoagent.Setup,
+		kargodefaultshardagent.Setup,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err
 		}
 	}
 
-	// Legacy-CR observational telemetry. Safe to call unconditionally; the
-	// gauge stays at 0 once users have fully migrated off v1alpha1.
-	return metrics.SetupLegacyTelemetry(mgr, o.Logger.WithValues("controller", "legacy-telemetry"))
+	return nil
 }

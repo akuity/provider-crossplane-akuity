@@ -24,8 +24,8 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 )
 
-// ExternalClient carries the dependencies every v1alpha2 external
-// client needs. Per-resource clients embed it.
+// ExternalClient carries the dependencies every external client
+// needs. Per-resource clients embed it.
 type ExternalClient struct {
 	Client   akuity.Client
 	Kube     client.Client

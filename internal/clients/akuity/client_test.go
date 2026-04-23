@@ -592,10 +592,10 @@ func TestApplyInstance(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestApplyInstance_FillsOrganizationId guards the v1alpha2 controller
-// contract: callers (Instance, InstanceIpAllowList) construct the request
-// without setting OrganizationId, relying on the client wrapper to inject
-// it from the ProviderConfig-bound organisation.
+// TestApplyInstance_FillsOrganizationId guards the controller
+// contract: callers (InstanceIpAllowList) construct the request
+// without setting OrganizationId, relying on the client wrapper to
+// inject it from the ProviderConfig-bound organisation.
 func TestApplyInstance_FillsOrganizationId(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
 	callerRequest := &argocdv1.ApplyInstanceRequest{

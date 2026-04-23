@@ -6,11 +6,11 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
+	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 )
 
 func TestPropagateObservedGeneration(t *testing.T) {
-	mg := &v1alpha2.Instance{
+	mg := &v1alpha1.Instance{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "inst",
 			Namespace:  "ns",

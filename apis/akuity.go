@@ -21,9 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	corev1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
-	corev1alpha2 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
 	akuityv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
-	akuityv1alpha2 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha2"
 )
 
 func init() {
@@ -31,8 +29,6 @@ func init() {
 	AddToSchemes = append(AddToSchemes,
 		akuityv1alpha1.SchemeBuilder.AddToScheme,
 		corev1alpha1.SchemeBuilder.AddToScheme,
-		akuityv1alpha2.SchemeBuilder.AddToScheme,
-		corev1alpha2.SchemeBuilder.AddToScheme,
 	)
 }
 

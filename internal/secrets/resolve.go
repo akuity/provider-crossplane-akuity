@@ -1,4 +1,4 @@
-// Package secrets resolves kube Secret references referenced by v1alpha2
+// Package secrets resolves kube Secret references referenced by
 // managed resource specs. Sensitive payloads destined for the Akuity
 // gateway (argocd-secret, notifications-secret, repo-credential-secrets,
 // etc.) are carried as xpv1.LocalSecretReference on the MR spec rather
@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
+	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 )
 
 // ErrMissingSecret is returned when a referenced Secret does not exist.
@@ -52,7 +52,7 @@ func ResolveAllKeys(ctx context.Context, c client.Client, ns string, ref *xpv1.L
 // or nil refs yield a nil map to let callers skip setting the wire
 // field. Duplicate Names error out — they would silently clobber each
 // other in the proto map otherwise.
-func ResolveNamed(ctx context.Context, c client.Client, ns string, refs []v1alpha2.NamedLocalSecretReference) (map[string]map[string]string, error) {
+func ResolveNamed(ctx context.Context, c client.Client, ns string, refs []v1alpha1.NamedLocalSecretReference) (map[string]map[string]string, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}

@@ -23,7 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
 // ClusterParameters are the configurable fields of a Cluster.
@@ -39,11 +39,19 @@ type ClusterParameters struct {
 	// The Kubernetes namespace the Akuity agent should be installed in. Optional.
 	Namespace string `json:"namespace,omitempty"`
 	// Attributes of the cluster. Optional.
-	ClusterSpec generated.ClusterSpec `json:"clusterSpec,omitempty"`
+	ClusterSpec crossplanetypes.ClusterSpec `json:"clusterSpec,omitempty"`
 	// Annotations to apply to the cluster custom resource. Optional.
 	Annotations map[string]string `json:"annotations,omitempty"`
 	// Labels to apply to the cluster custom resource. Optional.
 	Labels map[string]string `json:"labels,omitempty"`
+	// Description is a free-form description of the cluster. Optional.
+	// +optional
+	Description string `json:"description,omitempty"`
+	// NamespaceScoped toggles whether the agent installed in the managed cluster
+	// is namespace-scoped (vs cluster-scoped). Optional. Akuity-side RBAC choice
+	// for the agent — unrelated to Crossplane MR scoping.
+	// +optional
+	NamespaceScoped bool `json:"namespaceScoped,omitempty"`
 	// A reference to a Kubernetes secret containing a KubeConfig that can be used to connect
 	// to the cluster to apply the agent manifests. Optional.
 	KubeConfigSecretRef SecretRef `json:"kubeconfigSecretRef,omitempty"`
@@ -105,6 +113,14 @@ type ClusterObservation struct {
 	Kustomization string `json:"kustomization,omitempty"`
 	// The size of the agent to run on the cluster.
 	AgentSize string `json:"agentSize,omitempty"`
+	// AgentManifestsHash records the SHA256 of the Akuity-generated
+	// agent install manifests that the controller last successfully
+	// applied to the managed cluster via KubeConfigSecretRef or
+	// EnableInClusterKubeConfig. Empty when inline agent apply is not
+	// configured or install has not yet succeeded. Drives re-apply
+	// on manifest drift.
+	// +optional
+	AgentManifestsHash string `json:"agentManifestsHash,omitempty"`
 }
 
 type ClusterObservationAgentState struct {

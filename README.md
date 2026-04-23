@@ -52,39 +52,30 @@ kubectl apply -f examples/provider/config.yaml
 
 Now you can start managing Akuity instances and clusters using Crossplane.
 
-### v2.0.0: namespaced managed resources (recommended)
+### API surface: `core.akuity.crossplane.io/v1alpha1` (cluster-scoped)
 
-The v2 API group is `core.m.akuity.crossplane.io/v1alpha2` — namespaced
-managed resources, Crossplane v2 runtime. Examples:
+All managed resources are cluster-scoped and live in the
+`core.akuity.crossplane.io/v1alpha1` group. Existing Customer A manifests
+continue to work unchanged — the upgrade is additive.
 
-- [Namespaced + cluster-wide ProviderConfig](./examples/v1alpha2/provider.yaml)
-- [Instance + Cluster](./examples/v1alpha2/instance-and-cluster.yaml)
-- [KargoInstance, KargoAgent, KargoDefaultShardAgent, InstanceIpAllowList](./examples/v1alpha2/kargo.yaml)
-- [Composition wiring Cluster → provider-kubernetes for agent install](./examples/v1alpha2/cluster-with-agent-composition.yaml)
+- [Argo CD Instance](./examples/instance/basic.yaml)
+- [Cluster](./examples/cluster/basic.yaml)
+- [Argo CD Instance — detailed](./examples/instance/detailed.yaml)
+- [Cluster — detailed](./examples/cluster/detailed.yaml)
 
-The v2 Cluster/KargoAgent controllers publish the Akuity agent-install YAML
-on the MR's connection secret under a `manifests` key. Apply those
-manifests to the target cluster via `provider-kubernetes` in a Composition
-(see the linked example). `ClusterAgent` from v1alpha1 is gone — the
-Composition flow replaces it.
+v2.0.0 adds four new cluster-scoped MR types under the same group:
+`KargoInstance`, `KargoAgent`, `KargoDefaultShardAgent`,
+`InstanceIpAllowList`. See the CRD reference for their schemas.
 
-### Legacy v1alpha1 examples (deprecated)
+### Compatibility
 
-The `core.akuity.crossplane.io/v1alpha1` API group is kept for a 6-month
-deprecation window. It emits a Warning event on every reconcile and the
-provider exposes `akuity_legacy_v1alpha1_cr_count{kind}` as a migration
-signal. Scheduled for removal in **v3.0.0**.
-
-- [Argo CD Instance (v1alpha1)](./examples/instance/basic.yaml)
-- [Cluster (v1alpha1)](./examples/cluster/basic.yaml)
-- [Argo CD Instance — detailed (v1alpha1)](./examples/instance/detailed.yaml)
-- [Cluster — detailed (v1alpha1)](./examples/cluster/detailed.yaml)
-
-Upgrading from v1.x? See the
-[v1alpha1 → v2 migration guide](./docs/migration/v1alpha1-to-v2.md). In
-particular it covers ESS removal (replace `publishConnectionDetailsTo` with
-`external-secrets-operator`, `provider-vault`, or `provider-sops` **before**
-the upgrade) and the new Composition-based agent-install flow.
+- **Crossplane core**: v1.16+ and v2.x both supported; single artifact.
+- **Existing v1alpha1 manifests**: work unchanged.
+- **ESS (`publishConnectionDetailsTo`, `StoreConfig`)**: removed at the
+  runtime layer in v2.0.0. If you previously used these fields, migrate
+  to [external-secrets-operator](https://external-secrets.io),
+  `crossplane-contrib/provider-vault`, or `crossplane-contrib/provider-sops`
+  before upgrading. See [release notes](./docs/release-notes/v2.0.0.md).
 
 For all supported fields for Akuity resources, please check [https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity/).
 

@@ -60,18 +60,10 @@ fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .
 	@make
 
-# Run the Akuity wire ↔ v1alpha2 converter codegen. Must run before
-# `go generate ./apis/...` because emitted files live under internal/convert/
-# and reference the v1alpha2 types generated here.
-generate-convert:
-	@$(INFO) running converter codegen
-	@$(GO) run ./hack/codegen
-	@$(OK) converter codegen
-
-# Make the generate target (provided by build/makelib/golang.mk) depend
-# on generate-convert so running `make generate` refreshes both the
-# converters and the controller-gen / angryjet output in one shot.
-generate.init: generate-convert
+# internal/types/generated/ carries vendored types, converters, and
+# glue helpers produced out-of-tree. This repo is a pure consumer;
+# there is no provider-side codegen step. `make generate` runs
+# controller-gen + angryjet via build/makelib/golang.mk defaults.
 
 # Run gofmt + goimports across the repo, then let golangci-lint auto-fix
 # the remaining formatter-adjacent rules (gofumpt, goimports,
@@ -104,7 +96,7 @@ test-envtest:
 	@$(INFO) installing setup-envtest + k8s $(ENVTEST_K8S_VERSION) binaries
 	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.23
 	@KUBEBUILDER_ASSETS="$$($$(go env GOPATH)/bin/setup-envtest use -p path $(ENVTEST_K8S_VERSION))" \
-		go test -tags=envtest -v -count=1 ./internal/controller/v2/envtest/... || $(FAIL)
+		go test -tags=envtest -v -count=1 ./internal/... || $(FAIL)
 	@$(OK) envtest suite passed
 
 # Update the submodules, such as the common build scripts.

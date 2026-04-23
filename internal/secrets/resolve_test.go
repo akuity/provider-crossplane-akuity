@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha2"
+	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 )
 
 func fakeClient(t *testing.T, objs ...runtime.Object) *fake.ClientBuilder {
@@ -81,7 +81,7 @@ func TestResolveNamed_HappyPath(t *testing.T) {
 	b := newSecret("akuity", "creds-b", map[string]string{"url": "https://b", "sshPrivateKey": "key"})
 	c := fakeClient(t, a, b).Build()
 
-	got, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha2.NamedLocalSecretReference{
+	got, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha1.NamedLocalSecretReference{
 		{Name: "repo-a", SecretRef: xpv1.LocalSecretReference{Name: "creds-a"}},
 		{Name: "repo-b", SecretRef: xpv1.LocalSecretReference{Name: "creds-b"}},
 	})
@@ -108,7 +108,7 @@ func TestResolveNamed_EmptyReturnsNil(t *testing.T) {
 func TestResolveNamed_DuplicateNames(t *testing.T) {
 	a := newSecret("akuity", "creds-a", map[string]string{"url": "https://a"})
 	c := fakeClient(t, a).Build()
-	_, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha2.NamedLocalSecretReference{
+	_, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha1.NamedLocalSecretReference{
 		{Name: "repo-dup", SecretRef: xpv1.LocalSecretReference{Name: "creds-a"}},
 		{Name: "repo-dup", SecretRef: xpv1.LocalSecretReference{Name: "creds-a"}},
 	})
@@ -119,7 +119,7 @@ func TestResolveNamed_DuplicateNames(t *testing.T) {
 
 func TestResolveNamed_PropagatesMissing(t *testing.T) {
 	c := fakeClient(t).Build()
-	_, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha2.NamedLocalSecretReference{
+	_, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha1.NamedLocalSecretReference{
 		{Name: "repo-x", SecretRef: xpv1.LocalSecretReference{Name: "ghost"}},
 	})
 	if !errors.Is(err, ErrMissingSecret) {

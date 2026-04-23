@@ -37,8 +37,9 @@ type Client interface {
 	// GetClusterManifestsOnce fetches install manifests for a cluster
 	// without waiting for reconciliation. Callers are responsible for
 	// gating invocation on the cluster's ReconciliationStatus. Used by
-	// the v1alpha2 controllers where manifest-readiness is surfaced via
-	// a controller-runtime requeue rather than a blocking API wait.
+	// the Kargo / IpAllowList controllers where manifest-readiness is
+	// surfaced via a controller-runtime requeue rather than a blocking
+	// API wait.
 	GetClusterManifestsOnce(ctx context.Context, instanceID, clusterID string) (string, error)
 	ApplyCluster(ctx context.Context, instanceID string, cluster akuitytypes.Cluster) error
 	DeleteCluster(ctx context.Context, instanceID string, name string) error
@@ -56,10 +57,10 @@ type Client interface {
 	DeleteInstance(ctx context.Context, name string) error
 	BuildApplyInstanceRequest(instance crossplanetypes.Instance) (*argocdv1.ApplyInstanceRequest, error)
 
-	// Kargo-plane methods (added for the v1alpha2 KargoInstance,
-	// KargoAgent, and KargoDefaultShardAgent controllers). All routing
-	// is via the KargoServiceGatewayClient configured alongside the
-	// Argo gateway at construction time.
+	// Kargo-plane methods for the KargoInstance, KargoAgent, and
+	// KargoDefaultShardAgent controllers. All routing is via the
+	// KargoServiceGatewayClient configured alongside the Argo gateway
+	// at construction time.
 	GetKargoInstance(ctx context.Context, name string) (*kargov1.KargoInstance, error)
 	// GetKargoInstanceByID fetches a KargoInstance by its canonical ID.
 	// The Kargo GetKargoInstanceRequest only accepts a name; we emulate
@@ -301,11 +302,11 @@ func (c client) ExportInstance(ctx context.Context, name string) (*argocdv1.Expo
 
 func (c client) ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error {
 	// Auto-fill OrganizationId for callers that build the request
-	// themselves (v1alpha2 Instance / InstanceIpAllowList controllers).
-	// Legacy callers that go through BuildApplyInstanceRequest /
-	// buildApplyClusterRequest already set it; the guard is a no-op
-	// for them. Matches the shape used by ApplyKargoInstance and the
-	// KargoInstanceAgent Create/Update helpers below.
+	// themselves (InstanceIpAllowList). Callers that go through
+	// BuildApplyInstanceRequest / buildApplyClusterRequest already
+	// set it; the guard is a no-op for them. Matches the shape used
+	// by ApplyKargoInstance and the KargoInstanceAgent Create/Update
+	// helpers below.
 	if request.GetOrganizationId() == "" {
 		request.OrganizationId = c.organizationID
 	}

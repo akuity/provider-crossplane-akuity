@@ -73,6 +73,18 @@ spec:
               forProvider:
                 description: InstanceParameters are the configurable fields of a Instance.
                 properties:
+                  applicationSetSecretRef:
+                    description: |-
+                      ApplicationSetSecretRef references a Secret whose data is sent
+                      verbatim as the argocd-application-set-secret payload
+                      (ApplicationSet plugin credentials).
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                    required:
+                    - name
+                    type: object
                   argocd:
                     description: The attributes of the instance. Required.
                     properties:
@@ -333,6 +345,29 @@ spec:
                                                   type: string
                                                 type: array
                                             type: object
+                                          investigationApproval:
+                                            properties:
+                                              scopes:
+                                                items:
+                                                  properties:
+                                                    argocdApplications:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    clusters:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    consecutiveAutoClosures:
+                                                      format: int32
+                                                      type: integer
+                                                    k8sNamespaces:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                            type: object
                                           triggers:
                                             items:
                                               properties:
@@ -357,6 +392,8 @@ spec:
                                               properties:
                                                 argocdApplicationNamePath:
                                                   type: string
+                                                argocdApplicationNamespacePath:
+                                                  type: string
                                                 clusterPath:
                                                   type: string
                                                 descriptionPath:
@@ -365,9 +402,41 @@ spec:
                                                   type: string
                                                 name:
                                                   type: string
+                                                titlePath:
+                                                  type: string
                                               type: object
                                             type: array
                                         type: object
+                                      runbookRepos:
+                                        items:
+                                          properties:
+                                            appliedFor:
+                                              additionalProperties:
+                                                properties:
+                                                  argocdApplications:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  clusters:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  degradedFor:
+                                                    type: string
+                                                  k8sNamespaces:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: object
+                                            path:
+                                              type: string
+                                            repoUrl:
+                                              type: string
+                                            revision:
+                                              type: string
+                                          type: object
+                                        type: array
                                       runbooks:
                                         items:
                                           properties:
@@ -405,6 +474,18 @@ spec:
                                         type: string
                                       scanEnabled:
                                         type: boolean
+                                    type: object
+                                type: object
+                              manifestGeneration:
+                                properties:
+                                  kustomize:
+                                    properties:
+                                      additionalVersions:
+                                        items:
+                                          type: string
+                                        type: array
+                                      defaultVersion:
+                                        type: string
                                     type: object
                                 type: object
                               metricsIngressPasswordHash:
@@ -543,6 +624,18 @@ spec:
                     description: Used to specify the options in the argocd-image-updater-config
                       ConfigMap. Optional.
                     type: object
+                  argocdImageUpdaterSecretRef:
+                    description: |-
+                      ArgoCDImageUpdaterSecretRef references a Secret whose data is
+                      sent verbatim as the argocd-image-updater-secret payload
+                      (container registry credentials).
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                    required:
+                    - name
+                    type: object
                   argocdImageUpdaterSshConfigMap:
                     additionalProperties:
                       type: string
@@ -555,11 +648,35 @@ spec:
                     description: Used to specify the options in the argocd-notifications-cm
                       ConfigMap. Optional.
                     type: object
+                  argocdNotificationsSecretRef:
+                    description: |-
+                      ArgoCDNotificationsSecretRef references a Secret whose data is
+                      sent verbatim as the argocd-notifications-secret payload
+                      (SMTP, Slack, webhook tokens).
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                    required:
+                    - name
+                    type: object
                   argocdRbacConfigMap:
                     additionalProperties:
                       type: string
                     description: Used to specify the options in the argocd-rbac-cm
                       ConfigMap. Optional.
+                    type: object
+                  argocdSecretRef:
+                    description: |-
+                      ArgoCDSecretRef references a Secret whose data is sent verbatim
+                      as the argocd-secret payload (admin.password, server.secretkey,
+                      dex.config, webhook.*.secret, oidc.*.clientSecret).
+                    properties:
+                      name:
+                        description: Name of the secret.
+                        type: string
+                    required:
+                    - name
                     type: object
                   argocdSshKnownHostsConfigMap:
                     additionalProperties:
@@ -681,6 +798,100 @@ spec:
                   name:
                     description: The name of the instance. Required.
                     type: string
+                  repoCredentialSecretRefs:
+                    description: |-
+                      RepoCredentialSecretRefs registers scoped repository credentials
+                      with the Akuity gateway. Each entry's Name (which must match
+                      ^repo-[a-z0-9][a-z0-9-]*$) becomes the server-side secret
+                      identifier; the pointed-at Secret's data supplies the credential
+                      key/value pairs (url, username, password, sshPrivateKey, etc.).
+                    items:
+                      description: |-
+                        NamedLocalSecretReference binds a gateway-facing credential name to a
+                        kube Secret. The Secret's data keys are forwarded to the Akuity
+                        gateway verbatim under the Name slot (e.g.
+                        repoCredentialSecrets["repo-github"] = {"url": "...", "password":
+                        "..."}).
+                      properties:
+                        name:
+                          description: |-
+                            Name is the identifier under which this Secret's data is sent
+                            to the Akuity gateway. For ArgoCD repo credentials this must
+                            start with "repo-"; per-field CEL rules enforce a stricter
+                            pattern. The MaxLength matches Kubernetes object-name bounds
+                            and keeps CEL cost estimates within the apiserver's budget.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                        secretRef:
+                          description: |-
+                            SecretRef points at a Secret. All keys of that Secret are
+                            forwarded to the gateway verbatim.
+                          properties:
+                            name:
+                              description: Name of the secret.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                      required:
+                      - name
+                      - secretRef
+                      type: object
+                    maxItems: 128
+                    type: array
+                    x-kubernetes-validations:
+                    - message: each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$
+                      rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
+                  repoTemplateCredentialSecretRefs:
+                    description: |-
+                      RepoTemplateCredentialSecretRefs registers scoped repository
+                      template credentials. Same shape + regex constraint as
+                      RepoCredentialSecretRefs.
+                    items:
+                      description: |-
+                        NamedLocalSecretReference binds a gateway-facing credential name to a
+                        kube Secret. The Secret's data keys are forwarded to the Akuity
+                        gateway verbatim under the Name slot (e.g.
+                        repoCredentialSecrets["repo-github"] = {"url": "...", "password":
+                        "..."}).
+                      properties:
+                        name:
+                          description: |-
+                            Name is the identifier under which this Secret's data is sent
+                            to the Akuity gateway. For ArgoCD repo credentials this must
+                            start with "repo-"; per-field CEL rules enforce a stricter
+                            pattern. The MaxLength matches Kubernetes object-name bounds
+                            and keeps CEL cost estimates within the apiserver's budget.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                        secretRef:
+                          description: |-
+                            SecretRef points at a Secret. All keys of that Secret are
+                            forwarded to the gateway verbatim.
+                          properties:
+                            name:
+                              description: Name of the secret.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                      required:
+                      - name
+                      - secretRef
+                      type: object
+                    maxItems: 128
+                    type: array
+                    x-kubernetes-validations:
+                    - message: each repoTemplateCredentialSecretRefs[].name must match
+                        ^repo-[a-z0-9][a-z0-9-]*$
+                      rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
+                  resources:
+                    description: |-
+                      Resources carries raw YAML manifests for declarative ArgoCD
+                      child resources (Application, ApplicationSet, AppProject).
+                    x-kubernetes-preserve-unknown-fields: true
                 required:
                 - argocd
                 - name
@@ -777,6 +988,68 @@ spec:
               atProvider:
                 description: InstanceObservation are the observable fields of a Instance.
                 properties:
+                  applicationsStatus:
+                    description: |-
+                      ApplicationsStatus surfaces aggregated counts for the
+                      Applications / ApplicationSets / AppProjects managed through
+                      spec.forProvider.resources.
+                    properties:
+                      appOfAppCount:
+                        format: int32
+                        type: integer
+                      applicationCount:
+                        format: int32
+                        type: integer
+                      errorCount:
+                        format: int32
+                        type: integer
+                      health:
+                        description: ApplicationsHealth is the roll-up of Application
+                          health states.
+                        properties:
+                          degradedCount:
+                            format: int32
+                            type: integer
+                          healthyCount:
+                            format: int32
+                            type: integer
+                          missingCount:
+                            format: int32
+                            type: integer
+                          progressingCount:
+                            format: int32
+                            type: integer
+                          suspendedCount:
+                            format: int32
+                            type: integer
+                          unknownCount:
+                            format: int32
+                            type: integer
+                        type: object
+                      resourcesCount:
+                        format: int32
+                        type: integer
+                      syncInProgressCount:
+                        format: int32
+                        type: integer
+                      syncStatus:
+                        description: ApplicationsSyncStatus is the roll-up of Application
+                          sync states.
+                        properties:
+                          outOfSyncCount:
+                            format: int32
+                            type: integer
+                          syncedCount:
+                            format: int32
+                            type: integer
+                          unknownCount:
+                            format: int32
+                            type: integer
+                        type: object
+                      warningCount:
+                        format: int32
+                        type: integer
+                    type: object
                   argocd:
                     properties:
                       spec:
@@ -1036,6 +1309,29 @@ spec:
                                                   type: string
                                                 type: array
                                             type: object
+                                          investigationApproval:
+                                            properties:
+                                              scopes:
+                                                items:
+                                                  properties:
+                                                    argocdApplications:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    clusters:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                    consecutiveAutoClosures:
+                                                      format: int32
+                                                      type: integer
+                                                    k8sNamespaces:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                            type: object
                                           triggers:
                                             items:
                                               properties:
@@ -1060,6 +1356,8 @@ spec:
                                               properties:
                                                 argocdApplicationNamePath:
                                                   type: string
+                                                argocdApplicationNamespacePath:
+                                                  type: string
                                                 clusterPath:
                                                   type: string
                                                 descriptionPath:
@@ -1068,9 +1366,41 @@ spec:
                                                   type: string
                                                 name:
                                                   type: string
+                                                titlePath:
+                                                  type: string
                                               type: object
                                             type: array
                                         type: object
+                                      runbookRepos:
+                                        items:
+                                          properties:
+                                            appliedFor:
+                                              additionalProperties:
+                                                properties:
+                                                  argocdApplications:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  clusters:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                  degradedFor:
+                                                    type: string
+                                                  k8sNamespaces:
+                                                    items:
+                                                      type: string
+                                                    type: array
+                                                type: object
+                                              type: object
+                                            path:
+                                              type: string
+                                            repoUrl:
+                                              type: string
+                                            revision:
+                                              type: string
+                                          type: object
+                                        type: array
                                       runbooks:
                                         items:
                                           properties:
@@ -1108,6 +1438,18 @@ spec:
                                         type: string
                                       scanEnabled:
                                         type: boolean
+                                    type: object
+                                type: object
+                              manifestGeneration:
+                                properties:
+                                  kustomize:
+                                    properties:
+                                      additionalVersions:
+                                        items:
+                                          type: string
+                                        type: array
+                                      defaultVersion:
+                                        type: string
                                     type: object
                                 type: object
                               metricsIngressPasswordHash:
@@ -1387,6 +1729,12 @@ spec:
                       message:
                         type: string
                     type: object
+                  secretHash:
+                    description: |-
+                      SecretHash is the SHA256 of the concatenation of every resolved
+                      Secret referenced by spec.forProvider on the most recent Apply.
+                      Used as the drift signal for Secret rotation.
+                    type: string
                 required:
                 - argocd
                 - id

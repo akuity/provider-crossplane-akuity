@@ -4,7 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
-  name: clusters.core.akuity.crossplane.io
+  name: kargoagents.core.akuity.crossplane.io
 spec:
   group: core.akuity.crossplane.io
   names:
@@ -12,10 +12,10 @@ spec:
     - crossplane
     - managed
     - akuity
-    kind: Cluster
-    listKind: ClusterList
-    plural: clusters
-    singular: cluster
+    kind: KargoAgent
+    listKind: KargoAgentList
+    plural: kargoagents
+    singular: kargoagent
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -34,7 +34,9 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A Cluster is an example API type.
+        description: |-
+          A KargoAgent is a Kargo agent installed in a managed Kubernetes
+          cluster.
         properties:
           apiVersion:
             description: |-
@@ -54,7 +56,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: A ClusterSpec defines the desired state of a Cluster.
+            description: A KargoAgentResourceSpec defines the desired state of a KargoAgent.
             properties:
               deletionPolicy:
                 default: Delete
@@ -71,198 +73,114 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: ClusterParameters are the configurable fields of a Cluster.
+                description: KargoAgentParameters are the configurable fields of a
+                  KargoAgent.
                 properties:
                   annotations:
                     additionalProperties:
                       type: string
-                    description: Annotations to apply to the cluster custom resource.
-                      Optional.
+                    description: Annotations applied to the agent.
                     type: object
-                  clusterSpec:
-                    description: Attributes of the cluster. Optional.
+                  data:
+                    description: |-
+                      Data is the KargoAgent configuration payload. Points at the
+                      upstream KargoAgentData wire type directly so the user-facing
+                      YAML stays one level under .data, matching the Cluster shape
+                      (where .data points at ClusterData directly). Description is
+                      hoisted as a forProvider sibling — same pattern Cluster uses
+                      for its free-form description.
                     properties:
-                      data:
-                        properties:
-                          appReplication:
-                            type: boolean
-                          argocdNotificationsSettings:
-                            properties:
-                              inClusterSettings:
-                                type: boolean
-                            type: object
-                          autoUpgradeDisabled:
-                            type: boolean
-                          autoscalerConfig:
-                            properties:
-                              applicationController:
-                                properties:
-                                  resourceMaximum:
-                                    properties:
-                                      cpu:
-                                        type: string
-                                      mem:
-                                        type: string
-                                    type: object
-                                  resourceMinimum:
-                                    properties:
-                                      cpu:
-                                        type: string
-                                      mem:
-                                        type: string
-                                    type: object
-                                type: object
-                              repoServer:
-                                properties:
-                                  replicaMaximum:
-                                    format: int32
-                                    type: integer
-                                  replicaMinimum:
-                                    format: int32
-                                    type: integer
-                                  resourceMaximum:
-                                    properties:
-                                      cpu:
-                                        type: string
-                                      mem:
-                                        type: string
-                                    type: object
-                                  resourceMinimum:
-                                    properties:
-                                      cpu:
-                                        type: string
-                                      mem:
-                                        type: string
-                                    type: object
-                                type: object
-                            type: object
-                          compatibility:
-                            properties:
-                              ipv6Only:
-                                type: boolean
-                            type: object
-                          datadogAnnotationsEnabled:
-                            type: boolean
-                          directClusterSpec:
-                            properties:
-                              caData:
-                                type: string
-                              clusterType:
-                                type: string
-                              kargoInstanceId:
-                                type: string
-                              organization:
-                                type: string
-                              server:
-                                type: string
-                              token:
-                                type: string
-                            type: object
-                          eksAddonEnabled:
-                            type: boolean
-                          kustomization:
-                            type: string
-                          maintenanceMode:
-                            type: boolean
-                          maintenanceModeExpiry:
-                            type: string
-                          managedClusterConfig:
-                            properties:
-                              secretKey:
-                                type: string
-                              secretName:
-                                type: string
-                            type: object
-                          multiClusterK8sDashboardEnabled:
-                            type: boolean
-                          podInheritMetadata:
-                            type: boolean
-                          project:
-                            type: string
-                          redisTunneling:
-                            type: boolean
-                          serverSideDiffEnabled:
-                            type: boolean
-                          size:
-                            type: string
-                          targetVersion:
-                            type: string
-                        type: object
-                      description:
-                        type: string
-                      namespaceScoped:
+                      akuityManaged:
                         type: boolean
+                      allowedJobSa:
+                        items:
+                          type: string
+                        type: array
+                      argocdNamespace:
+                        type: string
+                      autoUpgradeDisabled:
+                        type: boolean
+                      autoscalerConfig:
+                        properties:
+                          kargoController:
+                            properties:
+                              resourceMaximum:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                              resourceMinimum:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                            type: object
+                        type: object
+                      kustomization:
+                        type: string
+                      maintenanceMode:
+                        type: boolean
+                      maintenanceModeExpiry:
+                        type: string
+                      podInheritMetadata:
+                        type: boolean
+                      remoteArgocd:
+                        type: string
+                      selfManagedArgocdUrl:
+                        type: string
+                      size:
+                        type: string
+                      targetVersion:
+                        type: string
                     type: object
                   description:
-                    description: Description is a free-form description of the cluster.
-                      Optional.
+                    description: Description is a free-form description of the agent.
                     type: string
-                  enableInClusterKubeconfig:
+                  kargoInstanceId:
                     description: |-
-                      Rather than specifying a reference to a KubeConfig to use to connect to the cluster,
-                      we can enable incluster config if the managed cluster is the same cluster the
-                      Crossplane is running in. Optional.
-                    type: boolean
-                  instanceId:
-                    description: |-
-                      The ID of the Akuity ArgoCD instance the cluster belongs to. InstanceID
-                      or InstanceRef must be provided.
+                      KargoInstanceID references the owning Kargo instance by ID.
+                      Either KargoInstanceID or KargoInstanceRef must be set.
                     type: string
-                  instanceRef:
+                  kargoInstanceRef:
                     description: |-
-                      The reference to the Akuity ArgoCD instance the cluster belongs to.
-                      InstanceID or InstanceRef must be provided.
+                      KargoInstanceRef references the owning Kargo instance by name in
+                      the same namespace as this KargoAgent.
                     properties:
                       name:
-                        description: The name of the Kubernetes resource being referenced.
-                          Required.
+                        description: Name of the referenced object. Required.
+                        minLength: 1
                         type: string
                     required:
                     - name
-                    type: object
-                  kubeconfigSecretRef:
-                    description: |-
-                      A reference to a Kubernetes secret containing a KubeConfig that can be used to connect
-                      to the cluster to apply the agent manifests. Optional.
-                    properties:
-                      name:
-                        description: The name of the Kubernetes secret being referenced.
-                          Required.
-                        type: string
-                      namespace:
-                        description: The namespace of the Kubernetes secret being
-                          referenced. Required.
-                        type: string
-                    required:
-                    - name
-                    - namespace
                     type: object
                   labels:
                     additionalProperties:
                       type: string
-                    description: Labels to apply to the cluster custom resource. Optional.
+                    description: Labels applied to the agent.
                     type: object
                   name:
-                    description: The name of the cluster. Required.
+                    description: Name of the agent. Required.
+                    minLength: 1
                     type: string
                   namespace:
-                    description: The Kubernetes namespace the Akuity agent should
-                      be installed in. Optional.
+                    description: Namespace in the managed cluster where the agent
+                      is installed.
                     type: string
-                  namespaceScoped:
-                    description: |-
-                      NamespaceScoped toggles whether the agent installed in the managed cluster
-                      is namespace-scoped (vs cluster-scoped). Optional. Akuity-side RBAC choice
-                      for the agent — unrelated to Crossplane MR scoping.
-                    type: boolean
-                  removeAgentResourcesOnDestroy:
-                    description: |-
-                      Whether or not to remove the Akuity agent Kubernetes resources from the managed cluster
-                      when destroying the cluster. Optional. Defaults to true.
-                    type: boolean
+                  workspace:
+                    description: Workspace is the Kargo project/workspace the agent
+                      is bound to.
+                    type: string
                 required:
                 - name
                 type: object
+                x-kubernetes-validations:
+                - message: exactly one of kargoInstanceId or kargoInstanceRef must
+                    be set
+                  rule: has(self.kargoInstanceId) != has(self.kargoInstanceRef)
               managementPolicies:
                 default:
                 - '*'
@@ -350,109 +268,96 @@ spec:
             - forProvider
             type: object
           status:
-            description: A ClusterStatus represents the observed state of a Cluster.
+            description: A KargoAgentStatus represents the observed state of a KargoAgent.
             properties:
               atProvider:
-                description: ClusterObservation are the observable fields of a Cluster.
+                description: KargoAgentObservation are the observable fields of a
+                  KargoAgent.
                 properties:
-                  agentManifestsHash:
+                  data:
                     description: |-
-                      AgentManifestsHash records the SHA256 of the Akuity-generated
-                      agent install manifests that the controller last successfully
-                      applied to the managed cluster via KubeConfigSecretRef or
-                      EnableInClusterKubeConfig. Empty when inline agent apply is not
-                      configured or install has not yet succeeded. Drives re-apply
-                      on manifest drift.
-                    type: string
-                  agentSize:
-                    description: The size of the agent to run on the cluster.
-                    type: string
-                  agentState:
-                    description: The status of each agent running in the cluster.
+                      Data is the observed KargoAgent configuration payload,
+                      mirroring spec.forProvider.data on the most recent reconcile.
                     properties:
-                      argoCdVersion:
+                      akuityManaged:
+                        type: boolean
+                      allowedJobSa:
+                        items:
+                          type: string
+                        type: array
+                      argocdNamespace:
                         type: string
-                      statuses:
-                        additionalProperties:
-                          properties:
-                            code:
-                              format: int32
-                              type: integer
-                            message:
-                              type: string
-                          type: object
+                      autoUpgradeDisabled:
+                        type: boolean
+                      autoscalerConfig:
+                        properties:
+                          kargoController:
+                            properties:
+                              resourceMaximum:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                              resourceMinimum:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                            type: object
                         type: object
-                      version:
+                      kustomization:
+                        type: string
+                      maintenanceMode:
+                        type: boolean
+                      maintenanceModeExpiry:
+                        type: string
+                      podInheritMetadata:
+                        type: boolean
+                      remoteArgocd:
+                        type: string
+                      selfManagedArgocdUrl:
+                        type: string
+                      size:
+                        type: string
+                      targetVersion:
                         type: string
                     type: object
-                  annotations:
-                    additionalProperties:
-                      type: string
-                    description: Annotations applied to the cluster.
-                    type: object
-                  appReplication:
-                    description: |-
-                      Whether or not state replication to the managed cluster is enabled.
-                      When enabled, the managed cluster retains core ArgoCD functionality even
-                      when unable to connect to the Akuity Platform.
-                    type: boolean
-                  autoUpgradeDisabled:
-                    description: Whether or not the agent should be autoupgraded when
-                      a new version is available.
-                    type: boolean
                   description:
-                    description: The description of the cluster.
+                    description: Description is the observed agent description.
                     type: string
                   healthStatus:
-                    description: The health status of the cluster.
+                    description: HealthStatus is the agent health.
                     properties:
                       code:
+                        description: Code reported by the Akuity API.
                         format: int32
                         type: integer
                       message:
+                        description: Message reported by the Akuity API.
                         type: string
                     type: object
                   id:
-                    description: The ID of the cluster.
+                    description: ID assigned by the Akuity Platform.
                     type: string
-                  kustomization:
-                    description: A Kustomization to apply to the cluster resource.
-                    type: string
-                  labels:
-                    additionalProperties:
-                      type: string
-                    description: Labels applied to the cluster.
-                    type: object
-                  name:
-                    description: The name of the cluster.
-                    type: string
-                  namespace:
-                    description: The Kubernetes namespace the Akuity agent is installed
-                      in.
-                    type: string
-                  namespaceScoped:
-                    description: Whether or not the Akuity agent is namespace-scoped.
-                    type: boolean
                   reconciliationStatus:
-                    description: The reconciliation status of the cluster.
+                    description: ReconciliationStatus is the agent reconciliation
+                      status.
                     properties:
                       code:
+                        description: Code reported by the Akuity API.
                         format: int32
                         type: integer
                       message:
+                        description: Message reported by the Akuity API.
                         type: string
                     type: object
-                  redisTunneling:
-                    description: |-
-                      Whether or not the agent should connect to Redis over a web-socket tunnel
-                      / in order to support running the agent behind a HTTPS proxy.
-                    type: boolean
-                  targetVersion:
-                    description: The desired version of the agent to run on the cluster.
+                  workspace:
+                    description: Workspace the agent is bound to.
                     type: string
-                required:
-                - id
-                - name
                 type: object
               conditions:
                 description: Conditions of the resource.
