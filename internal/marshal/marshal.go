@@ -88,3 +88,33 @@ func GoModelToProto(obj any, target proto.Message) error {
 	}
 	return nil
 }
+
+// ProtoToWire decodes a protobuf message into the hand-authored Akuity
+// Go-wire struct T. It is the inverse of GoModelToProto and composes
+// ProtoToMap + RemarshalTo so every controller converter can drop its
+// own two-step bridge helper. Nil / zero-valued input (including a
+// typed-nil pointer wrapped in the proto.Message interface) yields the
+// zero value of T so callers can propagate an absent sub-message
+// without a special case.
+func ProtoToWire[T any](msg proto.Message) (T, error) {
+	var zero T
+	if isNilProto(msg) {
+		return zero, nil
+	}
+	m, err := ProtoToMap(msg)
+	if err != nil {
+		return zero, err
+	}
+	if err := RemarshalTo(m, &zero); err != nil {
+		return zero, err
+	}
+	return zero, nil
+}
+
+func isNilProto(msg proto.Message) bool {
+	if msg == nil {
+		return true
+	}
+	r := msg.ProtoReflect()
+	return r == nil || !r.IsValid()
+}

@@ -33,7 +33,6 @@ import (
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instance"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
@@ -41,23 +40,15 @@ import (
 )
 
 var (
-	ctx            = context.TODO()
-	organizationID = "organization-id"
+	ctx = context.TODO()
 )
 
 func TestCreate(t *testing.T) {
-	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient, nil)
-	require.NoError(t, err)
-
-	applyInstanceRequest, err := unmockedAkuityClient.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
+	applyInstanceRequest, err := instance.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
 	require.NoError(t, err)
 
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
 	client := instance.NewExternal(mockAkuityClient, logging.NewNopLogger())
-
-	mockAkuityClient.EXPECT().BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance).
-		Return(applyInstanceRequest, nil).Times(1)
 
 	mockAkuityClient.EXPECT().ApplyInstance(ctx, applyInstanceRequest).
 		Return(nil).Times(1)
@@ -76,31 +67,12 @@ func TestCreate_NotInstanceErr(t *testing.T) {
 	assert.Equal(t, managed.ExternalCreation{}, resp)
 }
 
-func TestCreate_BuildRequestErr(t *testing.T) {
-	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
-	client := instance.NewExternal(mockAkuityClient, logging.NewNopLogger())
-
-	mockAkuityClient.EXPECT().BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance).
-		Return(nil, errors.New("fake")).Times(1)
-
-	resp, err := client.Create(ctx, &fixtures.CrossplaneManagedInstance)
-	require.Error(t, err)
-	assert.Equal(t, managed.ExternalCreation{}, resp)
-}
-
 func TestCreate_ClientErr(t *testing.T) {
-	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient, nil)
-	require.NoError(t, err)
-
-	applyInstanceRequest, err := unmockedAkuityClient.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
+	applyInstanceRequest, err := instance.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
 	require.NoError(t, err)
 
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
 	client := instance.NewExternal(mockAkuityClient, logging.NewNopLogger())
-
-	mockAkuityClient.EXPECT().BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance).
-		Return(applyInstanceRequest, nil).Times(1)
 
 	mockAkuityClient.EXPECT().ApplyInstance(ctx, applyInstanceRequest).
 		Return(errors.New("fake")).Times(1)
@@ -111,18 +83,11 @@ func TestCreate_ClientErr(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient, nil)
-	require.NoError(t, err)
-
-	applyInstanceRequest, err := unmockedAkuityClient.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
+	applyInstanceRequest, err := instance.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
 	require.NoError(t, err)
 
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
 	client := instance.NewExternal(mockAkuityClient, logging.NewNopLogger())
-
-	mockAkuityClient.EXPECT().BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance).
-		Return(applyInstanceRequest, nil).Times(1)
 
 	mockAkuityClient.EXPECT().ApplyInstance(ctx, applyInstanceRequest).
 		Return(nil).Times(1)
@@ -141,31 +106,12 @@ func TestUpdate_NotInstanceErr(t *testing.T) {
 	assert.Equal(t, managed.ExternalUpdate{}, resp)
 }
 
-func TestUpdate_BuildRequestErr(t *testing.T) {
-	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
-	client := instance.NewExternal(mockAkuityClient, logging.NewNopLogger())
-
-	mockAkuityClient.EXPECT().BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance).
-		Return(nil, errors.New("fake")).Times(1)
-
-	resp, err := client.Update(ctx, &fixtures.CrossplaneManagedInstance)
-	require.Error(t, err)
-	assert.Equal(t, managed.ExternalUpdate{}, resp)
-}
-
 func TestUpdate_ClientErr(t *testing.T) {
-	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	unmockedAkuityClient, err := akuity.NewClient(organizationID, "fake-api-key", "fake-api-secret", mockGatewayClient, nil)
-	require.NoError(t, err)
-
-	applyInstanceRequest, err := unmockedAkuityClient.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
+	applyInstanceRequest, err := instance.BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
 	require.NoError(t, err)
 
 	mockAkuityClient := mock_akuity_client.NewMockClient(gomock.NewController(t))
 	client := instance.NewExternal(mockAkuityClient, logging.NewNopLogger())
-
-	mockAkuityClient.EXPECT().BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance).
-		Return(applyInstanceRequest, nil).Times(1)
 
 	mockAkuityClient.EXPECT().ApplyInstance(ctx, applyInstanceRequest).
 		Return(errors.New("fake")).Times(1)

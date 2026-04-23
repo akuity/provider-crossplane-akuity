@@ -47,6 +47,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 )
 
 // ConnectionKeyManifests is the connection-secret key holding the
@@ -119,7 +120,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	}
 
 	actual := apiToSpec(mg.Spec.ForProvider, agent)
-	mg.Status.AtProvider = apiToObservation(agent)
+	mg.Status.AtProvider = observation.KargoAgent(agent)
 	if mg.Status.AtProvider.HealthStatus.Code != 1 {
 		mg.SetConditions(xpv1.Unavailable())
 	} else {

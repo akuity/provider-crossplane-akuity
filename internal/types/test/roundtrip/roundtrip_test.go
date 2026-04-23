@@ -1,7 +1,7 @@
 // Package roundtrip_test locks the current converter behaviour as JSON
-// golden snapshots. The later codegen path emits output at
-// internal/convert/; the snapshots in ./testdata/ must round-trip
-// bit-identical across the swap. Refresh the snapshots with `-update`.
+// golden snapshots. The snapshots in ./testdata/ must round-trip
+// bit-identical across future codegen-emitter swaps. Refresh the
+// snapshots with `-update`.
 package roundtrip_test
 
 import (
@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/akuityio/provider-crossplane-akuity/internal/types"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/cluster"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instance"
+	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )
 
@@ -24,21 +26,21 @@ var update = flag.Bool("update", false, "rewrite testdata golden files")
 
 const testdataDir = "testdata"
 
-// TestCluster_CrossplaneToAkuityGolden snapshots the output of
-// CrossplaneToAkuityAPICluster for fixtures.CrossplaneCluster. The
-// codegen path must reproduce this snapshot byte-identical.
+// TestCluster_CrossplaneToAkuityGolden snapshots the output of the
+// Cluster controller's spec→API converter for fixtures.CrossplaneCluster.
+// The codegen path must reproduce this snapshot byte-identical.
 func TestCluster_CrossplaneToAkuityGolden(t *testing.T) {
-	got, err := types.CrossplaneToAkuityAPICluster(fixtures.CrossplaneCluster)
+	got, err := cluster.SpecToAPI(fixtures.CrossplaneCluster)
 	require.NoError(t, err)
 	assertGolden(t, "cluster_crossplane_to_akuity.json", got)
 }
 
-// TestCluster_AkuityToCrossplaneGolden snapshots the output of
-// AkuityAPIToCrossplaneCluster. The existing converter takes a spec it can
-// late-initialise into, so feeding it fixtures.CrossplaneCluster is the
-// intended call pattern in the production controller.
+// TestCluster_AkuityToCrossplaneGolden snapshots the output of the
+// Cluster controller's API→spec converter. The converter takes a spec
+// it can late-initialise into, so feeding it fixtures.CrossplaneCluster
+// is the intended call pattern in the production controller.
 func TestCluster_AkuityToCrossplaneGolden(t *testing.T) {
-	got, err := types.AkuityAPIToCrossplaneCluster(
+	got, err := cluster.APIToSpec(
 		fixtures.InstanceID,
 		fixtures.CrossplaneCluster,
 		fixtures.ArgocdCluster,
@@ -52,13 +54,13 @@ func TestCluster_AkuityToCrossplaneGolden(t *testing.T) {
 // they can be expanded later. For now spec-level conversion is the
 // widest unit round-trip we can pin.
 func TestInstanceSpec_CrossplaneToAkuityGolden(t *testing.T) {
-	got, err := types.CrossplaneToAkuityAPIInstanceSpec(fixtures.CrossplaneInstanceSpec)
+	got, err := instance.SpecToInstanceSpec(fixtures.CrossplaneInstanceSpec)
 	require.NoError(t, err)
 	assertGolden(t, "instancespec_crossplane_to_akuity.json", got)
 }
 
 func TestInstanceSpec_AkuityToCrossplaneGolden(t *testing.T) {
-	got, err := types.AkuityAPIToCrossplaneInstanceSpec(fixtures.ArgocdInstanceSpec)
+	got, err := observation.InstanceArgoCDSpec(fixtures.ArgocdInstanceSpec)
 	require.NoError(t, err)
 	assertGolden(t, "instancespec_akuity_to_crossplane.json", got)
 }

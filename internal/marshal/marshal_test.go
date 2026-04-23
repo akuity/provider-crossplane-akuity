@@ -17,11 +17,16 @@ limitations under the License.
 package marshal
 
 import (
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+type remarshalBadInput struct {
+	Value float64
+}
 
 func TestRemarshalTo(t *testing.T) {
 	type src struct {
@@ -64,5 +69,79 @@ func TestAPIModelToPBStruct(t *testing.T) {
 	}
 	if diff := cmp.Diff(want.AsMap(), got.AsMap()); diff != "" {
 		t.Fatalf("unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestRemarshalTo_MarshalError(t *testing.T) {
+	var target remarshalBadInput
+	if err := RemarshalTo(remarshalBadInput{Value: math.NaN()}, &target); err == nil {
+		t.Fatal("expected error from NaN input, got nil")
+	}
+}
+
+func TestRemarshalTo_UnmarshalError(t *testing.T) {
+	target := make(map[string]string)
+	if err := RemarshalTo(remarshalBadInput{Value: 12}, &target); err == nil {
+		t.Fatal("expected error when decoding struct into map[string]string, got nil")
+	}
+}
+
+func TestAPIModelToPBStruct_MarshalError(t *testing.T) {
+	got, err := APIModelToPBStruct(remarshalBadInput{Value: math.NaN()})
+	if err == nil {
+		t.Fatal("expected error from NaN input, got nil")
+	}
+	if got != nil {
+		t.Fatalf("expected nil Struct on error, got %v", got)
+	}
+}
+
+func TestProtoToWire_RoundTrip(t *testing.T) {
+	type wire struct {
+		A string         `json:"a"`
+		B map[string]any `json:"b"`
+	}
+	src, err := structpb.NewStruct(map[string]any{
+		"a": "x",
+		"b": map[string]any{"n": float64(1)},
+	})
+	if err != nil {
+		t.Fatalf("NewStruct: %v", err)
+	}
+
+	got, err := ProtoToWire[wire](src)
+	if err != nil {
+		t.Fatalf("ProtoToWire: %v", err)
+	}
+	want := wire{A: "x", B: map[string]any{"n": float64(1)}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestProtoToWire_NilInputReturnsZero(t *testing.T) {
+	type wire struct {
+		A string `json:"a"`
+	}
+	got, err := ProtoToWire[wire](nil)
+	if err != nil {
+		t.Fatalf("ProtoToWire: %v", err)
+	}
+	if diff := cmp.Diff(wire{}, got); diff != "" {
+		t.Fatalf("expected zero value, got diff:\n%s", diff)
+	}
+}
+
+func TestProtoToWire_TypedNilReturnsZero(t *testing.T) {
+	type wire struct {
+		A string `json:"a"`
+	}
+	var src *structpb.Struct
+	got, err := ProtoToWire[wire](src)
+	if err != nil {
+		t.Fatalf("ProtoToWire: %v", err)
+	}
+	if diff := cmp.Diff(wire{}, got); diff != "" {
+		t.Fatalf("expected zero value, got diff:\n%s", diff)
 	}
 }

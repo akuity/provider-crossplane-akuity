@@ -86,22 +86,6 @@ func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAg
 	return out
 }
 
-// apiToObservation produces the AtProvider status block.
-func apiToObservation(agent *kargov1.KargoAgent) v1alpha1.KargoAgentObservation {
-	obs := v1alpha1.KargoAgentObservation{
-		ID:        agent.GetId(),
-		Name:      agent.GetName(),
-		Workspace: "",
-	}
-	if h := agent.GetHealthStatus(); h != nil {
-		obs.HealthStatus = v1alpha1.ResourceStatusCode{Code: int32(h.GetCode()), Message: h.GetMessage()}
-	}
-	if r := agent.GetReconciliationStatus(); r != nil {
-		obs.ReconciliationStatus = v1alpha1.ResourceStatusCode{Code: int32(r.GetCode()), Message: r.GetMessage()}
-	}
-	return obs
-}
-
 // agentDataPB materialises the KargoAgentData protobuf payload from
 // the spec. spec → akuity wire (via codegen) → protobuf (via
 // marshal.GoModelToProto). Namespace / Labels / Annotations live on
@@ -126,18 +110,16 @@ func agentDataPB(p v1alpha1.KargoAgentParameters) (*kargov1.KargoAgentData, erro
 }
 
 // convertAgentData folds the Kargo protobuf KargoAgentData into the
-// spec shape. Goes through the marshal bridge + the generated
-// converter, the same way the KargoInstance controller does.
+// spec shape via the marshal bridge + the generated converter. Decode
+// failures are swallowed to nil because the Observe path can recover
+// on the next poll; surfacing an error here would retry-loop on a
+// schema drift the user cannot fix.
 func convertAgentData(pb *kargov1.KargoAgentData) *crossplanetypes.KargoAgentData {
 	if pb == nil {
 		return nil
 	}
-	m, err := marshal.ProtoToMap(pb)
+	wire, err := marshal.ProtoToWire[akuitytypes.KargoAgentData](pb)
 	if err != nil {
-		return nil
-	}
-	wire := akuitytypes.KargoAgentData{}
-	if err := marshal.RemarshalTo(m, &wire); err != nil {
 		return nil
 	}
 	return crossplanetypes.KargoAgentDataAPIToSpec(&wire)

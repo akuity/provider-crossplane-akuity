@@ -45,7 +45,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
-	"github.com/akuityio/provider-crossplane-akuity/internal/types"
+	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
@@ -146,7 +146,7 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, err
 	}
 
-	actualInstance, err := types.AkuityAPIToCrossplaneInstance(akuityInstance, akuityExportedInstance)
+	actualInstance, err := observation.InstanceSpec(akuityInstance, akuityExportedInstance)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform instance spec from Akuity API to internal instance spec: %w", err)
 		managedInstance.SetConditions(xpv1.ReconcileError(err))
@@ -159,7 +159,7 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, err
 	}
 
-	instanceObservation, err := types.AkuityAPIToCrossplaneInstanceObservation(akuityInstance, akuityExportedInstance)
+	instanceObservation, err := observation.Instance(akuityInstance, akuityExportedInstance)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform instance from Akuity API to Crossplane instance observation: %w", err)
 		managedInstance.SetConditions(xpv1.ReconcileError(newErr))
@@ -199,7 +199,7 @@ func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotInstance)
 	}
 
-	request, err := c.client.BuildApplyInstanceRequest(*managedInstance)
+	request, err := BuildApplyInstanceRequest(*managedInstance)
 	if err != nil {
 		return managed.ExternalCreation{}, errors.New(errTransformInstance)
 	}
@@ -216,7 +216,7 @@ func (c *External) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, errors.New(errNotInstance)
 	}
 
-	request, err := c.client.BuildApplyInstanceRequest(*managedInstance)
+	request, err := BuildApplyInstanceRequest(*managedInstance)
 	if err != nil {
 		return managed.ExternalUpdate{}, errors.New(errTransformInstance)
 	}
@@ -246,10 +246,10 @@ func (c *External) Disconnect(ctx context.Context) error {
 func lateInitializeInstance(in *v1alpha1.InstanceParameters, instance *argocdv1.Instance, exportedInstance *argocdv1.ExportInstanceResponse) error {
 	in.ArgoCD.Spec.InstanceSpec.Subdomain = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.Subdomain, instance.GetSpec().GetSubdomain())
 	in.ArgoCD.Spec.InstanceSpec.DeclarativeManagementEnabled = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.DeclarativeManagementEnabled, ptr.To(instance.GetSpec().GetDeclarativeManagementEnabled()))
-	in.ArgoCD.Spec.InstanceSpec.AppsetPolicy = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.AppsetPolicy, types.AkuityAPIToCrossplaneAppsetPolicy(instance.GetSpec().GetAppsetPolicy()))
+	in.ArgoCD.Spec.InstanceSpec.AppsetPolicy = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.AppsetPolicy, observation.AppsetPolicy(instance.GetSpec().GetAppsetPolicy()))
 
 	if in.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults == nil || in.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults.Kustomization == "" {
-		clusterCustomizationDefaults, err := types.AkuityAPIToCrossplaneClusterCustomization(instance.GetSpec().GetClusterCustomizationDefaults())
+		clusterCustomizationDefaults, err := observation.ClusterCustomization(instance.GetSpec().GetClusterCustomizationDefaults())
 		if err != nil {
 			return fmt.Errorf("could not late initialize instance cluster customization defaults: %w", err)
 		}
@@ -267,39 +267,39 @@ func lateInitializeInstance(in *v1alpha1.InstanceParameters, instance *argocdv1.
 //nolint:gocyclo
 func lateInitializeInstanceConfigMaps(in *v1alpha1.InstanceParameters, exportedInstance *argocdv1.ExportInstanceResponse) error {
 	if in.ArgoCDConfigMap == nil {
-		argocdConfigMap, err := types.AkuityAPIConfigMapToMap(types.ARGOCD_CM_KEY, exportedInstance.GetArgocdConfigmap())
+		argocdConfigMap, err := observation.ConfigMapData(observation.ArgocdCMKey, exportedInstance.GetArgocdConfigmap())
 		if err != nil {
-			return fmt.Errorf("could not late initialize instance configmap %s: %w", types.ARGOCD_CM_KEY, err)
+			return fmt.Errorf("could not late initialize instance configmap %s: %w", observation.ArgocdCMKey, err)
 		}
 		in.ArgoCDConfigMap = argocdConfigMap
 	}
 
 	if in.ArgoCDSSHKnownHostsConfigMap == nil {
-		argocdKnownHostsConfigMap, err := types.AkuityAPIConfigMapToMap(types.ARGOCD_SSH_KNOWN_HOSTS_CM_KEY, exportedInstance.GetArgocdKnownHostsConfigmap())
+		argocdKnownHostsConfigMap, err := observation.ConfigMapData(observation.ArgocdSSHKnownHostsCMKey, exportedInstance.GetArgocdKnownHostsConfigmap())
 		if err != nil {
-			return fmt.Errorf("could not late initialize instance configmap %s: %w", types.ARGOCD_SSH_KNOWN_HOSTS_CM_KEY, err)
+			return fmt.Errorf("could not late initialize instance configmap %s: %w", observation.ArgocdSSHKnownHostsCMKey, err)
 		}
 		in.ArgoCDSSHKnownHostsConfigMap = argocdKnownHostsConfigMap
 	}
 
 	if in.ArgoCDRBACConfigMap == nil {
-		argocdRBACConfigMap, err := types.AkuityAPIConfigMapToMap(types.ARGOCD_RBAC_CM_KEY, exportedInstance.GetArgocdRbacConfigmap())
+		argocdRBACConfigMap, err := observation.ConfigMapData(observation.ArgocdRBACCMKey, exportedInstance.GetArgocdRbacConfigmap())
 		if err != nil {
-			return fmt.Errorf("could not late initialize instance configmap %s: %w", types.ARGOCD_RBAC_CM_KEY, err)
+			return fmt.Errorf("could not late initialize instance configmap %s: %w", observation.ArgocdRBACCMKey, err)
 		}
 		in.ArgoCDRBACConfigMap = argocdRBACConfigMap
 	}
 
 	if in.ArgoCDTLSCertsConfigMap == nil {
-		argocdTLSCertsConfigMap, err := types.AkuityAPIConfigMapToMap(types.ARGOCD_TLS_CERTS_CM_KEY, exportedInstance.GetArgocdTlsCertsConfigmap())
+		argocdTLSCertsConfigMap, err := observation.ConfigMapData(observation.ArgocdTLSCertsCMKey, exportedInstance.GetArgocdTlsCertsConfigmap())
 		if err != nil {
-			return fmt.Errorf("could not late initialize instance configmap %s: %w", types.ARGOCD_TLS_CERTS_CM_KEY, err)
+			return fmt.Errorf("could not late initialize instance configmap %s: %w", observation.ArgocdTLSCertsCMKey, err)
 		}
 		in.ArgoCDTLSCertsConfigMap = argocdTLSCertsConfigMap
 	}
 
 	if in.ConfigManagementPlugins == nil {
-		configManagementPlugins, err := types.AkuityAPIToCrossplaneConfigManagementPlugins(exportedInstance.GetConfigManagementPlugins())
+		configManagementPlugins, err := observation.ConfigManagementPlugins(exportedInstance.GetConfigManagementPlugins())
 		if err != nil {
 			return fmt.Errorf("could not late initialize instance config management plugins: %w", err)
 		}

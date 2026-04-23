@@ -23,9 +23,9 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
+	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/protobuf"
 )
 
 var (
@@ -322,7 +322,7 @@ func TestGetClusterManifests_ResponseErrChanErr(t *testing.T) {
 func TestApplyCluster(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
 	cluster := akuitytypes.Cluster{}
-	clusterPB, _ := protobuf.MarshalObjectToProtobufStruct(cluster)
+	clusterPB, _ := marshal.APIModelToPBStruct(cluster)
 
 	request := &argocdv1.ApplyInstanceRequest{
 		OrganizationId: organizationID,

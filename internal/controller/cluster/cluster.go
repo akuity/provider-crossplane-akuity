@@ -47,8 +47,8 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
-	"github.com/akuityio/provider-crossplane-akuity/internal/types"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
@@ -162,7 +162,7 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, err
 	}
 
-	actualCluster, err := types.AkuityAPIToCrossplaneCluster(instanceID, managedCluster.Spec.ForProvider, akuityCluster)
+	actualCluster, err := APIToSpec(instanceID, managedCluster.Spec.ForProvider, akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster from Akuity API: %w", err)
 		managedCluster.SetConditions(xpv1.ReconcileError(newErr))
@@ -171,7 +171,7 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	lateInitializeCluster(&managedCluster.Spec.ForProvider, actualCluster)
 
-	clusterObservation, err := types.AkuityAPIToCrossplaneClusterObservation(akuityCluster)
+	clusterObservation, err := observation.Cluster(akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster observation: %w", err)
 		managedCluster.SetConditions(xpv1.ReconcileError(newErr))
@@ -226,7 +226,7 @@ func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotCluster)
 	}
 
-	akuityAPICluster, err := types.CrossplaneToAkuityAPICluster(managedCluster.Spec.ForProvider)
+	akuityAPICluster, err := SpecToAPI(managedCluster.Spec.ForProvider)
 	if err != nil {
 		return managed.ExternalCreation{}, errors.New(errTransformCluster)
 	}
@@ -264,7 +264,7 @@ func (c *External) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, errors.New(errNotCluster)
 	}
 
-	akuityAPICluster, err := types.CrossplaneToAkuityAPICluster(managedCluster.Spec.ForProvider)
+	akuityAPICluster, err := SpecToAPI(managedCluster.Spec.ForProvider)
 	if err != nil {
 		return managed.ExternalUpdate{}, errors.New(errTransformCluster)
 	}
@@ -348,7 +348,7 @@ func (c *External) exportedClusterSpec(ctx context.Context, instanceID, clusterN
 		if wire.GetName() != clusterName {
 			continue
 		}
-		return types.AkuityWireToCrossplaneCluster(instanceID, managed, wire), true, nil
+		return wireToSpec(instanceID, managed, wire), true, nil
 	}
 	return v1alpha1.ClusterParameters{}, false, nil
 }

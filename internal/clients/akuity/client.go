@@ -20,11 +20,9 @@ import (
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	httpctx "github.com/akuity/grpc-gateway-client/pkg/http/context"
 
-	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
-	"github.com/akuityio/provider-crossplane-akuity/internal/types"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/protobuf"
 )
 
 const (
@@ -60,7 +58,6 @@ type Client interface {
 	// to avoid the whole-spec Get+Apply dance that ApplyInstance requires.
 	PatchInstance(ctx context.Context, id string, patch *structpb.Struct) error
 	DeleteInstance(ctx context.Context, name string) error
-	BuildApplyInstanceRequest(instance crossplanetypes.Instance) (*argocdv1.ApplyInstanceRequest, error)
 
 	// Kargo-plane methods for the KargoInstance, KargoAgent, and
 	// KargoDefaultShardAgent controllers. All routing is via the
@@ -350,72 +347,8 @@ func (c client) DeleteInstance(ctx context.Context, name string) error {
 	return nil
 }
 
-func (c client) BuildApplyInstanceRequest(instance crossplanetypes.Instance) (*argocdv1.ApplyInstanceRequest, error) {
-	argocdPB, err := types.CrossplaneToAkuityAPIArgoCD(instance.Spec.ForProvider.Name, instance.Spec.ForProvider.ArgoCD)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd spec to protobuf: %w", err)
-	}
-
-	argocdConfigMapPB, err := types.CrossplaneToAkuityAPIConfigMap(types.ARGOCD_CM_KEY, instance.Spec.ForProvider.ArgoCDConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd configmap to protobuf: %w", err)
-	}
-
-	argocdRbacConfigMapPB, err := types.CrossplaneToAkuityAPIConfigMap(types.ARGOCD_RBAC_CM_KEY, instance.Spec.ForProvider.ArgoCDRBACConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd rbac configmap to protobuf: %w", err)
-	}
-
-	argocdNotificationsConfigMapPB, err := types.CrossplaneToAkuityAPIConfigMap(types.ARGOCD_NOTIFICATIONS_CM_KEY, instance.Spec.ForProvider.ArgoCDNotificationsConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd notifications configmap to protobuf: %w", err)
-	}
-
-	argocdImageUpdaterConfigMapPB, err := types.CrossplaneToAkuityAPIConfigMap(types.ARGOCD_IMAGE_UPDATER_CM_KEY, instance.Spec.ForProvider.ArgoCDImageUpdaterConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd image updater configmap to protobuf: %w", err)
-	}
-
-	argocdImageUpdaterSshConfigMapPB, err := types.CrossplaneToAkuityAPIConfigMap(types.ARGOCD_IMAGE_UPDATER_SSH_CM_KEY, instance.Spec.ForProvider.ArgoCDImageUpdaterSSHConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd image updater ssh configmap to protobuf: %w", err)
-	}
-
-	argocdKnownHostsConfigMapPB, err := types.CrossplaneToAkuityAPIConfigMap(types.ARGOCD_SSH_KNOWN_HOSTS_CM_KEY, instance.Spec.ForProvider.ArgoCDSSHKnownHostsConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd known hosts configmap to protobuf: %w", err)
-	}
-
-	argocdTlsCertsConfigMapPB, err := types.CrossplaneToAkuityAPIConfigMap(types.ARGOCD_TLS_CERTS_CM_KEY, instance.Spec.ForProvider.ArgoCDTLSCertsConfigMap)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd tls certs configmap to protobuf: %w", err)
-	}
-
-	configManagementPluginsPB, err := types.CrossplaneToAkuityAPIConfigManagementPlugins(instance.Spec.ForProvider.ConfigManagementPlugins)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal instance argocd config management plugins to protobuf: %w", err)
-	}
-
-	request := &argocdv1.ApplyInstanceRequest{
-		OrganizationId:            c.organizationID,
-		IdType:                    idv1.Type_NAME,
-		Id:                        instance.Spec.ForProvider.Name,
-		Argocd:                    argocdPB,
-		ArgocdConfigmap:           argocdConfigMapPB,
-		ArgocdRbacConfigmap:       argocdRbacConfigMapPB,
-		NotificationsConfigmap:    argocdNotificationsConfigMapPB,
-		ImageUpdaterConfigmap:     argocdImageUpdaterConfigMapPB,
-		ImageUpdaterSshConfigmap:  argocdImageUpdaterSshConfigMapPB,
-		ArgocdKnownHostsConfigmap: argocdKnownHostsConfigMapPB,
-		ArgocdTlsCertsConfigmap:   argocdTlsCertsConfigMapPB,
-		ConfigManagementPlugins:   configManagementPluginsPB,
-	}
-
-	return request, nil
-}
-
 func (c client) buildApplyClusterRequest(instanceID string, cluster akuitytypes.Cluster) (*argocdv1.ApplyInstanceRequest, error) {
-	clusterPB, err := protobuf.MarshalObjectToProtobufStruct(cluster)
+	clusterPB, err := marshal.APIModelToPBStruct(cluster)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal %s cluster to protobuf struct: %w", cluster.Name, err)
 	}

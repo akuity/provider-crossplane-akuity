@@ -35,9 +35,13 @@ import (
 // carries them inline on *kargov1.KargoInstance rather than as
 // KargoSpec.
 func apiToSpec(ki *kargov1.KargoInstance) (v1alpha1.KargoInstanceParameters, error) {
-	wire, err := kargoInstanceToWireSpec(ki)
+	wire, err := marshal.ProtoToWire[akuitytypes.KargoInstanceSpec](ki.GetSpec())
 	if err != nil {
-		return v1alpha1.KargoInstanceParameters{}, err
+		return v1alpha1.KargoInstanceParameters{}, fmt.Errorf("decode KargoInstanceSpec: %w", err)
+	}
+	oidc, err := marshal.ProtoToWire[akuitytypes.KargoOidcConfig](ki.GetOidcConfig())
+	if err != nil {
+		return v1alpha1.KargoInstanceParameters{}, fmt.Errorf("decode KargoOidcConfig: %w", err)
 	}
 
 	params := v1alpha1.KargoInstanceParameters{
@@ -52,65 +56,10 @@ func apiToSpec(ki *kargov1.KargoInstance) (v1alpha1.KargoInstanceParameters, err
 	if s := crossplanetypes.KargoInstanceSpecAPIToSpec(&wire); s != nil {
 		params.Kargo.KargoInstanceSpec = *s
 	}
-	if oidc := crossplanetypes.KargoOidcConfigAPIToSpec(wireOIDC(ki)); oidc != nil {
-		params.Kargo.OidcConfig = oidc
+	if ki.GetOidcConfig() != nil {
+		if converted := crossplanetypes.KargoOidcConfigAPIToSpec(&oidc); converted != nil {
+			params.Kargo.OidcConfig = converted
+		}
 	}
 	return params, nil
-}
-
-// apiToObservation builds the AtProvider status block.
-func apiToObservation(ki *kargov1.KargoInstance) v1alpha1.KargoInstanceObservation {
-	obs := v1alpha1.KargoInstanceObservation{
-		ID:                    ki.GetId(),
-		Name:                  ki.GetName(),
-		Hostname:              ki.GetHostname(),
-		OwnerOrganizationName: ki.GetOwnerOrganizationName(),
-	}
-	if h := ki.GetHealthStatus(); h != nil {
-		obs.HealthStatus = v1alpha1.ResourceStatusCode{Code: int32(h.GetCode()), Message: h.GetMessage()}
-	}
-	if r := ki.GetReconciliationStatus(); r != nil {
-		obs.ReconciliationStatus = v1alpha1.ResourceStatusCode{Code: int32(r.GetCode()), Message: r.GetMessage()}
-	}
-	return obs
-}
-
-// kargoInstanceToWireSpec extracts the KargoInstanceSpec inner type
-// (IpAllowList, AgentCustomizationDefaults, etc.) from the protobuf
-// KargoInstance. Only the KargoInstanceSpec-typed fields are
-// forwarded; wrapper-level fields on KargoInstance are plucked
-// separately in apiToSpec.
-func kargoInstanceToWireSpec(ki *kargov1.KargoInstance) (akuitytypes.KargoInstanceSpec, error) {
-	spec := ki.GetSpec()
-	if spec == nil {
-		return akuitytypes.KargoInstanceSpec{}, nil
-	}
-	m, err := marshal.ProtoToMap(spec)
-	if err != nil {
-		return akuitytypes.KargoInstanceSpec{}, fmt.Errorf("encode KargoInstanceSpec: %w", err)
-	}
-	wire := akuitytypes.KargoInstanceSpec{}
-	if err := marshal.RemarshalTo(m, &wire); err != nil {
-		return akuitytypes.KargoInstanceSpec{}, fmt.Errorf("decode KargoInstanceSpec: %w", err)
-	}
-	return wire, nil
-}
-
-// wireOIDC pulls the OidcConfig from the protobuf KargoInstance into
-// the hand-authored akuity wire type so the generated converter can produce
-// a KargoOidcConfig.
-func wireOIDC(ki *kargov1.KargoInstance) *akuitytypes.KargoOidcConfig {
-	oidc := ki.GetOidcConfig()
-	if oidc == nil {
-		return nil
-	}
-	m, err := marshal.ProtoToMap(oidc)
-	if err != nil {
-		return nil
-	}
-	out := akuitytypes.KargoOidcConfig{}
-	if err := marshal.RemarshalTo(m, &out); err != nil {
-		return nil
-	}
-	return &out
 }

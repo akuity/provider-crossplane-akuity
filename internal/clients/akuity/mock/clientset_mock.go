@@ -15,8 +15,7 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	v1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
-	v1alpha10 "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
+	v1alpha1 "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
@@ -46,7 +45,7 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // ApplyCluster mocks base method.
-func (m *MockClient) ApplyCluster(ctx context.Context, instanceID string, cluster v1alpha10.Cluster) error {
+func (m *MockClient) ApplyCluster(ctx context.Context, instanceID string, cluster v1alpha1.Cluster) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ApplyCluster", ctx, instanceID, cluster)
 	ret0, _ := ret[0].(error)
@@ -85,21 +84,6 @@ func (m *MockClient) ApplyKargoInstance(ctx context.Context, request *kargov1.Ap
 func (mr *MockClientMockRecorder) ApplyKargoInstance(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyKargoInstance", reflect.TypeOf((*MockClient)(nil).ApplyKargoInstance), ctx, request)
-}
-
-// BuildApplyInstanceRequest mocks base method.
-func (m *MockClient) BuildApplyInstanceRequest(instance v1alpha1.Instance) (*argocdv1.ApplyInstanceRequest, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BuildApplyInstanceRequest", instance)
-	ret0, _ := ret[0].(*argocdv1.ApplyInstanceRequest)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// BuildApplyInstanceRequest indicates an expected call of BuildApplyInstanceRequest.
-func (mr *MockClientMockRecorder) BuildApplyInstanceRequest(instance any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildApplyInstanceRequest", reflect.TypeOf((*MockClient)(nil).BuildApplyInstanceRequest), instance)
 }
 
 // CreateKargoInstanceAgent mocks base method.

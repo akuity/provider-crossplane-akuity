@@ -56,7 +56,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/protobuf"
+	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 )
 
 const (
@@ -212,7 +212,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	prevSecretHash := mg.Status.AtProvider.SecretHash
 	prevCMHashCarry := mg.Status.AtProvider.ConfigMapHash
 	prevRepoCredsAt := mg.Status.AtProvider.RepoCredsAppliedAt
-	mg.Status.AtProvider = apiToObservation(ki)
+	mg.Status.AtProvider = observation.KargoInstance(ki)
 	mg.Status.AtProvider.SecretHash = prevSecretHash
 	mg.Status.AtProvider.ConfigMapHash = prevCMHashCarry
 	mg.Status.AtProvider.RepoCredsAppliedAt = prevRepoCredsAt
@@ -779,7 +779,7 @@ func kargoRepoCredsToPB(creds []kargoResolvedRepoCred) ([]*structpb.Struct, erro
 			},
 			Data: byt,
 		}
-		pb, err := protobuf.MarshalObjectToProtobufStruct(sec)
+		pb, err := marshal.APIModelToPBStruct(sec)
 		if err != nil {
 			return nil, fmt.Errorf("repo credential %s/%s: marshal: %w", c.ProjectNamespace, c.Slot, err)
 		}
@@ -807,7 +807,7 @@ func kubeSecretToPB(data map[string]string) (*structpb.Struct, error) {
 		ObjectMeta: metav1.ObjectMeta{Name: kargoSecretKey},
 		Data:       byt,
 	}
-	pb, err := protobuf.MarshalObjectToProtobufStruct(sec)
+	pb, err := marshal.APIModelToPBStruct(sec)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal %s secret to protobuf: %w", kargoSecretKey, err)
 	}
@@ -865,7 +865,7 @@ func buildKargoConfigMapPB(data map[string]string, tombstoneOnEmpty bool) (*stru
 		ObjectMeta: metav1.ObjectMeta{Name: kargoCMKey},
 		Data:       data,
 	}
-	pb, err := protobuf.MarshalObjectToProtobufStruct(cm)
+	pb, err := marshal.APIModelToPBStruct(cm)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal %s configmap to protobuf: %w", kargoCMKey, err)
 	}

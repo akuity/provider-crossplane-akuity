@@ -13,9 +13,9 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/protobuf"
 )
 
 var (
@@ -48,7 +48,7 @@ patches:
 `
 	KustomizationJSON, _ = yaml.YAMLToJSON([]byte(KustomizationYAML))
 	Kustomization        = runtime.RawExtension{Raw: KustomizationJSON}
-	KustomizationPB, _   = protobuf.MarshalObjectToProtobufStruct(Kustomization)
+	KustomizationPB, _   = marshal.APIModelToPBStruct(Kustomization)
 	Labels               = map[string]string{"key1": "value1", "key2": "value2"}
 	Annotations          = map[string]string{"annotation1": "value1", "annotation2": "value2"}
 
