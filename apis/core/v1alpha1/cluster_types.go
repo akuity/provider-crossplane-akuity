@@ -44,14 +44,6 @@ type ClusterParameters struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 	// Labels to apply to the cluster custom resource. Optional.
 	Labels map[string]string `json:"labels,omitempty"`
-	// Description is a free-form description of the cluster. Optional.
-	// +optional
-	Description string `json:"description,omitempty"`
-	// NamespaceScoped toggles whether the agent installed in the managed cluster
-	// is namespace-scoped (vs cluster-scoped). Optional. Akuity-side RBAC choice
-	// for the agent — unrelated to Crossplane MR scoping.
-	// +optional
-	NamespaceScoped bool `json:"namespaceScoped,omitempty"`
 	// A reference to a Kubernetes secret containing a KubeConfig that can be used to connect
 	// to the cluster to apply the agent manifests. Optional.
 	KubeConfigSecretRef SecretRef `json:"kubeconfigSecretRef,omitempty"`

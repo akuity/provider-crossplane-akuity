@@ -54,6 +54,38 @@ func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent)
 	return out
 }
 
+// wireToSpec rebuilds KargoAgentParameters from the Akuity wire-form
+// KargoAgent that ExportKargoInstance returns inside its Agents slice.
+// Namespace / Labels / Annotations live on ObjectMeta in the wire
+// form (not on Data, as in the proto). Spec-only fields (KargoInstanceID,
+// KargoInstanceRef, Workspace) are carried from desired because the
+// Akuity API does not own them.
+func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAgent) v1alpha1.KargoAgentParameters {
+	if wire == nil {
+		return v1alpha1.KargoAgentParameters{}
+	}
+	out := v1alpha1.KargoAgentParameters{
+		KargoInstanceID:  desired.KargoInstanceID,
+		KargoInstanceRef: desired.KargoInstanceRef,
+		Name:             wire.GetName(),
+		Namespace:        wire.Namespace,
+		Workspace:        desired.Workspace,
+		Labels:           wire.Labels,
+		Annotations:      wire.Annotations,
+		Description:      wire.Spec.Description,
+	}
+	if d := crossplanetypes.KargoAgentDataAPIToSpec(&wire.Spec.Data); d != nil {
+		out.Data = *d
+	}
+	if len(out.Labels) == 0 {
+		out.Labels = nil
+	}
+	if len(out.Annotations) == 0 {
+		out.Annotations = nil
+	}
+	return out
+}
+
 // apiToObservation produces the AtProvider status block.
 func apiToObservation(agent *kargov1.KargoAgent) v1alpha1.KargoAgentObservation {
 	obs := v1alpha1.KargoAgentObservation{

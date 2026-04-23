@@ -22,6 +22,7 @@ package kargoagent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -34,7 +35,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
-	"github.com/google/go-cmp/cmp"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,17 +46,23 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
+	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 )
 
 // ConnectionKeyManifests is the connection-secret key holding the
 // Akuity-generated agent install manifests.
 const ConnectionKeyManifests = "manifests"
 
-// kargoAgentDriftOpts filters fields that are write-only on the
-// current api-client-go proto. Empty post the v0.29.1 bump which added
-// proto read support for PodInheritMetadata and AutoscalerConfig;
-// retained as an extension point.
-var kargoAgentDriftOpts = []cmp.Option{}
+// driftSpec is the KargoAgent drift-detection recipe. The Ignore slot
+// is an extension point for write-only proto fields; it is empty post
+// the v0.29.1 api-client-go bump which added proto read support for
+// PodInheritMetadata and AutoscalerConfig. The shared DriftSpec
+// contributes utilcmp.EquateEmpty() so nil-vs-empty collections
+// resolve equal — an earlier bare cmp.Equal call flagged these as
+// perpetual drift.
+func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
+	return base.DriftSpec[v1alpha1.KargoAgentParameters]{}
+}
 
 // Setup registers the controller with the manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
@@ -95,7 +101,7 @@ type external struct {
 	base.ExternalClient
 }
 
-func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalObservation, error) {
+func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalObservation, error) { //nolint:gocyclo
 	defer base.PropagateObservedGeneration(mg)
 	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
 	if err != nil {
@@ -120,14 +126,35 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		mg.SetConditions(xpv1.Available())
 	}
 
+	// Drift compares against the ExportKargoInstance round-trippable
+	// spec (the same wire shape that Create/Update agent requests
+	// encode), matching the pattern Instance/KargoInstance use:
+	// read-via-Export, write-via-dedicated-endpoint. The
+	// GetKargoInstanceAgent call above stays load-bearing for
+	// observation (health / reconciliation / ID) — Export returns
+	// only spec. If Export fails or the agent is missing from its
+	// Agents list we fall back to the Get-derived spec so the reconcile
+	// still completes; the next poll re-attempts Export.
+	//
 	// Always compare spec so a matching desired/observed pair does not
 	// trigger Update() on every poll while reconciliation is still
 	// pending. Returning ResourceUpToDate=false during provisioning
 	// caused a hot-loop of UpdateKargoInstanceAgent calls on the Akuity
 	// API.
-	upToDate := cmp.Equal(mg.Spec.ForProvider, actual, kargoAgentDriftOpts...)
+	driftTarget := actual
+	if exportAgent, found, xerr := e.exportedAgentSpec(ctx, instanceID, mg.Spec.ForProvider.Name, mg.Spec.ForProvider); xerr != nil {
+		e.Logger.Debug("ExportKargoInstance failed; falling back to GetKargoInstanceAgent for drift", "err", xerr)
+	} else if found {
+		driftTarget = exportAgent
+	}
+	spec := driftSpec()
+	desired := mg.Spec.ForProvider
+	upToDate, err := spec.UpToDate(ctx, &desired, &driftTarget)
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
 	if !upToDate {
-		e.Logger.Debug("KargoAgent drift detected", "diff", cmp.Diff(mg.Spec.ForProvider, actual, kargoAgentDriftOpts...))
+		e.Logger.Debug("KargoAgent drift detected", "diff", spec.Diff(&desired, &driftTarget))
 	}
 
 	observation := managed.ExternalObservation{
@@ -248,6 +275,36 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 }
 
 func (e *external) Disconnect(ctx context.Context) error { return nil }
+
+// exportedAgentSpec returns the canonical KargoAgentParameters for
+// agentName built from ExportKargoInstance's response. `found` is
+// false when Export succeeds but the agent is absent from the Agents
+// slice (e.g. server lag mid-provisioning); caller falls back to
+// Get-based drift in that case. Errors are transient Export failures.
+func (e *external) exportedAgentSpec(ctx context.Context, instanceID, agentName string, desired v1alpha1.KargoAgentParameters) (v1alpha1.KargoAgentParameters, bool, error) {
+	exp, err := e.Client.ExportKargoInstance(ctx, instanceID)
+	if err != nil {
+		return v1alpha1.KargoAgentParameters{}, false, err
+	}
+	for _, entry := range exp.GetAgents() {
+		if entry == nil {
+			continue
+		}
+		wire := &akuitytypes.KargoAgent{}
+		raw, merr := entry.MarshalJSON()
+		if merr != nil {
+			return v1alpha1.KargoAgentParameters{}, false, fmt.Errorf("encode exported agent: %w", merr)
+		}
+		if uerr := json.Unmarshal(raw, wire); uerr != nil {
+			return v1alpha1.KargoAgentParameters{}, false, fmt.Errorf("decode exported agent: %w", uerr)
+		}
+		if wire.GetName() != agentName {
+			continue
+		}
+		return wireToSpec(desired, wire), true, nil
+	}
+	return v1alpha1.KargoAgentParameters{}, false, nil
+}
 
 // resolveKargoInstanceID returns the Akuity ID of the owning Kargo
 // instance (either the explicit ID or via same-namespace KargoInstanceRef).

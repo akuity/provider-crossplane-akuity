@@ -193,10 +193,6 @@ spec:
                       namespaceScoped:
                         type: boolean
                     type: object
-                  description:
-                    description: Description is a free-form description of the cluster.
-                      Optional.
-                    type: string
                   enableInClusterKubeconfig:
                     description: |-
                       Rather than specifying a reference to a KubeConfig to use to connect to the cluster,
@@ -249,12 +245,6 @@ spec:
                     description: The Kubernetes namespace the Akuity agent should
                       be installed in. Optional.
                     type: string
-                  namespaceScoped:
-                    description: |-
-                      NamespaceScoped toggles whether the agent installed in the managed cluster
-                      is namespace-scoped (vs cluster-scoped). Optional. Akuity-side RBAC choice
-                      for the agent — unrelated to Crossplane MR scoping.
-                    type: boolean
                   removeAgentResourcesOnDestroy:
                     description: |-
                       Whether or not to remove the Akuity agent Kubernetes resources from the managed cluster

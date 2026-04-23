@@ -160,6 +160,27 @@ func TestObserve_DriftDetected(t *testing.T) {
 	assert.False(t, obs.ResourceUpToDate)
 }
 
+// TestObserve_EmptyAllowListNoDrift locks the reviewer's nil-vs-empty
+// fix: user writes `allowList: []` and the API reports nothing, so the
+// desired spec is an empty slice and pbEntriesToSpec returns nil. The
+// drift comparison must resolve equal — plain reflect.DeepEqual would
+// flag this as perpetual drift.
+func TestObserve_EmptyAllowListNoDrift(t *testing.T) {
+	e, mc := newExt(t, newInst())
+	al := newAllowListByRef()
+	al.Spec.ForProvider.AllowList = []*crossplanetypes.IPAllowListEntry{}
+	meta.SetExternalName(al, al.Name)
+
+	mc.EXPECT().GetInstanceByID(gomock.Any(), "inst-1").Return(&argocdv1.Instance{
+		Spec: &argocdv1.InstanceSpec{IpAllowList: nil},
+	}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), al)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+}
+
 func TestCreate_PatchInstanceIsCalled(t *testing.T) {
 	e, mc := newExt(t, newInst())
 	al := newAllowListByRef()

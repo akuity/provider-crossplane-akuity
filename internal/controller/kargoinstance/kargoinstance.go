@@ -83,6 +83,21 @@ const (
 	kargoCredTypeLabel = "kargo.akuity.io/cred-type"
 )
 
+// driftSpec is the struct-level drift recipe for KargoInstance.
+// Resources, KargoConfigMap, and KargoRepoCredentialSecretRefs are
+// intentionally ignored here: each has additive semantics, hash-based
+// rotation, or TTL re-apply windows that the Observe path handles
+// separately. EquateEmpty is contributed by the shared DriftSpec
+// baseline.
+func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
+	return base.DriftSpec[v1alpha1.KargoInstanceParameters]{
+		Ignore: []cmp.Option{
+			cmpopts.IgnoreFields(v1alpha1.KargoInstanceParameters{},
+				"Resources", "KargoConfigMap", "KargoRepoCredentialSecretRefs"),
+		},
+	}
+}
+
 // errSecretInKargoResources is surfaced when a user puts a v1/Secret
 // entry into spec.forProvider.resources. Repo-credential Secrets
 // now flow through the typed KargoRepoCredentialSecretRefs slot so
@@ -207,11 +222,20 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		mg.SetConditions(xpv1.Available())
 	}
 
-	upToDate := cmp.Equal(mg.Spec.ForProvider, actual,
-		cmpopts.IgnoreFields(v1alpha1.KargoInstanceParameters{}, "Resources", "KargoConfigMap", "KargoRepoCredentialSecretRefs"),
-	)
+	// Struct-level comparison of the primary spec shape. Resources,
+	// KargoConfigMap, and KargoRepoCredentialSecretRefs are checked
+	// separately below — they have additive semantics, hash-based
+	// rotation, or TTL re-apply windows that a plain struct cmp
+	// cannot express. The shared DriftSpec also contributes
+	// utilcmp.EquateEmpty() so nil-vs-empty sub-trees resolve equal.
+	structSpec := driftSpec()
+	desired := mg.Spec.ForProvider
+	upToDate, err := structSpec.UpToDate(ctx, &desired, &actual)
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
 	if !upToDate {
-		e.Logger.Debug("KargoInstance drift detected", "diff", cmp.Diff(mg.Spec.ForProvider, actual))
+		e.Logger.Debug("KargoInstance drift detected", "diff", structSpec.Diff(&desired, &actual))
 	}
 
 	// kargoConfigMap drift: combine a local hash check with the

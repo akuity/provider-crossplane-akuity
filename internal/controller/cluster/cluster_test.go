@@ -32,7 +32,9 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
@@ -454,6 +456,8 @@ func TestObserve_HealthStatusNotHealthy(t *testing.T) {
 
 	mockAkuityClient.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
 		Return(fixtures.ArgocdCluster, nil).Times(1)
+	mockAkuityClient.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{fixtures.ExportedCluster}}, nil).Times(1)
 
 	_, err := client.Observe(ctx, &managedCluster)
 	require.NoError(t, err)
@@ -479,6 +483,8 @@ func TestObserve_HealthStatusHealthy(t *testing.T) {
 
 	mockAkuityClient.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
 		Return(fixtures.ArgocdCluster, nil).Times(1)
+	mockAkuityClient.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{fixtures.ExportedCluster}}, nil).Times(1)
 
 	_, err := client.Observe(ctx, &managedCluster)
 	require.NoError(t, err)
@@ -498,6 +504,8 @@ func TestObserve_ClusterUpToDate(t *testing.T) {
 
 	mockAkuityClient.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
 		Return(fixtures.ArgocdCluster, nil).Times(1)
+	mockAkuityClient.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{fixtures.ExportedCluster}}, nil).Times(1)
 
 	resp, err := client.Observe(ctx, &managedCluster)
 	require.NoError(t, err)
@@ -518,6 +526,8 @@ func TestObserve_ClusterNotUpToDate(t *testing.T) {
 
 	mockAkuityClient.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
 		Return(fixtures.ArgocdCluster, nil).Times(1)
+	mockAkuityClient.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{fixtures.ExportedCluster}}, nil).Times(1)
 
 	resp, err := client.Observe(ctx, &managedCluster)
 	require.NoError(t, err)

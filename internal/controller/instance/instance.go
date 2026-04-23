@@ -41,6 +41,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
@@ -173,10 +174,17 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		managedInstance.SetConditions(xpv1.Available())
 	}
 
-	isUpToDate := checkInstanceUpToDate(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider)
-
+	// DeepCopy so Normalize's map mutations (ArgoCDConfigMap rewrites,
+	// ignored-key deletions) don't leak back into the managed resource.
+	spec := driftSpec()
+	desired := managedInstance.Spec.ForProvider.DeepCopy()
+	observed := actualInstance.Spec.ForProvider.DeepCopy()
+	isUpToDate, err := spec.UpToDate(ctx, desired, observed)
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
 	if !isUpToDate {
-		c.logger.Debug("Comparing managed instance to external instance", "diff", cmp.Diff(managedInstance.Spec.ForProvider, actualInstance.Spec.ForProvider))
+		c.logger.Debug("Comparing managed instance to external instance", "diff", spec.Diff(desired, observed))
 	}
 
 	return managed.ExternalObservation{
@@ -385,8 +393,12 @@ var ignoredArgocdCMKeys = []string{
 	"url",
 }
 
-func checkInstanceUpToDate(managedInstance, actualInstance v1alpha1.InstanceParameters) bool {
-	mc, ac := managedInstance.DeepCopy(), actualInstance.DeepCopy()
-	normalizeInstanceParameters(mc, ac)
-	return cmp.Equal(mc, ac, utilcmp.EquateEmpty()...)
+// driftSpec is the Instance drift-detection recipe. Normalize lifts
+// server-defaulted fields onto desired, reorders known-stable
+// ConfigMap payloads, and strips keys the server owns. EquateEmpty is
+// contributed by the shared DriftSpec baseline.
+func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
+	return base.DriftSpec[v1alpha1.InstanceParameters]{
+		Normalize: normalizeInstanceParameters,
+	}
 }

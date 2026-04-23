@@ -1,9 +1,12 @@
 package fixtures
 
 import (
+	"encoding/json"
+
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
+	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
@@ -137,6 +140,25 @@ patches:
 		},
 	}
 
+	// ExportedCluster is AkuityCluster in the structpb shape that
+	// ExportInstance returns inside its Clusters slice — used by
+	// Cluster controller tests to feed the Export-based drift path.
+	ExportedCluster = mustExportedClusterStruct(AkuityCluster)
+)
+
+func mustExportedClusterStruct(c akuitytypes.Cluster) *structpb.Struct {
+	raw, err := json.Marshal(c)
+	if err != nil {
+		panic(err)
+	}
+	var out structpb.Struct
+	if err := out.UnmarshalJSON(raw); err != nil {
+		panic(err)
+	}
+	return &out
+}
+
+var (
 	ArgocdAgentHealthStatuses = map[string]*health.AgentHealthStatus{
 		"agent1": {
 			Status:  health.TenantPhase_TENANT_PHASE_HEALTHY,

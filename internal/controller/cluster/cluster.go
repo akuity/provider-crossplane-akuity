@@ -18,9 +18,9 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -43,11 +43,12 @@ import (
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types"
-	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
+	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
@@ -130,7 +131,7 @@ func NewExternal(client akuity.Client, kube client.Client, logger logging.Logger
 	}
 }
 
-func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
+func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) { //nolint:gocyclo
 	managedCluster, ok := mg.(*v1alpha1.Cluster)
 	if !ok {
 		return managed.ExternalObservation{}, errors.New(errNotCluster)
@@ -149,6 +150,9 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		}, nil
 	}
 
+	// GetCluster stays as the source of truth for observation data
+	// (HealthStatus / ReconciliationStatus / AgentState / agent size /
+	// target version etc.) — none of that round-trips through Export.
 	akuityCluster, err := c.client.GetCluster(ctx, instanceID, meta.GetExternalName(managedCluster))
 	if err != nil {
 		if reason.IsNotFound(err) {
@@ -182,10 +186,32 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		managedCluster.SetConditions(xpv1.Available())
 	}
 
-	isUpToDate := checkClusterUpToDate(managedCluster.Spec.ForProvider, actualCluster)
+	// Drift compares against ExportInstanceByID's round-trippable spec
+	// (same structural shape ApplyCluster sends). Pattern-consistent
+	// with Instance/KargoInstance: read via Export, write via Apply.
+	// GetCluster above is still load-bearing for observation fields
+	// (health/reconciliation/agent state) that Export does not
+	// return. If Export succeeds but the cluster entry is missing
+	// from its Clusters list we fall back to the GetCluster-derived
+	// spec: GetCluster saw it, so it does exist — Export was just
+	// lagging.
+	driftTarget, found, err := c.exportedClusterSpec(ctx, instanceID, meta.GetExternalName(managedCluster), managedCluster.Spec.ForProvider)
+	if err != nil {
+		managedCluster.SetConditions(xpv1.ReconcileError(err))
+		return managed.ExternalObservation{}, err
+	}
+	if !found {
+		driftTarget = actualCluster
+	}
 
+	spec := driftSpec()
+	desired := managedCluster.Spec.ForProvider
+	isUpToDate, err := spec.UpToDate(ctx, &desired, &driftTarget)
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
 	if !isUpToDate {
-		c.logger.Debug("Comparing managed cluster to external instance", "diff", cmp.Diff(managedCluster.Spec.ForProvider, actualCluster))
+		c.logger.Debug("Comparing managed cluster to external instance", "diff", spec.Diff(&desired, &driftTarget))
 	}
 
 	return managed.ExternalObservation{
@@ -296,6 +322,37 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 	in.ClusterSpec.Data.AutoscalerConfig = pointer.LateInitialize(in.ClusterSpec.Data.AutoscalerConfig, actual.ClusterSpec.Data.AutoscalerConfig)
 }
 
+// exportedClusterSpec returns the canonical ClusterParameters for
+// clusterName built from ExportInstanceByID's response. The returned
+// `found` flag is false when Export succeeds but the named cluster is
+// absent from the response (e.g. server mid-provisioning or a
+// concurrent sibling deletion); caller falls back to GetCluster-based
+// drift in that case. Errors are transient Export failures only.
+func (c *External) exportedClusterSpec(ctx context.Context, instanceID, clusterName string, managed v1alpha1.ClusterParameters) (v1alpha1.ClusterParameters, bool, error) {
+	exp, err := c.client.ExportInstanceByID(ctx, instanceID)
+	if err != nil {
+		return v1alpha1.ClusterParameters{}, false, err
+	}
+	for _, entry := range exp.GetClusters() {
+		if entry == nil {
+			continue
+		}
+		wire := &akuitytypes.Cluster{}
+		raw, merr := entry.MarshalJSON()
+		if merr != nil {
+			return v1alpha1.ClusterParameters{}, false, fmt.Errorf("encode exported cluster: %w", merr)
+		}
+		if uerr := json.Unmarshal(raw, wire); uerr != nil {
+			return v1alpha1.ClusterParameters{}, false, fmt.Errorf("decode exported cluster: %w", uerr)
+		}
+		if wire.GetName() != clusterName {
+			continue
+		}
+		return types.AkuityWireToCrossplaneCluster(instanceID, managed, wire), true, nil
+	}
+	return v1alpha1.ClusterParameters{}, false, nil
+}
+
 func (c *External) getInstanceID(ctx context.Context, instanceID string, instanceRef v1alpha1.NameRef) (string, error) {
 	if instanceID != "" {
 		return instanceID, nil
@@ -372,19 +429,20 @@ func (c *External) applyClusterManifests(ctx context.Context, managedCluster v1a
 	return applyClient.ApplyManifests(ctx, clusterManifests, delete)
 }
 
-func normalizeClusterParameters(managedCluster, actualCluster *v1alpha1.ClusterParameters) {
-	if managedCluster == nil || actualCluster == nil {
-		return
+// driftSpec is the Cluster drift-detection recipe. Normalize late-inits
+// MultiClusterK8SDashboardEnabled from the server, which is enabled by
+// default and may not appear in the CR. EquateEmpty is contributed by
+// the shared DriftSpec baseline.
+func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
+	return base.DriftSpec[v1alpha1.ClusterParameters]{
+		Normalize: func(desired, observed *v1alpha1.ClusterParameters) {
+			if desired == nil || observed == nil {
+				return
+			}
+			if desired.ClusterSpec.Data.MultiClusterK8SDashboardEnabled == nil {
+				desired.ClusterSpec.Data.MultiClusterK8SDashboardEnabled =
+					observed.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
+			}
+		},
 	}
-
-	// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
-	if managedCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled == nil {
-		managedCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled =
-			actualCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
-	}
-}
-
-func checkClusterUpToDate(managedCluster, actualCluster v1alpha1.ClusterParameters) bool {
-	normalizeClusterParameters(&managedCluster, &actualCluster)
-	return cmp.Equal(managedCluster, actualCluster, utilcmp.EquateEmpty()...)
 }

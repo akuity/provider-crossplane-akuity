@@ -15,11 +15,10 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	gomock "go.uber.org/mock/gomock"
-	structpb "google.golang.org/protobuf/types/known/structpb"
-
 	v1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	v1alpha10 "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
+	gomock "go.uber.org/mock/gomock"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 // MockClient is a mock of Client interface.
@@ -187,6 +186,21 @@ func (m *MockClient) ExportInstance(ctx context.Context, name string) (*argocdv1
 func (mr *MockClientMockRecorder) ExportInstance(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportInstance", reflect.TypeOf((*MockClient)(nil).ExportInstance), ctx, name)
+}
+
+// ExportInstanceByID mocks base method.
+func (m *MockClient) ExportInstanceByID(ctx context.Context, id string) (*argocdv1.ExportInstanceResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExportInstanceByID", ctx, id)
+	ret0, _ := ret[0].(*argocdv1.ExportInstanceResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExportInstanceByID indicates an expected call of ExportInstanceByID.
+func (mr *MockClientMockRecorder) ExportInstanceByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportInstanceByID", reflect.TypeOf((*MockClient)(nil).ExportInstanceByID), ctx, id)
 }
 
 // ExportKargoInstance mocks base method.

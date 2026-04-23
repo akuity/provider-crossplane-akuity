@@ -25,10 +25,8 @@ package instanceipallowlist
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/types/known/structpb"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -121,10 +119,18 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.InstanceIpAllowList
 	}
 	mg.SetConditions(xpv1.Available())
 
-	upToDate := reflect.DeepEqual(mg.Spec.ForProvider.AllowList, observed)
+	// Drift is nil-vs-empty-sensitive: a user who writes
+	// `allowList: []` and an API that returns nothing must resolve
+	// equal, so we go through the shared DriftSpec (which applies
+	// utilcmp.EquateEmpty) rather than reflect.DeepEqual.
+	desired := mg.Spec.ForProvider.AllowList
+	spec := driftSpec()
+	upToDate, err := spec.UpToDate(ctx, &desired, &observed)
+	if err != nil {
+		return managed.ExternalObservation{}, err
+	}
 	if !upToDate {
-		e.Logger.Debug("InstanceIpAllowList drift detected",
-			"diff", cmp.Diff(mg.Spec.ForProvider.AllowList, observed))
+		e.Logger.Debug("InstanceIpAllowList drift detected", "diff", spec.Diff(&desired, &observed))
 	}
 
 	return managed.ExternalObservation{
@@ -224,6 +230,13 @@ func (e *external) resolveInstanceID(ctx context.Context, mg *v1alpha1.InstanceI
 		return "", fmt.Errorf("referenced Instance %s/%s has not yet reported an ID; waiting for its controller to observe", key.Namespace, key.Name)
 	}
 	return inst.Status.AtProvider.ID, nil
+}
+
+// driftSpec is the resource's drift-detection recipe: a straight
+// cmp.Equal on the allow-list slice, with the shared EquateEmpty
+// baseline that makes nil-vs-empty-slice resolve equal.
+func driftSpec() base.DriftSpec[[]*crossplanetypes.IPAllowListEntry] {
+	return base.DriftSpec[[]*crossplanetypes.IPAllowListEntry]{}
 }
 
 func pbEntriesToSpec(in []*argocdv1.IPAllowListEntry) []*crossplanetypes.IPAllowListEntry {

@@ -49,6 +49,11 @@ type Client interface {
 	// to avoid a name-resolution round-trip.
 	GetInstanceByID(ctx context.Context, id string) (*argocdv1.Instance, error)
 	ExportInstance(ctx context.Context, name string) (*argocdv1.ExportInstanceResponse, error)
+	// ExportInstanceByID is the ID-keyed variant of ExportInstance.
+	// Used by narrow-owner controllers (Cluster) that carry the opaque
+	// Akuity instance ID on their spec and need the canonical
+	// round-trippable spec for drift comparison.
+	ExportInstanceByID(ctx context.Context, id string) (*argocdv1.ExportInstanceResponse, error)
 	ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error
 	// PatchInstance merges the supplied structpb patch into the target
 	// Instance's spec (keyed by ID). Narrow-patch controllers use this
@@ -277,24 +282,32 @@ func (c client) PatchInstance(ctx context.Context, id string, patch *structpb.St
 }
 
 func (c client) ExportInstance(ctx context.Context, name string) (*argocdv1.ExportInstanceResponse, error) {
+	return c.exportInstance(ctx, idv1.Type_NAME, name)
+}
+
+func (c client) ExportInstanceByID(ctx context.Context, id string) (*argocdv1.ExportInstanceResponse, error) {
+	return c.exportInstance(ctx, idv1.Type_ID, id)
+}
+
+func (c client) exportInstance(ctx context.Context, idType idv1.Type, id string) (*argocdv1.ExportInstanceResponse, error) {
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
 	resp, err := c.gatewayClient.ExportInstance(ctx, &argocdv1.ExportInstanceRequest{
 		OrganizationId: c.organizationID,
-		IdType:         idv1.Type_NAME,
-		Id:             name,
+		IdType:         idType,
+		Id:             id,
 	})
 
 	if err != nil {
 		if e, ok := status.FromError(err); ok {
 			if e.Code() == codes.NotFound {
-				return nil, reason.AsNotFound(fmt.Errorf("could not export instance %s from Akuity API, instance was not found", name))
+				return nil, reason.AsNotFound(fmt.Errorf("could not export instance %s from Akuity API, instance was not found", id))
 			}
 		}
-		return nil, fmt.Errorf("could not export instance %s from Akuity API, error: %w", name, err)
+		return nil, fmt.Errorf("could not export instance %s from Akuity API, error: %w", id, err)
 	}
 
 	if resp == nil {
-		return nil, fmt.Errorf("could not export instance %s from Akuity API, response was empty", name)
+		return nil, fmt.Errorf("could not export instance %s from Akuity API, response was empty", id)
 	}
 
 	return resp, nil

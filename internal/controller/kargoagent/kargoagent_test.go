@@ -84,6 +84,11 @@ func TestObserve_NotYetReconciled(t *testing.T) {
 		Name:                 "agt",
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_PROGRESSING},
 	}, nil).Times(1)
+	// Agent is still provisioning — not yet in Export's Agents slice.
+	// Observe falls back to Get-derived drift, which surfaces the
+	// (empty Data vs desired small) diff.
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1").
+		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
 
 	obs, err := e.Observe(context.Background(), a)
 	require.NoError(t, err)
@@ -103,6 +108,10 @@ func TestObserve_ReconciledPublishesManifests(t *testing.T) {
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
 		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}, nil).Times(1)
+	// Manifests-publishing test does not assert drift status; return an
+	// empty Agents list so we exercise the Get-fallback path.
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1").
+		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
 	mc.EXPECT().GetKargoInstanceAgentManifestsOnce(gomock.Any(), "ki-1", "ag-1").
 		Return("kind: ConfigMap\n", nil).Times(1)
 

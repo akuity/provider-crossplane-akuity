@@ -235,6 +235,52 @@ func AkuityAPIToCrossplaneCluster(instanceID string, managedCluster v1alpha1.Clu
 	}, nil
 }
 
+// AkuityWireToCrossplaneCluster rebuilds ClusterParameters from the
+// Akuity wire-form Cluster that ExportInstance returns in its Clusters
+// slice. The struct round-trips through the generated
+// ClusterDataAPIToSpec converter (same one used by the Apply path),
+// giving drift detection a canonical shape that matches what the
+// Apply request sends. InstanceID and MR-local fields
+// (InstanceRef/KubeConfigSecretRef/EnableInClusterKubeConfig/
+// RemoveAgentResourcesOnDestroy) are copied from managedCluster — the
+// Akuity API does not own them.
+func AkuityWireToCrossplaneCluster(instanceID string, managedCluster v1alpha1.ClusterParameters, wireCluster *akuitytypes.Cluster) v1alpha1.ClusterParameters {
+	if wireCluster == nil {
+		return v1alpha1.ClusterParameters{}
+	}
+	out := v1alpha1.ClusterParameters{
+		InstanceID:  instanceID,
+		InstanceRef: v1alpha1.NameRef{Name: managedCluster.InstanceRef.Name},
+		Name:        wireCluster.GetName(),
+		Namespace:   wireCluster.Namespace,
+		Labels:      wireCluster.Labels,
+		Annotations: wireCluster.Annotations,
+		ClusterSpec: generated.ClusterSpec{
+			Description:     wireCluster.Spec.Description,
+			NamespaceScoped: wireCluster.Spec.NamespaceScoped,
+		},
+		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
+		KubeConfigSecretRef: v1alpha1.SecretRef{
+			Name:      managedCluster.KubeConfigSecretRef.Name,
+			Namespace: managedCluster.KubeConfigSecretRef.Namespace,
+		},
+		RemoveAgentResourcesOnDestroy: managedCluster.RemoveAgentResourcesOnDestroy,
+	}
+	if data := generated.ClusterDataAPIToSpec(&wireCluster.Spec.Data); data != nil {
+		out.ClusterSpec.Data = *data
+	}
+	// Normalise server-reported empty collections to nil so downstream
+	// cmp.Equal + EquateEmpty comparisons treat them the same as an
+	// unset user spec.
+	if len(out.Labels) == 0 {
+		out.Labels = nil
+	}
+	if len(out.Annotations) == 0 {
+		out.Annotations = nil
+	}
+	return out
+}
+
 func CrossplaneToAkuityAPIAutoscalerConfig(autoscalerConfig *generated.AutoScalerConfig) *akuitytypes.AutoScalerConfig {
 	if autoscalerConfig == nil {
 		return nil
