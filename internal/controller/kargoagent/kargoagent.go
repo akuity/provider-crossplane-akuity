@@ -220,6 +220,21 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
 		return err
 	}
 	mg.Spec.ForProvider.KargoInstanceID = instanceID
+	// ApplyKargoInstance is workspace-scoped at the HTTP gateway
+	// (`/orgs/{org}/workspaces/{workspace_id}/kargo/instances/{id}/apply`);
+	// an unset WorkspaceId on the request substitutes empty into the
+	// URL template and portal-server 404s. When the user didn't pin a
+	// workspace on the KargoAgent CR, inherit it from the parent
+	// KargoInstance's spec — same MR reference the controller already
+	// used to resolve the instance ID. Matches the terraform
+	// behaviour in resource_akp_kargoagent.go#resolveKargoAgentWorkspace.
+	if mg.Spec.ForProvider.Workspace == "" && mg.Spec.ForProvider.KargoInstanceRef != nil && mg.Spec.ForProvider.KargoInstanceRef.Name != "" {
+		parent := &v1alpha1.KargoInstance{}
+		key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.KargoInstanceRef.Name, Namespace: mg.GetNamespace()}
+		if gerr := e.Kube.Get(ctx, key, parent); gerr == nil {
+			mg.Spec.ForProvider.Workspace = parent.Spec.ForProvider.Workspace
+		}
+	}
 	req, err := BuildApplyKargoInstanceRequest(instanceID, mg.Spec.ForProvider)
 	if err != nil {
 		return err
