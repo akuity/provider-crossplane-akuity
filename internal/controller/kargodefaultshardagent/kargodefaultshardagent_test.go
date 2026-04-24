@@ -111,10 +111,17 @@ func TestObserve_UpToDate_ByRef(t *testing.T) {
 	e, mc := newExt(t, newKI())
 	dsa := newDSAByRef()
 	meta.SetExternalName(dsa, dsa.Name)
+	// Server stores agent opaque ID in DefaultShardAgent; Observe compares
+	// that to the ID we resolve from spec.forProvider.AgentName via
+	// GetKargoInstanceAgent.
 	mc.EXPECT().GetKargoInstanceByID(gomock.Any(), "ki-1").Return(&kargov1.KargoInstance{
 		Id:   "ki-1",
 		Name: "ki",
-		Spec: &kargov1.KargoInstanceSpec{DefaultShardAgent: "shard-a"},
+		Spec: &kargov1.KargoInstanceSpec{DefaultShardAgent: "shard-a-id"},
+	}, nil).Times(1)
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-a").Return(&kargov1.KargoAgent{
+		Id:   "shard-a-id",
+		Name: "shard-a",
 	}, nil).Times(1)
 
 	obs, err := e.Observe(context.Background(), dsa)
@@ -130,7 +137,11 @@ func TestObserve_ByIDSkipsKubeLookup(t *testing.T) {
 	meta.SetExternalName(dsa, dsa.Name)
 	mc.EXPECT().GetKargoInstanceByID(gomock.Any(), "ki-1").Return(&kargov1.KargoInstance{
 		Id:   "ki-1",
-		Spec: &kargov1.KargoInstanceSpec{DefaultShardAgent: "shard-a"},
+		Spec: &kargov1.KargoInstanceSpec{DefaultShardAgent: "shard-a-id"},
+	}, nil).Times(1)
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-a").Return(&kargov1.KargoAgent{
+		Id:   "shard-a-id",
+		Name: "shard-a",
 	}, nil).Times(1)
 
 	obs, err := e.Observe(context.Background(), dsa)
@@ -142,9 +153,15 @@ func TestObserve_Drift(t *testing.T) {
 	e, mc := newExt(t, newKI())
 	dsa := newDSAByRef()
 	meta.SetExternalName(dsa, dsa.Name)
+	// Server pins a different agent's ID.
 	mc.EXPECT().GetKargoInstanceByID(gomock.Any(), "ki-1").Return(&kargov1.KargoInstance{
 		Id:   "ki-1",
-		Spec: &kargov1.KargoInstanceSpec{DefaultShardAgent: "shard-b"},
+		Spec: &kargov1.KargoInstanceSpec{DefaultShardAgent: "shard-b-id"},
+	}, nil).Times(1)
+	// Desired agent resolves to "shard-a-id" — different from stored.
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-a").Return(&kargov1.KargoAgent{
+		Id:   "shard-a-id",
+		Name: "shard-a",
 	}, nil).Times(1)
 
 	obs, err := e.Observe(context.Background(), dsa)
@@ -156,6 +173,12 @@ func TestCreate_PatchIsCalled(t *testing.T) {
 	e, mc := newExt(t, newKI())
 	dsa := newDSAByRef()
 
+	// Create resolves desired AgentName → ID before patching.
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-a").Return(&kargov1.KargoAgent{
+		Id:   "shard-a-id",
+		Name: "shard-a",
+	}, nil).Times(1)
+
 	var captured *structpb.Struct
 	mc.EXPECT().PatchKargoInstance(gomock.Any(), "ki-1", gomock.Any()).DoAndReturn(func(_ context.Context, _ string, p *structpb.Struct) error {
 		captured = p
@@ -166,11 +189,15 @@ func TestCreate_PatchIsCalled(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dsa.Name, meta.GetExternalName(dsa))
 
+	// Envelope shape matches terraform's autoSetDefaultShardAgent:
+	// {"spec": {"defaultShardAgent": "<agent-id>"}}. No
+	// "kargoInstanceSpec" wrapper.
 	require.NotNil(t, captured)
 	m := captured.AsMap()
 	spec := m["spec"].(map[string]any)
-	kis := spec["kargoInstanceSpec"].(map[string]any)
-	assert.Equal(t, "shard-a", kis["defaultShardAgent"])
+	assert.Equal(t, "shard-a-id", spec["defaultShardAgent"])
+	_, hasWrapper := spec["kargoInstanceSpec"]
+	assert.False(t, hasWrapper, "patch must not wrap defaultShardAgent in kargoInstanceSpec")
 }
 
 func TestDelete_ClearsDefault(t *testing.T) {
@@ -179,6 +206,7 @@ func TestDelete_ClearsDefault(t *testing.T) {
 	meta.SetExternalName(dsa, dsa.Name)
 
 	var captured *structpb.Struct
+	// Delete sends empty string — no GetKargoInstanceAgent call.
 	mc.EXPECT().PatchKargoInstance(gomock.Any(), "ki-1", gomock.Any()).DoAndReturn(func(_ context.Context, _ string, p *structpb.Struct) error {
 		captured = p
 		return nil
@@ -190,8 +218,7 @@ func TestDelete_ClearsDefault(t *testing.T) {
 	require.NotNil(t, captured)
 	m := captured.AsMap()
 	spec := m["spec"].(map[string]any)
-	kis := spec["kargoInstanceSpec"].(map[string]any)
-	assert.Empty(t, kis["defaultShardAgent"])
+	assert.Empty(t, spec["defaultShardAgent"])
 }
 
 func TestResolveKargoID_RefWithoutID_Errors(t *testing.T) {
@@ -213,6 +240,11 @@ func TestUpdate_PatchIsCalled(t *testing.T) {
 	meta.SetExternalName(dsa, dsa.Name)
 	dsa.Spec.ForProvider.AgentName = "shard-b"
 
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-b").Return(&kargov1.KargoAgent{
+		Id:   "shard-b-id",
+		Name: "shard-b",
+	}, nil).Times(1)
+
 	var captured *structpb.Struct
 	mc.EXPECT().PatchKargoInstance(gomock.Any(), "ki-1", gomock.Any()).DoAndReturn(func(_ context.Context, _ string, p *structpb.Struct) error {
 		captured = p
@@ -223,8 +255,7 @@ func TestUpdate_PatchIsCalled(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 	spec := captured.AsMap()["spec"].(map[string]any)
-	kis := spec["kargoInstanceSpec"].(map[string]any)
-	assert.Equal(t, "shard-b", kis["defaultShardAgent"])
+	assert.Equal(t, "shard-b-id", spec["defaultShardAgent"])
 }
 
 // TestUpdate_PatchErr surfaces gateway errors on Update.
@@ -232,6 +263,10 @@ func TestUpdate_PatchErr(t *testing.T) {
 	e, mc := newExt(t, newKI())
 	dsa := newDSAByRef()
 	meta.SetExternalName(dsa, dsa.Name)
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-a").Return(&kargov1.KargoAgent{
+		Id:   "shard-a-id",
+		Name: "shard-a",
+	}, nil).Times(1)
 	mc.EXPECT().PatchKargoInstance(gomock.Any(), "ki-1", gomock.Any()).
 		Return(errors.New("boom")).Times(1)
 	_, err := e.Update(context.Background(), dsa)

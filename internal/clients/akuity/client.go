@@ -497,26 +497,69 @@ func (c client) DeleteKargoInstance(ctx context.Context, name string) error {
 	return nil
 }
 
+// GetKargoInstanceAgent returns the agent identified by agentName (the
+// user-facing Kargo agent name, e.g. the CR's spec.forProvider.name).
+//
+// The server's GetKargoInstanceAgent endpoint keys by opaque agent ID
+// (models.KargoAgentWhere.ID.EQ(req.GetId())) with no name-lookup
+// branch, so we resolve name→ID via ListKargoInstanceAgents first and
+// then issue the Get by ID. The terraform-provider-akp resource does
+// the same (terraform/akp/resource_akp_kargoagent.go:250-278).
+//
+// A NotFound from the resolve step surfaces as a NotFound from this
+// function; callers treat that as "external resource doesn't exist
+// yet" and flow into Create.
 func (c client) GetKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) (*kargov1.KargoAgent, error) {
 	if err := c.kargoRequired("GetKargoInstanceAgent"); err != nil {
 		return nil, err
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
+
+	agentID, rerr := c.resolveKargoAgentIDByName(ctx, kargoInstanceID, agentName)
+	if rerr != nil {
+		return nil, rerr
+	}
+
 	resp, err := c.kargoGatewayClient.GetKargoInstanceAgent(ctx, &kargov1.GetKargoInstanceAgentRequest{
 		OrganizationId: c.organizationID,
 		InstanceId:     kargoInstanceID,
-		Id:             agentName,
+		Id:             agentID,
 	})
 	if err != nil {
 		if e, ok := status.FromError(err); ok && e.Code() == codes.NotFound {
-			return nil, reason.AsNotFound(fmt.Errorf("could not get kargo agent %s/%s: %w", kargoInstanceID, agentName, err))
+			return nil, reason.AsNotFound(fmt.Errorf("could not get kargo agent %s/%s (id=%s): %w", kargoInstanceID, agentName, agentID, err))
 		}
-		return nil, fmt.Errorf("could not get kargo agent %s/%s: %w", kargoInstanceID, agentName, err)
+		return nil, fmt.Errorf("could not get kargo agent %s/%s (id=%s): %w", kargoInstanceID, agentName, agentID, err)
 	}
 	if resp == nil || resp.GetAgent() == nil {
-		return nil, fmt.Errorf("could not get kargo agent %s/%s: empty response", kargoInstanceID, agentName)
+		return nil, fmt.Errorf("could not get kargo agent %s/%s (id=%s): empty response", kargoInstanceID, agentName, agentID)
 	}
 	return resp.GetAgent(), nil
+}
+
+// resolveKargoAgentIDByName scans ListKargoInstanceAgents for an agent
+// whose Name matches. Returns a NotFound-wrapped error when no match
+// is found so callers can rely on reason.IsNotFound.
+func (c client) resolveKargoAgentIDByName(ctx context.Context, kargoInstanceID, agentName string) (string, error) {
+	list, err := c.kargoGatewayClient.ListKargoInstanceAgents(ctx, &kargov1.ListKargoInstanceAgentsRequest{
+		OrganizationId: c.organizationID,
+		InstanceId:     kargoInstanceID,
+	})
+	if err != nil {
+		if e, ok := status.FromError(err); ok && e.Code() == codes.NotFound {
+			return "", reason.AsNotFound(fmt.Errorf("could not list kargo agents on instance %s: %w", kargoInstanceID, err))
+		}
+		return "", fmt.Errorf("could not list kargo agents on instance %s: %w", kargoInstanceID, err)
+	}
+	for _, a := range list.GetAgents() {
+		if a == nil {
+			continue
+		}
+		if a.GetName() == agentName {
+			return a.GetId(), nil
+		}
+	}
+	return "", reason.AsNotFound(fmt.Errorf("kargo agent %q not found on instance %s", agentName, kargoInstanceID))
 }
 
 func (c client) GetKargoInstanceAgentManifestsOnce(ctx context.Context, kargoInstanceID, agentID string) (string, error) {

@@ -45,6 +45,7 @@ import (
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
 // Setup registers the controller.
@@ -84,7 +85,7 @@ type external struct {
 	base.ExternalClient
 }
 
-func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgent) (managed.ExternalObservation, error) {
+func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgent) (managed.ExternalObservation, error) { //nolint:gocyclo // observe branches are independent and flat; splitting hurts readability
 	defer base.PropagateObservedGeneration(mg)
 	kargoID, err := e.resolveKargoID(ctx, mg)
 	if err != nil {
@@ -108,17 +109,35 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 		return obs, rerr
 	}
 
-	observed := ki.GetSpec().GetDefaultShardAgent()
+	// Server stores the agent's opaque ID on spec.defaultShardAgent;
+	// resolve the spec.forProvider.AgentName to the same ID space so
+	// the compare is apples-to-apples. Skipping the resolve on an
+	// empty desired (clear-pin path) avoids a pointless List.
+	observedID := ki.GetSpec().GetDefaultShardAgent()
+	var desiredID string
+	if mg.Spec.ForProvider.AgentName != "" {
+		agent, rerr := e.Client.GetKargoInstanceAgent(ctx, kargoID, mg.Spec.ForProvider.AgentName)
+		if rerr != nil {
+			// Agent missing is ResourceExists=false for the PIN — go to
+			// Create once the agent turns up. Other errors surface.
+			if reason.IsNotFound(rerr) {
+				return managed.ExternalObservation{ResourceExists: false}, nil
+			}
+			return managed.ExternalObservation{}, rerr
+		}
+		desiredID = agent.GetId()
+	}
+
 	mg.Status.AtProvider = v1alpha1.KargoDefaultShardAgentObservation{
-		AgentName:       observed,
+		AgentName:       mg.Spec.ForProvider.AgentName,
 		KargoInstanceID: kargoID,
 	}
 	base.SetHealthCondition(mg, true)
 
-	upToDate := observed == mg.Spec.ForProvider.AgentName
+	upToDate := observedID == desiredID
 	if !upToDate {
 		e.Logger.Debug("KargoDefaultShardAgent drift detected",
-			"observed", observed, "desired", mg.Spec.ForProvider.AgentName)
+			"observedID", observedID, "desiredID", desiredID, "agentName", mg.Spec.ForProvider.AgentName)
 	}
 
 	return managed.ExternalObservation{
@@ -151,19 +170,37 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoDefaultShardAge
 func (e *external) Disconnect(_ context.Context) error { return nil }
 
 // patch writes the desired defaultShardAgent via the narrow
-// PatchKargoInstance endpoint. No prior Get is needed — the server
-// merges into only the provided sub-tree.
-func (e *external) patch(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgent, desired string) error {
+// PatchKargoInstance endpoint. The server merges into only the
+// provided sub-tree and stores the agent's opaque ID (not its name)
+// as the defaultShardAgent value; matching shape is
+// terraform/akp/resource_akp_kargoagent.go:815-833 (autoSetDefaultShardAgent).
+// Empty string clears the pin.
+//
+// Envelope is `{"spec": {"defaultShardAgent": "<agent-id>"}}` — NOT
+// `{"spec": {"kargoInstanceSpec": {"defaultShardAgent": ...}}}`,
+// which is what an earlier iteration sent; the server's patch
+// unmarshaler rejected the extra "kargoInstanceSpec" envelope with
+// `unknown field "kargoInstanceSpec"`.
+func (e *external) patch(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgent, desiredAgentName string) error {
 	kargoID, err := e.resolveKargoID(ctx, mg)
 	if err != nil {
 		return err
 	}
 
+	// desiredAgentName == "" is the "clear pin" path (Delete) — skip
+	// name→ID resolution.
+	value := ""
+	if desiredAgentName != "" {
+		agent, rerr := e.Client.GetKargoInstanceAgent(ctx, kargoID, desiredAgentName)
+		if rerr != nil {
+			return fmt.Errorf("resolve default-shard agent %q: %w", desiredAgentName, rerr)
+		}
+		value = agent.GetId()
+	}
+
 	patch, err := structpb.NewStruct(map[string]any{
 		"spec": map[string]any{
-			"kargoInstanceSpec": map[string]any{
-				"defaultShardAgent": desired,
-			},
+			"defaultShardAgent": value,
 		},
 	})
 	if err != nil {
