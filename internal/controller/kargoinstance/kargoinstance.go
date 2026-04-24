@@ -88,11 +88,39 @@ const (
 // rotation, or TTL re-apply windows that the Observe path handles
 // separately. EquateEmpty is contributed by the shared DriftSpec
 // baseline.
+//
+// Normalize absorbs server-echoed fields the user hasn't pinned so the
+// first-poll delta doesn't flap: Workspace is set by the user on spec
+// but the Kargo Export/Get response doesn't carry workspace back; and
+// server-defaulted Subdomain + AkuityIntelligenceExtension always come
+// back populated even when the CR omits them. Copying desired→observed
+// (or observed→desired for server-defaults) makes the drift compare
+// neutral until the user actually changes a pinned field.
 func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 	return base.DriftSpec[v1alpha1.KargoInstanceParameters]{
 		Ignore: []cmp.Option{
 			cmpopts.IgnoreFields(v1alpha1.KargoInstanceParameters{},
 				"Resources", "KargoConfigMap", "KargoRepoCredentialSecretRefs"),
+		},
+		Normalize: func(desired, observed *v1alpha1.KargoInstanceParameters) {
+			if desired == nil || observed == nil {
+				return
+			}
+			// Workspace is a spec-only field; Kargo Export doesn't echo
+			// it. Copy desired onto observed so the compare is neutral.
+			if observed.Workspace == "" {
+				observed.Workspace = desired.Workspace
+			}
+			// Server sets Subdomain and AkuityIntelligenceExtension
+			// defaults on every KargoInstance. Inherit them into the
+			// desired side when the CR didn't pin a value.
+			if desired.Kargo.Subdomain == "" {
+				desired.Kargo.Subdomain = observed.Kargo.Subdomain
+			}
+			if desired.Kargo.KargoInstanceSpec.AkuityIntelligence == nil {
+				desired.Kargo.KargoInstanceSpec.AkuityIntelligence =
+					observed.Kargo.KargoInstanceSpec.AkuityIntelligence
+			}
 		},
 	}
 }
