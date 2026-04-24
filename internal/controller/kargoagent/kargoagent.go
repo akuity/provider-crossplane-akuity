@@ -108,6 +108,27 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 			}
 			desired.KargoAgentSpec.Data.AkuityManaged =
 				observed.KargoAgentSpec.Data.AkuityManaged
+			// PodInheritMetadata and AutoscalerConfig are dropped on
+			// the gateway's Apply path: apply_kargo_instance_v1.go
+			// builds kargov1.KargoAgentData at :380-395 and never
+			// copies these two fields from the Apply request's
+			// agent.Spec.Data, so the CreateKargoInstanceAgent /
+			// UpdateKargoInstanceAgent sub-requests it emits never
+			// see the user's value. Terraform-provider-akp hits the
+			// same gap (it also drives Apply and carries the fields
+			// in the structpb payload). Without normalisation the CR
+			// stays desired=<value> forever while observed stays
+			// nil/zero, firing ApplyKargoInstance every poll — the
+			// same wasteful-Apply shape as AkuityManaged. Copy
+			// observed into desired so drift detection doesn't chase
+			// a field the platform ignores; an upstream fix to
+			// apply_kargo_instance_v1.go can remove this without CR
+			// churn (observed will start reflecting the user's value
+			// and equality holds).
+			desired.KargoAgentSpec.Data.PodInheritMetadata =
+				observed.KargoAgentSpec.Data.PodInheritMetadata
+			desired.KargoAgentSpec.Data.AutoscalerConfig =
+				observed.KargoAgentSpec.Data.AutoscalerConfig
 		},
 	}
 }
