@@ -122,6 +122,18 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 				desired.Kargo.KargoInstanceSpec.AkuityIntelligence =
 					observed.Kargo.KargoInstanceSpec.AkuityIntelligence
 			}
+			// GcConfig is server-retained: once a value has been Applied,
+			// the gateway keeps it even after the CR clears the field.
+			// Without this inherit the drift compare would see
+			// desired=nil vs observed=<last-applied> and hot-loop Apply
+			// forever. User SET / FLIP still propagates because desired
+			// non-nil short-circuits this branch — terraform parity is
+			// resource_akp_kargo_schema.go:187 where the attribute is
+			// Computed and TF carries last-known-state as effective plan.
+			if desired.Kargo.KargoInstanceSpec.GcConfig == nil {
+				desired.Kargo.KargoInstanceSpec.GcConfig =
+					observed.Kargo.KargoInstanceSpec.GcConfig
+			}
 			// DefaultShardAgent is owned by the KargoDefaultShardAgent MR,
 			// not the KargoInstance MR. Mirror terraform's
 			// resource_akp_kargo.go:352 pattern (`delete(kargoInstanceSpec,
