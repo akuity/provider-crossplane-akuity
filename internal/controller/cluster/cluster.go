@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	sigsyaml "sigs.k8s.io/yaml"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
@@ -359,10 +360,19 @@ func (e *external) applyClusterManifests(ctx context.Context, mg v1alpha1.Cluste
 	return applyClient.ApplyManifests(ctx, clusterManifests, delete)
 }
 
-// driftSpec is the Cluster drift-detection recipe. Normalize late-inits
-// MultiClusterK8SDashboardEnabled from the server, which is enabled by
-// default and may not appear in the CR. EquateEmpty is contributed by
-// the shared DriftSpec baseline.
+// driftSpec is the Cluster drift-detection recipe. Normalize adopts
+// server-defaulted fields that the API unconditionally populates on
+// every Apply response, which would otherwise drift-flap every poll:
+// desired=nil (or structurally-empty Kustomization) vs observed=populated
+// fires an Apply that the server's Equals() short-circuits (DB-gen stays
+// frozen) but still burns client throughput. EquateEmpty is contributed
+// by the shared DriftSpec baseline.
+//
+// Covers §6 rows 9 + 10 (naive ClusterSpec.Equals, zero-struct
+// Compatibility/ArgocdNotificationsSettings echo). Structurally-equal
+// Kustomization handling collapses any YAML representation ("{}\n" vs
+// the full "apiVersion: ... kind: Kustomization\n" scaffold) to the
+// server's form so the two compare as equal.
 func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 	return base.DriftSpec[v1alpha1.ClusterParameters]{
 		Normalize: func(desired, observed *v1alpha1.ClusterParameters) {
@@ -373,6 +383,77 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 				desired.ClusterSpec.Data.MultiClusterK8SDashboardEnabled =
 					observed.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
 			}
+
+			// Server echoes a populated AutoscalerConfig (with
+			// ApplicationController + RepoServer child structs carrying
+			// memory/cpu defaults) even when the CR omits the field.
+			if desired.ClusterSpec.Data.AutoscalerConfig == nil {
+				desired.ClusterSpec.Data.AutoscalerConfig =
+					observed.ClusterSpec.Data.AutoscalerConfig
+			}
+
+			// Compatibility {Ipv6Only: false} and
+			// ArgocdNotificationsSettings {InClusterSettings: false} are
+			// always returned as non-nil zero structs from the server.
+			if desired.ClusterSpec.Data.Compatibility == nil {
+				desired.ClusterSpec.Data.Compatibility =
+					observed.ClusterSpec.Data.Compatibility
+			}
+			if desired.ClusterSpec.Data.ArgocdNotificationsSettings == nil {
+				desired.ClusterSpec.Data.ArgocdNotificationsSettings =
+					observed.ClusterSpec.Data.ArgocdNotificationsSettings
+			}
+
+			// Kustomization is a YAML string. The server accepts any
+			// YAML-equivalent representation (including the empty "{}")
+			// but echoes back the canonical "apiVersion: ...\nkind:
+			// Kustomization\n" scaffold. Treat equivalent YAML payloads
+			// as equal to avoid drift-flap on initial bring-up.
+			if equalKustomizationYAML(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
+				desired.ClusterSpec.Data.Kustomization = observed.ClusterSpec.Data.Kustomization
+			}
 		},
 	}
+}
+
+// equalKustomizationYAML returns true when two Kustomization YAML
+// strings parse to the same JSON payload. Empty strings and "{}\n" and
+// the server-echoed "apiVersion: kustomize.config.k8s.io/v1beta1\nkind:
+// Kustomization\n" all parse to the same empty-or-scaffold object from
+// the server's perspective — comparing as raw strings would flap every
+// poll. Comparison is lenient: if either side fails to parse, fall
+// back to raw equality so malformed user input surfaces as drift.
+func equalKustomizationYAML(a, b string) bool {
+	if a == b {
+		return true
+	}
+	aJSON, aErr := yamlToCanonicalJSON(a)
+	bJSON, bErr := yamlToCanonicalJSON(b)
+	if aErr != nil || bErr != nil {
+		return false
+	}
+	return aJSON == bJSON
+}
+
+func yamlToCanonicalJSON(s string) (string, error) {
+	if s == "" {
+		return "{}", nil
+	}
+	raw, err := sigsyaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return "", err
+	}
+	// Re-marshal through encoding/json to drop map-order variation.
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return "", err
+	}
+	if v == nil {
+		return "{}", nil
+	}
+	out, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }
