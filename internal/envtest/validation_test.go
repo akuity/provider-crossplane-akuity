@@ -370,3 +370,38 @@ func TestCluster_InstanceIDImmutable(t *testing.T) {
 	require.Error(t, err, "apiserver must reject id->ref flip")
 	assert.Contains(t, err.Error(), "instanceId/instanceRef are immutable")
 }
+
+// TestCluster_InstanceIDLateInitAllowed covers the has()-guarded form
+// of the immutability rule: a Cluster created with only `instanceRef`
+// must be allowed to stamp `instanceId` on the next UPDATE (the
+// controller's lateInit path does exactly this after resolving the
+// ref). Without the has() guard, k8s CEL raises "no such key:
+// instanceId" reading an omitempty string on oldSelf.
+func TestCluster_InstanceIDLateInitAllowed(t *testing.T) {
+	ctx := context.Background()
+
+	cl := &v1alpha1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster-id-lateinit"},
+		Spec: v1alpha1.ClusterSpec{
+			ForProvider: v1alpha1.ClusterParameters{
+				InstanceRef: &v1alpha1.LocalReference{Name: "my-instance"},
+				Name:        "c1",
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, cl))
+	t.Cleanup(func() { _ = kube.Delete(ctx, cl) })
+
+	got := &v1alpha1.Cluster{}
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(cl), got))
+	got.Spec.ForProvider.InstanceID = "inst-abc"
+	require.NoError(t, kube.Update(ctx, got),
+		"apiserver must allow stamping instanceId when oldSelf had none (controller lateInit path)")
+
+	// Once stamped, a rename is still rejected.
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(cl), got))
+	got.Spec.ForProvider.InstanceID = "inst-xyz"
+	err := kube.Update(ctx, got)
+	require.Error(t, err, "apiserver must reject instanceId rename after lateInit stamp")
+	assert.Contains(t, err.Error(), "instanceId/instanceRef are immutable")
+}

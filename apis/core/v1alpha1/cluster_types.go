@@ -36,8 +36,17 @@ import (
 // one must be set"; the controller resolves `instanceRef` first and
 // falls back to `instanceId`, so both-set state is well-defined.
 //
+// The immutability rule uses `has()` guards on both sides — k8s CEL
+// raises "no such key" when reading an omitempty string that is absent
+// from the JSON payload (observed on k8s 1.31 under k3s), so
+// `self.instanceId == oldSelf.instanceId` explodes on fresh-state
+// Clusters the this-PR controller stamps `instanceId` onto after
+// resolving `instanceRef`. Guarded form: allow a first-time stamp of
+// `instanceId` when `oldSelf` had none; once stamped, the value must
+// match on every subsequent UPDATE. Same pattern for `instanceRef`.
+//
 // +kubebuilder:validation:XValidation:rule="has(self.instanceId) || has(self.instanceRef)",message="instanceId or instanceRef must be set"
-// +kubebuilder:validation:XValidation:rule="self.instanceId == oldSelf.instanceId && has(self.instanceRef) == has(oldSelf.instanceRef) && (!has(self.instanceRef) || self.instanceRef.name == oldSelf.instanceRef.name)",message="instanceId/instanceRef are immutable"
+// +kubebuilder:validation:XValidation:rule="(!has(oldSelf.instanceId) || (has(self.instanceId) && self.instanceId == oldSelf.instanceId)) && (!has(oldSelf.instanceRef) || (has(self.instanceRef) && self.instanceRef.name == oldSelf.instanceRef.name))",message="instanceId/instanceRef are immutable"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type ClusterParameters struct {
 	// The ID of the Akuity ArgoCD instance the cluster belongs to.
