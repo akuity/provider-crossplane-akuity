@@ -301,15 +301,19 @@ func targetKubeConfig(fp v1alpha1.KargoAgentParameters) kube.TargetKubeConfig {
 // for mg's agent and applies (or deletes when del is true) them onto
 // the cluster identified by target. Requires mg.Spec.ForProvider
 // .KargoInstanceID to be resolved.
+//
+// Uses the wait-for-reconciliation manifest fetcher so the first Create
+// right after ApplyKargoInstance doesn't race the gateway's manifest
+// renderer and hit codes.Unavailable; terraform-provider-akp applies
+// the same wait (resource_akp_kargoagent.go#waitKargoAgentReconStatus).
+// A one-shot failure here would leave the platform row stamped without
+// the agent installed on the managed cluster because
+// reapply_manifests_on_update=false keeps the Update path from retrying.
 func (e *external) installAgentManifests(ctx context.Context, mg *v1alpha1.KargoAgent, target kube.TargetKubeConfig, del bool) error {
 	instanceID := mg.Spec.ForProvider.KargoInstanceID
-	agent, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, mg.Spec.ForProvider.Name)
+	manifests, err := e.Client.GetKargoInstanceAgentManifests(ctx, instanceID, mg.Spec.ForProvider.Name)
 	if err != nil {
-		return fmt.Errorf("could not get kargo agent to %s manifests: %w", applyVerb(del), err)
-	}
-	manifests, err := e.Client.GetKargoInstanceAgentManifestsOnce(ctx, instanceID, agent.GetId())
-	if err != nil {
-		return fmt.Errorf("could not get kargo agent manifests: %w", err)
+		return fmt.Errorf("could not get kargo agent manifests to %s: %w", applyVerb(del), err)
 	}
 	if err := kube.ApplyManifestsToTarget(ctx, e.Kube, e.Logger, target, manifests, del); err != nil {
 		return fmt.Errorf("could not %s kargo agent manifests: %w", applyVerb(del), err)

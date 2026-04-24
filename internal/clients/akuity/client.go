@@ -85,6 +85,15 @@ type Client interface {
 	DeleteKargoInstance(ctx context.Context, name string) error
 	GetKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) (*kargov1.KargoAgent, error)
 	DeleteKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) error
+	// GetKargoInstanceAgentManifests fetches install manifests for a
+	// Kargo agent AFTER blocking until the agent reaches
+	// SUCCESSFUL/FAILED reconciliation. Mirrors GetClusterManifests +
+	// checkClusterReconciled for the argo plane. Used by the KargoAgent
+	// controller's Create path where manifest install has to happen
+	// atomically (a transient Unavailable on the manifests stream would
+	// otherwise leave the platform row stamped without ever installing
+	// the agent on the managed cluster).
+	GetKargoInstanceAgentManifests(ctx context.Context, kargoInstanceID, agentName string) (string, error)
 	// GetKargoInstanceAgentManifestsOnce fetches install manifests for
 	// a Kargo agent without waiting for reconciliation.
 	GetKargoInstanceAgentManifestsOnce(ctx context.Context, kargoInstanceID, agentID string) (string, error)
@@ -576,6 +585,67 @@ func (c client) GetKargoInstanceAgentManifestsOnce(ctx context.Context, kargoIns
 		return "", fmt.Errorf("could not get kargo agent manifests: %w", err)
 	}
 	return getManifestsFromResponse(respChan, errChan)
+}
+
+// GetKargoInstanceAgentManifests blocks until the agent reaches a
+// terminal reconciliation state (SUCCESSFUL/FAILED) then streams the
+// install manifests. Mirrors GetClusterManifests — the first Create
+// after ApplyKargoInstance races the gateway's manifest-renderer and a
+// non-retried one-shot deterministically hits codes.Unavailable on
+// orbstack-hosted portal-server. Terraform solves it with
+// waitKargoAgentReconStatus (resource_akp_kargoagent.go:609) before
+// GetKargoInstanceAgentManifests; this helper applies the same wait.
+func (c client) GetKargoInstanceAgentManifests(ctx context.Context, kargoInstanceID, agentName string) (string, error) {
+	if err := c.kargoRequired("GetKargoInstanceAgentManifests"); err != nil {
+		return "", err
+	}
+	agent, err := c.checkKargoAgentReconciled(ctx, kargoInstanceID, agentName)
+	if err != nil {
+		return "", err
+	}
+	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
+	respChan, errChan, err := c.kargoGatewayClient.GetKargoInstanceAgentManifests(ctx, &kargov1.GetKargoInstanceAgentManifestsRequest{
+		OrganizationId: c.organizationID,
+		InstanceId:     kargoInstanceID,
+		Id:             agent.GetId(),
+	})
+	if err != nil {
+		return "", fmt.Errorf("could not get kargo agent manifests: %w", err)
+	}
+	return getManifestsFromResponse(respChan, errChan)
+}
+
+func (c client) checkKargoAgentReconciled(ctx context.Context, kargoInstanceID, agentName string) (*kargov1.KargoAgent, error) {
+	agent, err := retry.DoWithData(
+		func() (*kargov1.KargoAgent, error) {
+			a, err := c.GetKargoInstanceAgent(ctx, kargoInstanceID, agentName)
+			if err != nil {
+				return nil, err
+			}
+			reconStatus := a.GetReconciliationStatus()
+			if reconStatus == nil || reconStatus.GetCode() != reconv1.StatusCode_STATUS_CODE_SUCCESSFUL && reconStatus.GetCode() != reconv1.StatusCode_STATUS_CODE_FAILED {
+				return nil, reason.AsNotReconciled(errors.New("kargo agent has not yet been reconciled"))
+			}
+			return a, nil
+		},
+		retry.Context(ctx),
+		retry.RetryIf(kargoAgentNotFoundOrReconciledError),
+		retry.Attempts(waitForReconciliationRetryAttempts),
+		retry.Delay(time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.LastErrorOnly(true),
+	)
+	return agent, err
+}
+
+func kargoAgentNotFoundOrReconciledError(err error) bool {
+	if reason.IsNotFound(err) || reason.IsNotReconciled(err) {
+		return true
+	}
+	if e, ok := status.FromError(err); ok && e.Code() == codes.Unavailable {
+		return true
+	}
+	return false
 }
 
 func (c client) DeleteKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) error {

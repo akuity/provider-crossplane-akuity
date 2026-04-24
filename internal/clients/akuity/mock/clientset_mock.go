@@ -277,6 +277,21 @@ func (mr *MockClientMockRecorder) GetKargoInstanceAgent(ctx, kargoInstanceID, ag
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceAgent", reflect.TypeOf((*MockClient)(nil).GetKargoInstanceAgent), ctx, kargoInstanceID, agentName)
 }
 
+// GetKargoInstanceAgentManifests mocks base method.
+func (m *MockClient) GetKargoInstanceAgentManifests(ctx context.Context, kargoInstanceID, agentName string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKargoInstanceAgentManifests", ctx, kargoInstanceID, agentName)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKargoInstanceAgentManifests indicates an expected call of GetKargoInstanceAgentManifests.
+func (mr *MockClientMockRecorder) GetKargoInstanceAgentManifests(ctx, kargoInstanceID, agentName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceAgentManifests", reflect.TypeOf((*MockClient)(nil).GetKargoInstanceAgentManifests), ctx, kargoInstanceID, agentName)
+}
+
 // GetKargoInstanceAgentManifestsOnce mocks base method.
 func (m *MockClient) GetKargoInstanceAgentManifestsOnce(ctx context.Context, kargoInstanceID, agentID string) (string, error) {
 	m.ctrl.T.Helper()
