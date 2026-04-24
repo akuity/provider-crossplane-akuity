@@ -131,6 +131,18 @@ func parseObject(object runtime.Object) (applyObject, error) {
 }
 
 func (a ApplyClient) deleteObject(ctx context.Context, mapping *meta.RESTMapping, applyObject applyObject) error {
+	// Never delete a Namespace as part of a manifest-set strip. The
+	// agent-install manifests carry a top-level Namespace object (akuity
+	// for Cluster, kargo / akuity for KargoAgent) so Apply can create it
+	// when absent, but deleting it cascades every tenant resource inside
+	// — including sibling MRs' agent deployments when Cluster and
+	// KargoAgent land in the same ns. Customers who want the ns gone
+	// delete it manually; our teardown removes only the resources we
+	// installed, matching kubectl apply -f --prune=false semantics on
+	// the delete side.
+	if mapping.Resource.Resource == "namespaces" {
+		return nil
+	}
 	if isClusterScoped(mapping) {
 		return a.dynamicClient.Resource(mapping.Resource).Delete(ctx, applyObject.name, v1.DeleteOptions{})
 	}
