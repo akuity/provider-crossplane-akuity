@@ -8,3 +8,4 @@ cover.out
 .idea
 .DS_Store
 dist
+.claude/
