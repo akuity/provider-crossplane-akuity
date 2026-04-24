@@ -156,6 +156,11 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 
 	actual := apiToSpec(mg.Spec.ForProvider, agent)
 	mg.Status.AtProvider = observation.KargoAgent(agent)
+	// Mirror the observed agent sub-tree onto AtProvider so
+	// compositions and dashboards can read the effective server-side
+	// shape without a separate Export call. Parity with
+	// KargoInstance.AtProvider.Kargo.
+	mg.Status.AtProvider.KargoAgentSpec = actual.KargoAgentSpec
 	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
 
 	// Drift compares against the ExportKargoInstance round-trippable

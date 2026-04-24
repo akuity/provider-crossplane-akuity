@@ -252,6 +252,15 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	prevCMHashCarry := mg.Status.AtProvider.ConfigMapHash
 	prevRepoCredsAt := mg.Status.AtProvider.RepoCredsAppliedAt
 	mg.Status.AtProvider = observation.KargoInstance(ki)
+	// Mirror the observed Kargo sub-tree onto AtProvider so
+	// compositions and dashboards can read the effective server-side
+	// spec without a separate Export call. Parity with
+	// InstanceObservation.ArgoCD. The observation projector can't
+	// build this itself because reassembling it requires the full
+	// apiToSpec transform (structpb → wire → Crossplane spec) which
+	// lives in the kargoinstance package, not in the observation
+	// package (circular import otherwise).
+	mg.Status.AtProvider.Kargo = actual.Kargo
 	mg.Status.AtProvider.SecretHash = prevSecretHash
 	mg.Status.AtProvider.ConfigMapHash = prevCMHashCarry
 	mg.Status.AtProvider.RepoCredsAppliedAt = prevRepoCredsAt
