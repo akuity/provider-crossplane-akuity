@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/pkg/errors"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -365,8 +366,28 @@ var ignoredArgocdCMKeys = []string{
 // server-defaulted fields onto desired, reorders known-stable
 // ConfigMap payloads, and strips keys the server owns. EquateEmpty is
 // contributed by the shared DriftSpec baseline.
+//
+// SecretRef fields (ArgoCD / ArgoCDNotifications / ArgoCDImageUpdater /
+// ApplicationSet + the two repo-cred lists) are spec-only — the Akuity
+// Export endpoint returns the Secret data masked/nil, so comparing a
+// populated desired ref against an observed nil always flags drift and
+// an Apply fires every poll. These refs are write-only per §2.11; the
+// reconcile path rotates via status.atProvider.secretHash (when the
+// secret-resolution plumbing lands). Ignore them in the struct
+// comparison; drift detection for the referenced secret content lives
+// on the hash compare.
 func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
 	return base.DriftSpec[v1alpha1.InstanceParameters]{
+		Ignore: []cmp.Option{
+			cmpopts.IgnoreFields(v1alpha1.InstanceParameters{},
+				"ArgoCDSecretRef",
+				"ArgoCDNotificationsSecretRef",
+				"ArgoCDImageUpdaterSecretRef",
+				"ApplicationSetSecretRef",
+				"RepoCredentialSecretRefs",
+				"RepoTemplateCredentialSecretRefs",
+			),
+		},
 		Normalize: normalizeInstanceParameters,
 	}
 }
