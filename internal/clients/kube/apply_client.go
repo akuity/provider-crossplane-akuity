@@ -131,7 +131,7 @@ func parseObject(object runtime.Object) (applyObject, error) {
 }
 
 func (a ApplyClient) deleteObject(ctx context.Context, mapping *meta.RESTMapping, applyObject applyObject) error {
-	if isClusterScopedResource(mapping.Resource.Resource) {
+	if isClusterScoped(mapping) {
 		return a.dynamicClient.Resource(mapping.Resource).Delete(ctx, applyObject.name, v1.DeleteOptions{})
 	}
 
@@ -139,7 +139,7 @@ func (a ApplyClient) deleteObject(ctx context.Context, mapping *meta.RESTMapping
 }
 
 func (a ApplyClient) applyObject(ctx context.Context, mapping *meta.RESTMapping, applyObject applyObject) error {
-	if isClusterScopedResource(mapping.Resource.Resource) {
+	if isClusterScoped(mapping) {
 		// Don't risk overwriting a namespace if it already exists
 		if mapping.Resource.Resource == "namespaces" {
 			_, err := a.dynamicClient.Resource(mapping.Resource).Get(ctx, applyObject.name, v1.GetOptions{})
@@ -171,6 +171,15 @@ func (a ApplyClient) applyObject(ctx context.Context, mapping *meta.RESTMapping,
 	return err
 }
 
-func isClusterScopedResource(resource string) bool {
-	return resource == "namespaces" || resource == "clusterroles" || resource == "clusterrolebindings"
+// isClusterScoped reports whether the RESTMapping targets a cluster-scoped
+// resource. The previous allowlist (namespaces / clusterroles /
+// clusterrolebindings) routed every other cluster-scoped kind — notably
+// MutatingWebhookConfiguration / ValidatingWebhookConfiguration,
+// CustomResourceDefinition, and RBAC aggregations — through the
+// namespaced Apply path, producing "the server could not find the
+// requested resource" on the first Create and deadlocking agent install
+// under the finding #13 atomicity gap. Trust the server-provided REST
+// scope from discovery instead of maintaining a hand-rolled allowlist.
+func isClusterScoped(mapping *meta.RESTMapping) bool {
+	return mapping.Scope != nil && mapping.Scope.Name() == meta.RESTScopeNameRoot
 }
