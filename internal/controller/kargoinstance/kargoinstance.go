@@ -102,6 +102,16 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 		Ignore: []cmp.Option{
 			cmpopts.IgnoreFields(v1alpha1.KargoInstanceParameters{},
 				"Resources", "KargoConfigMap", "KargoRepoCredentialSecretRefs"),
+			// Every []string on the KargoInstance tree is set-semantic
+			// on the gateway: OidcConfig.AdditionalScopes,
+			// KargoInstanceSpec.{GlobalCredentialsNs,GlobalServiceAccountNs},
+			// AkuityIntelligence.{AllowedUsernames,AllowedGroups},
+			// and KargoPredefinedAccountClaimValue.Values. The Export
+			// response always returns them sorted alphabetically; the
+			// CR round-trips user order. Without order-insensitive
+			// compare, a user writing `[groups, email]` and a server
+			// echoing `[email, groups]` hot-loop Apply on every poll.
+			cmpopts.SortSlices(func(a, b string) bool { return a < b }),
 		},
 		Normalize: func(desired, observed *v1alpha1.KargoInstanceParameters) {
 			if desired == nil || observed == nil {
