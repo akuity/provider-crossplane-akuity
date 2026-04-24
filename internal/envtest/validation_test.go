@@ -72,8 +72,12 @@ func TestInstanceIpAllowList_ValidatesIDOrRefRequired(t *testing.T) {
 	}
 	err := kube.Create(ctx, missing)
 	require.Error(t, err, "apiserver must reject InstanceIpAllowList missing id+ref")
-	assert.Contains(t, err.Error(), "exactly one of instanceId or instanceRef must be set")
+	assert.Contains(t, err.Error(), "instanceId or instanceRef must be set")
 
+	// The XOR is relaxed to "at least one" to tolerate v0.3.1-style
+	// stored state (lateInit stamped instanceId while instanceRef was
+	// user-supplied). Both-set is permitted; the controller prefers
+	// instanceRef when both are present.
 	both := &v1alpha1.InstanceIpAllowList{
 		ObjectMeta: metav1.ObjectMeta{Name: "ipa-both"},
 		Spec: v1alpha1.InstanceIpAllowListSpec{
@@ -84,9 +88,8 @@ func TestInstanceIpAllowList_ValidatesIDOrRefRequired(t *testing.T) {
 			},
 		},
 	}
-	err = kube.Create(ctx, both)
-	require.Error(t, err, "apiserver must reject InstanceIpAllowList with both id and ref")
-	assert.Contains(t, err.Error(), "exactly one of instanceId or instanceRef must be set")
+	require.NoError(t, kube.Create(ctx, both), "both-set is permitted for v0.3.1 upgrade compat")
+	t.Cleanup(func() { _ = kube.Delete(ctx, both) })
 
 	withID := &v1alpha1.InstanceIpAllowList{
 		ObjectMeta: metav1.ObjectMeta{Name: "ipa-id"},
@@ -126,8 +129,9 @@ func TestKargoDefaultShardAgent_ValidatesIDOrRefRequired(t *testing.T) {
 	}
 	err := kube.Create(ctx, missing)
 	require.Error(t, err, "apiserver must reject KargoDefaultShardAgent missing id+ref")
-	assert.Contains(t, err.Error(), "exactly one of kargoInstanceId or kargoInstanceRef must be set")
+	assert.Contains(t, err.Error(), "kargoInstanceId or kargoInstanceRef must be set")
 
+	// XOR relaxed to "at least one" mirrors the Cluster fix.
 	both := &v1alpha1.KargoDefaultShardAgent{
 		ObjectMeta: metav1.ObjectMeta{Name: "dsa-both"},
 		Spec: v1alpha1.KargoDefaultShardAgentSpec{
@@ -138,9 +142,8 @@ func TestKargoDefaultShardAgent_ValidatesIDOrRefRequired(t *testing.T) {
 			},
 		},
 	}
-	err = kube.Create(ctx, both)
-	require.Error(t, err, "apiserver must reject KargoDefaultShardAgent with both id and ref")
-	assert.Contains(t, err.Error(), "exactly one of kargoInstanceId or kargoInstanceRef must be set")
+	require.NoError(t, kube.Create(ctx, both), "both-set is permitted after XOR→at-least-one relaxation")
+	t.Cleanup(func() { _ = kube.Delete(ctx, both) })
 
 	withID := &v1alpha1.KargoDefaultShardAgent{
 		ObjectMeta: metav1.ObjectMeta{Name: "dsa-id"},
@@ -212,8 +215,9 @@ func TestKargoAgent_ValidatesIDOrRefRequired(t *testing.T) {
 	}
 	err := kube.Create(ctx, missing)
 	require.Error(t, err, "apiserver must reject KargoAgent missing id+ref")
-	assert.Contains(t, err.Error(), "exactly one of kargoInstanceId or kargoInstanceRef must be set")
+	assert.Contains(t, err.Error(), "kargoInstanceId or kargoInstanceRef must be set")
 
+	// XOR relaxed to "at least one" mirrors the Cluster fix.
 	both := &v1alpha1.KargoAgent{
 		ObjectMeta: metav1.ObjectMeta{Name: "ka-both"},
 		Spec: v1alpha1.KargoAgentSpec{
@@ -224,9 +228,8 @@ func TestKargoAgent_ValidatesIDOrRefRequired(t *testing.T) {
 			},
 		},
 	}
-	err = kube.Create(ctx, both)
-	require.Error(t, err, "apiserver must reject KargoAgent with both id and ref")
-	assert.Contains(t, err.Error(), "exactly one of kargoInstanceId or kargoInstanceRef must be set")
+	require.NoError(t, kube.Create(ctx, both), "both-set is permitted after XOR→at-least-one relaxation")
+	t.Cleanup(func() { _ = kube.Delete(ctx, both) })
 
 	withID := &v1alpha1.KargoAgent{
 		ObjectMeta: metav1.ObjectMeta{Name: "ka-id"},

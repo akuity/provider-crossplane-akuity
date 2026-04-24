@@ -258,7 +258,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		prevCMHash != "" ||
 		len(mg.Spec.ForProvider.Resources) > 0
 	if upToDate && needsExport {
-		exp, err := e.Client.ExportKargoInstance(ctx, meta.GetExternalName(mg))
+		exp, err := e.Client.ExportKargoInstance(ctx, meta.GetExternalName(mg), mg.Spec.ForProvider.Workspace)
 		if err != nil {
 			// A failed Export on an otherwise-healthy instance is
 			// recoverable; leaving upToDate=true lets the next poll
@@ -389,6 +389,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	req := &kargov1.ApplyKargoInstanceRequest{
 		IdType:                idv1.Type_NAME,
 		Id:                    mg.Spec.ForProvider.Name,
+		WorkspaceId:           mg.Spec.ForProvider.Workspace,
 		Kargo:                 kargoPB,
 		KargoConfigmap:        cmPB,
 		KargoSecret:           secretPB,

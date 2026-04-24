@@ -71,7 +71,7 @@ type Client interface {
 	// the ID-keyed lookup by listing and filtering server-side (matches
 	// how the Akuity Terraform provider resolves by ID).
 	GetKargoInstanceByID(ctx context.Context, id string) (*kargov1.KargoInstance, error)
-	ExportKargoInstance(ctx context.Context, name string) (*kargov1.ExportKargoInstanceResponse, error)
+	ExportKargoInstance(ctx context.Context, name, workspaceID string) (*kargov1.ExportKargoInstanceResponse, error)
 	// ApplyKargoInstance narrow-merges the populated fields into the
 	// target KargoInstance; omitted fields (Kargo envelope, Projects,
 	// Warehouses, Stages, RepoCredentials, …) are left untouched. Agent
@@ -440,17 +440,20 @@ func (c client) PatchKargoInstance(ctx context.Context, id string, patch *struct
 	return nil
 }
 
-func (c client) ExportKargoInstance(ctx context.Context, name string) (*kargov1.ExportKargoInstanceResponse, error) {
+func (c client) ExportKargoInstance(ctx context.Context, name, workspaceID string) (*kargov1.ExportKargoInstanceResponse, error) {
 	if err := c.kargoRequired("ExportKargoInstance"); err != nil {
 		return nil, err
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
 	// ExportKargoInstance looks the instance up by its canonical Id
 	// (name or UUID); callers pass the name when they don't have an
-	// ID handy, and the backend resolves either.
+	// ID handy, and the backend resolves either. The HTTP route is
+	// workspace-scoped (no workspace-less fallback), so callers on
+	// multi-workspace orgs must pass the correct workspaceID.
 	resp, err := c.kargoGatewayClient.ExportKargoInstance(ctx, &kargov1.ExportKargoInstanceRequest{
 		OrganizationId: c.organizationID,
 		Id:             name,
+		WorkspaceId:    workspaceID,
 	})
 	if err != nil {
 		if e, ok := status.FromError(err); ok && e.Code() == codes.NotFound {

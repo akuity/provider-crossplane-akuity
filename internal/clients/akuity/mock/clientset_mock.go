@@ -158,18 +158,18 @@ func (mr *MockClientMockRecorder) ExportInstanceByID(ctx, id any) *gomock.Call {
 }
 
 // ExportKargoInstance mocks base method.
-func (m *MockClient) ExportKargoInstance(ctx context.Context, name string) (*kargov1.ExportKargoInstanceResponse, error) {
+func (m *MockClient) ExportKargoInstance(ctx context.Context, name, workspaceID string) (*kargov1.ExportKargoInstanceResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ExportKargoInstance", ctx, name)
+	ret := m.ctrl.Call(m, "ExportKargoInstance", ctx, name, workspaceID)
 	ret0, _ := ret[0].(*kargov1.ExportKargoInstanceResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ExportKargoInstance indicates an expected call of ExportKargoInstance.
-func (mr *MockClientMockRecorder) ExportKargoInstance(ctx, name any) *gomock.Call {
+func (mr *MockClientMockRecorder) ExportKargoInstance(ctx, name, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportKargoInstance", reflect.TypeOf((*MockClient)(nil).ExportKargoInstance), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportKargoInstance", reflect.TypeOf((*MockClient)(nil).ExportKargoInstance), ctx, name, workspaceID)
 }
 
 // GetCluster mocks base method.

@@ -241,7 +241,12 @@ func (e *external) Disconnect(_ context.Context) error { return nil }
 // slice (e.g. server lag mid-provisioning); caller falls back to
 // Get-based drift in that case. Errors are transient Export failures.
 func (e *external) exportedAgentSpec(ctx context.Context, instanceID, agentName string, desired v1alpha1.KargoAgentParameters) (v1alpha1.KargoAgentParameters, bool, error) {
-	exp, err := e.Client.ExportKargoInstance(ctx, instanceID)
+	// ExportKargoInstance is workspace-scoped at the HTTP gateway; pass
+	// empty workspace here because the KargoAgent spec doesn't carry
+	// one. If Export 404s on a multi-workspace org the caller falls
+	// back to GetKargoInstanceAgent-based drift, which has a
+	// workspace-less path.
+	exp, err := e.Client.ExportKargoInstance(ctx, instanceID, "")
 	if err != nil {
 		return v1alpha1.KargoAgentParameters{}, false, err
 	}

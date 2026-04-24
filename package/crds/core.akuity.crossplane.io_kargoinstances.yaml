@@ -514,6 +514,17 @@ spec:
                       damage. To remove a resource, delete it via the Akuity
                       platform UI or API. See PARITY_PLAN.md for the rationale.
                     x-kubernetes-preserve-unknown-fields: true
+                  workspace:
+                    description: |-
+                      Workspace is the ID of the Akuity workspace this Kargo instance
+                      belongs to. The Akuity API's ApplyKargoInstance / PatchKargoInstance
+                      / DeleteInstance HTTP routes are all scoped under a workspace; the
+                      workspace-less compat path is GET-only. Required when the target
+                      organization has more than one workspace; for single-workspace
+                      organizations the portal's default workspace is used when left
+                      unset (controller discovers it on first Observe and records the
+                      resolved ID on status.atProvider.workspaceId).
+                    type: string
                 required:
                 - kargo
                 - name
