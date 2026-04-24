@@ -11,3 +11,8 @@ metadata:
 spec:
   capabilities:
     - safe-start
+  # safe-start is a 2.x capability; declaring it on 1.x cores is a
+  # no-op. The runtime-v2 bundle is compatible with Crossplane 1.19+
+  # and 2.x out of the same artifact; customer floor is 1.19.0.
+  crossplane:
+    version: ">=v1.19.0"

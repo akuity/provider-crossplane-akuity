@@ -69,7 +69,11 @@ v2.0.0 adds four new cluster-scoped MR types under the same group:
 
 ### Compatibility
 
-- **Crossplane core**: v1.16+ and v2.x both supported; single artifact.
+- **Crossplane core**: Crossplane 1.19+ and 2.x both supported out of
+  the same artifact. `spec.crossplane.version: ">=v1.19.0"` is
+  declared in `package/crossplane.yaml` so older 1.x cores will refuse
+  to install the provider instead of loading it against an untested
+  runtime. safe-start is a 2.x-only capability and no-ops on 1.x.
 - **Existing v1alpha1 manifests**: work unchanged.
 - **ESS (`publishConnectionDetailsTo`, `StoreConfig`)**: removed at the
   runtime layer in v2.0.0. If you previously used these fields, migrate
