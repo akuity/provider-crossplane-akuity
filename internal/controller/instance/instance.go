@@ -291,6 +291,19 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		if managedInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension = actualInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension
 		}
+
+		// The server always populates AppReconciliationsRateLimiting with a
+		// defaulted struct (BucketRateLimiting{Enabled:false, BucketSize:500,
+		// BucketQps:50} + ItemRateLimiting{Enabled:true, FailureCooldown:10000,
+		// BaseDelay:1, MaxDelay:1000, BackoffFactor:"1.5"}). If the CR omits
+		// it entirely, inherit the server's defaults to avoid a per-poll
+		// drift-flap. Users who populate the struct partially get their
+		// explicit values honoured; scalar-field defaulting inside a
+		// partially-set struct is Tier 2 territory (§6 #7 scalar lateInit
+		// gap).
+		if managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting == nil {
+			managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting = actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+		}
 	}
 
 	// some configmap values have stable orders which may not be the same as user input
