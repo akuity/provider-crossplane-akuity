@@ -304,6 +304,14 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		if managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting = actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
 		}
+
+		// IpAllowList is owned by a separate InstanceIpAllowList MR. When
+		// the Instance CR omits the field, inherit the server's current
+		// list so an IpAllowList MR writing to the same Instance doesn't
+		// cause a per-poll Instance Apply flap (1C.D9 coexist case).
+		if managedInstance.ArgoCD.Spec.InstanceSpec.IpAllowList == nil {
+			managedInstance.ArgoCD.Spec.InstanceSpec.IpAllowList = actualInstance.ArgoCD.Spec.InstanceSpec.IpAllowList
+		}
 	}
 
 	// some configmap values have stable orders which may not be the same as user input
