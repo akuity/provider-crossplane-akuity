@@ -71,7 +71,16 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: ClusterParameters are the configurable fields of a Cluster.
+                description: |-
+                  ClusterParameters are the configurable fields of a Cluster.
+
+                  v0.3.1 lateInitialize stamps `instanceId` onto spec while the user
+                  supplied `instanceRef`, so stored legacy Clusters carry BOTH fields.
+                  A strict XOR rule would reject every UPDATE (including status
+                  subresource) on those stored CRs because k8s CRD validation
+                  ratcheting cannot decompose a cross-field rule. Relax to "at least
+                  one must be set"; the controller resolves `instanceRef` first and
+                  falls back to `instanceId`, so both-set state is well-defined.
                 properties:
                   annotations:
                     additionalProperties:
@@ -255,8 +264,8 @@ spec:
                 - name
                 type: object
                 x-kubernetes-validations:
-                - message: exactly one of instanceId or instanceRef must be set
-                  rule: has(self.instanceId) != has(self.instanceRef)
+                - message: instanceId or instanceRef must be set
+                  rule: has(self.instanceId) || has(self.instanceRef)
                 - message: instanceId/instanceRef are immutable
                   rule: self.instanceId == oldSelf.instanceId && has(self.instanceRef)
                     == has(oldSelf.instanceRef) && (!has(self.instanceRef) || self.instanceRef.name

@@ -168,8 +168,14 @@ func TestCluster_ValidatesIDOrRefRequired(t *testing.T) {
 	}
 	err := kube.Create(ctx, missing)
 	require.Error(t, err, "apiserver must reject Cluster missing id+ref")
-	assert.Contains(t, err.Error(), "exactly one of instanceId or instanceRef must be set")
+	assert.Contains(t, err.Error(), "instanceId or instanceRef must be set")
 
+	// v0.3.1 lateInitialize stamps `instanceId` onto spec while the user
+	// supplied `instanceRef`, so stored legacy Clusters carry BOTH fields.
+	// The at-least-one rule permits that stored state to continue passing
+	// UPDATE validation; a strict XOR would reject every update, including
+	// status subresource updates, because CRD ratcheting cannot decompose
+	// the cross-field rule.
 	both := &v1alpha1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster-both"},
 		Spec: v1alpha1.ClusterSpec{
@@ -180,9 +186,8 @@ func TestCluster_ValidatesIDOrRefRequired(t *testing.T) {
 			},
 		},
 	}
-	err = kube.Create(ctx, both)
-	require.Error(t, err, "apiserver must reject Cluster with both id and ref")
-	assert.Contains(t, err.Error(), "exactly one of instanceId or instanceRef must be set")
+	require.NoError(t, kube.Create(ctx, both), "both-set is permitted for v0.3.1 upgrade compat")
+	t.Cleanup(func() { _ = kube.Delete(ctx, both) })
 
 	withID := &v1alpha1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster-id"},

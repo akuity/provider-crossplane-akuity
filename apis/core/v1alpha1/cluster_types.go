@@ -28,7 +28,15 @@ import (
 
 // ClusterParameters are the configurable fields of a Cluster.
 //
-// +kubebuilder:validation:XValidation:rule="has(self.instanceId) != has(self.instanceRef)",message="exactly one of instanceId or instanceRef must be set"
+// v0.3.1 lateInitialize stamps `instanceId` onto spec while the user
+// supplied `instanceRef`, so stored legacy Clusters carry BOTH fields.
+// A strict XOR rule would reject every UPDATE (including status
+// subresource) on those stored CRs because k8s CRD validation
+// ratcheting cannot decompose a cross-field rule. Relax to "at least
+// one must be set"; the controller resolves `instanceRef` first and
+// falls back to `instanceId`, so both-set state is well-defined.
+//
+// +kubebuilder:validation:XValidation:rule="has(self.instanceId) || has(self.instanceRef)",message="instanceId or instanceRef must be set"
 // +kubebuilder:validation:XValidation:rule="self.instanceId == oldSelf.instanceId && has(self.instanceRef) == has(oldSelf.instanceRef) && (!has(self.instanceRef) || self.instanceRef.name == oldSelf.instanceRef.name)",message="instanceId/instanceRef are immutable"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type ClusterParameters struct {
