@@ -1,0 +1,15 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoAgent
+metadata:
+  name: my-kargo-agent
+spec:
+  forProvider:
+    # The Kargo instance ID can be hardcoded or resolved via a
+    # KargoInstance MR in the same namespace.
+    # kargoInstanceId: "my-kargo-instance-id"
+    kargoInstanceRef:
+      name: "my-kargo"
+    name: "my-kargo-agent"
+  providerConfigRef:
+    name: akuity

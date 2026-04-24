@@ -365,7 +365,10 @@ spec:
                       on manifest drift.
                     type: string
                   agentSize:
-                    description: The size of the agent to run on the cluster.
+                    description: |-
+                      The size of the agent to run on the cluster.
+
+                      Deprecated: read via ClusterSpec.Data.Size.
                     type: string
                   agentState:
                     description: The status of each agent running in the cluster.
@@ -395,13 +398,143 @@ spec:
                       Whether or not state replication to the managed cluster is enabled.
                       When enabled, the managed cluster retains core ArgoCD functionality even
                       when unable to connect to the Akuity Platform.
+
+                      Deprecated: read via ClusterSpec.Data.AppReplication.
                     type: boolean
                   autoUpgradeDisabled:
-                    description: Whether or not the agent should be autoupgraded when
-                      a new version is available.
+                    description: |-
+                      Whether or not the agent should be autoupgraded when a new version is available.
+
+                      Deprecated: read via ClusterSpec.Data.AutoUpgradeDisabled.
                     type: boolean
+                  clusterSpec:
+                    description: |-
+                      ClusterSpec mirrors the desired payload observed on the most
+                      recent reconcile (description + namespaceScoped + data),
+                      matching the shape of spec.forProvider.clusterSpec. Provides
+                      symmetry with Instance's atProvider.argocd mirror: users can
+                      read the observed payload as one nested block instead of
+                      grepping a dozen flat fields.
+                    properties:
+                      data:
+                        properties:
+                          appReplication:
+                            type: boolean
+                          argocdNotificationsSettings:
+                            properties:
+                              inClusterSettings:
+                                type: boolean
+                            type: object
+                          autoUpgradeDisabled:
+                            type: boolean
+                          autoscalerConfig:
+                            properties:
+                              applicationController:
+                                properties:
+                                  resourceMaximum:
+                                    properties:
+                                      cpu:
+                                        type: string
+                                      mem:
+                                        type: string
+                                    type: object
+                                  resourceMinimum:
+                                    properties:
+                                      cpu:
+                                        type: string
+                                      mem:
+                                        type: string
+                                    type: object
+                                type: object
+                              repoServer:
+                                properties:
+                                  replicaMaximum:
+                                    format: int32
+                                    type: integer
+                                  replicaMinimum:
+                                    format: int32
+                                    type: integer
+                                  resourceMaximum:
+                                    properties:
+                                      cpu:
+                                        type: string
+                                      mem:
+                                        type: string
+                                    type: object
+                                  resourceMinimum:
+                                    properties:
+                                      cpu:
+                                        type: string
+                                      mem:
+                                        type: string
+                                    type: object
+                                type: object
+                            type: object
+                          compatibility:
+                            properties:
+                              ipv6Only:
+                                type: boolean
+                            type: object
+                          datadogAnnotationsEnabled:
+                            type: boolean
+                          directClusterSpec:
+                            properties:
+                              caData:
+                                type: string
+                              clusterType:
+                                type: string
+                              kargoInstanceId:
+                                type: string
+                              organization:
+                                type: string
+                              server:
+                                type: string
+                              token:
+                                type: string
+                            type: object
+                          eksAddonEnabled:
+                            type: boolean
+                          kustomization:
+                            type: string
+                          maintenanceMode:
+                            type: boolean
+                          maintenanceModeExpiry:
+                            type: string
+                          managedClusterConfig:
+                            properties:
+                              secretKey:
+                                type: string
+                              secretName:
+                                type: string
+                            type: object
+                          multiClusterK8sDashboardEnabled:
+                            type: boolean
+                          podInheritMetadata:
+                            type: boolean
+                          project:
+                            type: string
+                          redisTunneling:
+                            type: boolean
+                          serverSideDiffEnabled:
+                            type: boolean
+                          size:
+                            type: string
+                          targetVersion:
+                            type: string
+                        type: object
+                      description:
+                        type: string
+                      namespaceScoped:
+                        type: boolean
+                    type: object
                   description:
-                    description: The description of the cluster.
+                    description: |-
+                      The description of the cluster.
+
+                      Deprecated: read via ClusterSpec.Description. Retained for
+                      backward compatibility with consumers that grew up on the
+                      flat-field observation; will be removed in the next API
+                      version bump.
                     type: string
                   healthStatus:
                     description: The health status of the cluster.
@@ -418,7 +551,10 @@ spec:
                     description: The ID of the cluster.
                     type: string
                   kustomization:
-                    description: A Kustomization to apply to the cluster resource.
+                    description: |-
+                      A Kustomization to apply to the cluster resource.
+
+                      Deprecated: read via ClusterSpec.Data.Kustomization.
                     type: string
                   labels:
                     additionalProperties:
@@ -433,7 +569,11 @@ spec:
                       in.
                     type: string
                   namespaceScoped:
-                    description: Whether or not the Akuity agent is namespace-scoped.
+                    description: |-
+                      Whether or not the Akuity agent is namespace-scoped.
+
+                      Deprecated: read via ClusterSpec.NamespaceScoped. See
+                      Description for the deprecation rationale.
                     type: boolean
                   reconciliationStatus:
                     description: The reconciliation status of the cluster.
@@ -450,9 +590,14 @@ spec:
                     description: |-
                       Whether or not the agent should connect to Redis over a web-socket tunnel
                       / in order to support running the agent behind a HTTPS proxy.
+
+                      Deprecated: read via ClusterSpec.Data.RedisTunneling.
                     type: boolean
                   targetVersion:
-                    description: The desired version of the agent to run on the cluster.
+                    description: |-
+                      The desired version of the agent to run on the cluster.
+
+                      Deprecated: read via ClusterSpec.Data.TargetVersion.
                     type: string
                 required:
                 - id

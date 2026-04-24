@@ -1,0 +1,12 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoInstance
+metadata:
+  name: my-kargo
+spec:
+  forProvider:
+    name: my-kargo
+    kargo:
+      version: "v1.8.1"
+  providerConfigRef:
+    name: akuity

@@ -58,11 +58,11 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 	assert.Equal(t, "ws-1", out.Workspace)
 	assert.Equal(t, "agt", out.Name, "Name must come from API (immutable by CEL)")
 	assert.Equal(t, "kargo", out.Namespace, "Namespace is pulled from wire Data, not ObjectMeta")
-	assert.Equal(t, "observed-description", out.Description)
+	assert.Equal(t, "observed-description", out.KargoAgentSpec.Description)
 	assert.Equal(t, map[string]string{"team": "platform"}, out.Labels)
-	assert.NotEmpty(t, out.Data.Size, "size must roundtrip through the bridge")
-	require.NotNil(t, out.Data.AutoUpgradeDisabled)
-	assert.True(t, *out.Data.AutoUpgradeDisabled)
+	assert.NotEmpty(t, out.KargoAgentSpec.Data.Size, "size must roundtrip through the bridge")
+	require.NotNil(t, out.KargoAgentSpec.Data.AutoUpgradeDisabled)
+	assert.True(t, *out.KargoAgentSpec.Data.AutoUpgradeDisabled)
 }
 
 // TestApiToSpec_NilDataDoesNotPanic covers the boundary: an agent
@@ -75,7 +75,7 @@ func TestApiToSpec_NilDataDoesNotPanic(t *testing.T) {
 	out := apiToSpec(desired, agent)
 	assert.Equal(t, "agt", out.Name)
 	assert.Empty(t, out.Namespace)
-	assert.Equal(t, crossplanetypes.KargoAgentSize(""), out.Data.Size)
+	assert.Equal(t, crossplanetypes.KargoAgentSize(""), out.KargoAgentSpec.Data.Size)
 }
 
 // TestWireToSpec_NilReturnsZero covers the explicit nil guard so
@@ -114,8 +114,8 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 	assert.Equal(t, "kargo", out.Namespace)
 	assert.Equal(t, map[string]string{"team": "platform"}, out.Labels)
 	assert.Equal(t, map[string]string{"note": "x"}, out.Annotations)
-	assert.Equal(t, "observed", out.Description)
-	assert.Equal(t, crossplanetypes.KargoAgentSize("medium"), out.Data.Size)
+	assert.Equal(t, "observed", out.KargoAgentSpec.Description)
+	assert.Equal(t, crossplanetypes.KargoAgentSize("medium"), out.KargoAgentSpec.Data.Size)
 }
 
 // TestWireToSpec_EmptyLabelMapsBecomeNil exercises the nil-vs-empty
@@ -146,8 +146,10 @@ func TestBuildApplyKargoInstanceRequest_InjectsNamespaceAndLabels(t *testing.T) 
 		Namespace:   "kargo",
 		Labels:      map[string]string{"team": "platform"},
 		Annotations: map[string]string{"note": "x"},
-		Data: crossplanetypes.KargoAgentData{
-			Size: crossplanetypes.KargoAgentSize("small"),
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size: crossplanetypes.KargoAgentSize("small"),
+			},
 		},
 	}
 	req, err := BuildApplyKargoInstanceRequest("ki-1", p)
@@ -167,8 +169,10 @@ func TestBuildApplyKargoInstanceRequest_InjectsNamespaceAndLabels(t *testing.T) 
 // silently forwarded to the gateway.
 func TestBuildApplyKargoInstanceRequest_InvalidKustomizationErrors(t *testing.T) {
 	p := v1alpha1.KargoAgentParameters{
-		Data: crossplanetypes.KargoAgentData{
-			Kustomization: "this: is: not: yaml:\n    - [",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Kustomization: "this: is: not: yaml:\n    - [",
+			},
 		},
 	}
 	_, err := BuildApplyKargoInstanceRequest("ki-1", p)

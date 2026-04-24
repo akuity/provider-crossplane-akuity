@@ -35,10 +35,10 @@ import (
 // ExportKargoInstance returns inside its Agents slice, giving
 // round-trip symmetry between read (Export) and write (Apply).
 func SpecToAPI(p v1alpha1.KargoAgentParameters) (akuitytypes.KargoAgent, error) {
-	if err := crossplanetypes.ValidateKustomizationYAML(p.Data.Kustomization); err != nil {
-		return akuitytypes.KargoAgent{}, fmt.Errorf("spec.forProvider.data.kustomization: %w", err)
+	if err := crossplanetypes.ValidateKustomizationYAML(p.KargoAgentSpec.Data.Kustomization); err != nil {
+		return akuitytypes.KargoAgent{}, fmt.Errorf("spec.forProvider.kargoAgentSpec.data.kustomization: %w", err)
 	}
-	data := crossplanetypes.KargoAgentDataSpecToAPI(&p.Data)
+	data := crossplanetypes.KargoAgentDataSpecToAPI(&p.KargoAgentSpec.Data)
 	if data == nil {
 		data = &akuitytypes.KargoAgentData{}
 	}
@@ -54,7 +54,7 @@ func SpecToAPI(p v1alpha1.KargoAgentParameters) (akuitytypes.KargoAgent, error) 
 			Annotations: p.Annotations,
 		},
 		Spec: akuitytypes.KargoAgentSpec{
-			Description: p.Description,
+			Description: p.KargoAgentSpec.Description,
 			Data:        *data,
 		},
 	}, nil
@@ -100,12 +100,12 @@ func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent)
 		Labels:           data.GetLabels(),
 		Annotations:      data.GetAnnotations(),
 	}
-	// Description hoisted to a forProvider sibling; the wire
-	// KargoAgentSpec envelope is discarded on the shell side so users
-	// write .forProvider.data.<wire fields> directly.
-	out.Description = agent.GetDescription()
+	// Description + data live under the KargoAgentSpec wrapper,
+	// mirroring the Cluster shape where payload lives under
+	// clusterSpec.
+	out.KargoAgentSpec.Description = agent.GetDescription()
 	if d := convertAgentData(data); d != nil {
-		out.Data = *d
+		out.KargoAgentSpec.Data = *d
 	}
 	return out
 }
@@ -128,10 +128,10 @@ func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAg
 		Workspace:        desired.Workspace,
 		Labels:           wire.Labels,
 		Annotations:      wire.Annotations,
-		Description:      wire.Spec.Description,
 	}
+	out.KargoAgentSpec.Description = wire.Spec.Description
 	if d := crossplanetypes.KargoAgentDataAPIToSpec(&wire.Spec.Data); d != nil {
-		out.Data = *d
+		out.KargoAgentSpec.Data = *d
 	}
 	if len(out.Labels) == 0 {
 		out.Labels = nil

@@ -78,25 +78,41 @@ type ClusterObservation struct {
 	// The name of the cluster.
 	Name string `json:"name"`
 	// The description of the cluster.
+	//
+	// Deprecated: read via ClusterSpec.Description. Retained for
+	// backward compatibility with consumers that grew up on the
+	// flat-field observation; will be removed in the next API
+	// version bump.
 	Description string `json:"description,omitempty"`
 	// The Kubernetes namespace the Akuity agent is installed in.
 	Namespace string `json:"namespace,omitempty"`
 	// Whether or not the Akuity agent is namespace-scoped.
+	//
+	// Deprecated: read via ClusterSpec.NamespaceScoped. See
+	// Description for the deprecation rationale.
 	NamespaceScoped bool `json:"namespaceScoped,omitempty"`
 	// Labels applied to the cluster.
 	Labels map[string]string `json:"labels,omitempty"`
 	// Annotations applied to the cluster.
 	Annotations map[string]string `json:"annotations,omitempty"`
 	// Whether or not the agent should be autoupgraded when a new version is available.
+	//
+	// Deprecated: read via ClusterSpec.Data.AutoUpgradeDisabled.
 	AutoUpgradeDisabled bool `json:"autoUpgradeDisabled,omitempty"`
 	// Whether or not state replication to the managed cluster is enabled.
 	// When enabled, the managed cluster retains core ArgoCD functionality even
 	// when unable to connect to the Akuity Platform.
+	//
+	// Deprecated: read via ClusterSpec.Data.AppReplication.
 	AppReplication bool `json:"appReplication,omitempty"`
 	// The desired version of the agent to run on the cluster.
+	//
+	// Deprecated: read via ClusterSpec.Data.TargetVersion.
 	TargetVersion string `json:"targetVersion,omitempty"`
 	// Whether or not the agent should connect to Redis over a web-socket tunnel
 	/// in order to support running the agent behind a HTTPS proxy.
+	//
+	// Deprecated: read via ClusterSpec.Data.RedisTunneling.
 	RedisTunneling bool `json:"redisTunneling,omitempty"`
 	// The status of each agent running in the cluster.
 	AgentState ClusterObservationAgentState `json:"agentState,omitempty"`
@@ -105,8 +121,12 @@ type ClusterObservation struct {
 	// The reconciliation status of the cluster.
 	ReconciliationStatus ResourceStatusCode `json:"reconciliationStatus,omitempty"`
 	// A Kustomization to apply to the cluster resource.
+	//
+	// Deprecated: read via ClusterSpec.Data.Kustomization.
 	Kustomization string `json:"kustomization,omitempty"`
 	// The size of the agent to run on the cluster.
+	//
+	// Deprecated: read via ClusterSpec.Data.Size.
 	AgentSize string `json:"agentSize,omitempty"`
 	// AgentManifestsHash records the SHA256 of the Akuity-generated
 	// agent install manifests that the controller last successfully
@@ -116,6 +136,15 @@ type ClusterObservation struct {
 	// on manifest drift.
 	// +optional
 	AgentManifestsHash string `json:"agentManifestsHash,omitempty"`
+
+	// ClusterSpec mirrors the desired payload observed on the most
+	// recent reconcile (description + namespaceScoped + data),
+	// matching the shape of spec.forProvider.clusterSpec. Provides
+	// symmetry with Instance's atProvider.argocd mirror: users can
+	// read the observed payload as one nested block instead of
+	// grepping a dozen flat fields.
+	// +optional
+	ClusterSpec crossplanetypes.ClusterSpec `json:"clusterSpec,omitempty"`
 }
 
 type ClusterObservationAgentState struct {

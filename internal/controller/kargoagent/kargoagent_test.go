@@ -56,7 +56,9 @@ func newAgent() *v1alpha1.KargoAgent {
 			ForProvider: v1alpha1.KargoAgentParameters{
 				KargoInstanceID: "ki-1",
 				Name:            "agt",
-				Data:            crossplanetypes.KargoAgentData{Size: crossplanetypes.KargoAgentSize("small")},
+				KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+					Data: crossplanetypes.KargoAgentData{Size: crossplanetypes.KargoAgentSize("small")},
+				},
 			},
 		},
 	}

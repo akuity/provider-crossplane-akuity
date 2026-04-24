@@ -24,6 +24,7 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
 // Cluster projects the ArgoCD-plane response into the Cluster
@@ -38,7 +39,7 @@ func Cluster(cluster *argocdv1.Cluster) (v1alpha1.ClusterObservation, error) {
 		return v1alpha1.ClusterObservation{}, err
 	}
 
-	return v1alpha1.ClusterObservation{
+	obs := v1alpha1.ClusterObservation{
 		ID:                  cluster.GetId(),
 		Name:                cluster.GetName(),
 		Description:         cluster.GetDescription(),
@@ -61,7 +62,34 @@ func Cluster(cluster *argocdv1.Cluster) (v1alpha1.ClusterObservation, error) {
 			Code:    int32(cluster.GetReconciliationStatus().GetCode()),
 			Message: cluster.GetReconciliationStatus().GetMessage(),
 		},
-	}, nil
+	}
+	// Nested mirror: groups the observed payload under one block so
+	// consumers reading atProvider see the same shape as
+	// spec.forProvider.clusterSpec.
+	obs.ClusterSpec = crossplanetypes.ClusterSpec{
+		Description:     cluster.GetDescription(),
+		NamespaceScoped: boolPtrIfSet(cluster.GetData().GetNamespaceScoped()),
+		Data: crossplanetypes.ClusterData{
+			Size:                crossplanetypes.ClusterSize(clusterSizeToString(cluster.GetData().GetSize())),
+			AutoUpgradeDisabled: cluster.GetData().AutoUpgradeDisabled,
+			Kustomization:       string(kustomizationYAML),
+			AppReplication:      cluster.GetData().AppReplication,
+			TargetVersion:       cluster.GetData().GetTargetVersion(),
+			RedisTunneling:      cluster.GetData().RedisTunneling,
+		},
+	}
+	return obs, nil
+}
+
+// boolPtrIfSet returns a pointer to b when the bool is true. Used by
+// the nested ClusterSpec mirror so false-by-default proto scalars
+// collapse to nil on the spec side, matching how forProvider shapes
+// optional booleans.
+func boolPtrIfSet(b bool) *bool {
+	if !b {
+		return nil
+	}
+	return &b
 }
 
 // ClusterAgentState projects an AgentState proto into the observed

@@ -1,0 +1,65 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoAgent
+metadata:
+  name: my-kargo-agent
+spec:
+  forProvider:
+    # The Kargo instance ID can be hardcoded or resolved via a
+    # KargoInstance MR in the same namespace.
+    # kargoInstanceId: "my-kargo-instance-id"
+    kargoInstanceRef:
+      name: "my-kargo"
+    name: "my-kargo-agent"
+    namespace: "kargo"
+    workspace: "my-project"
+    labels:
+      team: "platform"
+    annotations:
+      note: "managed by crossplane"
+    kargoAgentSpec:
+      description: "The my-kargo-agent agent runs Kargo controllers on the shared cluster."
+      data:
+        size: "small"
+        autoUpgradeDisabled: false
+        targetVersion: "v1.8.1"
+        kustomization: |
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          patches:
+            - patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: kargo-controller
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: kargo-controller
+                          resources:
+                            limits:
+                              memory: 1Gi
+                            requests:
+                              cpu: 250m
+                              memory: 512Mi
+              target:
+                kind: Deployment
+                name: kargo-controller
+        remoteArgocd: "my-argocd"
+        akuityManaged: true
+        argocdNamespace: "argocd"
+        allowedJobSa:
+          - "kargo:default"
+        maintenanceMode: false
+        podInheritMetadata: true
+        autoscalerConfig:
+          kargoController:
+            resourceMinimum:
+              mem: "512Mi"
+              cpu: "250m"
+            resourceMaximum:
+              mem: "2Gi"
+              cpu: "1"
+  providerConfigRef:
+    name: akuity

@@ -342,7 +342,7 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoInstance) (mana
 	return managed.ExternalDelete{}, e.Client.DeleteKargoInstance(ctx, name)
 }
 
-func (e *external) Disconnect(ctx context.Context) error { return nil }
+func (e *external) Disconnect(_ context.Context) error { return nil }
 
 // apply is shared by Create and Update.
 //

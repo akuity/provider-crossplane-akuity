@@ -233,7 +233,7 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 	return managed.ExternalDelete{}, nil
 }
 
-func (e *external) Disconnect(ctx context.Context) error { return nil }
+func (e *external) Disconnect(_ context.Context) error { return nil }
 
 // exportedAgentSpec returns the canonical KargoAgentParameters for
 // agentName built from ExportKargoInstance's response. `found` is

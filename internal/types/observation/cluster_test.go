@@ -21,8 +21,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/ptr"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )
@@ -63,6 +65,18 @@ func TestCluster(t *testing.T) {
 		ReconciliationStatus: v1alpha1.ResourceStatusCode{
 			Code:    int32(fixtures.ArgocdCluster.GetReconciliationStatus().GetCode()),
 			Message: fixtures.ArgocdCluster.GetReconciliationStatus().GetMessage(),
+		},
+		ClusterSpec: crossplanetypes.ClusterSpec{
+			Description:     fixtures.ArgocdCluster.GetDescription(),
+			NamespaceScoped: ptr.To(fixtures.ArgocdCluster.GetData().GetNamespaceScoped()),
+			Data: crossplanetypes.ClusterData{
+				Size:                fixtures.CrossplaneCluster.ClusterSpec.Data.Size,
+				AutoUpgradeDisabled: fixtures.ArgocdCluster.GetData().AutoUpgradeDisabled,
+				Kustomization:       fixtures.CrossplaneCluster.ClusterSpec.Data.Kustomization,
+				AppReplication:      fixtures.ArgocdCluster.GetData().AppReplication,
+				TargetVersion:       fixtures.ArgocdCluster.GetData().GetTargetVersion(),
+				RedisTunneling:      fixtures.ArgocdCluster.GetData().RedisTunneling,
+			},
 		},
 	}
 

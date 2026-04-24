@@ -1,0 +1,19 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: InstanceIpAllowList
+metadata:
+  name: my-instance-allowlist
+spec:
+  forProvider:
+    # The instance ID can be hardcoded or resolved via an Instance MR
+    # in the same namespace.
+    # instanceId: "my-instance-id"
+    instanceRef:
+      name: "my-instance"
+    allowList:
+      - ip: "10.0.0.0/24"
+        description: "office vpn"
+      - ip: "1.2.3.4"
+        description: "bastion"
+  providerConfigRef:
+    name: akuity

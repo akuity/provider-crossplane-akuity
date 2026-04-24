@@ -63,18 +63,14 @@ type KargoAgentParameters struct {
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 
-	// Description is a free-form description of the agent.
+	// KargoAgentSpec carries the agent configuration payload
+	// (description + data). The wrapper groups gateway-owned fields
+	// so forProvider siblings (name, namespace, refs, labels) stay
+	// cleanly separated from what is sent to the Akuity gateway.
+	// Mirrors the Cluster pattern where payload lives under
+	// clusterSpec alongside hoisted k8s/Crossplane identity fields.
 	// +optional
-	Description string `json:"description,omitempty"`
-
-	// Data is the KargoAgent configuration payload. Points at the
-	// upstream KargoAgentData wire type directly so the user-facing
-	// YAML stays one level under .data, matching the Cluster shape
-	// (where .data points at ClusterData directly). Description is
-	// hoisted as a forProvider sibling — same pattern Cluster uses
-	// for its free-form description.
-	// +optional
-	Data crossplanetypes.KargoAgentData `json:"data,omitempty"`
+	KargoAgentSpec crossplanetypes.KargoAgentSpec `json:"kargoAgentSpec,omitempty"`
 }
 
 // KargoAgentObservation are the observable fields of a KargoAgent.
@@ -90,12 +86,10 @@ type KargoAgentObservation struct {
 	// ReconciliationStatus is the agent reconciliation status.
 	ReconciliationStatus ResourceStatusCode `json:"reconciliationStatus,omitempty"`
 
-	// Description is the observed agent description.
-	Description string `json:"description,omitempty"`
-
-	// Data is the observed KargoAgent configuration payload,
-	// mirroring spec.forProvider.data on the most recent reconcile.
-	Data crossplanetypes.KargoAgentData `json:"data,omitempty"`
+	// KargoAgentSpec is the observed KargoAgent payload (description +
+	// data), mirroring spec.forProvider.kargoAgentSpec on the most
+	// recent reconcile.
+	KargoAgentSpec crossplanetypes.KargoAgentSpec `json:"kargoAgentSpec,omitempty"`
 }
 
 // A KargoAgentSpec defines the desired state of a KargoAgent.
