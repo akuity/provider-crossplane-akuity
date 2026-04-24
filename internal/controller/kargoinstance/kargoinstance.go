@@ -41,6 +41,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -724,16 +725,58 @@ func kargoHashRepoCreds(entries []kargoResolvedRepoCred) string {
 	return secrets.Hash(per)
 }
 
+// kargoHasAnySecretRef reports whether the KargoInstance spec declares
+// any SecretRef. Lets resolveKargoSecrets skip the PC lookup entirely
+// when the user has wired no credentials (the minimal-spec path).
+func kargoHasAnySecretRef(mg *v1alpha1.KargoInstance) bool {
+	fp := mg.Spec.ForProvider
+	if fp.KargoSecretRef != nil {
+		return true
+	}
+	if oidc := fp.Kargo.OidcConfig; oidc != nil && oidc.DexConfigSecretRef != nil {
+		return true
+	}
+	return len(fp.KargoRepoCredentialSecretRefs) > 0
+}
+
+// kargoSecretNamespace returns the namespace used to resolve the
+// KargoInstance's SecretRefs. KargoInstance is cluster-scoped so
+// mg.GetNamespace() is empty; fall back to the ProviderConfig's
+// credentialsSecretRef namespace (symmetric with Instance).
+func kargoSecretNamespace(ctx context.Context, kube client.Client, mg *v1alpha1.KargoInstance) (string, error) {
+	if ns := mg.GetNamespace(); ns != "" {
+		return ns, nil
+	}
+	ref := mg.GetProviderConfigReference()
+	if ref == nil {
+		return "", fmt.Errorf("cluster-scoped KargoInstance %q has no providerConfigRef; cannot resolve SecretRef namespace", mg.GetName())
+	}
+	pc := &apisv1alpha1.ProviderConfig{}
+	if err := kube.Get(ctx, k8stypes.NamespacedName{Name: ref.Name}, pc); err != nil {
+		return "", fmt.Errorf("cannot resolve SecretRef namespace: get ProviderConfig %q: %w", ref.Name, err)
+	}
+	if ns := pc.Spec.CredentialsSecretRef.Namespace; ns != "" {
+		return ns, nil
+	}
+	return "", fmt.Errorf("ProviderConfig %q has no credentialsSecretRef.namespace to use as SecretRef lookup namespace", ref.Name)
+}
+
 // resolveKargoSecrets loads every Secret referenced by the KargoInstance
 // spec (kargo-secret + dex config + repo credentials).
 func resolveKargoSecrets(ctx context.Context, kube client.Client, mg *v1alpha1.KargoInstance) (resolvedKargoSecrets, error) {
-	ns := mg.GetNamespace()
 	out := resolvedKargoSecrets{}
-	kargoData, err := secrets.ResolveAllKeys(ctx, kube, ns, mg.Spec.ForProvider.KargoSecretRef)
+	if !kargoHasAnySecretRef(mg) {
+		return out, nil
+	}
+	ns, err := kargoSecretNamespace(ctx, kube, mg)
 	if err != nil {
-		return out, fmt.Errorf("kargoSecretRef: %w", err)
+		return out, err
 	}
 	if ref := mg.Spec.ForProvider.KargoSecretRef; ref != nil {
+		kargoData, kerr := secrets.ResolveAllKeys(ctx, kube, ns, ref)
+		if kerr != nil {
+			return out, fmt.Errorf("kargoSecretRef: %w", kerr)
+		}
 		out.Kargo = kargoResolvedSecret{Name: ref.Name, Data: kargoData}
 	}
 	var dexRef *xpv1.LocalSecretReference
