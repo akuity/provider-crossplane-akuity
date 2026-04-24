@@ -329,6 +329,23 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 
 		if managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig = actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+		} else if actualInstance.ArgoCD != nil && actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig != nil {
+			// Partial-struct fill (§6 #6 / §6 #7 scalar lateInit gap):
+			// server forces CveScanConfig.RescanInterval to a non-empty
+			// string (>= 8h) when scanEnabled=true; if the CR populates
+			// CveScanConfig but omits RescanInterval, the empty-string
+			// zero-value produces a per-poll drift-flap against the
+			// server's stamped value. Inherit the observed scalar so
+			// provider-side compare stays quiescent.
+			mkv := managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+			akv := actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+			if mkv.CveScanConfig != nil && akv.CveScanConfig != nil {
+				if mkv.CveScanConfig.RescanInterval == "" {
+					mkv.CveScanConfig.RescanInterval = akv.CveScanConfig.RescanInterval
+				}
+			} else if mkv.CveScanConfig == nil {
+				mkv.CveScanConfig = akv.CveScanConfig
+			}
 		}
 
 		// If Akuity Intelligence is enabled by default, sync the value
