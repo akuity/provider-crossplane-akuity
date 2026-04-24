@@ -1,18 +1,21 @@
 package fixtures
 
 import (
+	"encoding/json"
+
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
+	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
-	"github.com/akuityio/provider-crossplane-akuity/internal/utils/protobuf"
 )
 
 var (
@@ -45,7 +48,7 @@ patches:
 `
 	KustomizationJSON, _ = yaml.YAMLToJSON([]byte(KustomizationYAML))
 	Kustomization        = runtime.RawExtension{Raw: KustomizationJSON}
-	KustomizationPB, _   = protobuf.MarshalObjectToProtobufStruct(Kustomization)
+	KustomizationPB, _   = marshal.APIModelToPBStruct(Kustomization)
 	Labels               = map[string]string{"key1": "value1", "key2": "value2"}
 	Annotations          = map[string]string{"annotation1": "value1", "annotation2": "value2"}
 
@@ -57,7 +60,7 @@ patches:
 
 	CrossplaneCluster = v1alpha1.ClusterParameters{
 		InstanceID: InstanceID,
-		InstanceRef: v1alpha1.NameRef{
+		InstanceRef: &v1alpha1.LocalReference{
 			Name: "test-instance-ref",
 		},
 		Name:        ClusterName,
@@ -137,6 +140,25 @@ patches:
 		},
 	}
 
+	// ExportedCluster is AkuityCluster in the structpb shape that
+	// ExportInstance returns inside its Clusters slice — used by
+	// Cluster controller tests to feed the Export-based drift path.
+	ExportedCluster = mustExportedClusterStruct(AkuityCluster)
+)
+
+func mustExportedClusterStruct(c akuitytypes.Cluster) *structpb.Struct {
+	raw, err := json.Marshal(c)
+	if err != nil {
+		panic(err)
+	}
+	var out structpb.Struct
+	if err := out.UnmarshalJSON(raw); err != nil {
+		panic(err)
+	}
+	return &out
+}
+
+var (
 	ArgocdAgentHealthStatuses = map[string]*health.AgentHealthStatus{
 		"agent1": {
 			Status:  health.TenantPhase_TENANT_PHASE_HEALTHY,

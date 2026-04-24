@@ -17,12 +17,16 @@ limitations under the License.
 package controller
 
 import (
-	"github.com/crossplane/crossplane-runtime/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/cluster"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instance"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instanceipallowlist"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/kargoagent"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/kargodefaultshardagent"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/kargoinstance"
 )
 
 // Setup creates all akuity controllers with the supplied logger and adds them to
@@ -32,10 +36,15 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		config.Setup,
 		instance.Setup,
 		cluster.Setup,
+		instanceipallowlist.Setup,
+		kargoinstance.Setup,
+		kargoagent.Setup,
+		kargodefaultshardagent.Setup,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }

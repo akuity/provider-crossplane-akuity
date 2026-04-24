@@ -6,9 +6,14 @@ PROJECT_REPO := github.com/akuityio/$(PROJECT_NAME)
 PLATFORMS ?= linux_amd64 linux_arm64
 -include build/makelib/common.mk
 
+# The version used here must match .github/workflows/ci.yml's
+# GOLANGCILINT_VERSION env var. Export so recursive make invocations
+# (e.g. build/makelib/golang.mk declares the same variable with `?=`)
+# honour this pin consistently.
 GOLANGCILINT_VERSION := 2.11.4
+export GOLANGCILINT_VERSION
 GO_LINT_ARGS := --timeout=10m
-CROSSPLANE_CLI_VERSION = v1.20.1
+CROSSPLANE_CLI_VERSION = v2.2.0
 
 # ====================================================================================
 # Setup Output
@@ -55,6 +60,23 @@ fallthrough: submodules
 	@echo Initial setup complete. Running make again . . .
 	@make
 
+# internal/types/generated/ carries vendored types, converters, and
+# glue helpers produced out-of-tree. This repo is a pure consumer;
+# there is no provider-side codegen step. `make generate` runs
+# controller-gen + angryjet via build/makelib/golang.mk defaults.
+
+# Run gofmt + goimports across the repo, then let golangci-lint auto-fix
+# the remaining formatter-adjacent rules (gofumpt, goimports,
+# protogetter, etc.). Idempotent; run locally before committing to
+# keep CI green.
+format: $(GOLANGCILINT)
+	@$(INFO) gofmt + goimports
+	@gofmt -w $$(find . -name '*.go' -not -path './build/*' -not -path './.work/*' -not -path './.cache/*')
+	@$(GO) run golang.org/x/tools/cmd/goimports@latest -w -local github.com/akuityio/provider-crossplane-akuity $$(find . -name '*.go' -not -path './build/*' -not -path './.work/*' -not -path './.cache/*')
+	@$(INFO) golangci-lint --fix
+	@$(GOLANGCILINT) run --fix $(GO_LINT_ARGS) || true
+	@$(OK) format
+
 # integration tests
 e2e.run: test-integration
 
@@ -63,6 +85,19 @@ test-integration: $(KIND) $(KUBECTL) $(UP) $(HELM)
 	@$(INFO) running integration tests using kind $(KIND_VERSION)
 	@KIND_NODE_IMAGE_TAG=${KIND_NODE_IMAGE_TAG} $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
 	@$(OK) integration tests passed
+
+# Version of the kube-apiserver + etcd binaries to fetch via setup-envtest.
+ENVTEST_K8S_VERSION ?= 1.35.x
+
+# Install setup-envtest + the kube binaries it manages, then run the
+# envtest-gated tests. Keeps envtest out of the default `go test ./...`
+# (which must work without network + without binaries on disk).
+test-envtest:
+	@$(INFO) installing setup-envtest + k8s $(ENVTEST_K8S_VERSION) binaries
+	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.23
+	@KUBEBUILDER_ASSETS="$$($$(go env GOPATH)/bin/setup-envtest use -p path $(ENVTEST_K8S_VERSION))" \
+		go test -tags=envtest -v -count=1 ./internal/... || $(FAIL)
+	@$(OK) envtest suite passed
 
 # Update the submodules, such as the common build scripts.
 submodules:
@@ -111,36 +146,6 @@ dev-clean: $(KIND) $(KUBECTL)
 	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
 
 .PHONY: submodules fallthrough test-integration run dev dev-clean
-
-# ====================================================================================
-# Special Targets
-
-# Install gomplate
-GOMPLATE_VERSION := 3.10.0
-GOMPLATE := $(TOOLS_HOST_DIR)/gomplate-$(GOMPLATE_VERSION)
-
-$(GOMPLATE):
-	@$(INFO) installing gomplate $(SAFEHOSTPLATFORM)
-	@mkdir -p $(TOOLS_HOST_DIR)
-	@curl -fsSLo $(GOMPLATE) https://github.com/hairyhenderson/gomplate/releases/download/v$(GOMPLATE_VERSION)/gomplate_$(SAFEHOSTPLATFORM) || $(FAIL)
-	@chmod +x $(GOMPLATE)
-	@$(OK) installing gomplate $(SAFEHOSTPLATFORM)
-
-export GOMPLATE
-
-# This target adds a new api type and its controller.
-# You would still need to register new api in "apis/<provider>.go" and
-# controller in "internal/controller/<provider>.go".
-# Arguments:
-#   provider: Camel case name of your provider, e.g. GitHub, PlanetScale
-#   group: API group for the type you want to add.
-#   kind: Kind of the type you want to add
-#	apiversion: API version of the type you want to add. Optional and defaults to "v1alpha1"
-provider.addtype: $(GOMPLATE)
-	@[ "${provider}" ] || ( echo "argument \"provider\" is not set"; exit 1 )
-	@[ "${group}" ] || ( echo "argument \"group\" is not set"; exit 1 )
-	@[ "${kind}" ] || ( echo "argument \"kind\" is not set"; exit 1 )
-	@PROVIDER=$(provider) GROUP=$(group) KIND=$(kind) APIVERSION=$(apiversion) PROJECT_REPO=$(PROJECT_REPO) ./hack/helpers/addtype.sh
 
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:

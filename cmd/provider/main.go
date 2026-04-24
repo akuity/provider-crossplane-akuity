@@ -27,14 +27,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/crossplane/crossplane-runtime/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/pkg/feature"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/crossplane/crossplane-runtime/pkg/ratelimiter"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis"
 	akuity "github.com/akuityio/provider-crossplane-akuity/internal/controller"
-	"github.com/akuityio/provider-crossplane-akuity/internal/features"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/ratelimit"
 )
 
 func main() {
@@ -46,8 +46,6 @@ func main() {
 		syncInterval     = app.Flag("sync", "How often all resources will be double-checked for drift from the desired state.").Short('s').Default("1h").Duration()
 		pollInterval     = app.Flag("poll", "How often individual resources will be checked for drift from the desired state").Default("1m").Duration()
 		maxReconcileRate = app.Flag("max-reconcile-rate", "The global maximum rate per second at which resources may checked for drift from the desired state.").Default("10").Int()
-
-		enableManagementPolicies = app.Flag("enable-management-policies", "Enable support for Management Policies.").Default("false").Envar("ENABLE_MANAGEMENT_POLICIES").Bool()
 	)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
@@ -88,13 +86,8 @@ func main() {
 		Logger:                  log,
 		MaxConcurrentReconciles: *maxReconcileRate,
 		PollInterval:            *pollInterval,
-		GlobalRateLimiter:       ratelimiter.NewGlobal(*maxReconcileRate),
+		GlobalRateLimiter:       ratelimit.ForAkuity(*maxReconcileRate),
 		Features:                &feature.Flags{},
-	}
-
-	if *enableManagementPolicies {
-		o.Features.Enable(features.EnableAlphaManagementPolicies)
-		log.Info("Alpha feature enabled", "flag", features.EnableAlphaManagementPolicies)
 	}
 
 	kingpin.FatalIfError(akuity.Setup(mgr, o), "Cannot setup Akuity controllers")

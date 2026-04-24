@@ -839,6 +839,21 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) RefreshInstanceAddonRepo(a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshInstanceAddonRepo", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).RefreshInstanceAddonRepo), arg0, arg1)
 }
 
+// RefreshInstanceRunbookRepo mocks base method.
+func (m *MockArgoCDServiceGatewayClient) RefreshInstanceRunbookRepo(arg0 context.Context, arg1 *argocdv1.RefreshInstanceRunbookRepoRequest) (*argocdv1.RefreshInstanceRunbookRepoResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefreshInstanceRunbookRepo", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.RefreshInstanceRunbookRepoResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RefreshInstanceRunbookRepo indicates an expected call of RefreshInstanceRunbookRepo.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) RefreshInstanceRunbookRepo(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshInstanceRunbookRepo", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).RefreshInstanceRunbookRepo), arg0, arg1)
+}
+
 // RegenerateInstanceAccountPassword mocks base method.
 func (m *MockArgoCDServiceGatewayClient) RegenerateInstanceAccountPassword(arg0 context.Context, arg1 *argocdv1.RegenerateInstanceAccountPasswordRequest) (*argocdv1.RegenerateInstanceAccountPasswordResponse, error) {
 	m.ctrl.T.Helper()
@@ -854,6 +869,21 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) RegenerateInstanceAccountP
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegenerateInstanceAccountPassword", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).RegenerateInstanceAccountPassword), arg0, arg1)
 }
 
+// RegenerateManifests mocks base method.
+func (m *MockArgoCDServiceGatewayClient) RegenerateManifests(arg0 context.Context, arg1 *argocdv1.RegenerateManifestsRequest) (*argocdv1.RegenerateManifestsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegenerateManifests", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.RegenerateManifestsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RegenerateManifests indicates an expected call of RegenerateManifests.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) RegenerateManifests(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegenerateManifests", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).RegenerateManifests), arg0, arg1)
+}
+
 // RotateInstanceClusterCredentials mocks base method.
 func (m *MockArgoCDServiceGatewayClient) RotateInstanceClusterCredentials(arg0 context.Context, arg1 *argocdv1.RotateInstanceClusterCredentialsRequest) (*argocdv1.RotateInstanceClusterCredentialsResponse, error) {
 	m.ctrl.T.Helper()
@@ -867,6 +897,21 @@ func (m *MockArgoCDServiceGatewayClient) RotateInstanceClusterCredentials(arg0 c
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) RotateInstanceClusterCredentials(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RotateInstanceClusterCredentials", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).RotateInstanceClusterCredentials), arg0, arg1)
+}
+
+// SetClusterMaintenanceMode mocks base method.
+func (m *MockArgoCDServiceGatewayClient) SetClusterMaintenanceMode(arg0 context.Context, arg1 *argocdv1.SetClusterMaintenanceModeRequest) (*argocdv1.SetClusterMaintenanceModeResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClusterMaintenanceMode", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.SetClusterMaintenanceModeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetClusterMaintenanceMode indicates an expected call of SetClusterMaintenanceMode.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) SetClusterMaintenanceMode(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClusterMaintenanceMode", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).SetClusterMaintenanceMode), arg0, arg1)
 }
 
 // UpdateAddonMarketplaceInstall mocks base method.
@@ -957,6 +1002,21 @@ func (m *MockArgoCDServiceGatewayClient) UpdateInstanceCluster(arg0 context.Cont
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) UpdateInstanceCluster(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstanceCluster", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).UpdateInstanceCluster), arg0, arg1)
+}
+
+// UpdateInstanceClusterSupportAccess mocks base method.
+func (m *MockArgoCDServiceGatewayClient) UpdateInstanceClusterSupportAccess(arg0 context.Context, arg1 *argocdv1.UpdateInstanceClusterSupportAccessRequest) (*argocdv1.UpdateInstanceClusterSupportAccessResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateInstanceClusterSupportAccess", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.UpdateInstanceClusterSupportAccessResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateInstanceClusterSupportAccess indicates an expected call of UpdateInstanceClusterSupportAccess.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) UpdateInstanceClusterSupportAccess(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstanceClusterSupportAccess", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).UpdateInstanceClusterSupportAccess), arg0, arg1)
 }
 
 // UpdateInstanceClusters mocks base method.

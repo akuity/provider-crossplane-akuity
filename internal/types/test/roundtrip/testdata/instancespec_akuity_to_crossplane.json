@@ -1,0 +1,132 @@
+{
+  "ipAllowList": [
+    {
+      "ip": "192.168.0.1",
+      "description": "Allowlist entry 1"
+    },
+    {
+      "ip": "192.168.0.2",
+      "description": "Allowlist entry 2"
+    }
+  ],
+  "subdomain": "example.com",
+  "declarativeManagementEnabled": true,
+  "extensions": [
+    {
+      "id": "test-id-1",
+      "version": "test-version-1"
+    },
+    {
+      "id": "test-id-2",
+      "version": "test-version-2"
+    }
+  ],
+  "clusterCustomizationDefaults": {
+    "autoUpgradeDisabled": true,
+    "kustomization": "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\npatches:\n- patch: |-\n    apiVersion: apps/v1\n    kind: Deployment\n    metadata:\n      name: argocd-repo-server\n    spec:\n      template:\n        spec:\n          containers:\n          - name: argocd-repo-server\n            resources:\n              limits:\n                memory: 2Gi\n              requests:\n                cpu: 750m\n                memory: 1Gi\n    target:\n      kind: Deployment\n      name: argocd-repo-server\n",
+    "appReplication": true,
+    "redisTunneling": true
+  },
+  "imageUpdaterEnabled": true,
+  "backendIpAllowListEnabled": true,
+  "repoServerDelegate": {
+    "controlPlane": true,
+    "managedCluster": {
+      "clusterName": "test-cluster"
+    }
+  },
+  "auditExtensionEnabled": true,
+  "syncHistoryExtensionEnabled": true,
+  "imageUpdaterDelegate": {
+    "controlPlane": true,
+    "managedCluster": {
+      "clusterName": "test-cluster"
+    }
+  },
+  "appSetDelegate": {
+    "managedCluster": {
+      "clusterName": "test-cluster"
+    }
+  },
+  "assistantExtensionEnabled": true,
+  "appsetPolicy": {
+    "policy": "policy",
+    "overridePolicy": true
+  },
+  "hostAliases": [
+    {
+      "ip": "192.168.0.1",
+      "hostnames": [
+        "example.com",
+        "www.example.com"
+      ]
+    },
+    {
+      "ip": "192.168.0.2",
+      "hostnames": [
+        "test.com",
+        "www.test.com"
+      ]
+    }
+  ],
+  "multiClusterK8sDashboardEnabled": true,
+  "akuityIntelligenceExtension": {
+    "enabled": true,
+    "allowedUsernames": [
+      "admin"
+    ],
+    "allowedGroups": [
+      "admin"
+    ],
+    "aiSupportEngineerEnabled": true,
+    "modelVersion": "gpt-4.1"
+  },
+  "customDeprecatedApis": [
+    {
+      "apiVersion": "v1",
+      "newApiVersion": "v2",
+      "deprecatedInKubernetesVersion": "1.18",
+      "unavailableInKubernetesVersion": "1.19"
+    }
+  ],
+  "kubeVisionConfig": {
+    "cveScanConfig": {
+      "scanEnabled": true
+    }
+  },
+  "appInAnyNamespaceConfig": {
+    "enabled": true
+  },
+  "appsetProgressiveSyncsEnabled": true,
+  "appsetPlugins": [
+    {
+      "name": "plugin-1",
+      "token": "token-1",
+      "baseUrl": "https://plugins.example.com",
+      "requestTimeout": 30
+    },
+    {
+      "name": "plugin-2",
+      "token": "token-2",
+      "baseUrl": "https://plugins.example.com",
+      "requestTimeout": 45
+    }
+  ],
+  "applicationSetExtension": {
+    "enabled": true
+  },
+  "appReconciliationsRateLimiting": {
+    "bucketRateLimiting": {
+      "enabled": true,
+      "bucketSize": 5,
+      "bucketQps": 10
+    },
+    "itemRateLimiting": {
+      "enabled": true,
+      "failureCooldown": 30,
+      "baseDelay": 1,
+      "maxDelay": 10,
+      "backoffFactor": "1.5"
+    }
+  }
+}

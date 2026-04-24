@@ -102,11 +102,13 @@ type Runbook struct {
 }
 
 type IncidentWebhookConfig struct {
-	Name                      string `json:"name,omitempty"`
-	DescriptionPath           string `json:"descriptionPath,omitempty"`
-	ClusterPath               string `json:"clusterPath,omitempty"`
-	K8SNamespacePath          string `json:"k8sNamespacePath,omitempty"`
-	ArgocdApplicationNamePath string `json:"argocdApplicationNamePath,omitempty"`
+	Name                           string `json:"name,omitempty"`
+	DescriptionPath                string `json:"descriptionPath,omitempty"`
+	ClusterPath                    string `json:"clusterPath,omitempty"`
+	K8SNamespacePath               string `json:"k8sNamespacePath,omitempty"`
+	ArgocdApplicationNamePath      string `json:"argocdApplicationNamePath,omitempty"`
+	ArgocdApplicationNamespacePath string `json:"argocdApplicationNamespacePath,omitempty"`
+	TitlePath                      string `json:"titlePath,omitempty"`
 }
 
 type IncidentsGroupingConfig struct {
@@ -114,10 +116,29 @@ type IncidentsGroupingConfig struct {
 	ArgocdApplicationNames []string `json:"argocdApplicationNames,omitempty"`
 }
 
+type IncidentInvestigationApprovalScope struct {
+	ArgocdApplications      []string `json:"argocdApplications,omitempty"`
+	K8SNamespaces           []string `json:"k8sNamespaces,omitempty"`
+	Clusters                []string `json:"clusters,omitempty"`
+	ConsecutiveAutoClosures int32    `json:"consecutiveAutoClosures,omitempty"`
+}
+
+type IncidentInvestigationApprovalConfig struct {
+	Scopes []*IncidentInvestigationApprovalScope `json:"scopes,omitempty"`
+}
+
 type IncidentsConfig struct {
-	Triggers []*TargetSelector        `json:"triggers,omitempty"`
-	Webhooks []*IncidentWebhookConfig `json:"webhooks,omitempty"`
-	Grouping *IncidentsGroupingConfig `json:"grouping,omitempty"`
+	Triggers              []*TargetSelector                    `json:"triggers,omitempty"`
+	Webhooks              []*IncidentWebhookConfig             `json:"webhooks,omitempty"`
+	Grouping              *IncidentsGroupingConfig             `json:"grouping,omitempty"`
+	InvestigationApproval *IncidentInvestigationApprovalConfig `json:"investigationApproval,omitempty"`
+}
+
+type RunbookRepo struct {
+	RepoUrl    string                     `json:"repoUrl,omitempty"`
+	Revision   *string                    `json:"revision,omitempty"`
+	Path       *string                    `json:"path,omitempty"`
+	AppliedFor map[string]*TargetSelector `json:"appliedFor,omitempty"`
 }
 
 type AIConfig struct {
@@ -125,6 +146,7 @@ type AIConfig struct {
 	Incidents           *IncidentsConfig `json:"incidents,omitempty"`
 	ArgocdSlackService  *string          `json:"argocdSlackService,omitempty"`
 	ArgocdSlackChannels []string         `json:"argocdSlackChannels,omitempty"`
+	RunbookRepos        []*RunbookRepo   `json:"runbookRepos,omitempty"`
 }
 
 type AdditionalAttributeRule struct {
@@ -201,6 +223,15 @@ type AppReconciliationsRateLimiting struct {
 	ItemRateLimiting   *ItemRateLimiting   `json:"itemRateLimiting,omitempty"`
 }
 
+type ConfigManagementToolVersions struct {
+	DefaultVersion     string   `json:"defaultVersion,omitempty"`
+	AdditionalVersions []string `json:"additionalVersions,omitempty"`
+}
+
+type ManifestGeneration struct {
+	Kustomize *ConfigManagementToolVersions `json:"kustomize,omitempty"`
+}
+
 type InstanceSpec struct {
 	IpAllowList                     []*IPAllowListEntry             `json:"ipAllowList,omitempty"`
 	Subdomain                       string                          `json:"subdomain,omitempty"`
@@ -236,6 +267,7 @@ type InstanceSpec struct {
 	MetricsIngressPasswordHash      *string                         `json:"metricsIngressPasswordHash,omitempty"`
 	PrivilegedNotificationCluster   *string                         `json:"privilegedNotificationCluster,omitempty"`
 	ClusterAddonsExtension          *ClusterAddonsExtension         `json:"clusterAddonsExtension,omitempty"`
+	ManifestGeneration              *ManifestGeneration             `json:"manifestGeneration,omitempty"`
 }
 
 type AppsetPlugins struct {

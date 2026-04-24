@@ -19,27 +19,52 @@ package v1alpha1
 import (
 	"reflect"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
 // ClusterParameters are the configurable fields of a Cluster.
+//
+// v0.3.1 lateInitialize stamps `instanceId` onto spec while the user
+// supplied `instanceRef`, so stored legacy Clusters carry BOTH fields.
+// A strict XOR rule would reject every UPDATE (including status
+// subresource) on those stored CRs because k8s CRD validation
+// ratcheting cannot decompose a cross-field rule. Relax to "at least
+// one must be set"; the controller resolves `instanceRef` first and
+// falls back to `instanceId`, so both-set state is well-defined.
+//
+// The immutability rule uses `has()` guards on both sides — k8s CEL
+// raises "no such key" when reading an omitempty string that is absent
+// from the JSON payload (observed on k8s 1.31 under k3s), so
+// `self.instanceId == oldSelf.instanceId` explodes on fresh-state
+// Clusters the this-PR controller stamps `instanceId` onto after
+// resolving `instanceRef`. Guarded form: allow a first-time stamp of
+// `instanceId` when `oldSelf` had none; once stamped, the value must
+// match on every subsequent UPDATE. Same pattern for `instanceRef`.
+//
+// +kubebuilder:validation:XValidation:rule="has(self.instanceId) || has(self.instanceRef)",message="instanceId or instanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="(!has(oldSelf.instanceId) || (has(self.instanceId) && self.instanceId == oldSelf.instanceId)) && (!has(oldSelf.instanceRef) || (has(self.instanceRef) && self.instanceRef.name == oldSelf.instanceRef.name))",message="instanceId/instanceRef are immutable"
+// +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type ClusterParameters struct {
-	// The ID of the Akuity ArgoCD instance the cluster belongs to. InstanceID
-	// or InstanceRef must be provided.
+	// The ID of the Akuity ArgoCD instance the cluster belongs to.
+	// Mutually exclusive with InstanceRef.
+	// +optional
 	InstanceID string `json:"instanceId,omitempty"`
 	// The reference to the Akuity ArgoCD instance the cluster belongs to.
-	// InstanceID or InstanceRef must be provided.
-	InstanceRef NameRef `json:"instanceRef,omitempty"`
+	// Mutually exclusive with InstanceID.
+	// +optional
+	InstanceRef *LocalReference `json:"instanceRef,omitempty"`
 	// The name of the cluster. Required.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 	// The Kubernetes namespace the Akuity agent should be installed in. Optional.
 	Namespace string `json:"namespace,omitempty"`
 	// Attributes of the cluster. Optional.
-	ClusterSpec generated.ClusterSpec `json:"clusterSpec,omitempty"`
+	ClusterSpec crossplanetypes.ClusterSpec `json:"clusterSpec,omitempty"`
 	// Annotations to apply to the cluster custom resource. Optional.
 	Annotations map[string]string `json:"annotations,omitempty"`
 	// Labels to apply to the cluster custom resource. Optional.
@@ -56,11 +81,6 @@ type ClusterParameters struct {
 	RemoveAgentResourcesOnDestroy bool `json:"removeAgentResourcesOnDestroy,omitempty"`
 }
 
-type NameRef struct {
-	// The name of the Kubernetes resource being referenced. Required.
-	Name string `json:"name"`
-}
-
 type SecretRef struct {
 	// The name of the Kubernetes secret being referenced. Required.
 	Name string `json:"name"`
@@ -75,36 +95,65 @@ type ClusterObservation struct {
 	// The name of the cluster.
 	Name string `json:"name"`
 	// The description of the cluster.
+	//
+	// Deprecated: read via ClusterSpec.Description. Retained for
+	// backward compatibility with consumers that grew up on the
+	// flat-field observation; will be removed in the next API
+	// version bump.
 	Description string `json:"description,omitempty"`
 	// The Kubernetes namespace the Akuity agent is installed in.
 	Namespace string `json:"namespace,omitempty"`
 	// Whether or not the Akuity agent is namespace-scoped.
+	//
+	// Deprecated: read via ClusterSpec.NamespaceScoped. See
+	// Description for the deprecation rationale.
 	NamespaceScoped bool `json:"namespaceScoped,omitempty"`
 	// Labels applied to the cluster.
 	Labels map[string]string `json:"labels,omitempty"`
 	// Annotations applied to the cluster.
 	Annotations map[string]string `json:"annotations,omitempty"`
 	// Whether or not the agent should be autoupgraded when a new version is available.
+	//
+	// Deprecated: read via ClusterSpec.Data.AutoUpgradeDisabled.
 	AutoUpgradeDisabled bool `json:"autoUpgradeDisabled,omitempty"`
 	// Whether or not state replication to the managed cluster is enabled.
 	// When enabled, the managed cluster retains core ArgoCD functionality even
 	// when unable to connect to the Akuity Platform.
+	//
+	// Deprecated: read via ClusterSpec.Data.AppReplication.
 	AppReplication bool `json:"appReplication,omitempty"`
 	// The desired version of the agent to run on the cluster.
+	//
+	// Deprecated: read via ClusterSpec.Data.TargetVersion.
 	TargetVersion string `json:"targetVersion,omitempty"`
 	// Whether or not the agent should connect to Redis over a web-socket tunnel
 	/// in order to support running the agent behind a HTTPS proxy.
+	//
+	// Deprecated: read via ClusterSpec.Data.RedisTunneling.
 	RedisTunneling bool `json:"redisTunneling,omitempty"`
 	// The status of each agent running in the cluster.
 	AgentState ClusterObservationAgentState `json:"agentState,omitempty"`
 	// The health status of the cluster.
-	HealthStatus ClusterObservationStatus `json:"healthStatus,omitempty"`
+	HealthStatus ResourceStatusCode `json:"healthStatus,omitempty"`
 	// The reconciliation status of the cluster.
-	ReconciliationStatus ClusterObservationStatus `json:"reconciliationStatus,omitempty"`
+	ReconciliationStatus ResourceStatusCode `json:"reconciliationStatus,omitempty"`
 	// A Kustomization to apply to the cluster resource.
+	//
+	// Deprecated: read via ClusterSpec.Data.Kustomization.
 	Kustomization string `json:"kustomization,omitempty"`
 	// The size of the agent to run on the cluster.
+	//
+	// Deprecated: read via ClusterSpec.Data.Size.
 	AgentSize string `json:"agentSize,omitempty"`
+
+	// ClusterSpec mirrors the desired payload observed on the most
+	// recent reconcile (description + namespaceScoped + data),
+	// matching the shape of spec.forProvider.clusterSpec. Provides
+	// symmetry with Instance's atProvider.argocd mirror: users can
+	// read the observed payload as one nested block instead of
+	// grepping a dozen flat fields.
+	// +optional
+	ClusterSpec crossplanetypes.ClusterSpec `json:"clusterSpec,omitempty"`
 }
 
 type ClusterObservationAgentState struct {
@@ -114,11 +163,6 @@ type ClusterObservationAgentState struct {
 }
 
 type ClusterObservationAgentHealthStatus struct {
-	Code    int32  `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
-}
-
-type ClusterObservationStatus struct {
 	Code    int32  `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`
 }

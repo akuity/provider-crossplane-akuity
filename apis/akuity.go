@@ -20,7 +20,7 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	samplev1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	corev1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuityv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 )
 
@@ -28,7 +28,7 @@ func init() {
 	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
 	AddToSchemes = append(AddToSchemes,
 		akuityv1alpha1.SchemeBuilder.AddToScheme,
-		samplev1alpha1.SchemeBuilder.AddToScheme,
+		corev1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
 

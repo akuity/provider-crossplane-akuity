@@ -19,20 +19,25 @@ package v1alpha1
 import (
 	"reflect"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
 // InstanceParameters are the configurable fields of a Instance.
+//
+// +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type InstanceParameters struct {
 	// The name of the instance. Required.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
 	// The attributes of the instance. Required.
-	ArgoCD *generated.ArgoCD `json:"argocd"`
+	ArgoCD *crossplanetypes.ArgoCD `json:"argocd"`
 
 	// Used to specify the options in the argocd-cm ConfigMap. Optional.
 	// Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
@@ -61,32 +66,82 @@ type InstanceParameters struct {
 
 	// Used to specify config management plugins. The key of the map entry is the name of the
 	// plugin. The value is the definition of the Config Management Plugin (v2). Optional.
-	ConfigManagementPlugins map[string]generated.ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
+	ConfigManagementPlugins map[string]crossplanetypes.ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
+
+	// ArgoCDSecretRef references a Secret whose data is sent verbatim
+	// as the argocd-secret payload (admin.password, server.secretkey,
+	// dex.config, webhook.*.secret, oidc.*.clientSecret).
+	// +optional
+	ArgoCDSecretRef *xpv1.LocalSecretReference `json:"argocdSecretRef,omitempty"`
+
+	// ArgoCDNotificationsSecretRef references a Secret whose data is
+	// sent verbatim as the argocd-notifications-secret payload
+	// (SMTP, Slack, webhook tokens).
+	// +optional
+	ArgoCDNotificationsSecretRef *xpv1.LocalSecretReference `json:"argocdNotificationsSecretRef,omitempty"`
+
+	// ArgoCDImageUpdaterSecretRef references a Secret whose data is
+	// sent verbatim as the argocd-image-updater-secret payload
+	// (container registry credentials).
+	// +optional
+	ArgoCDImageUpdaterSecretRef *xpv1.LocalSecretReference `json:"argocdImageUpdaterSecretRef,omitempty"`
+
+	// ApplicationSetSecretRef references a Secret whose data is sent
+	// verbatim as the argocd-application-set-secret payload
+	// (ApplicationSet plugin credentials).
+	// +optional
+	ApplicationSetSecretRef *xpv1.LocalSecretReference `json:"applicationSetSecretRef,omitempty"`
+
+	// RepoCredentialSecretRefs registers scoped repository credentials
+	// with the Akuity gateway. Each entry's Name (which must match
+	// ^repo-[a-z0-9][a-z0-9-]*$) becomes the server-side secret
+	// identifier; the pointed-at Secret's data supplies the credential
+	// key/value pairs (url, username, password, sshPrivateKey, etc.).
+	// +optional
+	// +kubebuilder:validation:MaxItems=128
+	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
+	RepoCredentialSecretRefs []NamedLocalSecretReference `json:"repoCredentialSecretRefs,omitempty"`
+
+	// RepoTemplateCredentialSecretRefs registers scoped repository
+	// template credentials. Same shape + regex constraint as
+	// RepoCredentialSecretRefs.
+	// +optional
+	// +kubebuilder:validation:MaxItems=128
+	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoTemplateCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
+	RepoTemplateCredentialSecretRefs []NamedLocalSecretReference `json:"repoTemplateCredentialSecretRefs,omitempty"`
+
+	// Resources carries raw YAML manifests for declarative ArgoCD
+	// child resources (Application, ApplicationSet, AppProject).
+	// +optional
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
 // InstanceObservation are the observable fields of a Instance.
 type InstanceObservation struct {
-	ID                             string                                      `json:"id"`
-	Name                           string                                      `json:"name,omitempty"`
-	Hostname                       string                                      `json:"hostname,omitempty"`
-	ClusterCount                   uint32                                      `json:"clusterCount,omitempty"`
-	HealthStatus                   InstanceObservationStatus                   `json:"healthStatus,omitempty"`
-	ReconciliationStatus           InstanceObservationStatus                   `json:"reconciliationStatus,omitempty"`
-	OwnerOrganizationName          string                                      `json:"ownerOrganizationName,omitempty"`
-	ArgoCD                         generated.ArgoCD                            `json:"argocd"`
-	ArgoCDConfigMap                map[string]string                           `json:"argocdConfigMap,omitempty"`
-	ArgoCDImageUpdaterConfigMap    map[string]string                           `json:"argocdImageUpdaterConfigMap,omitempty"`
-	ArgoCDImageUpdaterSSHConfigMap map[string]string                           `json:"argocdImageUpdaterSshConfigMap,omitempty"`
-	ArgoCDNotificationsConfigMap   map[string]string                           `json:"argocdNotificationsConfigMap,omitempty"`
-	ArgoCDRBACConfigMap            map[string]string                           `json:"argocdRbacConfigMap,omitempty"`
-	ArgoCDSSHKnownHostsConfigMap   map[string]string                           `json:"argocdSshKnownHostsConfigMap,omitempty"`
-	ArgoCDTLSCertsConfigMap        map[string]string                           `json:"argocdTlsCertsConfigMap,omitempty"`
-	ConfigManagementPlugins        map[string]generated.ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
-}
+	ID                             string                                            `json:"id"`
+	Name                           string                                            `json:"name,omitempty"`
+	Hostname                       string                                            `json:"hostname,omitempty"`
+	ClusterCount                   uint32                                            `json:"clusterCount,omitempty"`
+	HealthStatus                   ResourceStatusCode                                `json:"healthStatus,omitempty"`
+	ReconciliationStatus           ResourceStatusCode                                `json:"reconciliationStatus,omitempty"`
+	OwnerOrganizationName          string                                            `json:"ownerOrganizationName,omitempty"`
+	ArgoCD                         crossplanetypes.ArgoCD                            `json:"argocd"`
+	ArgoCDConfigMap                map[string]string                                 `json:"argocdConfigMap,omitempty"`
+	ArgoCDImageUpdaterConfigMap    map[string]string                                 `json:"argocdImageUpdaterConfigMap,omitempty"`
+	ArgoCDImageUpdaterSSHConfigMap map[string]string                                 `json:"argocdImageUpdaterSshConfigMap,omitempty"`
+	ArgoCDNotificationsConfigMap   map[string]string                                 `json:"argocdNotificationsConfigMap,omitempty"`
+	ArgoCDRBACConfigMap            map[string]string                                 `json:"argocdRbacConfigMap,omitempty"`
+	ArgoCDSSHKnownHostsConfigMap   map[string]string                                 `json:"argocdSshKnownHostsConfigMap,omitempty"`
+	ArgoCDTLSCertsConfigMap        map[string]string                                 `json:"argocdTlsCertsConfigMap,omitempty"`
+	ConfigManagementPlugins        map[string]crossplanetypes.ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
 
-type InstanceObservationStatus struct {
-	Code    int32  `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
+	// SecretHash is the SHA256 of the concatenation of every resolved
+	// Secret referenced by spec.forProvider on the most recent Apply.
+	// Used as the drift signal for Secret rotation.
+	// +optional
+	SecretHash string `json:"secretHash,omitempty"`
 }
 
 // A InstanceSpec defines the desired state of a Instance.

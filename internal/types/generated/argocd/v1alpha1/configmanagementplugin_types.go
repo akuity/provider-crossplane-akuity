@@ -44,7 +44,7 @@ type PluginSpec struct {
 	Generate         *Command    `json:"generate,omitempty"`
 	Discover         *Discover   `json:"discover,omitempty"`
 	Parameters       *Parameters `json:"parameters,omitempty"`
-	PreserveFileMode bool        `json:"preserveFileMode,omitempty"`
+	PreserveFileMode *bool       `json:"preserveFileMode,omitempty"`
 }
 
 type Command struct {
@@ -77,7 +77,7 @@ type ParameterAnnouncement struct {
 	Name           string            `json:"name,omitempty"`
 	Title          string            `json:"title,omitempty"`
 	Tooltip        string            `json:"tooltip,omitempty"`
-	Required       bool              `json:"required,omitempty"`
+	Required       *bool             `json:"required,omitempty"`
 	ItemType       string            `json:"itemType,omitempty"`
 	CollectionType string            `json:"collectionType,omitempty"`
 	String_        string            `json:"string,omitempty"`

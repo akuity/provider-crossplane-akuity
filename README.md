@@ -1,6 +1,6 @@
 # provider-akuity
 
-The `provider-akuity` repository is the Crossplane infrastucture provider for
+The `provider-akuity` repository is the Crossplane infrastructure provider for
 [Akuity Platform](https://akuity.io/akuity-platform/). The provider that is built from the source code
 in this repository can be installed into a Crossplane control plane and adds the 
 following new functionality:
@@ -50,14 +50,36 @@ Once you have completed the steps above to replace the placeholders for API cred
 kubectl apply -f examples/provider/config.yaml
 ```
 
-Now you can start managing Akuity instances and clusters using Crossplane. You can view minimal examples of these resources
-in:
+Now you can start managing Akuity instances and clusters using Crossplane.
+
+### API surface: `core.akuity.crossplane.io/v1alpha1` (cluster-scoped)
+
+All managed resources are cluster-scoped and live in the
+`core.akuity.crossplane.io/v1alpha1` group. Existing `v1alpha1` manifests
+continue to work unchanged — the upgrade is additive.
+
 - [Argo CD Instance](./examples/instance/basic.yaml)
 - [Cluster](./examples/cluster/basic.yaml)
+- [Argo CD Instance — detailed](./examples/instance/detailed.yaml)
+- [Cluster — detailed](./examples/cluster/detailed.yaml)
 
-For detailed examples of these resources in:
-- [Argo CD Instance](./examples/instance/detailed.yaml)
-- [Cluster](./examples/cluster/detailed.yaml)
+v2.0.0 adds four new cluster-scoped MR types under the same group:
+`KargoInstance`, `KargoAgent`, `KargoDefaultShardAgent`,
+`InstanceIpAllowList`. See the CRD reference for their schemas.
+
+### Compatibility
+
+- **Crossplane core**: Crossplane 1.19+ and 2.x both supported out of
+  the same artifact. `spec.crossplane.version: ">=v1.19.0"` is
+  declared in `package/crossplane.yaml` so older 1.x cores will refuse
+  to install the provider instead of loading it against an untested
+  runtime. safe-start is a 2.x-only capability and no-ops on 1.x.
+- **Existing v1alpha1 manifests**: work unchanged.
+- **ESS (`publishConnectionDetailsTo`, `StoreConfig`)**: removed at the
+  runtime layer in v2.0.0. If you previously used these fields, migrate
+  to [external-secrets-operator](https://external-secrets.io),
+  `crossplane-contrib/provider-vault`, or `crossplane-contrib/provider-sops`
+  before upgrading.
 
 For all supported fields for Akuity resources, please check [https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity/).
 
@@ -74,7 +96,7 @@ the Crossplane [Documentation](https://crossplane.io/docs).
 
 ### Initialize Git Submodules
 
-Upbound provides a build submodule that is used for most of the Makefile targets. To initialize the
+Crossplane provides a build submodule that is used for most of the Makefile targets. To initialize the
 submodule run:
 
 `git submodule update --init`
@@ -107,6 +129,12 @@ If you need to make changes to the provider Go code, you can Ctrl-C to quit the 
 started with `make dev` and start it again to include your changes:
 
 `make run`
+
+### Testing
+
+- `make test` — unit, converter round-trip, drift-helper, and reason-classifier suites.
+- `make test-envtest` — boots a real Kubernetes apiserver via `envtest` and validates the generated CRD CEL rules end-to-end (instance-id vs instance-ref, immutability, at-least-one). Requires the `envtest` assets managed by `setup-envtest`; the Makefile target installs them on first run.
+- `make lint` — golangci-lint (v2.11.4 pin).
 
 ## Report a Bug
 

@@ -14,9 +14,9 @@ import (
 	reflect "reflect"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	v1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
-	v1alpha10 "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	gomock "go.uber.org/mock/gomock"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 // MockClient is a mock of Client interface.
@@ -43,20 +43,6 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// ApplyCluster mocks base method.
-func (m *MockClient) ApplyCluster(ctx context.Context, instanceID string, cluster v1alpha10.Cluster) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyCluster", ctx, instanceID, cluster)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ApplyCluster indicates an expected call of ApplyCluster.
-func (mr *MockClientMockRecorder) ApplyCluster(ctx, instanceID, cluster any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyCluster", reflect.TypeOf((*MockClient)(nil).ApplyCluster), ctx, instanceID, cluster)
-}
-
 // ApplyInstance mocks base method.
 func (m *MockClient) ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error {
 	m.ctrl.T.Helper()
@@ -71,19 +57,18 @@ func (mr *MockClientMockRecorder) ApplyInstance(ctx, request any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyInstance", reflect.TypeOf((*MockClient)(nil).ApplyInstance), ctx, request)
 }
 
-// BuildApplyInstanceRequest mocks base method.
-func (m *MockClient) BuildApplyInstanceRequest(instance v1alpha1.Instance) (*argocdv1.ApplyInstanceRequest, error) {
+// ApplyKargoInstance mocks base method.
+func (m *MockClient) ApplyKargoInstance(ctx context.Context, request *kargov1.ApplyKargoInstanceRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BuildApplyInstanceRequest", instance)
-	ret0, _ := ret[0].(*argocdv1.ApplyInstanceRequest)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "ApplyKargoInstance", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
-// BuildApplyInstanceRequest indicates an expected call of BuildApplyInstanceRequest.
-func (mr *MockClientMockRecorder) BuildApplyInstanceRequest(instance any) *gomock.Call {
+// ApplyKargoInstance indicates an expected call of ApplyKargoInstance.
+func (mr *MockClientMockRecorder) ApplyKargoInstance(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildApplyInstanceRequest", reflect.TypeOf((*MockClient)(nil).BuildApplyInstanceRequest), instance)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyKargoInstance", reflect.TypeOf((*MockClient)(nil).ApplyKargoInstance), ctx, request)
 }
 
 // DeleteCluster mocks base method.
@@ -114,6 +99,34 @@ func (mr *MockClientMockRecorder) DeleteInstance(ctx, name any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInstance", reflect.TypeOf((*MockClient)(nil).DeleteInstance), ctx, name)
 }
 
+// DeleteKargoInstance mocks base method.
+func (m *MockClient) DeleteKargoInstance(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteKargoInstance", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteKargoInstance indicates an expected call of DeleteKargoInstance.
+func (mr *MockClientMockRecorder) DeleteKargoInstance(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteKargoInstance", reflect.TypeOf((*MockClient)(nil).DeleteKargoInstance), ctx, name)
+}
+
+// DeleteKargoInstanceAgent mocks base method.
+func (m *MockClient) DeleteKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteKargoInstanceAgent", ctx, kargoInstanceID, agentName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteKargoInstanceAgent indicates an expected call of DeleteKargoInstanceAgent.
+func (mr *MockClientMockRecorder) DeleteKargoInstanceAgent(ctx, kargoInstanceID, agentName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteKargoInstanceAgent", reflect.TypeOf((*MockClient)(nil).DeleteKargoInstanceAgent), ctx, kargoInstanceID, agentName)
+}
+
 // ExportInstance mocks base method.
 func (m *MockClient) ExportInstance(ctx context.Context, name string) (*argocdv1.ExportInstanceResponse, error) {
 	m.ctrl.T.Helper()
@@ -127,6 +140,36 @@ func (m *MockClient) ExportInstance(ctx context.Context, name string) (*argocdv1
 func (mr *MockClientMockRecorder) ExportInstance(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportInstance", reflect.TypeOf((*MockClient)(nil).ExportInstance), ctx, name)
+}
+
+// ExportInstanceByID mocks base method.
+func (m *MockClient) ExportInstanceByID(ctx context.Context, id string) (*argocdv1.ExportInstanceResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExportInstanceByID", ctx, id)
+	ret0, _ := ret[0].(*argocdv1.ExportInstanceResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExportInstanceByID indicates an expected call of ExportInstanceByID.
+func (mr *MockClientMockRecorder) ExportInstanceByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportInstanceByID", reflect.TypeOf((*MockClient)(nil).ExportInstanceByID), ctx, id)
+}
+
+// ExportKargoInstance mocks base method.
+func (m *MockClient) ExportKargoInstance(ctx context.Context, name, workspaceID string) (*kargov1.ExportKargoInstanceResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExportKargoInstance", ctx, name, workspaceID)
+	ret0, _ := ret[0].(*kargov1.ExportKargoInstanceResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExportKargoInstance indicates an expected call of ExportKargoInstance.
+func (mr *MockClientMockRecorder) ExportKargoInstance(ctx, name, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportKargoInstance", reflect.TypeOf((*MockClient)(nil).ExportKargoInstance), ctx, name, workspaceID)
 }
 
 // GetCluster mocks base method.
@@ -159,6 +202,21 @@ func (mr *MockClientMockRecorder) GetClusterManifests(ctx, instanceID, clusterNa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterManifests", reflect.TypeOf((*MockClient)(nil).GetClusterManifests), ctx, instanceID, clusterName)
 }
 
+// GetClusterManifestsOnce mocks base method.
+func (m *MockClient) GetClusterManifestsOnce(ctx context.Context, instanceID, clusterID string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetClusterManifestsOnce", ctx, instanceID, clusterID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetClusterManifestsOnce indicates an expected call of GetClusterManifestsOnce.
+func (mr *MockClientMockRecorder) GetClusterManifestsOnce(ctx, instanceID, clusterID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterManifestsOnce", reflect.TypeOf((*MockClient)(nil).GetClusterManifestsOnce), ctx, instanceID, clusterID)
+}
+
 // GetInstance mocks base method.
 func (m *MockClient) GetInstance(ctx context.Context, name string) (*argocdv1.Instance, error) {
 	m.ctrl.T.Helper()
@@ -172,4 +230,107 @@ func (m *MockClient) GetInstance(ctx context.Context, name string) (*argocdv1.In
 func (mr *MockClientMockRecorder) GetInstance(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstance", reflect.TypeOf((*MockClient)(nil).GetInstance), ctx, name)
+}
+
+// GetInstanceByID mocks base method.
+func (m *MockClient) GetInstanceByID(ctx context.Context, id string) (*argocdv1.Instance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInstanceByID", ctx, id)
+	ret0, _ := ret[0].(*argocdv1.Instance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetInstanceByID indicates an expected call of GetInstanceByID.
+func (mr *MockClientMockRecorder) GetInstanceByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceByID", reflect.TypeOf((*MockClient)(nil).GetInstanceByID), ctx, id)
+}
+
+// GetKargoInstance mocks base method.
+func (m *MockClient) GetKargoInstance(ctx context.Context, name string) (*kargov1.KargoInstance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKargoInstance", ctx, name)
+	ret0, _ := ret[0].(*kargov1.KargoInstance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKargoInstance indicates an expected call of GetKargoInstance.
+func (mr *MockClientMockRecorder) GetKargoInstance(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstance", reflect.TypeOf((*MockClient)(nil).GetKargoInstance), ctx, name)
+}
+
+// GetKargoInstanceAgent mocks base method.
+func (m *MockClient) GetKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) (*kargov1.KargoAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKargoInstanceAgent", ctx, kargoInstanceID, agentName)
+	ret0, _ := ret[0].(*kargov1.KargoAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKargoInstanceAgent indicates an expected call of GetKargoInstanceAgent.
+func (mr *MockClientMockRecorder) GetKargoInstanceAgent(ctx, kargoInstanceID, agentName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceAgent", reflect.TypeOf((*MockClient)(nil).GetKargoInstanceAgent), ctx, kargoInstanceID, agentName)
+}
+
+// GetKargoInstanceAgentManifestsOnce mocks base method.
+func (m *MockClient) GetKargoInstanceAgentManifestsOnce(ctx context.Context, kargoInstanceID, agentID string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKargoInstanceAgentManifestsOnce", ctx, kargoInstanceID, agentID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKargoInstanceAgentManifestsOnce indicates an expected call of GetKargoInstanceAgentManifestsOnce.
+func (mr *MockClientMockRecorder) GetKargoInstanceAgentManifestsOnce(ctx, kargoInstanceID, agentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceAgentManifestsOnce", reflect.TypeOf((*MockClient)(nil).GetKargoInstanceAgentManifestsOnce), ctx, kargoInstanceID, agentID)
+}
+
+// GetKargoInstanceByID mocks base method.
+func (m *MockClient) GetKargoInstanceByID(ctx context.Context, id string) (*kargov1.KargoInstance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKargoInstanceByID", ctx, id)
+	ret0, _ := ret[0].(*kargov1.KargoInstance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKargoInstanceByID indicates an expected call of GetKargoInstanceByID.
+func (mr *MockClientMockRecorder) GetKargoInstanceByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceByID", reflect.TypeOf((*MockClient)(nil).GetKargoInstanceByID), ctx, id)
+}
+
+// PatchInstance mocks base method.
+func (m *MockClient) PatchInstance(ctx context.Context, id string, patch *structpb.Struct) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PatchInstance", ctx, id, patch)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PatchInstance indicates an expected call of PatchInstance.
+func (mr *MockClientMockRecorder) PatchInstance(ctx, id, patch any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchInstance", reflect.TypeOf((*MockClient)(nil).PatchInstance), ctx, id, patch)
+}
+
+// PatchKargoInstance mocks base method.
+func (m *MockClient) PatchKargoInstance(ctx context.Context, id string, patch *structpb.Struct) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PatchKargoInstance", ctx, id, patch)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PatchKargoInstance indicates an expected call of PatchKargoInstance.
+func (mr *MockClientMockRecorder) PatchKargoInstance(ctx, id, patch any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchKargoInstance", reflect.TypeOf((*MockClient)(nil).PatchKargoInstance), ctx, id, patch)
 }

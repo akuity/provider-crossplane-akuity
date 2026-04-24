@@ -1,0 +1,34 @@
+{
+  "instanceId": "test-instance-id",
+  "instanceRef": {
+    "name": "test-instance-ref"
+  },
+  "name": "test-cluster",
+  "namespace": "test-namespace",
+  "clusterSpec": {
+    "description": "test-description",
+    "namespaceScoped": true,
+    "data": {
+      "size": "medium",
+      "autoUpgradeDisabled": true,
+      "kustomization": "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\npatches:\n- patch: |-\n    apiVersion: apps/v1\n    kind: Deployment\n    metadata:\n      name: argocd-repo-server\n    spec:\n      template:\n        spec:\n          containers:\n          - name: argocd-repo-server\n            resources:\n              limits:\n                memory: 2Gi\n              requests:\n                cpu: 750m\n                memory: 1Gi\n    target:\n      kind: Deployment\n      name: argocd-repo-server\n",
+      "appReplication": true,
+      "targetVersion": "v1.2.3",
+      "redisTunneling": true
+    }
+  },
+  "annotations": {
+    "annotation1": "value1",
+    "annotation2": "value2"
+  },
+  "labels": {
+    "key1": "value1",
+    "key2": "value2"
+  },
+  "kubeconfigSecretRef": {
+    "name": "test-secret",
+    "namespace": "test-namespace"
+  },
+  "enableInClusterKubeconfig": true,
+  "removeAgentResourcesOnDestroy": true
+}

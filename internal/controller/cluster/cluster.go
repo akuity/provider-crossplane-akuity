@@ -18,68 +18,60 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	sigsyaml "sigs.k8s.io/yaml"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/crossplane/crossplane-runtime/pkg/connection"
-	"github.com/crossplane/crossplane-runtime/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/crossplane/crossplane-runtime/pkg/ratelimiter"
-	"github.com/crossplane/crossplane-runtime/pkg/reconciler/managed"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
-	"github.com/akuityio/provider-crossplane-akuity/internal/features"
-	"github.com/akuityio/provider-crossplane-akuity/internal/types"
-	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
+	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
-const (
-	errNotCluster       = "managed resource is not a Cluster custom resource"
-	errTransformCluster = "cannot transform cluster to Akuity API model"
-)
+const errTransformCluster = "cannot transform cluster to Akuity API model"
 
 // Setup adds a controller that reconciles Cluster managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha1.ClusterGroupKind)
-
-	cps := []managed.ConnectionPublisher{managed.NewAPISecretPublisher(mgr.GetClient(), mgr.GetScheme())}
-	if o.Features.Enabled(features.EnableAlphaExternalSecretStores) {
-		cps = append(cps, connection.NewDetailsManager(mgr.GetClient(), apisv1alpha1.StoreConfigGroupVersionKind))
-	}
-
 	logger := o.Logger.WithValues("controller", name)
+	recorder := event.NewRecorder(mgr, name)
+
+	conn := &base.Connector[*v1alpha1.Cluster]{
+		Kube:      mgr.GetClient(),
+		Usage:     resource.NewLegacyProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
+		Logger:    logger,
+		Recorder:  recorder,
+		NewClient: base.DefaultClientFactory,
+		Build: func(ac akuity.Client, kube client.Client, l logging.Logger, r event.Recorder) managed.TypedExternalClient[*v1alpha1.Cluster] {
+			return &external{ExternalClient: base.NewExternalClient(ac, kube, l, r)}
+		},
+	}
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.ClusterGroupVersionKind),
-		managed.WithExternalConnecter(&connector{
-			kube:   mgr.GetClient(),
-			usage:  resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-			logger: logger,
-		}),
+		managed.WithTypedExternalConnector[*v1alpha1.Cluster](conn),
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-		managed.WithConnectionPublishers(cps...),
-		managed.WithInitializers(),
+		managed.WithRecorder(recorder),
 	)
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -90,116 +82,82 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
-// A connector is expected to produce an ExternalClient when its Connect method
-// is called.
-type connector struct {
-	kube   client.Client
-	usage  resource.Tracker
-	logger logging.Logger
+type external struct {
+	base.ExternalClient
 }
 
-// Connect typically produces an ExternalClient by:
-// 1. Tracking that the managed resource is using a ProviderConfig.
-// 2. Getting the managed resource's ProviderConfig.
-// 3. Getting the credentials specified by the ProviderConfig.
-// 4. Using the credentials to form a client.
-func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return nil, errors.New(errNotCluster)
-	}
+func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalObservation, error) { //nolint:gocyclo
+	defer base.PropagateObservedGeneration(mg)
 
-	if err := c.usage.Track(ctx, mg); err != nil {
-		return nil, errors.Wrap(err, "cannot track ProviderConfig usage")
-	}
-
-	client, err := config.GetAkuityClientFromProviderConfig(ctx, c.kube, cr.GetProviderConfigReference().Name)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewExternal(client, c.kube, c.logger), nil
-}
-
-// An ExternalClient observes, then either creates, updates, or deletes an
-// external resource to ensure it reflects the managed resource's desired state.
-type External struct {
-	client akuity.Client
-	kube   client.Client
-	logger logging.Logger
-}
-
-func NewExternal(client akuity.Client, kube client.Client, logger logging.Logger) *External {
-	return &External{
-		client: client,
-		kube:   kube,
-		logger: logger,
-	}
-}
-
-func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	managedCluster, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotCluster)
-	}
-
-	instanceID, err := c.getInstanceID(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.InstanceRef)
+	instanceID, err := e.getInstanceID(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.InstanceRef)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
+	mg.Spec.ForProvider.InstanceID = instanceID
 
-	managedCluster.Spec.ForProvider.InstanceID = instanceID
-
-	if meta.GetExternalName(managedCluster) == "" {
-		return managed.ExternalObservation{
-			ResourceExists: false,
-		}, nil
-	}
-
-	akuityCluster, err := c.client.GetCluster(ctx, instanceID, meta.GetExternalName(managedCluster))
-	if err != nil {
-		c.logger.Debug("As we are not able to differentiate PermissionDenied/NotFound when calling GetCluster, we simply treat as not found here", "error", err)
+	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
-
-		// As mentioned above, we simply treat PermissionDenied/NotFound as not found error here, otherwise, the provider
-		// is not able to create cluster.
-
-		// if reason.IsNotFound(err) {
-		// 	return managed.ExternalObservation{ResourceExists: false}, nil
-		// }
-		//
-		// managedCluster.SetConditions(xpv1.ReconcileError(err))
-		// return managed.ExternalObservation{}, err
 	}
 
-	actualCluster, err := types.AkuityAPIToCrossplaneCluster(instanceID, managedCluster.Spec.ForProvider, akuityCluster)
+	// GetCluster stays as the source of truth for observation data
+	// (HealthStatus / ReconciliationStatus / AgentState / agent size /
+	// target version etc.) — none of that round-trips through Export.
+	akuityCluster, err := e.Client.GetCluster(ctx, instanceID, meta.GetExternalName(mg))
+	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
+		switch outcome {
+		case base.GetOK, base.GetAbsent:
+			// GetOK is filtered by the enclosing `if`; GetAbsent's
+			// pre-shaped obs (ResourceExists=false) is returned as-is.
+		case base.GetProvisioning:
+			base.SetHealthCondition(mg, false)
+		case base.GetTerminal:
+			mg.SetConditions(xpv1.ReconcileError(err))
+		}
+		return obs, rerr
+	}
+
+	actualCluster, err := APIToSpec(instanceID, mg.Spec.ForProvider, akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster from Akuity API: %w", err)
-		managedCluster.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv1.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
-	lateInitializeCluster(&managedCluster.Spec.ForProvider, actualCluster)
+	lateInitializeCluster(&mg.Spec.ForProvider, actualCluster)
 
-	clusterObservation, err := types.AkuityAPIToCrossplaneClusterObservation(akuityCluster)
+	clusterObservation, err := observation.Cluster(akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster observation: %w", err)
-		managedCluster.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv1.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
-	managedCluster.Status.AtProvider = clusterObservation
+	mg.Status.AtProvider = clusterObservation
+	base.SetHealthCondition(mg, clusterObservation.HealthStatus.Code == 1)
 
-	if clusterObservation.HealthStatus.Code != 1 {
-		managedCluster.SetConditions(xpv1.Unavailable())
-	} else {
-		managedCluster.SetConditions(xpv1.Available())
+	// Drift compares against ExportInstanceByID's round-trippable spec
+	// (same structural shape ApplyInstance{Clusters:[one]} sends).
+	// Pattern-consistent with Instance/KargoInstance: read via Export,
+	// write via Apply. GetCluster above is still load-bearing for
+	// observation fields (health/reconciliation/agent state) that
+	// Export does not return. If Export succeeds but the cluster entry
+	// is missing from its Clusters list we fall back to the
+	// GetCluster-derived spec: GetCluster saw it, so it does exist —
+	// Export was just lagging.
+	driftTarget, found, err := e.exportedClusterSpec(ctx, instanceID, meta.GetExternalName(mg), mg.Spec.ForProvider)
+	if err != nil {
+		mg.SetConditions(xpv1.ReconcileError(err))
+		return managed.ExternalObservation{}, err
+	}
+	if !found {
+		driftTarget = actualCluster
 	}
 
-	isUpToDate := checkClusterUpToDate(managedCluster.Spec.ForProvider, actualCluster)
-
-	if !isUpToDate {
-		c.logger.Debug("Comparing managed cluster to external instance", "diff", cmp.Diff(managedCluster.Spec.ForProvider, actualCluster))
+	spec := driftSpec()
+	desired := mg.Spec.ForProvider
+	isUpToDate, err := base.EvaluateDrift(ctx, spec, &desired, &driftTarget, e.Logger, "Cluster")
+	if err != nil {
+		return managed.ExternalObservation{}, err
 	}
 
 	return managed.ExternalObservation{
@@ -208,95 +166,81 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}, nil
 }
 
-func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	managedCluster, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotCluster)
-	}
+func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	akuityAPICluster, err := types.CrossplaneToAkuityAPICluster(managedCluster.Spec.ForProvider)
+	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return managed.ExternalCreation{}, errors.New(errTransformCluster)
+		return managed.ExternalCreation{}, errors.Wrap(err, errTransformCluster)
 	}
-
-	err = c.client.ApplyCluster(ctx, managedCluster.Spec.ForProvider.InstanceID, akuityAPICluster)
-	if err != nil {
+	if err := e.Client.ApplyInstance(ctx, req); err != nil {
 		return managed.ExternalCreation{}, fmt.Errorf("could not create cluster: %w", err)
 	}
 
-	if managedCluster.Spec.ForProvider.EnableInClusterKubeConfig || managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
-		c.logger.Debug("Retrieving cluster manifests....")
-		clusterManifests, err := c.client.GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name)
+	// One-time apply: manifests are installed on the managed cluster at
+	// Create only. Update() intentionally does NOT re-apply — matches
+	// terraform's default (reapply_manifests_on_update=false).
+	// Server-pushed agent upgrades require a spec change or recreate to
+	// land on the managed cluster.
+	if mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
+		e.Logger.Debug("Retrieving cluster manifests....")
+		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
 			return managed.ExternalCreation{}, fmt.Errorf("could not get cluster manifests to apply: %w", err)
 		}
 
-		c.logger.Debug("Applying cluster manifests",
-			"clusterName", managedCluster.Name,
-			"instanceID", managedCluster.Spec.ForProvider.InstanceID,
+		e.Logger.Debug("Applying cluster manifests",
+			"clusterName", mg.Name,
+			"instanceID", mg.Spec.ForProvider.InstanceID,
 		)
-		c.logger.Debug(clusterManifests)
-		err = c.applyClusterManifests(ctx, *managedCluster, clusterManifests, false)
-		if err != nil {
+		e.Logger.Debug(clusterManifests)
+		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, false); err != nil {
 			return managed.ExternalCreation{}, fmt.Errorf("could not apply cluster manifests: %w", err)
 		}
 	}
-	meta.SetExternalName(managedCluster, akuityAPICluster.Name)
+	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 
-	return managed.ExternalCreation{}, err
+	return managed.ExternalCreation{}, nil
 }
 
-func (c *External) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	managedCluster, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotCluster)
-	}
+func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	akuityAPICluster, err := types.CrossplaneToAkuityAPICluster(managedCluster.Spec.ForProvider)
+	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return managed.ExternalUpdate{}, errors.New(errTransformCluster)
+		return managed.ExternalUpdate{}, errors.Wrap(err, errTransformCluster)
 	}
-
-	err = c.client.ApplyCluster(ctx, managedCluster.Spec.ForProvider.InstanceID, akuityAPICluster)
-
-	return managed.ExternalUpdate{}, err
+	return managed.ExternalUpdate{}, e.Client.ApplyInstance(ctx, req)
 }
 
-func (c *External) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	managedCluster, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return managed.ExternalDelete{}, errors.New(errNotCluster)
-	}
+func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	externalName := meta.GetExternalName(managedCluster)
+	externalName := meta.GetExternalName(mg)
 	if externalName == "" {
 		return managed.ExternalDelete{}, nil
 	}
 
-	if managedCluster.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
-		(managedCluster.Spec.ForProvider.EnableInClusterKubeConfig || managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name != "") {
-		clusterManifests, err := c.client.GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name)
+	if mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
+		(mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "") {
+		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
 			return managed.ExternalDelete{}, fmt.Errorf("could not get cluster manifests to delete: %w", err)
 		}
 
-		err = c.applyClusterManifests(ctx, *managedCluster, clusterManifests, true)
-		if err != nil {
+		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, true); err != nil {
 			return managed.ExternalDelete{}, fmt.Errorf("could not delete cluster manifests: %w", err)
 		}
 	}
 
-	err := c.client.DeleteCluster(ctx, managedCluster.Spec.ForProvider.InstanceID, externalName)
-	if err != nil {
+	if err := e.Client.DeleteCluster(ctx, mg.Spec.ForProvider.InstanceID, externalName); err != nil {
 		return managed.ExternalDelete{}, fmt.Errorf("could not delete cluster: %w", err)
 	}
 
 	return managed.ExternalDelete{}, nil
 }
 
-func (c *External) Disconnect(ctx context.Context) error {
-	return nil
-}
+func (e *external) Disconnect(_ context.Context) error { return nil }
 
 func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.ClusterParameters) {
 	in.Namespace = pointer.LateInitialize(in.Namespace, actual.Namespace)
@@ -310,21 +254,52 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 	in.ClusterSpec.Data.AutoscalerConfig = pointer.LateInitialize(in.ClusterSpec.Data.AutoscalerConfig, actual.ClusterSpec.Data.AutoscalerConfig)
 }
 
-func (c *External) getInstanceID(ctx context.Context, instanceID string, instanceRef v1alpha1.NameRef) (string, error) {
+// exportedClusterSpec returns the canonical ClusterParameters for
+// clusterName built from ExportInstanceByID's response. The returned
+// `found` flag is false when Export succeeds but the named cluster is
+// absent from the response (e.g. server mid-provisioning or a
+// concurrent sibling deletion); caller falls back to GetCluster-based
+// drift in that case. Errors are transient Export failures only.
+func (e *external) exportedClusterSpec(ctx context.Context, instanceID, clusterName string, desired v1alpha1.ClusterParameters) (v1alpha1.ClusterParameters, bool, error) {
+	exp, err := e.Client.ExportInstanceByID(ctx, instanceID)
+	if err != nil {
+		return v1alpha1.ClusterParameters{}, false, err
+	}
+	for _, entry := range exp.GetClusters() {
+		if entry == nil {
+			continue
+		}
+		wire := &akuitytypes.Cluster{}
+		raw, merr := entry.MarshalJSON()
+		if merr != nil {
+			return v1alpha1.ClusterParameters{}, false, fmt.Errorf("encode exported cluster: %w", merr)
+		}
+		if uerr := json.Unmarshal(raw, wire); uerr != nil {
+			return v1alpha1.ClusterParameters{}, false, fmt.Errorf("decode exported cluster: %w", uerr)
+		}
+		if wire.GetName() != clusterName {
+			continue
+		}
+		return wireToSpec(instanceID, desired, wire), true, nil
+	}
+	return v1alpha1.ClusterParameters{}, false, nil
+}
+
+func (e *external) getInstanceID(ctx context.Context, instanceID string, instanceRef *v1alpha1.LocalReference) (string, error) {
 	if instanceID != "" {
 		return instanceID, nil
 	}
 
-	if instanceRef.Name == "" {
+	if instanceRef == nil || instanceRef.Name == "" {
 		return "", fmt.Errorf("one of InstanceID or InstanceRef must be provided")
 	}
 
 	instance := &v1alpha1.Instance{}
-	if err := c.kube.Get(ctx, k8stypes.NamespacedName{Name: instanceRef.Name}, instance); err != nil {
+	if err := e.Kube.Get(ctx, k8stypes.NamespacedName{Name: instanceRef.Name}, instance); err != nil {
 		return "", fmt.Errorf("could not look up instance with instanceRef %s: %w", instanceRef.Name, err)
 	}
 
-	akuityInstance, err := c.client.GetInstance(ctx, instance.Spec.ForProvider.Name)
+	akuityInstance, err := e.Client.GetInstance(ctx, instance.Spec.ForProvider.Name)
 	if err != nil {
 		return "", fmt.Errorf("could not look up instance with instanceRef %s: %w", instanceRef.Name, err)
 	}
@@ -332,73 +307,149 @@ func (c *External) getInstanceID(ctx context.Context, instanceID string, instanc
 	return akuityInstance.GetId(), nil
 }
 
-func (c *External) GetClusterKubeClientRestConfig(ctx context.Context, managedCluster v1alpha1.Cluster) (*rest.Config, error) {
-	var restConfig *rest.Config
-	var err error
-	if managedCluster.Spec.ForProvider.EnableInClusterKubeConfig {
-		restConfig, err = rest.InClusterConfig()
-		if err != nil {
-			return restConfig, fmt.Errorf("could not build in cluster kube config: %w", err)
-		}
-	} else {
-		secretName := managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name
-		secretNamespace := managedCluster.Spec.ForProvider.KubeConfigSecretRef.Namespace
-		secret := &corev1.Secret{}
-		if err := c.kube.Get(ctx, k8stypes.NamespacedName{Name: secretName, Namespace: managedCluster.Spec.ForProvider.KubeConfigSecretRef.Namespace}, secret); err != nil {
-			return restConfig, fmt.Errorf("could not get secret %s in namespace %s containing cluster kubeconfig: %w", secretName, secretNamespace, err)
-		}
-
-		kubeConfig, ok := secret.Data["kubeconfig"]
-		if !ok {
-			return restConfig, fmt.Errorf("could not get cluster kubeconfig from secret %s in namespace %s", secretName, secretNamespace)
-		}
-
-		restConfig, err = clientcmd.RESTConfigFromKubeConfig(kubeConfig)
-		if err != nil {
-			return restConfig, fmt.Errorf("could not get rest config from kubeconfig in secret %s in namespace %s: %w", secretName, secretNamespace, err)
-		}
+// targetKubeConfig returns the TargetKubeConfig for mg, used by the
+// shared manifest-apply helper.
+func targetKubeConfig(mg v1alpha1.Cluster) kube.TargetKubeConfig {
+	return kube.TargetKubeConfig{
+		EnableInCluster: mg.Spec.ForProvider.EnableInClusterKubeConfig,
+		SecretName:      mg.Spec.ForProvider.KubeConfigSecretRef.Name,
+		SecretNamespace: mg.Spec.ForProvider.KubeConfigSecretRef.Namespace,
 	}
-
-	return restConfig, nil
 }
 
-func (c *External) applyClusterManifests(ctx context.Context, managedCluster v1alpha1.Cluster, clusterManifests string, delete bool) error {
-	restConfig, err := c.GetClusterKubeClientRestConfig(ctx, managedCluster)
-	if err != nil {
-		return err
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("error creating dynamic client: %w", err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("error creating typed client: %w", err)
-	}
-
-	applyClient, err := kube.NewApplyClient(dynamicClient, clientset, c.logger)
-	if err != nil {
-		return fmt.Errorf("error creating apply client: %w", err)
-	}
-
-	return applyClient.ApplyManifests(ctx, clusterManifests, delete)
+func (e *external) applyClusterManifests(ctx context.Context, mg v1alpha1.Cluster, clusterManifests string, delete bool) error {
+	return kube.ApplyManifestsToTarget(ctx, e.Kube, e.Logger, targetKubeConfig(mg), clusterManifests, delete)
 }
 
-func normalizeClusterParameters(managedCluster, actualCluster *v1alpha1.ClusterParameters) {
-	if managedCluster == nil || actualCluster == nil {
+// driftSpec is the Cluster drift-detection recipe. Normalize bridges
+// the lateInit-vs-Export shape gap: lateInitializeCluster pulls
+// server-defaulted fields off the GetCluster response onto spec
+// (AutoscalerConfig, MultiClusterK8SDashboardEnabled, etc.), but
+// ExportInstanceByID — the round-trippable comparison surface — omits
+// those same defaults. Without normalization the drift compare would
+// flap every poll: desired (lateInit-stamped) vs observed (Export)
+// disagree on fields neither the user nor the server actually consider
+// drift. EquateEmpty is contributed by the shared DriftSpec baseline.
+//
+// Two-direction handling:
+//
+//  1. desired==nil, observed populated → adopt observed (covers the
+//     case where lateInit hasn't run yet on first Observe, or where the
+//     stored CR was never lateInit'd).
+//  2. desired populated, observed==nil → drop desired (the lateInit
+//     residue case — observed via Export is the source of truth and
+//     it omits server defaults).
+//
+// Covers §6 rows 9 + 10 (naive ClusterSpec.Equals, zero-struct
+// Compatibility/ArgocdNotificationsSettings echo) plus the
+// lateInit-vs-Export gap surfaced in 1A.U2/U7.
+func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
+	return base.DriftSpec[v1alpha1.ClusterParameters]{
+		Normalize: func(desired, observed *v1alpha1.ClusterParameters) {
+			if desired == nil || observed == nil {
+				return
+			}
+
+			normalizePtrField(
+				&desired.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
+				&observed.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.AutoscalerConfig,
+				&observed.ClusterSpec.Data.AutoscalerConfig,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.Compatibility,
+				&observed.ClusterSpec.Data.Compatibility,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.ArgocdNotificationsSettings,
+				&observed.ClusterSpec.Data.ArgocdNotificationsSettings,
+			)
+
+			// Kustomization is a YAML string round-trip. lateInit pulls
+			// the GetCluster value (often "{}\n") onto spec; Export
+			// returns the canonical "apiVersion: ...\nkind:
+			// Kustomization\n" scaffold. Both parse to a structurally-
+			// empty Kustomization (no resources / patches / generators).
+			// When EITHER side parses to that empty form and the OTHER
+			// also parses to an empty form, treat as equal by adopting
+			// observed.
+			if kustomizationEmptyEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
+				desired.ClusterSpec.Data.Kustomization = observed.ClusterSpec.Data.Kustomization
+			}
+		},
+	}
+}
+
+// normalizePtrField bridges a single pointer field across the
+// lateInit-vs-Export gap. When one side is nil and the other is
+// populated, adopt the OBSERVED value (Export is the source of truth
+// for drift comparison; lateInit residue is collapsed). When both
+// sides are populated, leave them alone — go-cmp will compare element
+// by element. When both are nil, no-op.
+func normalizePtrField[T any](desired, observed **T) {
+	if (*desired == nil) == (*observed == nil) {
 		return
 	}
-
-	// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
-	if managedCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled == nil {
-		managedCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled =
-			actualCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
-	}
+	*desired = *observed
 }
 
-func checkClusterUpToDate(managedCluster, actualCluster v1alpha1.ClusterParameters) bool {
-	normalizeClusterParameters(&managedCluster, &actualCluster)
-	return cmp.Equal(managedCluster, actualCluster, utilcmp.EquateEmpty()...)
+// kustomizationEmptyEquivalent returns true when both Kustomization
+// strings parse to a structurally-empty Kustomization manifest — i.e.,
+// only the scaffold keys (apiVersion, kind) plus zero or more empty
+// arrays/objects, no resources/patches/generators/etc. that would
+// represent real user intent. Comparison is lenient: if either side
+// fails to parse, fall back to raw byte equality so malformed user
+// input surfaces as drift.
+func kustomizationEmptyEquivalent(a, b string) bool {
+	if a == b {
+		return true
+	}
+	aEmpty, aErr := isEmptyKustomization(a)
+	bEmpty, bErr := isEmptyKustomization(b)
+	if aErr != nil || bErr != nil {
+		return false
+	}
+	return aEmpty && bEmpty
+}
+
+// isEmptyKustomization decides whether a Kustomization YAML string
+// represents an "empty" manifest — i.e., contains nothing the server
+// would treat as actual configuration. The empty cases are:
+//   - "" or whitespace-only
+//   - "{}" / "{}\n" / "null"
+//   - Only apiVersion + kind keys present, no resources/patches/etc.
+//
+// Any other key under the root object means the user has put real
+// content into Kustomization and we should NOT collapse drift.
+func isEmptyKustomization(s string) (bool, error) {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" || trimmed == "{}" || trimmed == "null" {
+		return true, nil
+	}
+	raw, err := sigsyaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return false, err
+	}
+	// Decode into any first; only inspect keys when the top-level is a
+	// JSON object. Non-object top-level (null, array, scalar) is treated
+	// as structurally empty since none of those carry Kustomization
+	// configuration the server would act on.
+	var top any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return false, err
+	}
+	v, ok := top.(map[string]any)
+	if !ok {
+		return true, nil
+	}
+	for k := range v {
+		if k == "apiVersion" || k == "kind" {
+			continue
+		}
+		// Any other key represents user-set Kustomization content.
+		return false, nil
+	}
+	return true, nil
 }
