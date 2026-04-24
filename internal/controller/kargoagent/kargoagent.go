@@ -67,6 +67,25 @@ import (
 // Without this normalize every poll sees desired="" vs observed=<default>
 // and fires ApplyKargoInstance wastefully; the server Equals() short-
 // circuits the DB-gen bump but the local counter still advances 1/poll.
+//
+// AkuityManaged is server-authority on update: the create path
+// (create_kargo_instance_agent_v1.go:256) persists whatever the client
+// sends, but the update path (update_kargo_instance_agent_v1.go:72)
+// copies the existing DB value and IGNORES any incoming change. Without
+// normalisation, a post-create flip to `true` on a row that was
+// created with `false` produces desired=&true vs observed=nil
+// (proto3 bool -> omitempty wire -> nil *bool), drift fires every
+// poll, ApplyKargoInstance hits 1/poll, and the guarded SQL trigger
+// keeps DB gen frozen — classic wasteful-Apply signature. Copy
+// observed into desired so the pair matches the server-retained
+// value; Normalize only runs on the Observe path (post-Create), so
+// the user's chosen AkuityManaged at create time still writes
+// through unchanged.
+//
+// TargetVersion is server-defaulted to the latest agent version when
+// the CR leaves it empty (update_kargo_instance_agent_v1.go:161-163).
+// Same shape as ArgocdNamespace: inherit observed when desired is
+// empty so UNSET doesn't round-trip as perpetual drift.
 func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 	return base.DriftSpec[v1alpha1.KargoAgentParameters]{
 		Normalize: func(desired, observed *v1alpha1.KargoAgentParameters) {
@@ -83,6 +102,12 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 				desired.KargoAgentSpec.Data.ArgocdNamespace =
 					observed.KargoAgentSpec.Data.ArgocdNamespace
 			}
+			if desired.KargoAgentSpec.Data.TargetVersion == "" {
+				desired.KargoAgentSpec.Data.TargetVersion =
+					observed.KargoAgentSpec.Data.TargetVersion
+			}
+			desired.KargoAgentSpec.Data.AkuityManaged =
+				observed.KargoAgentSpec.Data.AkuityManaged
 		},
 	}
 }
