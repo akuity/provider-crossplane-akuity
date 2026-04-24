@@ -386,6 +386,20 @@ func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
 				"ApplicationSetSecretRef",
 				"RepoCredentialSecretRefs",
 				"RepoTemplateCredentialSecretRefs",
+				// Resources are additive declarative children (Application,
+				// ApplicationSet, AppProject). The Akuity gateway's
+				// ExportInstance does NOT return them inline — the
+				// CrossplaneExtension wire field only carries per-resource
+				// Group metadata for bookkeeping, not the full manifest,
+				// so the struct compare would flag desired=[...] vs
+				// observed=nil forever. KargoInstance uses the same
+				// IgnoreFields pattern (see kargoinstance.go driftSpec) and
+				// relies on a Side check for true drift detection. Tier 2
+				// 2.Children will add the Export-based side check mirroring
+				// kargoResourcesUpToDate; for Tier 1C it's enough that
+				// Apply carries the resources once at Create and struct
+				// compare stops churning per-poll.
+				"Resources",
 			),
 		},
 		Normalize: normalizeInstanceParameters,
