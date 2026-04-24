@@ -60,8 +60,35 @@ const ConnectionKeyManifests = "manifests"
 // contributes utilcmp.EquateEmpty() so nil-vs-empty collections
 // resolve equal — an earlier bare cmp.Equal call flagged these as
 // perpetual drift.
+//
+// Normalize absorbs server-defaults on spec-optional fields
+// (§6 #11 audit): Namespace, Size, and Data.ArgocdNamespace all come
+// back populated from the Akuity gateway (Namespace inherits
+// KargoInstance.Name, Size defaults to KARGO_AGENT_SIZE_SMALL,
+// ArgocdNamespace defaults to "argocd") even when the CR omits them.
+// Terraform's resource_akp_kargoagent.go:377-381 applies the same
+// inherit-when-empty pattern to ArgocdNamespace and MaintenanceModeExpiry.
+// Without this normalize every poll sees desired="" vs observed=<default>
+// and fires ApplyKargoInstance wastefully; the server Equals() short-
+// circuits the DB-gen bump but the local counter still advances 1/poll.
 func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
-	return base.DriftSpec[v1alpha1.KargoAgentParameters]{}
+	return base.DriftSpec[v1alpha1.KargoAgentParameters]{
+		Normalize: func(desired, observed *v1alpha1.KargoAgentParameters) {
+			if desired == nil || observed == nil {
+				return
+			}
+			if desired.Namespace == "" {
+				desired.Namespace = observed.Namespace
+			}
+			if desired.KargoAgentSpec.Data.Size == "" {
+				desired.KargoAgentSpec.Data.Size = observed.KargoAgentSpec.Data.Size
+			}
+			if desired.KargoAgentSpec.Data.ArgocdNamespace == "" {
+				desired.KargoAgentSpec.Data.ArgocdNamespace =
+					observed.KargoAgentSpec.Data.ArgocdNamespace
+			}
+		},
+	}
 }
 
 // Setup registers the controller with the manager.
