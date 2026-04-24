@@ -121,6 +121,17 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 				desired.Kargo.KargoInstanceSpec.AkuityIntelligence =
 					observed.Kargo.KargoInstanceSpec.AkuityIntelligence
 			}
+			// DefaultShardAgent is owned by the KargoDefaultShardAgent MR,
+			// not the KargoInstance MR. Mirror terraform's
+			// resource_akp_kargo.go:352 pattern (`delete(kargoInstanceSpec,
+			// "defaultShardAgent")` in the Apply payload builder) by
+			// treating an unset desired as "leave alone"; without this
+			// KargoInstance fights KDSA on every poll because KDSA writes
+			// the agent ID server-side and KargoInstance's desired is "".
+			if desired.Kargo.KargoInstanceSpec.DefaultShardAgent == "" {
+				desired.Kargo.KargoInstanceSpec.DefaultShardAgent =
+					observed.Kargo.KargoInstanceSpec.DefaultShardAgent
+			}
 		},
 	}
 }
@@ -912,6 +923,12 @@ func specToPB(in v1alpha1.KargoInstanceParameters, resolvedDex map[string]string
 	if s := crossplanetypes.KargoSpecSpecToAPI(&in.Kargo); s != nil {
 		wire.Spec = *s
 	}
+	// DefaultShardAgent is owned by the KargoDefaultShardAgent MR. Mirror
+	// terraform's resource_akp_kargo.go:352 pattern and strip the field
+	// from the Apply payload so KargoInstance cannot zero a server-side
+	// value that KDSA is managing. Drift Observe-side also ignores this
+	// field (see driftSpec.Normalize).
+	wire.Spec.KargoInstanceSpec.DefaultShardAgent = ""
 	if len(resolvedDex) > 0 {
 		if wire.Spec.OidcConfig == nil {
 			wire.Spec.OidcConfig = &akuitytypes.KargoOidcConfig{}
