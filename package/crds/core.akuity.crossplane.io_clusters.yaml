@@ -373,15 +373,6 @@ spec:
               atProvider:
                 description: ClusterObservation are the observable fields of a Cluster.
                 properties:
-                  agentManifestsHash:
-                    description: |-
-                      AgentManifestsHash records the SHA256 of the Akuity-generated
-                      agent install manifests that the controller last successfully
-                      applied to the managed cluster via KubeConfigSecretRef or
-                      EnableInClusterKubeConfig. Empty when inline agent apply is not
-                      configured or install has not yet succeeded. Drives re-apply
-                      on manifest drift.
-                    type: string
                   agentSize:
                     description: |-
                       The size of the agent to run on the cluster.

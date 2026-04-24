@@ -51,7 +51,7 @@ func newExt(t *testing.T) (*external, *mock_akuity_client.MockClient) {
 }
 
 func TestCreate(t *testing.T) {
-	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
+	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})
 	require.NoError(t, err)
 
 	e, mc := newExt(t)
@@ -65,7 +65,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestCreate_ClientErr(t *testing.T) {
-	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
+	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})
 	require.NoError(t, err)
 
 	e, mc := newExt(t)
@@ -79,7 +79,7 @@ func TestCreate_ClientErr(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
+	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})
 	require.NoError(t, err)
 
 	e, mc := newExt(t)
@@ -93,7 +93,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestUpdate_ClientErr(t *testing.T) {
-	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance)
+	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})
 	require.NoError(t, err)
 
 	e, mc := newExt(t)

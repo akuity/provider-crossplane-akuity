@@ -71,6 +71,27 @@ type KargoAgentParameters struct {
 	// clusterSpec alongside hoisted k8s/Crossplane identity fields.
 	// +optional
 	KargoAgentSpec crossplanetypes.KargoAgentSpec `json:"kargoAgentSpec,omitempty"`
+
+	// KubeConfigSecretRef is a reference to a Kubernetes Secret
+	// containing a kubeconfig under the "kubeconfig" key. Used to
+	// install the agent's install manifests onto the managed cluster
+	// when Create reconciles. Mutually exclusive with
+	// EnableInClusterKubeConfig.
+	// +optional
+	KubeConfigSecretRef SecretRef `json:"kubeconfigSecretRef,omitempty"`
+
+	// EnableInClusterKubeConfig uses the provider pod's in-cluster
+	// configuration to install the agent manifests, when the managed
+	// cluster is the same as the cluster the provider runs in.
+	// Mutually exclusive with KubeConfigSecretRef.
+	// +optional
+	EnableInClusterKubeConfig bool `json:"enableInClusterKubeconfig,omitempty"`
+
+	// RemoveAgentResourcesOnDestroy removes the agent manifests from
+	// the managed cluster before DeleteKargoInstanceAgent runs. Only
+	// effective when a kubeconfig source is configured.
+	// +optional
+	RemoveAgentResourcesOnDestroy bool `json:"removeAgentResourcesOnDestroy,omitempty"`
 }
 
 // KargoAgentObservation are the observable fields of a KargoAgent.

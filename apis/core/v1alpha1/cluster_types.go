@@ -145,14 +145,6 @@ type ClusterObservation struct {
 	//
 	// Deprecated: read via ClusterSpec.Data.Size.
 	AgentSize string `json:"agentSize,omitempty"`
-	// AgentManifestsHash records the SHA256 of the Akuity-generated
-	// agent install manifests that the controller last successfully
-	// applied to the managed cluster via KubeConfigSecretRef or
-	// EnableInClusterKubeConfig. Empty when inline agent apply is not
-	// configured or install has not yet succeeded. Drives re-apply
-	// on manifest drift.
-	// +optional
-	AgentManifestsHash string `json:"agentManifestsHash,omitempty"`
 
 	// ClusterSpec mirrors the desired payload observed on the most
 	// recent reconcile (description + namespaceScoped + data),

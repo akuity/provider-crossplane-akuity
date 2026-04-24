@@ -137,47 +137,11 @@ type InstanceObservation struct {
 	ArgoCDTLSCertsConfigMap        map[string]string                                 `json:"argocdTlsCertsConfigMap,omitempty"`
 	ConfigManagementPlugins        map[string]crossplanetypes.ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
 
-	// ApplicationsStatus surfaces aggregated counts for the
-	// Applications / ApplicationSets / AppProjects managed through
-	// spec.forProvider.resources.
-	// +optional
-	ApplicationsStatus *ApplicationsStatus `json:"applicationsStatus,omitempty"`
-
 	// SecretHash is the SHA256 of the concatenation of every resolved
 	// Secret referenced by spec.forProvider on the most recent Apply.
 	// Used as the drift signal for Secret rotation.
 	// +optional
 	SecretHash string `json:"secretHash,omitempty"`
-}
-
-// ApplicationsStatus aggregates the per-child health + sync counters
-// the Akuity gateway reports on InstanceInfo.ApplicationsStatus.
-type ApplicationsStatus struct {
-	ApplicationCount    uint32                  `json:"applicationCount,omitempty"`
-	ResourcesCount      uint32                  `json:"resourcesCount,omitempty"`
-	AppOfAppCount       uint32                  `json:"appOfAppCount,omitempty"`
-	SyncInProgressCount uint32                  `json:"syncInProgressCount,omitempty"`
-	WarningCount        uint32                  `json:"warningCount,omitempty"`
-	ErrorCount          uint32                  `json:"errorCount,omitempty"`
-	Health              *ApplicationsHealth     `json:"health,omitempty"`
-	SyncStatus          *ApplicationsSyncStatus `json:"syncStatus,omitempty"`
-}
-
-// ApplicationsHealth is the roll-up of Application health states.
-type ApplicationsHealth struct {
-	HealthyCount     uint32 `json:"healthyCount,omitempty"`
-	DegradedCount    uint32 `json:"degradedCount,omitempty"`
-	ProgressingCount uint32 `json:"progressingCount,omitempty"`
-	UnknownCount     uint32 `json:"unknownCount,omitempty"`
-	SuspendedCount   uint32 `json:"suspendedCount,omitempty"`
-	MissingCount     uint32 `json:"missingCount,omitempty"`
-}
-
-// ApplicationsSyncStatus is the roll-up of Application sync states.
-type ApplicationsSyncStatus struct {
-	SyncedCount    uint32 `json:"syncedCount,omitempty"`
-	OutOfSyncCount uint32 `json:"outOfSyncCount,omitempty"`
-	UnknownCount   uint32 `json:"unknownCount,omitempty"`
 }
 
 // A InstanceSpec defines the desired state of a Instance.

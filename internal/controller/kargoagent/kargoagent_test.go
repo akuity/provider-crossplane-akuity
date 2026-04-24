@@ -110,7 +110,7 @@ func TestObserve_NotYetReconciled(t *testing.T) {
 	assert.Nil(t, obs.ConnectionDetails)
 }
 
-func TestObserve_ReconciledPublishesManifests(t *testing.T) {
+func TestObserve_Reconciled(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
 	meta.SetExternalName(a, "agt")
@@ -121,18 +121,14 @@ func TestObserve_ReconciledPublishesManifests(t *testing.T) {
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
 		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}, nil).Times(1)
-	// Manifests-publishing test does not assert drift status; return an
-	// empty Agents list so we exercise the Get-fallback path.
+	// Empty Agents list forces the Get-fallback path.
 	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
 		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
-	mc.EXPECT().GetKargoInstanceAgentManifestsOnce(gomock.Any(), "ki-1", "ag-1").
-		Return("kind: ConfigMap\n", nil).Times(1)
 
 	obs, err := e.Observe(context.Background(), a)
 	require.NoError(t, err)
 	assert.True(t, obs.ResourceExists)
-	require.NotNil(t, obs.ConnectionDetails)
-	assert.Equal(t, []byte("kind: ConfigMap\n"), obs.ConnectionDetails[ConnectionKeyManifests])
+	assert.Nil(t, obs.ConnectionDetails)
 }
 
 func TestCreate_Apply(t *testing.T) {

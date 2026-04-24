@@ -16,8 +16,8 @@ limitations under the License.
 
 // Package kargoagent is the KargoAgent controller. It drives
 // the Akuity Kargo-plane agent endpoints (Create/Update/Get/Delete)
-// and publishes the Akuity-generated install manifests as a
-// connection-secret payload for downstream Compositions to consume.
+// and installs the Akuity-generated agent manifests onto the managed
+// cluster via a user-provided kubeconfig (same model as Cluster).
 package kargoagent
 
 import (
@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"strings"
 
-	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
@@ -43,15 +42,12 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
+	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 )
-
-// ConnectionKeyManifests is the connection-secret key holding the
-// Akuity-generated agent install manifests.
-const ConnectionKeyManifests = "manifests"
 
 // driftSpec is the KargoAgent drift-detection recipe. The Ignore slot
 // is an extension point for write-only proto fields; it is empty post
@@ -177,7 +173,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	// pending. Returning ResourceUpToDate=false during provisioning
 	// caused a hot-loop of ApplyKargoInstance calls on the Akuity API.
 	driftTarget := actual
-	if exportAgent, found, xerr := e.exportedAgentSpec(ctx, instanceID, mg.Spec.ForProvider.Name, mg.Spec.ForProvider); xerr != nil {
+	if exportAgent, found, xerr := e.exportedAgentSpec(ctx, mg, instanceID); xerr != nil {
 		e.Logger.Debug("ExportKargoInstance failed; falling back to GetKargoInstanceAgent for drift", "err", xerr)
 	} else if found {
 		driftTarget = exportAgent
@@ -189,23 +185,10 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		return managed.ExternalObservation{}, err
 	}
 
-	obs := managed.ExternalObservation{
+	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: upToDate,
-	}
-
-	// Manifests are only fetched once reconciliation is terminal.
-	reconCode := agent.GetReconciliationStatus().GetCode()
-	if reconCode == reconv1.StatusCode_STATUS_CODE_SUCCESSFUL || reconCode == reconv1.StatusCode_STATUS_CODE_FAILED {
-		manifests, err := e.Client.GetKargoInstanceAgentManifestsOnce(ctx, instanceID, agent.GetId())
-		if err != nil {
-			mg.SetConditions(xpv1.ReconcileError(err))
-			return managed.ExternalObservation{}, err
-		}
-		obs.ConnectionDetails = managed.ConnectionDetails{ConnectionKeyManifests: []byte(manifests)}
-	}
-
-	return obs, nil
+	}, nil
 }
 
 // apply routes both Create and Update through ApplyKargoInstance with
@@ -228,12 +211,8 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
 	// KargoInstance's spec — same MR reference the controller already
 	// used to resolve the instance ID. Matches the terraform
 	// behaviour in resource_akp_kargoagent.go#resolveKargoAgentWorkspace.
-	if mg.Spec.ForProvider.Workspace == "" && mg.Spec.ForProvider.KargoInstanceRef != nil && mg.Spec.ForProvider.KargoInstanceRef.Name != "" {
-		parent := &v1alpha1.KargoInstance{}
-		key := k8stypes.NamespacedName{Name: mg.Spec.ForProvider.KargoInstanceRef.Name, Namespace: mg.GetNamespace()}
-		if gerr := e.Kube.Get(ctx, key, parent); gerr == nil {
-			mg.Spec.ForProvider.Workspace = parent.Spec.ForProvider.Workspace
-		}
+	if mg.Spec.ForProvider.Workspace == "" {
+		mg.Spec.ForProvider.Workspace = e.resolveWorkspaceFromParent(ctx, mg)
 	}
 	req, err := BuildApplyKargoInstanceRequest(instanceID, mg.Spec.ForProvider)
 	if err != nil {
@@ -247,6 +226,21 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 	if err := e.apply(ctx, mg); err != nil {
 		return managed.ExternalCreation{}, err
 	}
+
+	// One-time apply: when a kubeconfig source is configured, install
+	// the agent manifests on the managed cluster before setting the
+	// external-name. Mirrors Cluster.Create — a failure here leaves the
+	// external-name unset so the next reconcile retries via Create
+	// rather than observing a "ready" MR with a stale target cluster.
+	// Matches the terraform default (reapply_manifests_on_update=false);
+	// server-pushed agent upgrades require a spec change or recreate
+	// to re-land on the managed cluster.
+	if target := targetKubeConfig(mg.Spec.ForProvider); target.HasKubeConfig() {
+		if err := e.installAgentManifests(ctx, mg, target, false); err != nil {
+			return managed.ExternalCreation{}, err
+		}
+	}
+
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 	return managed.ExternalCreation{}, nil
 }
@@ -267,6 +261,19 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 		return managed.ExternalDelete{}, err
 	}
 
+	// Remove agent resources from the managed cluster before issuing
+	// the platform-side delete, so the managed cluster's kube-apiserver
+	// no longer has agent workloads pointing at a soon-to-be-gone
+	// platform row. Mirrors Cluster.Delete with
+	// removeAgentResourcesOnDestroy=true.
+	if mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy {
+		if target := targetKubeConfig(mg.Spec.ForProvider); target.HasKubeConfig() {
+			if err := e.installAgentManifests(ctx, mg, target, true); err != nil {
+				return managed.ExternalDelete{}, err
+			}
+		}
+	}
+
 	if err := e.Client.DeleteKargoInstanceAgent(ctx, instanceID, name); err != nil {
 		// The Akuity API rejects agent deletion while the agent is
 		// still connected to a managed cluster; surface the error as
@@ -280,23 +287,67 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 	return managed.ExternalDelete{}, nil
 }
 
+// targetKubeConfig projects the forProvider kubeconfig fields into the
+// shared TargetKubeConfig struct.
+func targetKubeConfig(fp v1alpha1.KargoAgentParameters) kube.TargetKubeConfig {
+	return kube.TargetKubeConfig{
+		EnableInCluster: fp.EnableInClusterKubeConfig,
+		SecretName:      fp.KubeConfigSecretRef.Name,
+		SecretNamespace: fp.KubeConfigSecretRef.Namespace,
+	}
+}
+
+// installAgentManifests fetches the Akuity-generated install manifests
+// for mg's agent and applies (or deletes when del is true) them onto
+// the cluster identified by target. Requires mg.Spec.ForProvider
+// .KargoInstanceID to be resolved.
+func (e *external) installAgentManifests(ctx context.Context, mg *v1alpha1.KargoAgent, target kube.TargetKubeConfig, del bool) error {
+	instanceID := mg.Spec.ForProvider.KargoInstanceID
+	agent, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, mg.Spec.ForProvider.Name)
+	if err != nil {
+		return fmt.Errorf("could not get kargo agent to %s manifests: %w", applyVerb(del), err)
+	}
+	manifests, err := e.Client.GetKargoInstanceAgentManifestsOnce(ctx, instanceID, agent.GetId())
+	if err != nil {
+		return fmt.Errorf("could not get kargo agent manifests: %w", err)
+	}
+	if err := kube.ApplyManifestsToTarget(ctx, e.Kube, e.Logger, target, manifests, del); err != nil {
+		return fmt.Errorf("could not %s kargo agent manifests: %w", applyVerb(del), err)
+	}
+	return nil
+}
+
+func applyVerb(del bool) string {
+	if del {
+		return "delete"
+	}
+	return "apply"
+}
+
 func (e *external) Disconnect(_ context.Context) error { return nil }
 
 // exportedAgentSpec returns the canonical KargoAgentParameters for
-// agentName built from ExportKargoInstance's response. `found` is
-// false when Export succeeds but the agent is absent from the Agents
-// slice (e.g. server lag mid-provisioning); caller falls back to
-// Get-based drift in that case. Errors are transient Export failures.
-func (e *external) exportedAgentSpec(ctx context.Context, instanceID, agentName string, desired v1alpha1.KargoAgentParameters) (v1alpha1.KargoAgentParameters, bool, error) {
-	// ExportKargoInstance is workspace-scoped at the HTTP gateway; pass
-	// empty workspace here because the KargoAgent spec doesn't carry
-	// one. If Export 404s on a multi-workspace org the caller falls
-	// back to GetKargoInstanceAgent-based drift, which has a
-	// workspace-less path.
-	exp, err := e.Client.ExportKargoInstance(ctx, instanceID, "")
+// mg.Spec.ForProvider.Name built from ExportKargoInstance's response.
+// `found` is false when Export succeeds but the agent is absent from
+// the Agents slice (e.g. server lag mid-provisioning); caller falls
+// back to Get-based drift in that case. Errors are transient Export
+// failures.
+func (e *external) exportedAgentSpec(ctx context.Context, mg *v1alpha1.KargoAgent, instanceID string) (v1alpha1.KargoAgentParameters, bool, error) {
+	// ExportKargoInstance is workspace-scoped at the HTTP gateway; an
+	// empty workspace 404s on multi-workspace orgs. Resolve the same
+	// way apply() does: prefer the spec value, fall back to the parent
+	// KargoInstance's workspace. Keeps Export on the happy path so the
+	// GetKargoInstanceAgent fallback only triggers on real Export
+	// failures rather than a deterministic 404.
+	workspace := mg.Spec.ForProvider.Workspace
+	if workspace == "" {
+		workspace = e.resolveWorkspaceFromParent(ctx, mg)
+	}
+	exp, err := e.Client.ExportKargoInstance(ctx, instanceID, workspace)
 	if err != nil {
 		return v1alpha1.KargoAgentParameters{}, false, err
 	}
+	agentName := mg.Spec.ForProvider.Name
 	for _, entry := range exp.GetAgents() {
 		if entry == nil {
 			continue
@@ -312,9 +363,28 @@ func (e *external) exportedAgentSpec(ctx context.Context, instanceID, agentName 
 		if wire.GetName() != agentName {
 			continue
 		}
-		return wireToSpec(desired, wire), true, nil
+		return wireToSpec(mg.Spec.ForProvider, wire), true, nil
 	}
 	return v1alpha1.KargoAgentParameters{}, false, nil
+}
+
+// resolveWorkspaceFromParent returns the workspace of the parent
+// KargoInstance pointed at by mg.Spec.ForProvider.KargoInstanceRef, or
+// "" when there is no ref or the lookup fails. Used by apply() and
+// exportedAgentSpec() when the user did not pin a workspace on the
+// KargoAgent CR. Mirrors
+// resource_akp_kargoagent.go#resolveKargoAgentWorkspace.
+func (e *external) resolveWorkspaceFromParent(ctx context.Context, mg *v1alpha1.KargoAgent) string {
+	ref := mg.Spec.ForProvider.KargoInstanceRef
+	if ref == nil || ref.Name == "" {
+		return ""
+	}
+	parent := &v1alpha1.KargoInstance{}
+	key := k8stypes.NamespacedName{Name: ref.Name, Namespace: mg.GetNamespace()}
+	if err := e.Kube.Get(ctx, key, parent); err != nil {
+		return ""
+	}
+	return parent.Spec.ForProvider.Workspace
 }
 
 // resolveKargoInstanceID returns the Akuity ID of the owning Kargo

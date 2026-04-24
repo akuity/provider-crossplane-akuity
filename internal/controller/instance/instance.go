@@ -147,6 +147,27 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		return managed.ExternalObservation{}, err
 	}
 
+	// Secret rotation drift: SecretRef fields are ignored by the struct
+	// compare (drift spec IgnoreFields) because the Export response
+	// returns the Secret data masked/nil. When the rest of the struct
+	// is up-to-date, re-resolve every referenced Secret and compare the
+	// digest against the last-applied hash. A difference means the user
+	// rotated one of the Secrets; we flip UpToDate=false so the reconciler
+	// fires Update, which re-resolves, re-Applies with the new payload,
+	// and refreshes SecretHash.
+	if isUpToDate {
+		sec, serr := resolveInstanceSecrets(ctx, e.Kube, mg)
+		if serr != nil {
+			mg.SetConditions(xpv1.ReconcileError(serr))
+			return managed.ExternalObservation{}, serr
+		}
+		if sec.Hash() != mg.Status.AtProvider.SecretHash {
+			e.Logger.Debug("Instance secret hash changed; forcing re-Apply",
+				"previous", mg.Status.AtProvider.SecretHash, "current", sec.Hash())
+			isUpToDate = false
+		}
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: isUpToDate,
@@ -156,26 +177,39 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 func (e *external) Create(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalCreation, error) {
 	defer base.PropagateObservedGeneration(mg)
 
-	request, err := BuildApplyInstanceRequest(*mg)
+	sec, err := resolveInstanceSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
+	request, err := BuildApplyInstanceRequest(*mg, sec)
 	if err != nil {
 		return managed.ExternalCreation{}, errors.New(errTransformInstance)
 	}
 
-	err = e.Client.ApplyInstance(ctx, request)
+	if err := e.Client.ApplyInstance(ctx, request); err != nil {
+		return managed.ExternalCreation{}, err
+	}
+	mg.Status.AtProvider.SecretHash = sec.Hash()
 	meta.SetExternalName(mg, request.GetId())
-
-	return managed.ExternalCreation{}, err
+	return managed.ExternalCreation{}, nil
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalUpdate, error) {
 	defer base.PropagateObservedGeneration(mg)
 
-	request, err := BuildApplyInstanceRequest(*mg)
+	sec, err := resolveInstanceSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		return managed.ExternalUpdate{}, err
+	}
+	request, err := BuildApplyInstanceRequest(*mg, sec)
 	if err != nil {
 		return managed.ExternalUpdate{}, errors.New(errTransformInstance)
 	}
-
-	return managed.ExternalUpdate{}, e.Client.ApplyInstance(ctx, request)
+	if err := e.Client.ApplyInstance(ctx, request); err != nil {
+		return managed.ExternalUpdate{}, err
+	}
+	mg.Status.AtProvider.SecretHash = sec.Hash()
+	return managed.ExternalUpdate{}, nil
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalDelete, error) {

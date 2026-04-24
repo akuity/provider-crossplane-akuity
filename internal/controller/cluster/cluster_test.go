@@ -38,6 +38,7 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
+	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
@@ -176,7 +177,7 @@ func TestCreate_GetClusterKubeClientRestConfig(t *testing.T) {
 		Namespace: "default",
 	}
 
-	_, err := e.GetClusterKubeClientRestConfig(ctx, managedCluster)
+	_, err := kube.RestConfig(ctx, e.Kube, targetKubeConfig(managedCluster))
 	require.NoError(t, err)
 }
 

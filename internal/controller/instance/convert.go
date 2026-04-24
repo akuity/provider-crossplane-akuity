@@ -17,7 +17,9 @@ limitations under the License.
 package instance
 
 import (
+	"context"
 	"fmt"
+	"sort"
 	"strconv"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -27,22 +29,198 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	argocdtypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/argocd/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 )
 
+// argocdRepoSecretTypeLabel + the two const values below are the
+// labels Argo CD uses to distinguish repository credentials from
+// repo-credential templates. Matches terraform buildSecrets call sites
+// in resource_akp_instance.go.
+const (
+	argocdRepoSecretTypeLabel        = "argocd.argoproj.io/secret-type"
+	argocdRepoSecretTypeRepository   = "repository"
+	argocdRepoSecretTypeRepoTemplate = "repo-creds"
+)
+
+// resolvedInstanceSecret holds one resolved singleton Secret reference
+// (ref name + data) used by the four scalar refs on InstanceParameters.
+type resolvedInstanceSecret struct {
+	Name string
+	Data map[string]string
+}
+
+// resolvedInstanceSecrets is the full resolution of every Secret
+// referenced by InstanceParameters: four singletons (argocd / argocd-
+// notifications / argocd-image-updater / applicationset) plus two
+// Named lists (repoCredentialSecretRefs, repoTemplateCredentialSecretRefs).
+// Controllers pass this alongside the bare spec into
+// BuildApplyInstanceRequest so the Apply payload carries the actual
+// Secret contents, not just references.
+type resolvedInstanceSecrets struct {
+	Argocd            resolvedInstanceSecret
+	Notifications     resolvedInstanceSecret
+	ImageUpdater      resolvedInstanceSecret
+	ApplicationSet    resolvedInstanceSecret
+	RepoCreds         map[string]map[string]string
+	RepoTemplateCreds map[string]map[string]string
+}
+
+// Hash combines the digests of every resolved Secret, including the
+// referenced Secret names, so a rename-with-identical-content rotates
+// the digest as well as a straight content rotation. Empty when no
+// refs were set on the spec — keeps Observe short-circuit cheap.
+func (r resolvedInstanceSecrets) Hash() string {
+	h := map[string]string{
+		"argocd":            hashOneInstanceSecret(r.Argocd),
+		"notifications":     hashOneInstanceSecret(r.Notifications),
+		"imageUpdater":      hashOneInstanceSecret(r.ImageUpdater),
+		"applicationSet":    hashOneInstanceSecret(r.ApplicationSet),
+		"repoCreds":         secrets.HashNamed(r.RepoCreds),
+		"repoTemplateCreds": secrets.HashNamed(r.RepoTemplateCreds),
+	}
+	for _, v := range h {
+		if v != "" {
+			return secrets.Hash(h)
+		}
+	}
+	return ""
+}
+
+func hashOneInstanceSecret(s resolvedInstanceSecret) string {
+	if s.Name == "" && len(s.Data) == 0 {
+		return ""
+	}
+	return secrets.Hash(map[string]string{
+		"__ref__":  s.Name,
+		"__data__": secrets.Hash(s.Data),
+	})
+}
+
+// resolveInstanceSecrets loads every Secret referenced by the Instance
+// spec from the namespace the MR lives in. Missing Secrets surface as
+// a wrapped secrets.ErrMissingSecret so the controller can treat them
+// as terminal configuration errors per §2.11 invariant 7.
+func resolveInstanceSecrets(ctx context.Context, kube client.Client, mg *v1alpha1.Instance) (resolvedInstanceSecrets, error) {
+	ns := mg.GetNamespace()
+	fp := mg.Spec.ForProvider
+	out := resolvedInstanceSecrets{}
+
+	singletons := []struct {
+		ref   *xpv1.LocalSecretReference
+		out   *resolvedInstanceSecret
+		label string
+	}{
+		{fp.ArgoCDSecretRef, &out.Argocd, "argocdSecretRef"},
+		{fp.ArgoCDNotificationsSecretRef, &out.Notifications, "argocdNotificationsSecretRef"},
+		{fp.ArgoCDImageUpdaterSecretRef, &out.ImageUpdater, "argocdImageUpdaterSecretRef"},
+		{fp.ApplicationSetSecretRef, &out.ApplicationSet, "applicationSetSecretRef"},
+	}
+	for _, s := range singletons {
+		data, err := secrets.ResolveAllKeys(ctx, kube, ns, s.ref)
+		if err != nil {
+			return out, fmt.Errorf("%s: %w", s.label, err)
+		}
+		if s.ref != nil {
+			s.out.Name = s.ref.Name
+		}
+		s.out.Data = data
+	}
+
+	if refs := fp.RepoCredentialSecretRefs; len(refs) > 0 {
+		d, err := secrets.ResolveNamed(ctx, kube, ns, refs)
+		if err != nil {
+			return out, fmt.Errorf("repoCredentialSecretRefs: %w", err)
+		}
+		out.RepoCreds = d
+	}
+	if refs := fp.RepoTemplateCredentialSecretRefs; len(refs) > 0 {
+		d, err := secrets.ResolveNamed(ctx, kube, ns, refs)
+		if err != nil {
+			return out, fmt.Errorf("repoTemplateCredentialSecretRefs: %w", err)
+		}
+		out.RepoTemplateCreds = d
+	}
+	return out, nil
+}
+
+// instanceSecretToPB marshals a resolved singleton Secret into the
+// Kubernetes Secret structpb.Struct that the gateway expects. Returns
+// nil with no error when data is empty so callers can compose freely.
+func instanceSecretToPB(name string, data map[string]string, labels map[string]string) (*structpb.Struct, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+	byt := make(map[string][]byte, len(data))
+	for k, v := range data {
+		byt[k] = []byte(v)
+	}
+	sec := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+		Data: byt,
+	}
+	pb, err := marshal.APIModelToPBStruct(sec)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal %s secret to protobuf: %w", name, err)
+	}
+	return pb, nil
+}
+
+// namedInstanceSecretsToPB serialises each entry in a Named-ref map
+// into a labelled Kubernetes Secret. Entries are emitted in sorted
+// name order so the Apply payload is byte-identical across reconciles
+// for the same input. Empty entries are skipped; empty input returns
+// nil.
+func namedInstanceSecretsToPB(named map[string]map[string]string, label string) ([]*structpb.Struct, error) {
+	if len(named) == 0 {
+		return nil, nil
+	}
+	names := make([]string, 0, len(named))
+	for n := range named {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	out := make([]*structpb.Struct, 0, len(named))
+	for _, n := range names {
+		pb, err := instanceSecretToPB(n, named[n], map[string]string{argocdRepoSecretTypeLabel: label})
+		if err != nil {
+			return nil, fmt.Errorf("%s %q: %w", label, n, err)
+		}
+		if pb == nil {
+			continue
+		}
+		out = append(out, pb)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
 // BuildApplyInstanceRequest assembles the ApplyInstanceRequest proto
-// from the managed Instance's forProvider spec. OrganizationId is left
-// empty and filled by the client's ApplyInstance method so this
+// from the managed Instance's forProvider spec plus a resolvedInstance-
+// Secrets bundle produced by resolveInstanceSecrets. OrganizationId is
+// left empty and filled by the client's ApplyInstance method so this
 // function stays pure and testable. Exported so tests can round-trip
-// through the same builder the controller uses.
-func BuildApplyInstanceRequest(instance v1alpha1.Instance) (*argocdv1.ApplyInstanceRequest, error) {
+// through the same builder the controller uses; tests that do not
+// exercise Secret wiring pass a zero-value resolvedInstanceSecrets{}.
+//
+//nolint:gocyclo // Linear pipeline over 7 ConfigMaps + 4 singleton Secrets + 2 Named-ref lists + ArgoCD spec + CMPs; splitting would yield 14 trivial wrappers without clarity gain.
+func BuildApplyInstanceRequest(instance v1alpha1.Instance, sec resolvedInstanceSecrets) (*argocdv1.ApplyInstanceRequest, error) {
 	argocdPB, err := specToArgoCDPB(instance.Spec.ForProvider.Name, instance.Spec.ForProvider.ArgoCD)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal instance argocd spec to protobuf: %w", err)
@@ -88,18 +266,49 @@ func BuildApplyInstanceRequest(instance v1alpha1.Instance) (*argocdv1.ApplyInsta
 		return nil, fmt.Errorf("could not marshal instance argocd config management plugins to protobuf: %w", err)
 	}
 
+	argocdSecretPB, err := instanceSecretToPB(observation.ArgocdSecretKey, sec.Argocd.Data, nil)
+	if err != nil {
+		return nil, err
+	}
+	notificationsSecretPB, err := instanceSecretToPB(observation.ArgocdNotificationsSecretKey, sec.Notifications.Data, nil)
+	if err != nil {
+		return nil, err
+	}
+	imageUpdaterSecretPB, err := instanceSecretToPB(observation.ArgocdImageUpdaterSecretKey, sec.ImageUpdater.Data, nil)
+	if err != nil {
+		return nil, err
+	}
+	applicationSetSecretPB, err := instanceSecretToPB(observation.ArgocdApplicationSetKey, sec.ApplicationSet.Data, nil)
+	if err != nil {
+		return nil, err
+	}
+	repoCredsPB, err := namedInstanceSecretsToPB(sec.RepoCreds, argocdRepoSecretTypeRepository)
+	if err != nil {
+		return nil, err
+	}
+	repoTemplateCredsPB, err := namedInstanceSecretsToPB(sec.RepoTemplateCreds, argocdRepoSecretTypeRepoTemplate)
+	if err != nil {
+		return nil, err
+	}
+
 	return &argocdv1.ApplyInstanceRequest{
-		IdType:                    idv1.Type_NAME,
-		Id:                        instance.Spec.ForProvider.Name,
-		Argocd:                    argocdPB,
-		ArgocdConfigmap:           argocdConfigMapPB,
-		ArgocdRbacConfigmap:       argocdRbacConfigMapPB,
-		NotificationsConfigmap:    argocdNotificationsConfigMapPB,
-		ImageUpdaterConfigmap:     argocdImageUpdaterConfigMapPB,
-		ImageUpdaterSshConfigmap:  argocdImageUpdaterSshConfigMapPB,
-		ArgocdKnownHostsConfigmap: argocdKnownHostsConfigMapPB,
-		ArgocdTlsCertsConfigmap:   argocdTlsCertsConfigMapPB,
-		ConfigManagementPlugins:   configManagementPluginsPB,
+		IdType:                        idv1.Type_NAME,
+		Id:                            instance.Spec.ForProvider.Name,
+		Argocd:                        argocdPB,
+		ArgocdConfigmap:               argocdConfigMapPB,
+		ArgocdRbacConfigmap:           argocdRbacConfigMapPB,
+		NotificationsConfigmap:        argocdNotificationsConfigMapPB,
+		ImageUpdaterConfigmap:         argocdImageUpdaterConfigMapPB,
+		ImageUpdaterSshConfigmap:      argocdImageUpdaterSshConfigMapPB,
+		ArgocdKnownHostsConfigmap:     argocdKnownHostsConfigMapPB,
+		ArgocdTlsCertsConfigmap:       argocdTlsCertsConfigMapPB,
+		ConfigManagementPlugins:       configManagementPluginsPB,
+		ArgocdSecret:                  argocdSecretPB,
+		NotificationsSecret:           notificationsSecretPB,
+		ImageUpdaterSecret:            imageUpdaterSecretPB,
+		ApplicationSetSecret:          applicationSetSecretPB,
+		RepoCredentialSecrets:         repoCredsPB,
+		RepoTemplateCredentialSecrets: repoTemplateCredsPB,
 	}, nil
 }
 

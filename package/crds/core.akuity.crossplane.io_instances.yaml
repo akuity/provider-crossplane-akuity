@@ -992,68 +992,6 @@ spec:
               atProvider:
                 description: InstanceObservation are the observable fields of a Instance.
                 properties:
-                  applicationsStatus:
-                    description: |-
-                      ApplicationsStatus surfaces aggregated counts for the
-                      Applications / ApplicationSets / AppProjects managed through
-                      spec.forProvider.resources.
-                    properties:
-                      appOfAppCount:
-                        format: int32
-                        type: integer
-                      applicationCount:
-                        format: int32
-                        type: integer
-                      errorCount:
-                        format: int32
-                        type: integer
-                      health:
-                        description: ApplicationsHealth is the roll-up of Application
-                          health states.
-                        properties:
-                          degradedCount:
-                            format: int32
-                            type: integer
-                          healthyCount:
-                            format: int32
-                            type: integer
-                          missingCount:
-                            format: int32
-                            type: integer
-                          progressingCount:
-                            format: int32
-                            type: integer
-                          suspendedCount:
-                            format: int32
-                            type: integer
-                          unknownCount:
-                            format: int32
-                            type: integer
-                        type: object
-                      resourcesCount:
-                        format: int32
-                        type: integer
-                      syncInProgressCount:
-                        format: int32
-                        type: integer
-                      syncStatus:
-                        description: ApplicationsSyncStatus is the roll-up of Application
-                          sync states.
-                        properties:
-                          outOfSyncCount:
-                            format: int32
-                            type: integer
-                          syncedCount:
-                            format: int32
-                            type: integer
-                          unknownCount:
-                            format: int32
-                            type: integer
-                        type: object
-                      warningCount:
-                        format: int32
-                        type: integer
-                    type: object
                   argocd:
                     properties:
                       spec:

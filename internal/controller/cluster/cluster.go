@@ -23,12 +23,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	sigsyaml "sigs.k8s.io/yaml"
@@ -182,6 +177,11 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		return managed.ExternalCreation{}, fmt.Errorf("could not create cluster: %w", err)
 	}
 
+	// One-time apply: manifests are installed on the managed cluster at
+	// Create only. Update() intentionally does NOT re-apply — matches
+	// terraform's default (reapply_manifests_on_update=false).
+	// Server-pushed agent upgrades require a spec change or recreate to
+	// land on the managed cluster.
 	if mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
 		e.Logger.Debug("Retrieving cluster manifests....")
 		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
@@ -307,58 +307,18 @@ func (e *external) getInstanceID(ctx context.Context, instanceID string, instanc
 	return akuityInstance.GetId(), nil
 }
 
-func (e *external) GetClusterKubeClientRestConfig(ctx context.Context, mg v1alpha1.Cluster) (*rest.Config, error) {
-	var restConfig *rest.Config
-	var err error
-	if mg.Spec.ForProvider.EnableInClusterKubeConfig {
-		restConfig, err = rest.InClusterConfig()
-		if err != nil {
-			return restConfig, fmt.Errorf("could not build in cluster kube config: %w", err)
-		}
-	} else {
-		secretName := mg.Spec.ForProvider.KubeConfigSecretRef.Name
-		secretNamespace := mg.Spec.ForProvider.KubeConfigSecretRef.Namespace
-		secret := &corev1.Secret{}
-		if err := e.Kube.Get(ctx, k8stypes.NamespacedName{Name: secretName, Namespace: mg.Spec.ForProvider.KubeConfigSecretRef.Namespace}, secret); err != nil {
-			return restConfig, fmt.Errorf("could not get secret %s in namespace %s containing cluster kubeconfig: %w", secretName, secretNamespace, err)
-		}
-
-		kubeConfig, ok := secret.Data["kubeconfig"]
-		if !ok {
-			return restConfig, fmt.Errorf("could not get cluster kubeconfig from secret %s in namespace %s", secretName, secretNamespace)
-		}
-
-		restConfig, err = clientcmd.RESTConfigFromKubeConfig(kubeConfig)
-		if err != nil {
-			return restConfig, fmt.Errorf("could not get rest config from kubeconfig in secret %s in namespace %s: %w", secretName, secretNamespace, err)
-		}
+// targetKubeConfig returns the TargetKubeConfig for mg, used by the
+// shared manifest-apply helper.
+func targetKubeConfig(mg v1alpha1.Cluster) kube.TargetKubeConfig {
+	return kube.TargetKubeConfig{
+		EnableInCluster: mg.Spec.ForProvider.EnableInClusterKubeConfig,
+		SecretName:      mg.Spec.ForProvider.KubeConfigSecretRef.Name,
+		SecretNamespace: mg.Spec.ForProvider.KubeConfigSecretRef.Namespace,
 	}
-
-	return restConfig, nil
 }
 
 func (e *external) applyClusterManifests(ctx context.Context, mg v1alpha1.Cluster, clusterManifests string, delete bool) error {
-	restConfig, err := e.GetClusterKubeClientRestConfig(ctx, mg)
-	if err != nil {
-		return err
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("error creating dynamic client: %w", err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("error creating typed client: %w", err)
-	}
-
-	applyClient, err := kube.NewApplyClient(dynamicClient, clientset, e.Logger)
-	if err != nil {
-		return fmt.Errorf("error creating apply client: %w", err)
-	}
-
-	return applyClient.ApplyManifests(ctx, clusterManifests, delete)
+	return kube.ApplyManifestsToTarget(ctx, e.Kube, e.Logger, targetKubeConfig(mg), clusterManifests, delete)
 }
 
 // driftSpec is the Cluster drift-detection recipe. Normalize bridges

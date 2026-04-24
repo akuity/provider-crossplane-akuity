@@ -83,6 +83,13 @@ spec:
                       type: string
                     description: Annotations applied to the agent.
                     type: object
+                  enableInClusterKubeconfig:
+                    description: |-
+                      EnableInClusterKubeConfig uses the provider pod's in-cluster
+                      configuration to install the agent manifests, when the managed
+                      cluster is the same as the cluster the provider runs in.
+                      Mutually exclusive with KubeConfigSecretRef.
+                    type: boolean
                   kargoAgentSpec:
                     description: |-
                       KargoAgentSpec carries the agent configuration payload
@@ -161,6 +168,26 @@ spec:
                     required:
                     - name
                     type: object
+                  kubeconfigSecretRef:
+                    description: |-
+                      KubeConfigSecretRef is a reference to a Kubernetes Secret
+                      containing a kubeconfig under the "kubeconfig" key. Used to
+                      install the agent's install manifests onto the managed cluster
+                      when Create reconciles. Mutually exclusive with
+                      EnableInClusterKubeConfig.
+                    properties:
+                      name:
+                        description: The name of the Kubernetes secret being referenced.
+                          Required.
+                        type: string
+                      namespace:
+                        description: The namespace of the Kubernetes secret being
+                          referenced. Required.
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
                   labels:
                     additionalProperties:
                       type: string
@@ -174,6 +201,12 @@ spec:
                     description: Namespace in the managed cluster where the agent
                       is installed.
                     type: string
+                  removeAgentResourcesOnDestroy:
+                    description: |-
+                      RemoveAgentResourcesOnDestroy removes the agent manifests from
+                      the managed cluster before DeleteKargoInstanceAgent runs. Only
+                      effective when a kubeconfig source is configured.
+                    type: boolean
                   workspace:
                     description: Workspace is the Kargo project/workspace the agent
                       is bound to.
