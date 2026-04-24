@@ -31,8 +31,8 @@ import (
 // KargoInstanceRef, in which case the controller resolves the ID from
 // the KargoInstance's Status.AtProvider.ID field.
 //
-// +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) != has(self.kargoInstanceRef)",message="exactly one of kargoInstanceId or kargoInstanceRef must be set"
-// +kubebuilder:validation:XValidation:rule="self.kargoInstanceId == oldSelf.kargoInstanceId && has(self.kargoInstanceRef) == has(oldSelf.kargoInstanceRef) && (!has(self.kargoInstanceRef) || self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name)",message="kargoInstanceId/kargoInstanceRef are immutable"
+// +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) || has(self.kargoInstanceRef)",message="kargoInstanceId or kargoInstanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="(!has(oldSelf.kargoInstanceId) || (has(self.kargoInstanceId) && self.kargoInstanceId == oldSelf.kargoInstanceId)) && (!has(oldSelf.kargoInstanceRef) || (has(self.kargoInstanceRef) && self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name))",message="kargoInstanceId/kargoInstanceRef are immutable"
 type KargoDefaultShardAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by its
 	// opaque Akuity ID. Mutually exclusive with KargoInstanceRef.

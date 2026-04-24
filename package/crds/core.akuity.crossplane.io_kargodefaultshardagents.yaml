@@ -115,13 +115,13 @@ spec:
                 - agentName
                 type: object
                 x-kubernetes-validations:
-                - message: exactly one of kargoInstanceId or kargoInstanceRef must
-                    be set
-                  rule: has(self.kargoInstanceId) != has(self.kargoInstanceRef)
+                - message: kargoInstanceId or kargoInstanceRef must be set
+                  rule: has(self.kargoInstanceId) || has(self.kargoInstanceRef)
                 - message: kargoInstanceId/kargoInstanceRef are immutable
-                  rule: self.kargoInstanceId == oldSelf.kargoInstanceId && has(self.kargoInstanceRef)
-                    == has(oldSelf.kargoInstanceRef) && (!has(self.kargoInstanceRef)
-                    || self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name)
+                  rule: (!has(oldSelf.kargoInstanceId) || (has(self.kargoInstanceId)
+                    && self.kargoInstanceId == oldSelf.kargoInstanceId)) && (!has(oldSelf.kargoInstanceRef)
+                    || (has(self.kargoInstanceRef) && self.kargoInstanceRef.name ==
+                    oldSelf.kargoInstanceRef.name))
               managementPolicies:
                 default:
                 - '*'

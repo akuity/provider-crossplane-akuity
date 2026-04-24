@@ -28,8 +28,8 @@ import (
 
 // KargoAgentParameters are the configurable fields of a KargoAgent.
 //
-// +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) != has(self.kargoInstanceRef)",message="exactly one of kargoInstanceId or kargoInstanceRef must be set"
-// +kubebuilder:validation:XValidation:rule="self.kargoInstanceId == oldSelf.kargoInstanceId && has(self.kargoInstanceRef) == has(oldSelf.kargoInstanceRef) && (!has(self.kargoInstanceRef) || self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name)",message="kargoInstanceId/kargoInstanceRef are immutable"
+// +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) || has(self.kargoInstanceRef)",message="kargoInstanceId or kargoInstanceRef must be set"
+// +kubebuilder:validation:XValidation:rule="(!has(oldSelf.kargoInstanceId) || (has(self.kargoInstanceId) && self.kargoInstanceId == oldSelf.kargoInstanceId)) && (!has(oldSelf.kargoInstanceRef) || (has(self.kargoInstanceRef) && self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name))",message="kargoInstanceId/kargoInstanceRef are immutable"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type KargoAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by ID.
