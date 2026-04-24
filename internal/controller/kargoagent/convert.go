@@ -85,20 +85,25 @@ func BuildApplyKargoInstanceRequest(kargoInstanceID string, p v1alpha1.KargoAgen
 
 // apiToSpec rebuilds KargoAgentParameters from the
 // observed Akuity KargoAgent. Fields that the user owns locally
-// (KargoInstanceID / KargoInstanceRef / Workspace) are carried over
-// from the managed resource so drift detection compares apples to
-// apples. Namespace / Labels / Annotations live inside the proto Data
-// sub-tree on the wire.
+// (KargoInstanceID / KargoInstanceRef / Workspace, plus the agent-install
+// kubeconfig trio that never round-trips through the Akuity gateway:
+// KubeConfigSecretRef / EnableInClusterKubeConfig /
+// RemoveAgentResourcesOnDestroy) are carried over from the managed
+// resource so drift detection compares apples to apples. Namespace /
+// Labels / Annotations live inside the proto Data sub-tree on the wire.
 func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent) v1alpha1.KargoAgentParameters {
 	data := agent.GetData()
 	out := v1alpha1.KargoAgentParameters{
-		KargoInstanceID:  desired.KargoInstanceID,
-		KargoInstanceRef: desired.KargoInstanceRef,
-		Name:             agent.GetName(),
-		Namespace:        data.GetNamespace(),
-		Workspace:        desired.Workspace,
-		Labels:           data.GetLabels(),
-		Annotations:      data.GetAnnotations(),
+		KargoInstanceID:               desired.KargoInstanceID,
+		KargoInstanceRef:              desired.KargoInstanceRef,
+		Name:                          agent.GetName(),
+		Namespace:                     data.GetNamespace(),
+		Workspace:                     desired.Workspace,
+		Labels:                        data.GetLabels(),
+		Annotations:                   data.GetAnnotations(),
+		KubeConfigSecretRef:           desired.KubeConfigSecretRef,
+		EnableInClusterKubeConfig:     desired.EnableInClusterKubeConfig,
+		RemoveAgentResourcesOnDestroy: desired.RemoveAgentResourcesOnDestroy,
 	}
 	// Description + data live under the KargoAgentSpec wrapper,
 	// mirroring the Cluster shape where payload lives under
@@ -113,21 +118,26 @@ func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent)
 // wireToSpec rebuilds KargoAgentParameters from the Akuity wire-form
 // KargoAgent that ExportKargoInstance returns inside its Agents slice.
 // Namespace / Labels / Annotations live on ObjectMeta in the wire
-// form (not on Data, as in the proto). Spec-only fields (KargoInstanceID,
-// KargoInstanceRef, Workspace) are carried from desired because the
-// Akuity API does not own them.
+// form (not on Data, as in the proto). Spec-only fields that the Akuity
+// API does not own (KargoInstanceID / KargoInstanceRef / Workspace,
+// plus the agent-install kubeconfig trio: KubeConfigSecretRef /
+// EnableInClusterKubeConfig / RemoveAgentResourcesOnDestroy) are
+// carried from desired so drift detection compares apples to apples.
 func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAgent) v1alpha1.KargoAgentParameters {
 	if wire == nil {
 		return v1alpha1.KargoAgentParameters{}
 	}
 	out := v1alpha1.KargoAgentParameters{
-		KargoInstanceID:  desired.KargoInstanceID,
-		KargoInstanceRef: desired.KargoInstanceRef,
-		Name:             wire.GetName(),
-		Namespace:        wire.Namespace,
-		Workspace:        desired.Workspace,
-		Labels:           wire.Labels,
-		Annotations:      wire.Annotations,
+		KargoInstanceID:               desired.KargoInstanceID,
+		KargoInstanceRef:              desired.KargoInstanceRef,
+		Name:                          wire.GetName(),
+		Namespace:                     wire.Namespace,
+		Workspace:                     desired.Workspace,
+		Labels:                        wire.Labels,
+		Annotations:                   wire.Annotations,
+		KubeConfigSecretRef:           desired.KubeConfigSecretRef,
+		EnableInClusterKubeConfig:     desired.EnableInClusterKubeConfig,
+		RemoveAgentResourcesOnDestroy: desired.RemoveAgentResourcesOnDestroy,
 	}
 	out.KargoAgentSpec.Description = wire.Spec.Description
 	if d := crossplanetypes.KargoAgentDataAPIToSpec(&wire.Spec.Data); d != nil {
