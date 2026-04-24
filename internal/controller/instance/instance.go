@@ -134,7 +134,16 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		return managed.ExternalObservation{}, newErr
 	}
 
+	// SecretHash is written by Create/Update after a successful Apply and
+	// drives rotation drift in the block below. instanceObservation is
+	// projected from the gateway response (which returns secret data
+	// masked/nil) and therefore carries no SecretHash — assigning the
+	// whole struct would clobber the controller-managed hash every poll
+	// and re-trigger Apply on every reconcile (§2.11 invariant 2/4).
+	// Preserve across the assignment.
+	preservedSecretHash := mg.Status.AtProvider.SecretHash
 	mg.Status.AtProvider = instanceObservation
+	mg.Status.AtProvider.SecretHash = preservedSecretHash
 	base.SetHealthCondition(mg, instanceObservation.HealthStatus.Code == 1)
 
 	// DeepCopy so Normalize's map mutations (ArgoCDConfigMap rewrites,

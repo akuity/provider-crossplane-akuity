@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -35,6 +36,7 @@ import (
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -107,14 +109,62 @@ func hashOneInstanceSecret(s resolvedInstanceSecret) string {
 	})
 }
 
+// instanceHasAnySecretRef reports whether the Instance spec declares any
+// SecretRef at all. Lets resolveInstanceSecrets skip the PC lookup
+// entirely when the user has not wired any credentials (the common
+// minimal-spec path in 1C.B0).
+func instanceHasAnySecretRef(mg *v1alpha1.Instance) bool {
+	fp := mg.Spec.ForProvider
+	return fp.ArgoCDSecretRef != nil ||
+		fp.ArgoCDNotificationsSecretRef != nil ||
+		fp.ArgoCDImageUpdaterSecretRef != nil ||
+		fp.ApplicationSetSecretRef != nil ||
+		len(fp.RepoCredentialSecretRefs) > 0 ||
+		len(fp.RepoTemplateCredentialSecretRefs) > 0
+}
+
+// instanceSecretNamespace returns the namespace used to resolve the
+// Instance's SecretRefs. Instance is cluster-scoped so mg.GetNamespace()
+// is empty; fall back to the ProviderConfig's credentialsSecretRef
+// namespace (the operator already nominated one to host credentials).
+// For namespaced MRs the MR namespace wins. Returns an error when the
+// MR carries no ProviderConfig reference — a configuration error the
+// caller treats as terminal per §2.11 invariant 7.
+func instanceSecretNamespace(ctx context.Context, kube client.Client, mg *v1alpha1.Instance) (string, error) {
+	if ns := mg.GetNamespace(); ns != "" {
+		return ns, nil
+	}
+	ref := mg.GetProviderConfigReference()
+	if ref == nil {
+		return "", fmt.Errorf("cluster-scoped Instance %q has no providerConfigRef; cannot resolve SecretRef namespace", mg.GetName())
+	}
+	pc := &apisv1alpha1.ProviderConfig{}
+	if err := kube.Get(ctx, k8stypes.NamespacedName{Name: ref.Name}, pc); err != nil {
+		return "", fmt.Errorf("cannot resolve SecretRef namespace: get ProviderConfig %q: %w", ref.Name, err)
+	}
+	if ns := pc.Spec.CredentialsSecretRef.Namespace; ns != "" {
+		return ns, nil
+	}
+	return "", fmt.Errorf("ProviderConfig %q has no credentialsSecretRef.namespace to use as SecretRef lookup namespace", ref.Name)
+}
+
 // resolveInstanceSecrets loads every Secret referenced by the Instance
 // spec from the namespace the MR lives in. Missing Secrets surface as
 // a wrapped secrets.ErrMissingSecret so the controller can treat them
 // as terminal configuration errors per §2.11 invariant 7.
 func resolveInstanceSecrets(ctx context.Context, kube client.Client, mg *v1alpha1.Instance) (resolvedInstanceSecrets, error) {
-	ns := mg.GetNamespace()
-	fp := mg.Spec.ForProvider
 	out := resolvedInstanceSecrets{}
+	// Instance is cluster-scoped; LocalSecretReference carries no
+	// namespace. Anchor the lookup on the MR namespace when present,
+	// otherwise fall back to the ProviderConfig credentials namespace.
+	if !instanceHasAnySecretRef(mg) {
+		return out, nil
+	}
+	ns, err := instanceSecretNamespace(ctx, kube, mg)
+	if err != nil {
+		return out, err
+	}
+	fp := mg.Spec.ForProvider
 
 	singletons := []struct {
 		ref   *xpv1.LocalSecretReference
