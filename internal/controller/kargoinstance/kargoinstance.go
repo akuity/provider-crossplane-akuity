@@ -144,6 +144,19 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 				desired.Kargo.KargoInstanceSpec.GcConfig =
 					observed.Kargo.KargoInstanceSpec.GcConfig
 			}
+			// OidcConfig follows the same server-retained shape as
+			// GcConfig: enabling OIDC once (issuer/client IDs + scopes
+			// + predefined-account claims) writes values the gateway
+			// keeps even after the CR removes spec.kargo.oidcConfig
+			// entirely. Without this inherit we hot-loop Apply because
+			// desired=nil vs observed={issuerUrl, clientId, ...} fires
+			// drift on every poll. DexConfigSecretRef — the one OIDC
+			// field carried forward from desired across Observe
+			// (kargoinstance.go:239-244) — happens before Normalize
+			// runs, so the ref-based path is unaffected.
+			if desired.Kargo.OidcConfig == nil {
+				desired.Kargo.OidcConfig = observed.Kargo.OidcConfig
+			}
 			// DefaultShardAgent is owned by the KargoDefaultShardAgent MR,
 			// not the KargoInstance MR. Mirror terraform's
 			// resource_akp_kargo.go:352 pattern (`delete(kargoInstanceSpec,
