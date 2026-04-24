@@ -23,9 +23,7 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
-	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
-	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 )
 
 var (
@@ -319,26 +317,6 @@ func TestGetClusterManifests_ResponseErrChanErr(t *testing.T) {
 	assert.Empty(t, manifests)
 }
 
-func TestApplyCluster(t *testing.T) {
-	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
-	cluster := akuitytypes.Cluster{}
-	clusterPB, _ := marshal.APIModelToPBStruct(cluster)
-
-	request := &argocdv1.ApplyInstanceRequest{
-		OrganizationId: organizationID,
-		IdType:         idv1.Type_ID,
-		Id:             instanceID,
-		Clusters:       []*structpb.Struct{clusterPB},
-	}
-
-	mockGatewayClient.EXPECT().ApplyInstance(authCtx, request).Return(nil, nil).Times(1)
-
-	client, err := akuity.NewClient(organizationID, apiKeyID, apiKeySecret, mockGatewayClient, nil)
-	require.NoError(t, err)
-
-	err = client.ApplyCluster(ctx, instanceID, cluster)
-	require.NoError(t, err)
-}
 func TestDeleteCluster(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
 	mockCluster := &argocdv1.Cluster{

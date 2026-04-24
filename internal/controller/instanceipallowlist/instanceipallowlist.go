@@ -49,7 +49,6 @@ import (
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
-	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
 // Setup registers the controller with the manager.
@@ -100,16 +99,17 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.InstanceIpAllowList
 	}
 
 	ai, err := e.Client.GetInstanceByID(ctx, instanceID)
-	if err != nil {
-		if reason.IsNotFound(err) {
-			return managed.ExternalObservation{ResourceExists: false}, nil
+	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
+		switch outcome {
+		case base.GetOK, base.GetAbsent:
+			// GetOK is filtered by the enclosing `if`; GetAbsent's
+			// pre-shaped obs (ResourceExists=false) is returned as-is.
+		case base.GetProvisioning:
+			base.SetHealthCondition(mg, false)
+		case base.GetTerminal:
+			mg.SetConditions(xpv1.ReconcileError(err))
 		}
-		if reason.IsProvisioningWait(err) {
-			mg.SetConditions(xpv1.Unavailable())
-			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
-		}
-		mg.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
+		return obs, rerr
 	}
 
 	observed := pbEntriesToSpec(ai.GetSpec().GetIpAllowList())
@@ -117,7 +117,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.InstanceIpAllowList
 		AllowList:  observed,
 		InstanceID: instanceID,
 	}
-	mg.SetConditions(xpv1.Available())
+	base.SetHealthCondition(mg, true)
 
 	// Drift is nil-vs-empty-sensitive: a user who writes
 	// `allowList: []` and an API that returns nothing must resolve
@@ -125,12 +125,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.InstanceIpAllowList
 	// utilcmp.EquateEmpty) rather than reflect.DeepEqual.
 	desired := mg.Spec.ForProvider.AllowList
 	spec := driftSpec()
-	upToDate, err := spec.UpToDate(ctx, &desired, &observed)
+	upToDate, err := base.EvaluateDrift(ctx, spec, &desired, &observed, e.Logger, "InstanceIpAllowList")
 	if err != nil {
 		return managed.ExternalObservation{}, err
-	}
-	if !upToDate {
-		e.Logger.Debug("InstanceIpAllowList drift detected", "diff", spec.Diff(&desired, &observed))
 	}
 
 	return managed.ExternalObservation{

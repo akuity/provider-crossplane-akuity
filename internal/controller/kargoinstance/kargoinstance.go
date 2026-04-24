@@ -52,7 +52,6 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
-	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
@@ -158,16 +157,17 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	}
 
 	ki, err := e.Client.GetKargoInstance(ctx, meta.GetExternalName(mg))
-	if err != nil {
-		if reason.IsNotFound(err) {
-			return managed.ExternalObservation{ResourceExists: false}, nil
+	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
+		switch outcome {
+		case base.GetOK, base.GetAbsent:
+			// GetOK is filtered by the enclosing `if`; GetAbsent's
+			// pre-shaped obs (ResourceExists=false) is returned as-is.
+		case base.GetProvisioning:
+			base.SetHealthCondition(mg, false)
+		case base.GetTerminal:
+			mg.SetConditions(xpv1.ReconcileError(err))
 		}
-		if reason.IsProvisioningWait(err) {
-			mg.SetConditions(xpv1.Unavailable())
-			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
-		}
-		mg.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
+		return obs, rerr
 	}
 
 	actual, err := apiToSpec(ki)
@@ -216,11 +216,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	mg.Status.AtProvider.SecretHash = prevSecretHash
 	mg.Status.AtProvider.ConfigMapHash = prevCMHashCarry
 	mg.Status.AtProvider.RepoCredsAppliedAt = prevRepoCredsAt
-	if mg.Status.AtProvider.HealthStatus.Code != 1 {
-		mg.SetConditions(xpv1.Unavailable())
-	} else {
-		mg.SetConditions(xpv1.Available())
-	}
+	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
 
 	// Struct-level comparison of the primary spec shape. Resources,
 	// KargoConfigMap, and KargoRepoCredentialSecretRefs are checked
@@ -230,12 +226,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	// utilcmp.EquateEmpty() so nil-vs-empty sub-trees resolve equal.
 	structSpec := driftSpec()
 	desired := mg.Spec.ForProvider
-	upToDate, err := structSpec.UpToDate(ctx, &desired, &actual)
+	upToDate, err := base.EvaluateDrift(ctx, structSpec, &desired, &actual, e.Logger, "KargoInstance")
 	if err != nil {
 		return managed.ExternalObservation{}, err
-	}
-	if !upToDate {
-		e.Logger.Debug("KargoInstance drift detected", "diff", structSpec.Diff(&desired, &actual))
 	}
 
 	// kargoConfigMap drift: combine a local hash check with the

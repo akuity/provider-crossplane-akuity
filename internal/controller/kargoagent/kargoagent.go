@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"strings"
 
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
@@ -114,34 +113,37 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
-	agent, obs, done, err := e.fetchAgent(ctx, mg, instanceID)
-	if done {
-		return obs, err
+	agent, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, meta.GetExternalName(mg))
+	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
+		switch outcome {
+		case base.GetOK, base.GetAbsent:
+			// GetOK is filtered by the enclosing `if`; GetAbsent's
+			// pre-shaped obs (ResourceExists=false) is returned as-is.
+		case base.GetProvisioning:
+			base.SetHealthCondition(mg, false)
+		case base.GetTerminal:
+			mg.SetConditions(xpv1.ReconcileError(err))
+		}
+		return obs, rerr
 	}
 
 	actual := apiToSpec(mg.Spec.ForProvider, agent)
 	mg.Status.AtProvider = observation.KargoAgent(agent)
-	if mg.Status.AtProvider.HealthStatus.Code != 1 {
-		mg.SetConditions(xpv1.Unavailable())
-	} else {
-		mg.SetConditions(xpv1.Available())
-	}
+	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
 
 	// Drift compares against the ExportKargoInstance round-trippable
-	// spec (the same wire shape that Create/Update agent requests
-	// encode), matching the pattern Instance/KargoInstance use:
-	// read-via-Export, write-via-dedicated-endpoint. The
-	// GetKargoInstanceAgent call above stays load-bearing for
-	// observation (health / reconciliation / ID) — Export returns
-	// only spec. If Export fails or the agent is missing from its
-	// Agents list we fall back to the Get-derived spec so the reconcile
-	// still completes; the next poll re-attempts Export.
+	// spec (the same wire shape that ApplyKargoInstance encodes),
+	// matching the pattern Instance/Cluster/KargoInstance use:
+	// read-via-Export, write-via-Apply. The GetKargoInstanceAgent call
+	// above stays load-bearing for observation (health / reconciliation
+	// / ID) — Export returns only spec. If Export fails or the agent is
+	// missing from its Agents list we fall back to the Get-derived spec
+	// so the reconcile still completes; the next poll re-attempts Export.
 	//
 	// Always compare spec so a matching desired/observed pair does not
 	// trigger Update() on every poll while reconciliation is still
 	// pending. Returning ResourceUpToDate=false during provisioning
-	// caused a hot-loop of UpdateKargoInstanceAgent calls on the Akuity
-	// API.
+	// caused a hot-loop of ApplyKargoInstance calls on the Akuity API.
 	driftTarget := actual
 	if exportAgent, found, xerr := e.exportedAgentSpec(ctx, instanceID, mg.Spec.ForProvider.Name, mg.Spec.ForProvider); xerr != nil {
 		e.Logger.Debug("ExportKargoInstance failed; falling back to GetKargoInstanceAgent for drift", "err", xerr)
@@ -150,15 +152,12 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	}
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
-	upToDate, err := spec.UpToDate(ctx, &desired, &driftTarget)
+	upToDate, err := base.EvaluateDrift(ctx, spec, &desired, &driftTarget, e.Logger, "KargoAgent")
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
-	if !upToDate {
-		e.Logger.Debug("KargoAgent drift detected", "diff", spec.Diff(&desired, &driftTarget))
-	}
 
-	observation := managed.ExternalObservation{
+	obs := managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: upToDate,
 	}
@@ -171,84 +170,43 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 			mg.SetConditions(xpv1.ReconcileError(err))
 			return managed.ExternalObservation{}, err
 		}
-		observation.ConnectionDetails = managed.ConnectionDetails{ConnectionKeyManifests: []byte(manifests)}
+		obs.ConnectionDetails = managed.ConnectionDetails{ConnectionKeyManifests: []byte(manifests)}
 	}
 
-	return observation, nil
+	return obs, nil
 }
 
-// fetchAgent wraps e.Client.GetKargoInstanceAgent and folds the
-// transient/error classifications into an ExternalObservation ready
-// to return. See (cluster).fetchCluster for the shape rationale.
-func (e *external) fetchAgent(ctx context.Context, mg *v1alpha1.KargoAgent, instanceID string) (*kargov1.KargoAgent, managed.ExternalObservation, bool, error) {
-	agent, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, meta.GetExternalName(mg))
-	if err == nil {
-		return agent, managed.ExternalObservation{}, false, nil
+// apply routes both Create and Update through ApplyKargoInstance with
+// only the Agents slice populated. The backend narrow-merges into the
+// parent KargoInstance: sibling fields (Kargo envelope, Projects,
+// Warehouses, Stages, RepoCredentials, …) are untouched so this MR
+// coexists with a KargoInstance MR owning those. Same pattern Cluster
+// uses against ApplyInstance (cluster/convert.go BuildApplyInstanceRequest).
+func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
+	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
+	if err != nil {
+		return err
 	}
-	if reason.IsNotFound(err) {
-		return nil, managed.ExternalObservation{ResourceExists: false}, true, nil
+	mg.Spec.ForProvider.KargoInstanceID = instanceID
+	req, err := BuildApplyKargoInstanceRequest(instanceID, mg.Spec.ForProvider)
+	if err != nil {
+		return err
 	}
-	if reason.IsProvisioningWait(err) {
-		mg.SetConditions(xpv1.Unavailable())
-		return nil, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, true, nil
-	}
-	mg.SetConditions(xpv1.ReconcileError(err))
-	return nil, managed.ExternalObservation{}, true, err
+	return e.Client.ApplyKargoInstance(ctx, req)
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalCreation, error) {
 	defer base.PropagateObservedGeneration(mg)
-	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
-	if err != nil {
+	if err := e.apply(ctx, mg); err != nil {
 		return managed.ExternalCreation{}, err
 	}
-	mg.Spec.ForProvider.KargoInstanceID = instanceID
-
-	data, err := agentDataPB(mg.Spec.ForProvider)
-	if err != nil {
-		return managed.ExternalCreation{}, err
-	}
-	req := &kargov1.CreateKargoInstanceAgentRequest{
-		InstanceId:  instanceID,
-		Name:        mg.Spec.ForProvider.Name,
-		Description: agentDescription(mg.Spec.ForProvider),
-		Data:        data,
-		WorkspaceId: mg.Spec.ForProvider.Workspace,
-	}
-	agent, err := e.Client.CreateKargoInstanceAgent(ctx, req)
-	if err != nil {
-		return managed.ExternalCreation{}, err
-	}
-	meta.SetExternalName(mg, agent.GetName())
+	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 	return managed.ExternalCreation{}, nil
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalUpdate, error) {
 	defer base.PropagateObservedGeneration(mg)
-	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
-	if err != nil {
-		return managed.ExternalUpdate{}, err
-	}
-
-	// UpdateKargoInstanceAgent keys by agent ID — look it up first.
-	existing, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, meta.GetExternalName(mg))
-	if err != nil {
-		return managed.ExternalUpdate{}, err
-	}
-
-	data, err := agentDataPB(mg.Spec.ForProvider)
-	if err != nil {
-		return managed.ExternalUpdate{}, err
-	}
-	req := &kargov1.UpdateKargoInstanceAgentRequest{
-		InstanceId:  instanceID,
-		Id:          existing.GetId(),
-		Description: agentDescription(mg.Spec.ForProvider),
-		Data:        data,
-		WorkspaceId: mg.Spec.ForProvider.Workspace,
-	}
-	_, err = e.Client.UpdateKargoInstanceAgent(ctx, req)
-	return managed.ExternalUpdate{}, err
+	return managed.ExternalUpdate{}, e.apply(ctx, mg)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalDelete, error) {
@@ -331,10 +289,6 @@ func (e *external) resolveKargoInstanceID(ctx context.Context, mg *v1alpha1.Karg
 		return "", fmt.Errorf("could not resolve KargoInstance %q on Akuity API: %w", ki.Spec.ForProvider.Name, err)
 	}
 	return remote.GetId(), nil
-}
-
-func agentDescription(p v1alpha1.KargoAgentParameters) string {
-	return p.Description
 }
 
 // isConnectedAgentDeleteError recognises the Akuity API error surface

@@ -45,7 +45,6 @@ import (
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
-	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
 // Setup registers the controller.
@@ -96,16 +95,17 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 	}
 
 	ki, err := e.Client.GetKargoInstanceByID(ctx, kargoID)
-	if err != nil {
-		if reason.IsNotFound(err) {
-			return managed.ExternalObservation{ResourceExists: false}, nil
+	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
+		switch outcome {
+		case base.GetOK, base.GetAbsent:
+			// GetOK is filtered by the enclosing `if`; GetAbsent's
+			// pre-shaped obs (ResourceExists=false) is returned as-is.
+		case base.GetProvisioning:
+			base.SetHealthCondition(mg, false)
+		case base.GetTerminal:
+			mg.SetConditions(xpv1.ReconcileError(err))
 		}
-		if reason.IsProvisioningWait(err) {
-			mg.SetConditions(xpv1.Unavailable())
-			return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
-		}
-		mg.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
+		return obs, rerr
 	}
 
 	observed := ki.GetSpec().GetDefaultShardAgent()
@@ -113,7 +113,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 		AgentName:       observed,
 		KargoInstanceID: kargoID,
 	}
-	mg.SetConditions(xpv1.Available())
+	base.SetHealthCondition(mg, true)
 
 	upToDate := observed == mg.Spec.ForProvider.AgentName
 	if !upToDate {

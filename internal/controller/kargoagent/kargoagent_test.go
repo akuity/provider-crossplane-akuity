@@ -136,11 +136,19 @@ func TestObserve_ReconciledPublishesManifests(t *testing.T) {
 func TestCreate_Apply(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
-	mc.EXPECT().CreateKargoInstanceAgent(gomock.Any(), gomock.Any()).
-		Return(&kargov1.KargoAgent{Id: "ag-1", Name: "agt"}, nil).Times(1)
+
+	var capturedReq *kargov1.ApplyKargoInstanceRequest
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, req *kargov1.ApplyKargoInstanceRequest) error {
+		capturedReq = req
+		return nil
+	}).Times(1)
+
 	_, err := e.Create(context.Background(), a)
 	require.NoError(t, err)
-	assert.Equal(t, "agt", meta.GetExternalName(a))
+	assert.Equal(t, "agt", meta.GetExternalName(a), "externalName is the user-supplied agent name; Apply has no response body")
+	require.NotNil(t, capturedReq)
+	assert.Equal(t, "ki-1", capturedReq.GetId())
+	require.Len(t, capturedReq.GetAgents(), 1, "narrow-merge: only Agents populated, sibling fields left for KargoInstance MR")
 }
 
 func TestDelete_CallsDelete(t *testing.T) {
@@ -188,54 +196,35 @@ func TestDelete_GenericErrPropagates(t *testing.T) {
 }
 
 // TestUpdate_Happy exercises the Update path end-to-end: resolve
-// instance ID, Get existing agent, translate spec, call
-// UpdateKargoInstanceAgent with the resolved agent ID.
+// instance ID, translate spec, call ApplyKargoInstance with only the
+// Agents slice populated. No Get-before-Update — ApplyKargoInstance
+// keys by Name inside the wire struct, eliminating the round-trip.
 func TestUpdate_Happy(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
 	meta.SetExternalName(a, "agt")
-	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
-		Id: "ag-1", Name: "agt",
-	}, nil).Times(1)
 
-	var capturedReq *kargov1.UpdateKargoInstanceAgentRequest
-	mc.EXPECT().UpdateKargoInstanceAgent(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, req *kargov1.UpdateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error) {
+	var capturedReq *kargov1.ApplyKargoInstanceRequest
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, req *kargov1.ApplyKargoInstanceRequest) error {
 		capturedReq = req
-		return &kargov1.KargoAgent{Id: "ag-1", Name: "agt"}, nil
+		return nil
 	}).Times(1)
 
 	_, err := e.Update(context.Background(), a)
 	require.NoError(t, err)
 	require.NotNil(t, capturedReq)
-	assert.Equal(t, "ki-1", capturedReq.GetInstanceId())
-	assert.Equal(t, "ag-1", capturedReq.GetId())
+	assert.Equal(t, "ki-1", capturedReq.GetId())
+	require.Len(t, capturedReq.GetAgents(), 1)
 }
 
-// TestUpdate_GetErr covers the error path when the existing agent
-// lookup fails. Controller must surface rather than proceed with a
-// stale Id.
-func TestUpdate_GetErr(t *testing.T) {
-	e, mc := newExt(t)
-	a := newAgent()
-	meta.SetExternalName(a, "agt")
-	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
-		Return(nil, errors.New("boom")).Times(1)
-	_, err := e.Update(context.Background(), a)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "boom")
-}
-
-// TestUpdate_ApplyErr covers the error path when
-// UpdateKargoInstanceAgent fails.
+// TestUpdate_ApplyErr covers the error path when ApplyKargoInstance
+// fails.
 func TestUpdate_ApplyErr(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
 	meta.SetExternalName(a, "agt")
-	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
-		Id: "ag-1", Name: "agt",
-	}, nil).Times(1)
-	mc.EXPECT().UpdateKargoInstanceAgent(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("boom")).Times(1)
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(errors.New("boom")).Times(1)
 	_, err := e.Update(context.Background(), a)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")

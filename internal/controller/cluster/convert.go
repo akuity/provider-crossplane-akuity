@@ -20,6 +20,8 @@ import (
 	"fmt"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
+	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
@@ -30,6 +32,27 @@ import (
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
+
+// BuildApplyInstanceRequest returns an ApplyInstanceRequest that
+// narrow-merges only the Clusters slice (with this one cluster) into
+// the target Instance. Sibling fields (Argocd envelope, ArgocdConfigmap,
+// Applications, AppProjects, …) are left untouched by the server.
+// OrganizationId is filled in by the akuity client wrapper.
+func BuildApplyInstanceRequest(instanceID string, cluster v1alpha1.ClusterParameters) (*argocdv1.ApplyInstanceRequest, error) {
+	wire, err := SpecToAPI(cluster)
+	if err != nil {
+		return nil, fmt.Errorf("could not build apply cluster wire form: %w", err)
+	}
+	clusterPB, err := marshal.APIModelToPBStruct(wire)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal cluster %s to protobuf struct: %w", cluster.Name, err)
+	}
+	return &argocdv1.ApplyInstanceRequest{
+		IdType:   idv1.Type_ID,
+		Id:       instanceID,
+		Clusters: []*structpb.Struct{clusterPB},
+	}, nil
+}
 
 // APIToSpec rebuilds ClusterParameters from the argocd-plane
 // response. MR-local fields (InstanceRef, KubeConfigSecretRef,

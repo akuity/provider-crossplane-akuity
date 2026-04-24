@@ -135,11 +135,12 @@ func TestWireToSpec_EmptyLabelMapsBecomeNil(t *testing.T) {
 	assert.Nil(t, out.Annotations)
 }
 
-// TestAgentDataPB_InjectsNamespaceAndLabels verifies the post-bridge
-// injection: the akuity wire type does not carry Namespace / Labels /
-// Annotations, so agentDataPB must stamp them onto the proto after
-// GoModelToProto runs.
-func TestAgentDataPB_InjectsNamespaceAndLabels(t *testing.T) {
+// TestBuildApplyKargoInstanceRequest_InjectsNamespaceAndLabels covers
+// the Apply-path round-trip: the akuity wire KargoAgent carries
+// Namespace / Labels / Annotations on ObjectMeta (unlike the proto
+// KargoAgentData which carries them inline), so SpecToAPI must emit
+// them there for ApplyKargoInstance to round-trip with Export.
+func TestBuildApplyKargoInstanceRequest_InjectsNamespaceAndLabels(t *testing.T) {
 	p := v1alpha1.KargoAgentParameters{
 		Name:        "agt",
 		Namespace:   "kargo",
@@ -149,25 +150,28 @@ func TestAgentDataPB_InjectsNamespaceAndLabels(t *testing.T) {
 			Size: crossplanetypes.KargoAgentSize("small"),
 		},
 	}
-	pb, err := agentDataPB(p)
+	req, err := BuildApplyKargoInstanceRequest("ki-1", p)
 	require.NoError(t, err)
-	require.NotNil(t, pb)
-	assert.Equal(t, "kargo", pb.GetNamespace())
-	assert.Equal(t, map[string]string{"team": "platform"}, pb.GetLabels())
-	assert.Equal(t, map[string]string{"note": "x"}, pb.GetAnnotations())
+	require.NotNil(t, req)
+	require.Len(t, req.GetAgents(), 1)
+	meta, ok := req.GetAgents()[0].AsMap()["metadata"].(map[string]any)
+	require.True(t, ok, "agents[0].metadata present")
+	assert.Equal(t, "kargo", meta["namespace"])
+	assert.Equal(t, map[string]any{"team": "platform"}, meta["labels"])
+	assert.Equal(t, map[string]any{"note": "x"}, meta["annotations"])
 }
 
-// TestAgentDataPB_InvalidKustomizationErrors keeps the validation
-// guard on Kustomization — users pass raw YAML, and a malformed
-// kustomization.yaml must fail at encode rather than be silently
-// forwarded to the gateway.
-func TestAgentDataPB_InvalidKustomizationErrors(t *testing.T) {
+// TestBuildApplyKargoInstanceRequest_InvalidKustomizationErrors keeps
+// the validation guard on Kustomization — users pass raw YAML, and a
+// malformed kustomization.yaml must fail at encode rather than be
+// silently forwarded to the gateway.
+func TestBuildApplyKargoInstanceRequest_InvalidKustomizationErrors(t *testing.T) {
 	p := v1alpha1.KargoAgentParameters{
 		Data: crossplanetypes.KargoAgentData{
 			Kustomization: "this: is: not: yaml:\n    - [",
 		},
 	}
-	_, err := agentDataPB(p)
+	_, err := BuildApplyKargoInstanceRequest("ki-1", p)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "kustomization")
 }

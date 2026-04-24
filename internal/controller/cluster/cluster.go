@@ -44,33 +44,34 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
-	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
-const (
-	errNotCluster       = "managed resource is not a Cluster custom resource"
-	errTransformCluster = "cannot transform cluster to Akuity API model"
-)
+const errTransformCluster = "cannot transform cluster to Akuity API model"
 
 // Setup adds a controller that reconciles Cluster managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha1.ClusterGroupKind)
-
 	logger := o.Logger.WithValues("controller", name)
 	recorder := event.NewRecorder(mgr, name)
 
+	conn := &base.Connector[*v1alpha1.Cluster]{
+		Kube:      mgr.GetClient(),
+		Usage:     resource.NewLegacyProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
+		Logger:    logger,
+		Recorder:  recorder,
+		NewClient: base.DefaultClientFactory,
+		Build: func(ac akuity.Client, kube client.Client, l logging.Logger, r event.Recorder) managed.TypedExternalClient[*v1alpha1.Cluster] {
+			return &external{ExternalClient: base.NewExternalClient(ac, kube, l, r)}
+		},
+	}
+
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.ClusterGroupVersionKind),
-		managed.WithExternalConnector(&connector{
-			kube:   mgr.GetClient(),
-			usage:  resource.NewLegacyProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-			logger: logger,
-		}),
+		managed.WithTypedExternalConnector[*v1alpha1.Cluster](conn),
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(recorder),
@@ -84,120 +85,71 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
-// A connector is expected to produce an ExternalClient when its Connect method
-// is called.
-type connector struct {
-	kube   client.Client
-	usage  resource.LegacyTracker
-	logger logging.Logger
+type external struct {
+	base.ExternalClient
 }
 
-// Connect typically produces an ExternalClient by:
-// 1. Tracking that the managed resource is using a ProviderConfig.
-// 2. Getting the managed resource's ProviderConfig.
-// 3. Getting the credentials specified by the ProviderConfig.
-// 4. Using the credentials to form a client.
-func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return nil, errors.New(errNotCluster)
-	}
+func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalObservation, error) { //nolint:gocyclo
+	defer base.PropagateObservedGeneration(mg)
 
-	if err := c.usage.Track(ctx, cr); err != nil {
-		return nil, errors.Wrap(err, "cannot track ProviderConfig usage")
-	}
-
-	client, err := config.GetAkuityClientFromProviderConfig(ctx, c.kube, cr.GetProviderConfigReference().Name)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewExternal(client, c.kube, c.logger), nil
-}
-
-// An ExternalClient observes, then either creates, updates, or deletes an
-// external resource to ensure it reflects the managed resource's desired state.
-type External struct {
-	client akuity.Client
-	kube   client.Client
-	logger logging.Logger
-}
-
-func NewExternal(client akuity.Client, kube client.Client, logger logging.Logger) *External {
-	return &External{
-		client: client,
-		kube:   kube,
-		logger: logger,
-	}
-}
-
-func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) { //nolint:gocyclo
-	managedCluster, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotCluster)
-	}
-
-	instanceID, err := c.getInstanceID(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.InstanceRef)
+	instanceID, err := e.getInstanceID(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.InstanceRef)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
+	mg.Spec.ForProvider.InstanceID = instanceID
 
-	managedCluster.Spec.ForProvider.InstanceID = instanceID
-
-	if meta.GetExternalName(managedCluster) == "" {
-		return managed.ExternalObservation{
-			ResourceExists: false,
-		}, nil
+	if meta.GetExternalName(mg) == "" {
+		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
 	// GetCluster stays as the source of truth for observation data
 	// (HealthStatus / ReconciliationStatus / AgentState / agent size /
 	// target version etc.) — none of that round-trips through Export.
-	akuityCluster, err := c.client.GetCluster(ctx, instanceID, meta.GetExternalName(managedCluster))
-	if err != nil {
-		if reason.IsNotFound(err) {
-			return managed.ExternalObservation{ResourceExists: false}, nil
+	akuityCluster, err := e.Client.GetCluster(ctx, instanceID, meta.GetExternalName(mg))
+	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
+		switch outcome {
+		case base.GetOK, base.GetAbsent:
+			// GetOK is filtered by the enclosing `if`; GetAbsent's
+			// pre-shaped obs (ResourceExists=false) is returned as-is.
+		case base.GetProvisioning:
+			base.SetHealthCondition(mg, false)
+		case base.GetTerminal:
+			mg.SetConditions(xpv1.ReconcileError(err))
 		}
-		managedCluster.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
+		return obs, rerr
 	}
 
-	actualCluster, err := APIToSpec(instanceID, managedCluster.Spec.ForProvider, akuityCluster)
+	actualCluster, err := APIToSpec(instanceID, mg.Spec.ForProvider, akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster from Akuity API: %w", err)
-		managedCluster.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv1.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
-	lateInitializeCluster(&managedCluster.Spec.ForProvider, actualCluster)
+	lateInitializeCluster(&mg.Spec.ForProvider, actualCluster)
 
 	clusterObservation, err := observation.Cluster(akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster observation: %w", err)
-		managedCluster.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv1.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
-	managedCluster.Status.AtProvider = clusterObservation
-
-	if clusterObservation.HealthStatus.Code != 1 {
-		managedCluster.SetConditions(xpv1.Unavailable())
-	} else {
-		managedCluster.SetConditions(xpv1.Available())
-	}
+	mg.Status.AtProvider = clusterObservation
+	base.SetHealthCondition(mg, clusterObservation.HealthStatus.Code == 1)
 
 	// Drift compares against ExportInstanceByID's round-trippable spec
-	// (same structural shape ApplyCluster sends). Pattern-consistent
-	// with Instance/KargoInstance: read via Export, write via Apply.
-	// GetCluster above is still load-bearing for observation fields
-	// (health/reconciliation/agent state) that Export does not
-	// return. If Export succeeds but the cluster entry is missing
-	// from its Clusters list we fall back to the GetCluster-derived
-	// spec: GetCluster saw it, so it does exist — Export was just
-	// lagging.
-	driftTarget, found, err := c.exportedClusterSpec(ctx, instanceID, meta.GetExternalName(managedCluster), managedCluster.Spec.ForProvider)
+	// (same structural shape ApplyInstance{Clusters:[one]} sends).
+	// Pattern-consistent with Instance/KargoInstance: read via Export,
+	// write via Apply. GetCluster above is still load-bearing for
+	// observation fields (health/reconciliation/agent state) that
+	// Export does not return. If Export succeeds but the cluster entry
+	// is missing from its Clusters list we fall back to the
+	// GetCluster-derived spec: GetCluster saw it, so it does exist —
+	// Export was just lagging.
+	driftTarget, found, err := e.exportedClusterSpec(ctx, instanceID, meta.GetExternalName(mg), mg.Spec.ForProvider)
 	if err != nil {
-		managedCluster.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 	if !found {
@@ -205,13 +157,10 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}
 
 	spec := driftSpec()
-	desired := managedCluster.Spec.ForProvider
-	isUpToDate, err := spec.UpToDate(ctx, &desired, &driftTarget)
+	desired := mg.Spec.ForProvider
+	isUpToDate, err := base.EvaluateDrift(ctx, spec, &desired, &driftTarget, e.Logger, "Cluster")
 	if err != nil {
 		return managed.ExternalObservation{}, err
-	}
-	if !isUpToDate {
-		c.logger.Debug("Comparing managed cluster to external instance", "diff", spec.Diff(&desired, &driftTarget))
 	}
 
 	return managed.ExternalObservation{
@@ -220,95 +169,76 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}, nil
 }
 
-func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	managedCluster, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotCluster)
-	}
+func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	akuityAPICluster, err := SpecToAPI(managedCluster.Spec.ForProvider)
+	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return managed.ExternalCreation{}, errors.New(errTransformCluster)
+		return managed.ExternalCreation{}, errors.Wrap(err, errTransformCluster)
 	}
-
-	err = c.client.ApplyCluster(ctx, managedCluster.Spec.ForProvider.InstanceID, akuityAPICluster)
-	if err != nil {
+	if err := e.Client.ApplyInstance(ctx, req); err != nil {
 		return managed.ExternalCreation{}, fmt.Errorf("could not create cluster: %w", err)
 	}
 
-	if managedCluster.Spec.ForProvider.EnableInClusterKubeConfig || managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
-		c.logger.Debug("Retrieving cluster manifests....")
-		clusterManifests, err := c.client.GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name)
+	if mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
+		e.Logger.Debug("Retrieving cluster manifests....")
+		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
 			return managed.ExternalCreation{}, fmt.Errorf("could not get cluster manifests to apply: %w", err)
 		}
 
-		c.logger.Debug("Applying cluster manifests",
-			"clusterName", managedCluster.Name,
-			"instanceID", managedCluster.Spec.ForProvider.InstanceID,
+		e.Logger.Debug("Applying cluster manifests",
+			"clusterName", mg.Name,
+			"instanceID", mg.Spec.ForProvider.InstanceID,
 		)
-		c.logger.Debug(clusterManifests)
-		err = c.applyClusterManifests(ctx, *managedCluster, clusterManifests, false)
-		if err != nil {
+		e.Logger.Debug(clusterManifests)
+		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, false); err != nil {
 			return managed.ExternalCreation{}, fmt.Errorf("could not apply cluster manifests: %w", err)
 		}
 	}
-	meta.SetExternalName(managedCluster, akuityAPICluster.Name)
+	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 
-	return managed.ExternalCreation{}, err
+	return managed.ExternalCreation{}, nil
 }
 
-func (c *External) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	managedCluster, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotCluster)
-	}
+func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	akuityAPICluster, err := SpecToAPI(managedCluster.Spec.ForProvider)
+	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return managed.ExternalUpdate{}, errors.New(errTransformCluster)
+		return managed.ExternalUpdate{}, errors.Wrap(err, errTransformCluster)
 	}
-
-	err = c.client.ApplyCluster(ctx, managedCluster.Spec.ForProvider.InstanceID, akuityAPICluster)
-
-	return managed.ExternalUpdate{}, err
+	return managed.ExternalUpdate{}, e.Client.ApplyInstance(ctx, req)
 }
 
-func (c *External) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	managedCluster, ok := mg.(*v1alpha1.Cluster)
-	if !ok {
-		return managed.ExternalDelete{}, errors.New(errNotCluster)
-	}
+func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	externalName := meta.GetExternalName(managedCluster)
+	externalName := meta.GetExternalName(mg)
 	if externalName == "" {
 		return managed.ExternalDelete{}, nil
 	}
 
-	if managedCluster.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
-		(managedCluster.Spec.ForProvider.EnableInClusterKubeConfig || managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name != "") {
-		clusterManifests, err := c.client.GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name)
+	if mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
+		(mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "") {
+		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
 			return managed.ExternalDelete{}, fmt.Errorf("could not get cluster manifests to delete: %w", err)
 		}
 
-		err = c.applyClusterManifests(ctx, *managedCluster, clusterManifests, true)
-		if err != nil {
+		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, true); err != nil {
 			return managed.ExternalDelete{}, fmt.Errorf("could not delete cluster manifests: %w", err)
 		}
 	}
 
-	err := c.client.DeleteCluster(ctx, managedCluster.Spec.ForProvider.InstanceID, externalName)
-	if err != nil {
+	if err := e.Client.DeleteCluster(ctx, mg.Spec.ForProvider.InstanceID, externalName); err != nil {
 		return managed.ExternalDelete{}, fmt.Errorf("could not delete cluster: %w", err)
 	}
 
 	return managed.ExternalDelete{}, nil
 }
 
-func (c *External) Disconnect(ctx context.Context) error {
-	return nil
-}
+func (e *external) Disconnect(_ context.Context) error { return nil }
 
 func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.ClusterParameters) {
 	in.Namespace = pointer.LateInitialize(in.Namespace, actual.Namespace)
@@ -328,8 +258,8 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 // absent from the response (e.g. server mid-provisioning or a
 // concurrent sibling deletion); caller falls back to GetCluster-based
 // drift in that case. Errors are transient Export failures only.
-func (c *External) exportedClusterSpec(ctx context.Context, instanceID, clusterName string, managed v1alpha1.ClusterParameters) (v1alpha1.ClusterParameters, bool, error) {
-	exp, err := c.client.ExportInstanceByID(ctx, instanceID)
+func (e *external) exportedClusterSpec(ctx context.Context, instanceID, clusterName string, desired v1alpha1.ClusterParameters) (v1alpha1.ClusterParameters, bool, error) {
+	exp, err := e.Client.ExportInstanceByID(ctx, instanceID)
 	if err != nil {
 		return v1alpha1.ClusterParameters{}, false, err
 	}
@@ -348,12 +278,12 @@ func (c *External) exportedClusterSpec(ctx context.Context, instanceID, clusterN
 		if wire.GetName() != clusterName {
 			continue
 		}
-		return wireToSpec(instanceID, managed, wire), true, nil
+		return wireToSpec(instanceID, desired, wire), true, nil
 	}
 	return v1alpha1.ClusterParameters{}, false, nil
 }
 
-func (c *External) getInstanceID(ctx context.Context, instanceID string, instanceRef *v1alpha1.LocalReference) (string, error) {
+func (e *external) getInstanceID(ctx context.Context, instanceID string, instanceRef *v1alpha1.LocalReference) (string, error) {
 	if instanceID != "" {
 		return instanceID, nil
 	}
@@ -363,11 +293,11 @@ func (c *External) getInstanceID(ctx context.Context, instanceID string, instanc
 	}
 
 	instance := &v1alpha1.Instance{}
-	if err := c.kube.Get(ctx, k8stypes.NamespacedName{Name: instanceRef.Name}, instance); err != nil {
+	if err := e.Kube.Get(ctx, k8stypes.NamespacedName{Name: instanceRef.Name}, instance); err != nil {
 		return "", fmt.Errorf("could not look up instance with instanceRef %s: %w", instanceRef.Name, err)
 	}
 
-	akuityInstance, err := c.client.GetInstance(ctx, instance.Spec.ForProvider.Name)
+	akuityInstance, err := e.Client.GetInstance(ctx, instance.Spec.ForProvider.Name)
 	if err != nil {
 		return "", fmt.Errorf("could not look up instance with instanceRef %s: %w", instanceRef.Name, err)
 	}
@@ -375,19 +305,19 @@ func (c *External) getInstanceID(ctx context.Context, instanceID string, instanc
 	return akuityInstance.GetId(), nil
 }
 
-func (c *External) GetClusterKubeClientRestConfig(ctx context.Context, managedCluster v1alpha1.Cluster) (*rest.Config, error) {
+func (e *external) GetClusterKubeClientRestConfig(ctx context.Context, mg v1alpha1.Cluster) (*rest.Config, error) {
 	var restConfig *rest.Config
 	var err error
-	if managedCluster.Spec.ForProvider.EnableInClusterKubeConfig {
+	if mg.Spec.ForProvider.EnableInClusterKubeConfig {
 		restConfig, err = rest.InClusterConfig()
 		if err != nil {
 			return restConfig, fmt.Errorf("could not build in cluster kube config: %w", err)
 		}
 	} else {
-		secretName := managedCluster.Spec.ForProvider.KubeConfigSecretRef.Name
-		secretNamespace := managedCluster.Spec.ForProvider.KubeConfigSecretRef.Namespace
+		secretName := mg.Spec.ForProvider.KubeConfigSecretRef.Name
+		secretNamespace := mg.Spec.ForProvider.KubeConfigSecretRef.Namespace
 		secret := &corev1.Secret{}
-		if err := c.kube.Get(ctx, k8stypes.NamespacedName{Name: secretName, Namespace: managedCluster.Spec.ForProvider.KubeConfigSecretRef.Namespace}, secret); err != nil {
+		if err := e.Kube.Get(ctx, k8stypes.NamespacedName{Name: secretName, Namespace: mg.Spec.ForProvider.KubeConfigSecretRef.Namespace}, secret); err != nil {
 			return restConfig, fmt.Errorf("could not get secret %s in namespace %s containing cluster kubeconfig: %w", secretName, secretNamespace, err)
 		}
 
@@ -405,8 +335,8 @@ func (c *External) GetClusterKubeClientRestConfig(ctx context.Context, managedCl
 	return restConfig, nil
 }
 
-func (c *External) applyClusterManifests(ctx context.Context, managedCluster v1alpha1.Cluster, clusterManifests string, delete bool) error {
-	restConfig, err := c.GetClusterKubeClientRestConfig(ctx, managedCluster)
+func (e *external) applyClusterManifests(ctx context.Context, mg v1alpha1.Cluster, clusterManifests string, delete bool) error {
+	restConfig, err := e.GetClusterKubeClientRestConfig(ctx, mg)
 	if err != nil {
 		return err
 	}
@@ -421,7 +351,7 @@ func (c *External) applyClusterManifests(ctx context.Context, managedCluster v1a
 		return fmt.Errorf("error creating typed client: %w", err)
 	}
 
-	applyClient, err := kube.NewApplyClient(dynamicClient, clientset, c.logger)
+	applyClient, err := kube.NewApplyClient(dynamicClient, clientset, e.Logger)
 	if err != nil {
 		return fmt.Errorf("error creating apply client: %w", err)
 	}

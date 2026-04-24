@@ -20,12 +20,68 @@ import (
 	"fmt"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
+	"google.golang.org/protobuf/types/known/structpb"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
+
+// SpecToAPI builds the akuity wire-form KargoAgent from the managed
+// resource's forProvider spec. The wire form is the same shape
+// ExportKargoInstance returns inside its Agents slice, giving
+// round-trip symmetry between read (Export) and write (Apply).
+func SpecToAPI(p v1alpha1.KargoAgentParameters) (akuitytypes.KargoAgent, error) {
+	if err := crossplanetypes.ValidateKustomizationYAML(p.Data.Kustomization); err != nil {
+		return akuitytypes.KargoAgent{}, fmt.Errorf("spec.forProvider.data.kustomization: %w", err)
+	}
+	data := crossplanetypes.KargoAgentDataSpecToAPI(&p.Data)
+	if data == nil {
+		data = &akuitytypes.KargoAgentData{}
+	}
+	return akuitytypes.KargoAgent{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "KargoAgent",
+			APIVersion: "kargo.akuity.io/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        p.Name,
+			Namespace:   p.Namespace,
+			Labels:      p.Labels,
+			Annotations: p.Annotations,
+		},
+		Spec: akuitytypes.KargoAgentSpec{
+			Description: p.Description,
+			Data:        *data,
+		},
+	}, nil
+}
+
+// BuildApplyKargoInstanceRequest returns an ApplyKargoInstanceRequest
+// that narrow-merges only the Agents slice (with this one agent) into
+// the target KargoInstance. Sibling fields (Kargo envelope,
+// KargoConfigmap, Projects, Warehouses, Stages, RepoCredentials, …)
+// are left untouched by the server. OrganizationId is filled in by
+// the akuity client wrapper.
+func BuildApplyKargoInstanceRequest(kargoInstanceID string, p v1alpha1.KargoAgentParameters) (*kargov1.ApplyKargoInstanceRequest, error) {
+	wire, err := SpecToAPI(p)
+	if err != nil {
+		return nil, err
+	}
+	agentPB, err := marshal.APIModelToPBStruct(wire)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal kargo agent %s to protobuf struct: %w", p.Name, err)
+	}
+	return &kargov1.ApplyKargoInstanceRequest{
+		IdType:      idv1.Type_ID,
+		Id:          kargoInstanceID,
+		WorkspaceId: p.Workspace,
+		Agents:      []*structpb.Struct{agentPB},
+	}, nil
+}
 
 // apiToSpec rebuilds KargoAgentParameters from the
 // observed Akuity KargoAgent. Fields that the user owns locally
@@ -84,29 +140,6 @@ func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAg
 		out.Annotations = nil
 	}
 	return out
-}
-
-// agentDataPB materialises the KargoAgentData protobuf payload from
-// the spec. spec → akuity wire (via codegen) → protobuf (via
-// marshal.GoModelToProto). Namespace / Labels / Annotations live on
-// the proto but the upstream akuity Go wire type does not yet carry
-// them, so they are injected onto the proto message after the bridge.
-func agentDataPB(p v1alpha1.KargoAgentParameters) (*kargov1.KargoAgentData, error) {
-	pb := &kargov1.KargoAgentData{}
-	if err := crossplanetypes.ValidateKustomizationYAML(p.Data.Kustomization); err != nil {
-		return nil, fmt.Errorf("spec.forProvider.data.kustomization: %w", err)
-	}
-	wire := crossplanetypes.KargoAgentDataSpecToAPI(&p.Data)
-	if wire == nil {
-		wire = &akuitytypes.KargoAgentData{}
-	}
-	if err := marshal.GoModelToProto(wire, pb); err != nil {
-		return nil, fmt.Errorf("encode KargoAgentData: %w", err)
-	}
-	pb.Namespace = p.Namespace
-	pb.Labels = p.Labels
-	pb.Annotations = p.Annotations
-	return pb, nil
 }
 
 // convertAgentData folds the Kargo protobuf KargoAgentData into the

@@ -42,33 +42,34 @@ import (
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
-	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
-	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
-const (
-	errNotInstance       = "managed resource is not a Instance custom resource"
-	errTransformInstance = "cannot transform Crossplane instance to Akuity API instance"
-)
+const errTransformInstance = "cannot transform Crossplane instance to Akuity API instance"
 
 // Setup adds a controller that reconciles Instance managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha1.InstanceGroupKind)
-
 	logger := o.Logger.WithValues("controller", name)
 	recorder := event.NewRecorder(mgr, name)
 
+	conn := &base.Connector[*v1alpha1.Instance]{
+		Kube:      mgr.GetClient(),
+		Usage:     resource.NewLegacyProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
+		Logger:    logger,
+		Recorder:  recorder,
+		NewClient: base.DefaultClientFactory,
+		Build: func(ac akuity.Client, kube client.Client, l logging.Logger, r event.Recorder) managed.TypedExternalClient[*v1alpha1.Instance] {
+			return &external{ExternalClient: base.NewExternalClient(ac, kube, l, r)}
+		},
+	}
+
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.InstanceGroupVersionKind),
-		managed.WithExternalConnector(&connector{
-			kube:   mgr.GetClient(),
-			usage:  resource.NewLegacyProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-			logger: logger,
-		}),
+		managed.WithTypedExternalConnector[*v1alpha1.Instance](conn),
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(recorder),
@@ -82,109 +83,67 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
-type connector struct {
-	kube   client.Client
-	usage  resource.LegacyTracker
-	logger logging.Logger
+type external struct {
+	base.ExternalClient
 }
 
-func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*v1alpha1.Instance)
-	if !ok {
-		return nil, errors.New(errNotInstance)
+func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalObservation, error) { //nolint:gocyclo
+	defer base.PropagateObservedGeneration(mg)
+
+	if meta.GetExternalName(mg) == "" {
+		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
-	if err := c.usage.Track(ctx, cr); err != nil {
-		return nil, errors.Wrap(err, "cannot track ProviderConfig usage")
-	}
-
-	client, err := config.GetAkuityClientFromProviderConfig(ctx, c.kube, cr.GetProviderConfigReference().Name)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewExternal(client, c.logger), nil
-}
-
-type External struct {
-	client akuity.Client
-	logger logging.Logger
-}
-
-func NewExternal(client akuity.Client, logger logging.Logger) *External {
-	return &External{
-		client: client,
-		logger: logger,
-	}
-}
-
-func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) { //nolint:gocyclo
-	managedInstance, ok := mg.(*v1alpha1.Instance)
-	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotInstance)
-	}
-
-	if meta.GetExternalName(managedInstance) == "" {
-		return managed.ExternalObservation{
-			ResourceExists: false,
-		}, nil
-	}
-
-	akuityInstance, err := c.client.GetInstance(ctx, meta.GetExternalName(managedInstance))
-	if err != nil {
-		if reason.IsNotFound(err) {
-			return managed.ExternalObservation{ResourceExists: false}, nil
+	akuityInstance, err := e.Client.GetInstance(ctx, meta.GetExternalName(mg))
+	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
+		switch outcome {
+		case base.GetOK, base.GetAbsent:
+			// GetOK is filtered by the enclosing `if`; GetAbsent's
+			// pre-shaped obs (ResourceExists=false) is returned as-is.
+		case base.GetProvisioning:
+			base.SetHealthCondition(mg, false)
+		case base.GetTerminal:
+			mg.SetConditions(xpv1.ReconcileError(err))
 		}
-
-		managedInstance.SetConditions(xpv1.ReconcileError(err))
-		return managed.ExternalObservation{}, err
+		return obs, rerr
 	}
 
-	akuityExportedInstance, err := c.client.ExportInstance(ctx, meta.GetExternalName(managedInstance))
+	akuityExportedInstance, err := e.Client.ExportInstance(ctx, meta.GetExternalName(mg))
 	if err != nil {
-		managedInstance.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 
 	actualInstance, err := observation.InstanceSpec(akuityInstance, akuityExportedInstance)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform instance spec from Akuity API to internal instance spec: %w", err)
-		managedInstance.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, newErr
 	}
 
-	err = lateInitializeInstance(&managedInstance.Spec.ForProvider, akuityInstance, akuityExportedInstance)
-	if err != nil {
-		managedInstance.SetConditions(xpv1.ReconcileError(err))
+	if err := lateInitializeInstance(&mg.Spec.ForProvider, akuityInstance, akuityExportedInstance); err != nil {
+		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 
 	instanceObservation, err := observation.Instance(akuityInstance, akuityExportedInstance)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform instance from Akuity API to Crossplane instance observation: %w", err)
-		managedInstance.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv1.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
-	managedInstance.Status.AtProvider = instanceObservation
-
-	if instanceObservation.HealthStatus.Code != 1 {
-		managedInstance.SetConditions(xpv1.Unavailable())
-	} else {
-		managedInstance.SetConditions(xpv1.Available())
-	}
+	mg.Status.AtProvider = instanceObservation
+	base.SetHealthCondition(mg, instanceObservation.HealthStatus.Code == 1)
 
 	// DeepCopy so Normalize's map mutations (ArgoCDConfigMap rewrites,
 	// ignored-key deletions) don't leak back into the managed resource.
 	spec := driftSpec()
-	desired := managedInstance.Spec.ForProvider.DeepCopy()
+	desired := mg.Spec.ForProvider.DeepCopy()
 	observed := actualInstance.Spec.ForProvider.DeepCopy()
-	isUpToDate, err := spec.UpToDate(ctx, desired, observed)
+	isUpToDate, err := base.EvaluateDrift(ctx, spec, desired, observed, e.Logger, "Instance")
 	if err != nil {
 		return managed.ExternalObservation{}, err
-	}
-	if !isUpToDate {
-		c.logger.Debug("Comparing managed instance to external instance", "diff", spec.Diff(desired, observed))
 	}
 
 	return managed.ExternalObservation{
@@ -193,55 +152,43 @@ func (c *External) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}, nil
 }
 
-func (c *External) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	managedInstance, ok := mg.(*v1alpha1.Instance)
-	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotInstance)
-	}
+func (e *external) Create(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalCreation, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	request, err := BuildApplyInstanceRequest(*managedInstance)
+	request, err := BuildApplyInstanceRequest(*mg)
 	if err != nil {
 		return managed.ExternalCreation{}, errors.New(errTransformInstance)
 	}
 
-	err = c.client.ApplyInstance(ctx, request)
-	meta.SetExternalName(managedInstance, request.GetId())
+	err = e.Client.ApplyInstance(ctx, request)
+	meta.SetExternalName(mg, request.GetId())
 
 	return managed.ExternalCreation{}, err
 }
 
-func (c *External) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	managedInstance, ok := mg.(*v1alpha1.Instance)
-	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotInstance)
-	}
+func (e *external) Update(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalUpdate, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	request, err := BuildApplyInstanceRequest(*managedInstance)
+	request, err := BuildApplyInstanceRequest(*mg)
 	if err != nil {
 		return managed.ExternalUpdate{}, errors.New(errTransformInstance)
 	}
 
-	err = c.client.ApplyInstance(ctx, request)
-	return managed.ExternalUpdate{}, err
+	return managed.ExternalUpdate{}, e.Client.ApplyInstance(ctx, request)
 }
 
-func (c *External) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	managedInstance, ok := mg.(*v1alpha1.Instance)
-	if !ok {
-		return managed.ExternalDelete{}, errors.New(errNotInstance)
-	}
+func (e *external) Delete(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalDelete, error) {
+	defer base.PropagateObservedGeneration(mg)
 
-	externalName := meta.GetExternalName(managedInstance)
+	externalName := meta.GetExternalName(mg)
 	if externalName == "" {
 		return managed.ExternalDelete{}, nil
 	}
 
-	return managed.ExternalDelete{}, c.client.DeleteInstance(ctx, externalName)
+	return managed.ExternalDelete{}, e.Client.DeleteInstance(ctx, externalName)
 }
 
-func (c *External) Disconnect(ctx context.Context) error {
-	return nil
-}
+func (e *external) Disconnect(_ context.Context) error { return nil }
 
 func lateInitializeInstance(in *v1alpha1.InstanceParameters, instance *argocdv1.Instance, exportedInstance *argocdv1.ExportInstanceResponse) error {
 	in.ArgoCD.Spec.InstanceSpec.Subdomain = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.Subdomain, instance.GetSpec().GetSubdomain())

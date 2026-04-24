@@ -15,7 +15,6 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	v1alpha1 "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
@@ -44,20 +43,6 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// ApplyCluster mocks base method.
-func (m *MockClient) ApplyCluster(ctx context.Context, instanceID string, cluster v1alpha1.Cluster) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyCluster", ctx, instanceID, cluster)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ApplyCluster indicates an expected call of ApplyCluster.
-func (mr *MockClientMockRecorder) ApplyCluster(ctx, instanceID, cluster any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyCluster", reflect.TypeOf((*MockClient)(nil).ApplyCluster), ctx, instanceID, cluster)
-}
-
 // ApplyInstance mocks base method.
 func (m *MockClient) ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error {
 	m.ctrl.T.Helper()
@@ -84,21 +69,6 @@ func (m *MockClient) ApplyKargoInstance(ctx context.Context, request *kargov1.Ap
 func (mr *MockClientMockRecorder) ApplyKargoInstance(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyKargoInstance", reflect.TypeOf((*MockClient)(nil).ApplyKargoInstance), ctx, request)
-}
-
-// CreateKargoInstanceAgent mocks base method.
-func (m *MockClient) CreateKargoInstanceAgent(ctx context.Context, request *kargov1.CreateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateKargoInstanceAgent", ctx, request)
-	ret0, _ := ret[0].(*kargov1.KargoAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CreateKargoInstanceAgent indicates an expected call of CreateKargoInstanceAgent.
-func (mr *MockClientMockRecorder) CreateKargoInstanceAgent(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateKargoInstanceAgent", reflect.TypeOf((*MockClient)(nil).CreateKargoInstanceAgent), ctx, request)
 }
 
 // DeleteCluster mocks base method.
@@ -363,19 +333,4 @@ func (m *MockClient) PatchKargoInstance(ctx context.Context, id string, patch *s
 func (mr *MockClientMockRecorder) PatchKargoInstance(ctx, id, patch any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchKargoInstance", reflect.TypeOf((*MockClient)(nil).PatchKargoInstance), ctx, id, patch)
-}
-
-// UpdateKargoInstanceAgent mocks base method.
-func (m *MockClient) UpdateKargoInstanceAgent(ctx context.Context, request *kargov1.UpdateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateKargoInstanceAgent", ctx, request)
-	ret0, _ := ret[0].(*kargov1.KargoAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateKargoInstanceAgent indicates an expected call of UpdateKargoInstanceAgent.
-func (mr *MockClientMockRecorder) UpdateKargoInstanceAgent(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateKargoInstanceAgent", reflect.TypeOf((*MockClient)(nil).UpdateKargoInstanceAgent), ctx, request)
 }

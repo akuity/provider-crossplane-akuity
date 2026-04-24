@@ -20,9 +20,7 @@ import (
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	httpctx "github.com/akuity/grpc-gateway-client/pkg/http/context"
 
-	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
-	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 )
 
 const (
@@ -39,7 +37,6 @@ type Client interface {
 	// surfaced via a controller-runtime requeue rather than a blocking
 	// API wait.
 	GetClusterManifestsOnce(ctx context.Context, instanceID, clusterID string) (string, error)
-	ApplyCluster(ctx context.Context, instanceID string, cluster akuitytypes.Cluster) error
 	DeleteCluster(ctx context.Context, instanceID string, name string) error
 	GetInstance(ctx context.Context, name string) (*argocdv1.Instance, error)
 	// GetInstanceByID fetches an Instance by its canonical ID. Used by
@@ -52,6 +49,11 @@ type Client interface {
 	// Akuity instance ID on their spec and need the canonical
 	// round-trippable spec for drift comparison.
 	ExportInstanceByID(ctx context.Context, id string) (*argocdv1.ExportInstanceResponse, error)
+	// ApplyInstance narrow-merges the populated fields into the target
+	// Instance; omitted fields are left untouched. Cluster/KargoAgent
+	// child resources are applied by populating only the corresponding
+	// Clusters/Agents slice on the request — build helpers live in the
+	// owning controller's convert.go.
 	ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error
 	// PatchInstance merges the supplied structpb patch into the target
 	// Instance's spec (keyed by ID). Narrow-patch controllers use this
@@ -70,6 +72,11 @@ type Client interface {
 	// how the Akuity Terraform provider resolves by ID).
 	GetKargoInstanceByID(ctx context.Context, id string) (*kargov1.KargoInstance, error)
 	ExportKargoInstance(ctx context.Context, name string) (*kargov1.ExportKargoInstanceResponse, error)
+	// ApplyKargoInstance narrow-merges the populated fields into the
+	// target KargoInstance; omitted fields (Kargo envelope, Projects,
+	// Warehouses, Stages, RepoCredentials, …) are left untouched. Agent
+	// child resources are applied by populating only the Agents slice
+	// — see KargoAgent controller's convert.go for the build helper.
 	ApplyKargoInstance(ctx context.Context, request *kargov1.ApplyKargoInstanceRequest) error
 	// PatchKargoInstance merges the supplied structpb patch into the
 	// target KargoInstance's spec (keyed by ID). Used by narrow-patch
@@ -77,8 +84,6 @@ type Client interface {
 	PatchKargoInstance(ctx context.Context, id string, patch *structpb.Struct) error
 	DeleteKargoInstance(ctx context.Context, name string) error
 	GetKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) (*kargov1.KargoAgent, error)
-	CreateKargoInstanceAgent(ctx context.Context, request *kargov1.CreateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error)
-	UpdateKargoInstanceAgent(ctx context.Context, request *kargov1.UpdateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error)
 	DeleteKargoInstanceAgent(ctx context.Context, kargoInstanceID, agentName string) error
 	// GetKargoInstanceAgentManifestsOnce fetches install manifests for
 	// a Kargo agent without waiting for reconciliation.
@@ -181,19 +186,6 @@ func (c client) GetClusterManifestsOnce(ctx context.Context, instanceID, cluster
 		return "", fmt.Errorf("could not get cluster manifests from Akuity API, error: %w", err)
 	}
 	return getManifestsFromResponse(respChan, errChan)
-}
-
-func (c client) ApplyCluster(ctx context.Context, instanceID string, cluster akuitytypes.Cluster) error {
-	request, err := c.buildApplyClusterRequest(instanceID, cluster)
-	if err != nil {
-		return fmt.Errorf("could not build apply cluster request: %w", err)
-	}
-
-	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("ApplyCluster", instanceID+"/"+cluster.Name)
-	_, err = c.gatewayClient.ApplyInstance(ctx, request)
-
-	return err
 }
 
 func (c client) DeleteCluster(ctx context.Context, instanceID string, name string) error {
@@ -345,20 +337,6 @@ func (c client) DeleteInstance(ctx context.Context, name string) error {
 	}
 
 	return nil
-}
-
-func (c client) buildApplyClusterRequest(instanceID string, cluster akuitytypes.Cluster) (*argocdv1.ApplyInstanceRequest, error) {
-	clusterPB, err := marshal.APIModelToPBStruct(cluster)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal %s cluster to protobuf struct: %w", cluster.Name, err)
-	}
-
-	return &argocdv1.ApplyInstanceRequest{
-		OrganizationId: c.organizationID,
-		IdType:         idv1.Type_ID,
-		Id:             instanceID,
-		Clusters:       []*structpb.Struct{clusterPB},
-	}, nil
 }
 
 func (c client) checkClusterReconciled(ctx context.Context, instanceID string, clusterName string) (*argocdv1.Cluster, error) {
@@ -534,38 +512,6 @@ func (c client) GetKargoInstanceAgent(ctx context.Context, kargoInstanceID, agen
 	}
 	if resp == nil || resp.GetAgent() == nil {
 		return nil, fmt.Errorf("could not get kargo agent %s/%s: empty response", kargoInstanceID, agentName)
-	}
-	return resp.GetAgent(), nil
-}
-
-func (c client) CreateKargoInstanceAgent(ctx context.Context, request *kargov1.CreateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error) {
-	if err := c.kargoRequired("CreateKargoInstanceAgent"); err != nil {
-		return nil, err
-	}
-	if request.GetOrganizationId() == "" {
-		request.OrganizationId = c.organizationID
-	}
-	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("CreateKargoInstanceAgent", request.GetInstanceId()+"/"+request.GetName())
-	resp, err := c.kargoGatewayClient.CreateKargoInstanceAgent(ctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("could not create kargo agent: %w", err)
-	}
-	return resp.GetAgent(), nil
-}
-
-func (c client) UpdateKargoInstanceAgent(ctx context.Context, request *kargov1.UpdateKargoInstanceAgentRequest) (*kargov1.KargoAgent, error) {
-	if err := c.kargoRequired("UpdateKargoInstanceAgent"); err != nil {
-		return nil, err
-	}
-	if request.GetOrganizationId() == "" {
-		request.OrganizationId = c.organizationID
-	}
-	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("UpdateKargoInstanceAgent", request.GetInstanceId()+"/"+request.GetId())
-	resp, err := c.kargoGatewayClient.UpdateKargoInstanceAgent(ctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("could not update kargo agent: %w", err)
 	}
 	return resp.GetAgent(), nil
 }
