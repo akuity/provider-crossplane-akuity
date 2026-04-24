@@ -341,12 +341,20 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		// BucketQps:50} + ItemRateLimiting{Enabled:true, FailureCooldown:10000,
 		// BaseDelay:1, MaxDelay:1000, BackoffFactor:"1.5"}). If the CR omits
 		// it entirely, inherit the server's defaults to avoid a per-poll
-		// drift-flap. Users who populate the struct partially get their
-		// explicit values honoured; scalar-field defaulting inside a
-		// partially-set struct is Tier 2 territory (§6 #7 scalar lateInit
-		// gap).
+		// drift-flap. If the CR populates it partially (e.g. only
+		// BucketRateLimiting), inherit the missing sibling sub-struct to
+		// avoid the same drift-flap (§6 #7 partial-struct variant).
 		if managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting = actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+		} else if actualInstance.ArgoCD != nil && actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting != nil {
+			arl := managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+			aarl := actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+			if arl.ItemRateLimiting == nil {
+				arl.ItemRateLimiting = aarl.ItemRateLimiting
+			}
+			if arl.BucketRateLimiting == nil {
+				arl.BucketRateLimiting = aarl.BucketRateLimiting
+			}
 		}
 
 		// IpAllowList is owned by a separate InstanceIpAllowList MR. When
