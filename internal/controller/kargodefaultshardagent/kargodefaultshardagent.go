@@ -134,6 +134,18 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 	}
 	base.SetHealthCondition(mg, true)
 
+	// Deletion fast-path: once the MR has a deletionTimestamp, Delete()
+	// clears defaultShardAgent on the server (empty string). The next
+	// Observe sees observedID="" but desiredID is still the agent's
+	// opaque ID, so the compare below flips ResourceUpToDate=false and
+	// runtime dispatches Delete every poll — issuing one
+	// PatchKargoInstance per loop for as long as the finalizer
+	// lingers. Report ResourceExists=false once the server-side pin is
+	// already cleared so the managed reconciler drops the finalizer.
+	if meta.WasDeleted(mg) && observedID == "" {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
+
 	upToDate := observedID == desiredID
 	if !upToDate {
 		e.Logger.Debug("KargoDefaultShardAgent drift detected",

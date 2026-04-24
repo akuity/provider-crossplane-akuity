@@ -119,6 +119,20 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.InstanceIpAllowList
 	}
 	base.SetHealthCondition(mg, true)
 
+	// Deletion fast-path: once the MR has a deletionTimestamp, Delete()
+	// sends a Patch with an empty list, which the server applies
+	// synchronously. On the next Observe the server-side list is
+	// already empty, which IS the post-delete state — signalling
+	// ResourceExists=false here lets the managed reconciler drop the
+	// finalizer instead of re-entering Delete every poll. Without this
+	// the MR spec still carries the last user-desired list, so the
+	// drift compare below flips ResourceUpToDate=false and runtime
+	// dispatches Delete on every reconcile for as long as the MR
+	// lingers on the finalizer, issuing one PatchInstance per loop.
+	if meta.WasDeleted(mg) && len(observed) == 0 {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
+
 	// Drift is nil-vs-empty-sensitive: a user who writes
 	// `allowList: []` and an API that returns nothing must resolve
 	// equal, so we go through the shared DriftSpec (which applies
