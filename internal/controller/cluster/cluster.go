@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -360,100 +361,135 @@ func (e *external) applyClusterManifests(ctx context.Context, mg v1alpha1.Cluste
 	return applyClient.ApplyManifests(ctx, clusterManifests, delete)
 }
 
-// driftSpec is the Cluster drift-detection recipe. Normalize adopts
-// server-defaulted fields that the API unconditionally populates on
-// every Apply response, which would otherwise drift-flap every poll:
-// desired=nil (or structurally-empty Kustomization) vs observed=populated
-// fires an Apply that the server's Equals() short-circuits (DB-gen stays
-// frozen) but still burns client throughput. EquateEmpty is contributed
-// by the shared DriftSpec baseline.
+// driftSpec is the Cluster drift-detection recipe. Normalize bridges
+// the lateInit-vs-Export shape gap: lateInitializeCluster pulls
+// server-defaulted fields off the GetCluster response onto spec
+// (AutoscalerConfig, MultiClusterK8SDashboardEnabled, etc.), but
+// ExportInstanceByID — the round-trippable comparison surface — omits
+// those same defaults. Without normalization the drift compare would
+// flap every poll: desired (lateInit-stamped) vs observed (Export)
+// disagree on fields neither the user nor the server actually consider
+// drift. EquateEmpty is contributed by the shared DriftSpec baseline.
+//
+// Two-direction handling:
+//
+//  1. desired==nil, observed populated → adopt observed (covers the
+//     case where lateInit hasn't run yet on first Observe, or where the
+//     stored CR was never lateInit'd).
+//  2. desired populated, observed==nil → drop desired (the lateInit
+//     residue case — observed via Export is the source of truth and
+//     it omits server defaults).
 //
 // Covers §6 rows 9 + 10 (naive ClusterSpec.Equals, zero-struct
-// Compatibility/ArgocdNotificationsSettings echo). Structurally-equal
-// Kustomization handling collapses any YAML representation ("{}\n" vs
-// the full "apiVersion: ... kind: Kustomization\n" scaffold) to the
-// server's form so the two compare as equal.
+// Compatibility/ArgocdNotificationsSettings echo) plus the
+// lateInit-vs-Export gap surfaced in 1A.U2/U7.
 func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 	return base.DriftSpec[v1alpha1.ClusterParameters]{
 		Normalize: func(desired, observed *v1alpha1.ClusterParameters) {
 			if desired == nil || observed == nil {
 				return
 			}
-			if desired.ClusterSpec.Data.MultiClusterK8SDashboardEnabled == nil {
-				desired.ClusterSpec.Data.MultiClusterK8SDashboardEnabled =
-					observed.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
-			}
 
-			// Server echoes a populated AutoscalerConfig (with
-			// ApplicationController + RepoServer child structs carrying
-			// memory/cpu defaults) even when the CR omits the field.
-			if desired.ClusterSpec.Data.AutoscalerConfig == nil {
-				desired.ClusterSpec.Data.AutoscalerConfig =
-					observed.ClusterSpec.Data.AutoscalerConfig
-			}
+			normalizePtrField(
+				&desired.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
+				&observed.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.AutoscalerConfig,
+				&observed.ClusterSpec.Data.AutoscalerConfig,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.Compatibility,
+				&observed.ClusterSpec.Data.Compatibility,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.ArgocdNotificationsSettings,
+				&observed.ClusterSpec.Data.ArgocdNotificationsSettings,
+			)
 
-			// Compatibility {Ipv6Only: false} and
-			// ArgocdNotificationsSettings {InClusterSettings: false} are
-			// always returned as non-nil zero structs from the server.
-			if desired.ClusterSpec.Data.Compatibility == nil {
-				desired.ClusterSpec.Data.Compatibility =
-					observed.ClusterSpec.Data.Compatibility
-			}
-			if desired.ClusterSpec.Data.ArgocdNotificationsSettings == nil {
-				desired.ClusterSpec.Data.ArgocdNotificationsSettings =
-					observed.ClusterSpec.Data.ArgocdNotificationsSettings
-			}
-
-			// Kustomization is a YAML string. The server accepts any
-			// YAML-equivalent representation (including the empty "{}")
-			// but echoes back the canonical "apiVersion: ...\nkind:
-			// Kustomization\n" scaffold. Treat equivalent YAML payloads
-			// as equal to avoid drift-flap on initial bring-up.
-			if equalKustomizationYAML(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
+			// Kustomization is a YAML string round-trip. lateInit pulls
+			// the GetCluster value (often "{}\n") onto spec; Export
+			// returns the canonical "apiVersion: ...\nkind:
+			// Kustomization\n" scaffold. Both parse to a structurally-
+			// empty Kustomization (no resources / patches / generators).
+			// When EITHER side parses to that empty form and the OTHER
+			// also parses to an empty form, treat as equal by adopting
+			// observed.
+			if kustomizationEmptyEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
 				desired.ClusterSpec.Data.Kustomization = observed.ClusterSpec.Data.Kustomization
 			}
 		},
 	}
 }
 
-// equalKustomizationYAML returns true when two Kustomization YAML
-// strings parse to the same JSON payload. Empty strings and "{}\n" and
-// the server-echoed "apiVersion: kustomize.config.k8s.io/v1beta1\nkind:
-// Kustomization\n" all parse to the same empty-or-scaffold object from
-// the server's perspective — comparing as raw strings would flap every
-// poll. Comparison is lenient: if either side fails to parse, fall
-// back to raw equality so malformed user input surfaces as drift.
-func equalKustomizationYAML(a, b string) bool {
+// normalizePtrField bridges a single pointer field across the
+// lateInit-vs-Export gap. When one side is nil and the other is
+// populated, adopt the OBSERVED value (Export is the source of truth
+// for drift comparison; lateInit residue is collapsed). When both
+// sides are populated, leave them alone — go-cmp will compare element
+// by element. When both are nil, no-op.
+func normalizePtrField[T any](desired, observed **T) {
+	if (*desired == nil) == (*observed == nil) {
+		return
+	}
+	*desired = *observed
+}
+
+// kustomizationEmptyEquivalent returns true when both Kustomization
+// strings parse to a structurally-empty Kustomization manifest — i.e.,
+// only the scaffold keys (apiVersion, kind) plus zero or more empty
+// arrays/objects, no resources/patches/generators/etc. that would
+// represent real user intent. Comparison is lenient: if either side
+// fails to parse, fall back to raw byte equality so malformed user
+// input surfaces as drift.
+func kustomizationEmptyEquivalent(a, b string) bool {
 	if a == b {
 		return true
 	}
-	aJSON, aErr := yamlToCanonicalJSON(a)
-	bJSON, bErr := yamlToCanonicalJSON(b)
+	aEmpty, aErr := isEmptyKustomization(a)
+	bEmpty, bErr := isEmptyKustomization(b)
 	if aErr != nil || bErr != nil {
 		return false
 	}
-	return aJSON == bJSON
+	return aEmpty && bEmpty
 }
 
-func yamlToCanonicalJSON(s string) (string, error) {
-	if s == "" {
-		return "{}", nil
+// isEmptyKustomization decides whether a Kustomization YAML string
+// represents an "empty" manifest — i.e., contains nothing the server
+// would treat as actual configuration. The empty cases are:
+//   - "" or whitespace-only
+//   - "{}" / "{}\n" / "null"
+//   - Only apiVersion + kind keys present, no resources/patches/etc.
+//
+// Any other key under the root object means the user has put real
+// content into Kustomization and we should NOT collapse drift.
+func isEmptyKustomization(s string) (bool, error) {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" || trimmed == "{}" || trimmed == "null" {
+		return true, nil
 	}
 	raw, err := sigsyaml.YAMLToJSON([]byte(s))
 	if err != nil {
-		return "", err
+		return false, err
 	}
-	// Re-marshal through encoding/json to drop map-order variation.
-	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
-		return "", err
+	// Decode into any first; only inspect keys when the top-level is a
+	// JSON object. Non-object top-level (null, array, scalar) is treated
+	// as structurally empty since none of those carry Kustomization
+	// configuration the server would act on.
+	var top any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return false, err
 	}
-	if v == nil {
-		return "{}", nil
+	v, ok := top.(map[string]any)
+	if !ok {
+		return true, nil
 	}
-	out, err := json.Marshal(v)
-	if err != nil {
-		return "", err
+	for k := range v {
+		if k == "apiVersion" || k == "kind" {
+			continue
+		}
+		// Any other key represents user-set Kustomization content.
+		return false, nil
 	}
-	return string(out), nil
+	return true, nil
 }
