@@ -195,7 +195,6 @@ func (c client) DeleteCluster(ctx context.Context, instanceID string, name strin
 	}
 
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("DeleteCluster", instanceID+"/"+cluster.GetId())
 	_, err = c.gatewayClient.DeleteInstanceCluster(ctx, &argocdv1.DeleteInstanceClusterRequest{
 		OrganizationId: c.organizationID,
 		InstanceId:     instanceID,
@@ -258,7 +257,6 @@ func (c client) GetInstanceByID(ctx context.Context, id string) (*argocdv1.Insta
 
 func (c client) PatchInstance(ctx context.Context, id string, patch *structpb.Struct) error {
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("PatchInstance", id)
 	_, err := c.gatewayClient.PatchInstance(ctx, &argocdv1.PatchInstanceRequest{
 		OrganizationId: c.organizationID,
 		Id:             id,
@@ -313,7 +311,6 @@ func (c client) ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstan
 		request.OrganizationId = c.organizationID
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("ApplyInstance", request.GetId())
 	_, err := c.gatewayClient.ApplyInstance(ctx, request)
 
 	return err
@@ -326,7 +323,6 @@ func (c client) DeleteInstance(ctx context.Context, name string) error {
 	}
 
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("DeleteInstance", instance.GetId())
 	_, err = c.gatewayClient.DeleteInstance(ctx, &argocdv1.DeleteInstanceRequest{
 		OrganizationId: c.organizationID,
 		Id:             instance.GetId(),
@@ -428,7 +424,6 @@ func (c client) PatchKargoInstance(ctx context.Context, id string, patch *struct
 		return err
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("PatchKargoInstance", id)
 	_, err := c.kargoGatewayClient.PatchKargoInstance(ctx, &kargov1.PatchKargoInstanceRequest{
 		OrganizationId: c.organizationID,
 		Id:             id,
@@ -472,7 +467,6 @@ func (c client) ApplyKargoInstance(ctx context.Context, request *kargov1.ApplyKa
 		request.OrganizationId = c.organizationID
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("ApplyKargoInstance", request.GetId())
 	_, err := c.kargoGatewayClient.ApplyKargoInstance(ctx, request)
 	return err
 }
@@ -486,7 +480,6 @@ func (c client) DeleteKargoInstance(ctx context.Context, name string) error {
 		return err
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("DeleteKargoInstance", inst.GetId())
 	_, err = c.kargoGatewayClient.DeleteInstance(ctx, &kargov1.DeleteInstanceRequest{
 		OrganizationId: c.organizationID,
 		Id:             inst.GetId(),
@@ -587,7 +580,6 @@ func (c client) DeleteKargoInstanceAgent(ctx context.Context, kargoInstanceID, a
 		return err
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
-	incAPIWrite("DeleteKargoInstanceAgent", kargoInstanceID+"/"+agent.GetId())
 	_, err = c.kargoGatewayClient.DeleteInstanceAgent(ctx, &kargov1.DeleteInstanceAgentRequest{
 		OrganizationId: c.organizationID,
 		InstanceId:     kargoInstanceID,
