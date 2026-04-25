@@ -446,8 +446,14 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 			// empty Kustomization (no resources / patches / generators).
 			// When EITHER side parses to that empty form and the OTHER
 			// also parses to an empty form, treat as equal by adopting
-			// observed.
-			if kustomizationEmptyEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
+			// observed. Trailing-newline-only differences (server
+			// echoes back a literal user value with a "\n" suffix on
+			// the round trip) are also flattened: the platform stores
+			// the string verbatim, so a "value" / "value\n" mismatch
+			// would otherwise fire ApplyCluster every poll while the
+			// server-side Equals() short-circuits the actual write.
+			if kustomizationEmptyEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) ||
+				strings.TrimRight(desired.ClusterSpec.Data.Kustomization, "\n") == strings.TrimRight(observed.ClusterSpec.Data.Kustomization, "\n") {
 				desired.ClusterSpec.Data.Kustomization = observed.ClusterSpec.Data.Kustomization
 			}
 		},

@@ -106,6 +106,21 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 				desired.KargoAgentSpec.Data.TargetVersion =
 					observed.KargoAgentSpec.Data.TargetVersion
 			}
+			// Kustomization round-trips as a verbatim string; the
+			// platform appends a trailing "\n" to user values that
+			// don't already have one. Same wasteful-Apply pattern as
+			// the other normalize entries: server Equals() short-
+			// circuits the DB-gen bump but the local counter still
+			// advances 1/poll. Flatten newline-only differences so
+			// presence-mode-style equality holds for byte-identical-
+			// modulo-newline content.
+			if strings.TrimRight(desired.KargoAgentSpec.Data.Kustomization, "\n") ==
+				strings.TrimRight(observed.KargoAgentSpec.Data.Kustomization, "\n") &&
+				desired.KargoAgentSpec.Data.Kustomization !=
+					observed.KargoAgentSpec.Data.Kustomization {
+				desired.KargoAgentSpec.Data.Kustomization =
+					observed.KargoAgentSpec.Data.Kustomization
+			}
 			desired.KargoAgentSpec.Data.AkuityManaged =
 				observed.KargoAgentSpec.Data.AkuityManaged
 			// PodInheritMetadata and AutoscalerConfig are dropped on

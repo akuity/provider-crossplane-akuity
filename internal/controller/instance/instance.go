@@ -412,6 +412,23 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		if managedInstance.ArgoCD.Spec.InstanceSpec.IpAllowList == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.IpAllowList = actualInstance.ArgoCD.Spec.InstanceSpec.IpAllowList
 		}
+
+		// ClusterCustomizationDefaults.Kustomization round-trips through
+		// the platform as a verbatim string. The server reliably echoes
+		// back a trailing "\n" on values that did not have one — even
+		// for non-YAML input that bypasses our empty-equivalent check.
+		// Without this normalization, "value" / "value\n" would fire
+		// ApplyInstance every poll while server-side Equals() short-
+		// circuits the actual write (the §2.1b "wasteful" diagnostic).
+		if managedInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults != nil &&
+			actualInstance.ArgoCD != nil &&
+			actualInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults != nil {
+			mk := managedInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults.Kustomization
+			ak := actualInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults.Kustomization
+			if strings.TrimRight(mk, "\n") == strings.TrimRight(ak, "\n") && mk != ak {
+				managedInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults.Kustomization = ak
+			}
+		}
 	}
 
 	// some configmap values have stable orders which may not be the same as user input
