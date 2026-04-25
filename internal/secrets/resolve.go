@@ -1,9 +1,10 @@
 // Package secrets resolves kube Secret references referenced by
 // managed resource specs. Sensitive payloads destined for the Akuity
 // gateway (argocd-secret, notifications-secret, repo-credential-secrets,
-// etc.) are carried as xpv1.LocalSecretReference on the MR spec rather
-// than inlined plaintext; this package fans those references out into
-// the map[string]string payloads that the gateway Apply requests expect.
+// etc.) are carried as namespaced Secret references on the MR spec
+// rather than inlined plaintext; this package fans those references out
+// into the map[string]string payloads that the gateway Apply requests
+// expect.
 package secrets
 
 import (
@@ -12,6 +13,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
@@ -21,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
 // ErrMissingSecret is returned when a referenced Secret does not exist.
@@ -28,23 +31,96 @@ import (
 // surface it to the user without exponential retry.
 var ErrMissingSecret = errors.New("referenced secret not found")
 
-// ResolveAllKeys loads the Secret at ref (within ns) and returns a copy
-// of its data as map[string]string. Returns nil with no error when ref
-// is nil, so callers can compose it without pre-checks. If the Secret
-// does not exist, ErrMissingSecret is returned wrapped with the secret
-// name for diagnostics.
-func ResolveAllKeys(ctx context.Context, c client.Client, ns string, ref *xpv1.LocalSecretReference) (map[string]string, error) {
-	if ref == nil || ref.Name == "" {
-		return nil, nil
+// ErrInvalidSecretReference is returned when a non-nil Secret reference
+// omits name or namespace.
+var ErrInvalidSecretReference = errors.New("invalid secret reference")
+
+// ErrEmptySecret is returned when a referenced Secret exists but carries
+// no data. Empty source Secrets are rejected because the platform apply
+// endpoints treat omitted/empty secret payloads as "no opinion", not as
+// a remote clear/delete.
+var ErrEmptySecret = errors.New("referenced secret has no data")
+
+var repoCredentialNameRE = regexp.MustCompile(`^repo-[a-z0-9][a-z0-9-]*$`)
+
+// IsConfigError reports whether err is caused by invalid user-supplied
+// Secret reference configuration rather than a transient kube API
+// failure.
+func IsConfigError(err error) bool {
+	return errors.Is(err, ErrMissingSecret) ||
+		errors.Is(err, ErrInvalidSecretReference) ||
+		errors.Is(err, ErrEmptySecret)
+}
+
+// AsTerminalIfConfig wraps user-supplied Secret configuration errors as
+// terminal reconciliation errors. Transient kube API failures are
+// returned unchanged.
+func AsTerminalIfConfig(err error) error {
+	if IsConfigError(err) {
+		return reason.AsTerminal(err)
+	}
+	return err
+}
+
+// ResolvedSecret is a Secret reference plus the Secret's copied data.
+type ResolvedSecret struct {
+	Namespace string
+	Name      string
+	Data      map[string]string
+}
+
+// Hash returns a stable digest spanning both the source Secret identity
+// and its resolved data. A namespace/name change with identical data
+// still rotates the digest.
+func (r ResolvedSecret) Hash() string {
+	if r.Namespace == "" && r.Name == "" && len(r.Data) == 0 {
+		return ""
+	}
+	return Hash(map[string]string{
+		"__namespace__": r.Namespace,
+		"__name__":      r.Name,
+		"__data__":      Hash(r.Data),
+	})
+}
+
+// Resolve loads the Secret at ref and returns a copy of its data plus
+// the source identity. Returns the zero value with no error when ref is
+// nil, so callers can compose it without pre-checks. If the Secret does
+// not exist, ErrMissingSecret is returned wrapped with the secret name
+// for diagnostics.
+func Resolve(ctx context.Context, c client.Client, ref *xpv1.SecretReference) (ResolvedSecret, error) {
+	if ref == nil {
+		return ResolvedSecret{}, nil
+	}
+	return resolve(ctx, c, ref.Namespace, ref.Name)
+}
+
+func resolve(ctx context.Context, c client.Client, namespace, name string) (ResolvedSecret, error) {
+	if name == "" || namespace == "" {
+		return ResolvedSecret{}, fmt.Errorf("%w: both name and namespace are required", ErrInvalidSecretReference)
 	}
 	sec := &corev1.Secret{}
-	if err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: ref.Name}, sec); err != nil {
+	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, sec); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("%w: %s/%s", ErrMissingSecret, ns, ref.Name)
+			return ResolvedSecret{}, fmt.Errorf("%w: %s/%s", ErrMissingSecret, namespace, name)
 		}
-		return nil, fmt.Errorf("get secret %s/%s: %w", ns, ref.Name, err)
+		return ResolvedSecret{}, fmt.Errorf("get secret %s/%s: %w", namespace, name, err)
 	}
-	return bytesToStringMap(sec.Data), nil
+	data := bytesToStringMap(sec.Data)
+	if len(data) == 0 {
+		return ResolvedSecret{}, fmt.Errorf("%w: %s/%s", ErrEmptySecret, namespace, name)
+	}
+	return ResolvedSecret{Namespace: namespace, Name: name, Data: data}, nil
+}
+
+// ResolveAllKeys loads the Secret at ref and returns a copy of its data
+// as map[string]string.
+func ResolveAllKeys(ctx context.Context, c client.Client, ref *xpv1.SecretReference) (map[string]string, error) {
+	resolved, err := Resolve(ctx, c, ref)
+	if err != nil {
+		return nil, err
+	}
+	return resolved.Data, nil
 }
 
 // ResolveNamed loads each referenced Secret and returns a map keyed by
@@ -52,21 +128,24 @@ func ResolveAllKeys(ctx context.Context, c client.Client, ns string, ref *xpv1.L
 // or nil refs yield a nil map to let callers skip setting the wire
 // field. Duplicate Names error out — they would silently clobber each
 // other in the proto map otherwise.
-func ResolveNamed(ctx context.Context, c client.Client, ns string, refs []v1alpha1.NamedLocalSecretReference) (map[string]map[string]string, error) {
+func ResolveNamed(ctx context.Context, c client.Client, refs []v1alpha1.NamedSecretReference) (map[string]ResolvedSecret, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}
-	out := make(map[string]map[string]string, len(refs))
+	out := make(map[string]ResolvedSecret, len(refs))
 	for i := range refs {
-		name := refs[i].Name
-		if _, dup := out[name]; dup {
-			return nil, fmt.Errorf("duplicate secret reference name %q", name)
+		name := refs[i].CredentialName()
+		if !repoCredentialNameRE.MatchString(name) {
+			return nil, fmt.Errorf("%w: effective name %q must match ^repo-[a-z0-9][a-z0-9-]*$", ErrInvalidSecretReference, name)
 		}
-		data, err := ResolveAllKeys(ctx, c, ns, &refs[i].SecretRef)
+		if _, dup := out[name]; dup {
+			return nil, fmt.Errorf("%w: duplicate secret reference name %q", ErrInvalidSecretReference, name)
+		}
+		resolved, err := Resolve(ctx, c, &refs[i].SecretRef)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %q: %w", name, err)
 		}
-		out[name] = data
+		out[name] = resolved
 	}
 	return out, nil
 }
@@ -96,11 +175,10 @@ func Hash(data map[string]string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// HashNamed returns a stable SHA256 spanning every entry in a
-// ResolveNamed result. The outer keys and each nested Secret's contents
-// contribute to the digest so either a rename of a credential slot or a
-// rotation of an underlying Secret invalidates the cached hash.
-func HashNamed(data map[string]map[string]string) string {
+// HashNamedResolved returns a stable SHA256 spanning every named
+// resolved Secret. The outer slot names and each source Secret
+// namespace/name/data digest contribute to the result.
+func HashNamedResolved(data map[string]ResolvedSecret) string {
 	if len(data) == 0 {
 		return ""
 	}
@@ -113,7 +191,7 @@ func HashNamed(data map[string]map[string]string) string {
 	for _, k := range keys {
 		h.Write([]byte(k))
 		h.Write([]byte{0})
-		h.Write([]byte(Hash(data[k])))
+		h.Write([]byte(data[k].Hash()))
 		h.Write([]byte{0})
 	}
 	return hex.EncodeToString(h.Sum(nil))

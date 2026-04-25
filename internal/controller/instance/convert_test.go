@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/stretchr/testify/assert"
@@ -26,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
+	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )
 
@@ -107,6 +107,26 @@ func TestSplitArgocdResources_Empty(t *testing.T) {
 	assert.Nil(t, got.Applications)
 	assert.Nil(t, got.ApplicationSets)
 	assert.Nil(t, got.AppProjects)
+}
+
+func TestResolvedInstanceSecretsHashChangesOnSourceIdentity(t *testing.T) {
+	data := map[string]string{"password": "p"}
+	base := resolvedInstanceSecrets{
+		Argocd: secrets.ResolvedSecret{Namespace: "team-a", Name: "argocd", Data: data},
+		RepoCreds: map[string]secrets.ResolvedSecret{
+			"repo-github": {Namespace: "team-a", Name: "repo-creds", Data: data},
+		},
+	}
+
+	movedSingleton := base
+	movedSingleton.Argocd.Namespace = "team-b"
+	assert.NotEqual(t, base.Hash(), movedSingleton.Hash(), "singleton source namespace change must rotate hash")
+
+	movedRepo := base
+	movedRepo.RepoCreds = map[string]secrets.ResolvedSecret{
+		"repo-github": {Namespace: "team-b", Name: "repo-creds", Data: data},
+	}
+	assert.NotEqual(t, base.Hash(), movedRepo.Hash(), "named source namespace change must rotate hash")
 }
 
 // TestArgocdResourcesUpToDate_Subset locks the additive semantics:
@@ -319,7 +339,6 @@ func TestObserve_AvailableEndToEnd(t *testing.T) {
 // reviewer trims tests in the future.
 var (
 	_ = managed.ExternalObservation{}
-	_ = xpv1.LocalSecretReference{}
 	_ = meta.GetExternalName
 	_ = gomock.Any
 )

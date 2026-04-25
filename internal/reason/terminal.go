@@ -34,6 +34,10 @@ func (t Terminal) Is(err error) bool {
 	return err == Terminal{}
 }
 
+func (t Terminal) Unwrap() error {
+	return t.error
+}
+
 // ClassifyApplyError tags Apply-path gRPC errors so callers can
 // distinguish transient retry-worthy failures from terminal "bad input"
 // failures the user must fix on the spec / Secret. Non-gRPC errors and

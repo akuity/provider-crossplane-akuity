@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +41,7 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 		KargoInstanceID:  "ki-1",
 		KargoInstanceRef: &v1alpha1.LocalReference{Name: "kiref"},
 		Workspace:        "ws-1",
-		KubeConfigSecretRef: v1alpha1.SecretRef{
+		KubeConfigSecretRef: xpv1.SecretReference{
 			Name:      "customer-kcfg",
 			Namespace: "crossplane-system",
 		},
@@ -107,7 +108,7 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{
 		KargoInstanceID: "ki-1",
 		Workspace:       "ws-1",
-		KubeConfigSecretRef: v1alpha1.SecretRef{
+		KubeConfigSecretRef: xpv1.SecretReference{
 			Name:      "customer-kcfg",
 			Namespace: "crossplane-system",
 		},

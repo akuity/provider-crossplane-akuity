@@ -19,7 +19,6 @@ package kargoinstance
 import (
 	"context"
 	"testing"
-	"time"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
@@ -197,11 +196,11 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	assert.True(t, ok)
 }
 
-// TestObserve_RepoCredsTTL_ForcesReapply covers H3: past the TTL on
-// spec.forProvider.kargoRepoCredentialSecretRefs the controller must
-// return ResourceUpToDate=false even when nothing else has changed,
-// so a server-side OOB deletion of the credential gets re-Applied.
-func TestObserve_RepoCredsTTL_ForcesReapply(t *testing.T) {
+// TestObserve_RepoCredsHashOnlyNoPeriodicReapply locks in the
+// provider-side ownership contract: repo credentials are re-applied
+// when the local desired Secret hash changes, not periodically to
+// overwrite platform-side manual edits or deletions.
+func TestObserve_RepoCredsHashOnlyNoPeriodicReapply(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
 	backing := &corev1.Secret{
@@ -215,15 +214,18 @@ func TestObserve_RepoCredsTTL_ForcesReapply(t *testing.T) {
 
 	ki := newKI()
 	ki.Spec.ForProvider.KargoRepoCredentialSecretRefs = []v1alpha1.KargoRepoCredentialSecretRef{{
-		Name:             "repo-github",
+		NamedSecretReference: v1alpha1.NamedSecretReference{
+			Name:      "repo-github",
+			SecretRef: xpv1.SecretReference{Namespace: "ns", Name: "k8s-secret"},
+		},
 		ProjectNamespace: "platform",
 		CredType:         "git",
-		SecretRef:        xpv1.LocalSecretReference{Name: "k8s-secret"},
 	}}
 	meta.SetExternalName(ki, "ki")
 
-	// Bootstrap: simulate the hash already being up to date so the
-	// only thing that could drop upToDate is the TTL check.
+	// Bootstrap: simulate the hash already being up to date. With
+	// periodic reapply removed, repo credentials alone must not force
+	// another Apply.
 	sec, err := resolveKargoSecrets(context.Background(), kube, ki)
 	require.NoError(t, err)
 	ki.Status.AtProvider.SecretHash = sec.Hash()
@@ -231,21 +233,11 @@ func TestObserve_RepoCredsTTL_ForcesReapply(t *testing.T) {
 	mc.EXPECT().GetKargoInstance(gomock.Any(), "ki").Return(&kargov1.KargoInstance{
 		Id: "id-1", Name: "ki", Version: "v1.0.0",
 		HealthStatus: &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
-	}, nil).Times(2)
+	}, nil)
 
-	// First Observe: RepoCredsAppliedAt is nil → treat as "past TTL"
-	// so the very first reconcile schedules an Apply.
 	obs, err := e.Observe(context.Background(), ki)
 	require.NoError(t, err)
-	assert.False(t, obs.ResourceUpToDate, "nil RepoCredsAppliedAt must force re-Apply to bootstrap freshness tracking")
-
-	// Second Observe with a recent RepoCredsAppliedAt must report up
-	// to date again — the TTL is what prevents stampede.
-	recent := metav1.NewTime(time.Now().Add(-5 * time.Minute))
-	ki.Status.AtProvider.RepoCredsAppliedAt = &recent
-	obs, err = e.Observe(context.Background(), ki)
-	require.NoError(t, err)
-	assert.True(t, obs.ResourceUpToDate, "within-TTL timestamp must suppress forced re-Apply")
+	assert.True(t, obs.ResourceUpToDate, "matching local hash must not force periodic re-Apply")
 }
 
 func TestExtractKargoConfigMapData_ShapeGuards(t *testing.T) {

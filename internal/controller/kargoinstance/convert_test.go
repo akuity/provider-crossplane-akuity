@@ -70,7 +70,7 @@ func TestResolveKargoSecret_ReadsSecret(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
-				KargoSecretRef: &xpv1.LocalSecretReference{Name: "kargo-admin"},
+				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
 			},
 		},
 	}
@@ -167,7 +167,7 @@ func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				Kargo: crossplanetypes.KargoSpec{
 					OidcConfig: &crossplanetypes.KargoOidcConfig{
-						DexConfigSecretRef: &corev1.LocalObjectReference{Name: "dex-creds"},
+						DexConfigSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "dex-creds"},
 					},
 				},
 			},
@@ -187,8 +187,8 @@ func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
 // the Instance-side equivalent for the rationale.
 func TestResolvedKargoSecrets_HashChangesOnRefRename(t *testing.T) {
 	data := map[string]string{"k": "v"}
-	a := resolvedKargoSecrets{Kargo: kargoResolvedSecret{Name: "old", Data: data}}
-	b := resolvedKargoSecrets{Kargo: kargoResolvedSecret{Name: "new", Data: data}}
+	a := resolvedKargoSecrets{Kargo: kargoResolvedSecret{Namespace: "team-a", Name: "old", Data: data}}
+	b := resolvedKargoSecrets{Kargo: kargoResolvedSecret{Namespace: "team-a", Name: "new", Data: data}}
 	assert.NotEqual(t, a.Hash(), b.Hash())
 }
 
@@ -199,7 +199,7 @@ func TestSpecToPB_InjectsResolvedDex(t *testing.T) {
 			Version: "v1.4.0",
 			OidcConfig: &crossplanetypes.KargoOidcConfig{
 				ClientID:           "app",
-				DexConfigSecretRef: &corev1.LocalObjectReference{Name: "dex-creds"},
+				DexConfigSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "dex-creds"},
 			},
 		},
 	}
@@ -342,7 +342,7 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
 	sec := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "repo-github-k8s"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "repo-github"},
 		Data: map[string][]byte{
 			"repoURL":  []byte("https://github.com/acme/platform.git"),
 			"username": []byte("bot"),
@@ -355,10 +355,11 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
-					Name:             "repo-github",
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "repo-github"},
+					},
 					ProjectNamespace: "platform",
 					CredType:         "git",
-					SecretRef:        xpv1.LocalSecretReference{Name: "repo-github-k8s"},
 				}},
 			},
 		},
@@ -370,14 +371,16 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 	assert.Equal(t, "repo-github", rc.Slot)
 	assert.Equal(t, "platform", rc.ProjectNamespace)
 	assert.Equal(t, "git", rc.CredType)
-	assert.Equal(t, "repo-github-k8s", rc.SecretName)
+	assert.Equal(t, "team-a", rc.SecretNamespace)
+	assert.Equal(t, "repo-github", rc.SecretName)
 	assert.Equal(t, "ghp-xyz", rc.Data["password"])
 	assert.NotEmpty(t, got.Hash(), "repo-cred resolution must contribute to the digest")
 }
 
 // TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot guards against
-// a CEL bypass (e.g. admission race) for (projectNamespace, name)
-// uniqueness: the controller runs the check again at reconcile time.
+// a CEL bypass (e.g. admission race) for (projectNamespace, effective
+// name) uniqueness: the controller runs the check again at reconcile
+// time.
 func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
@@ -391,8 +394,21 @@ func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{
-					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "s"}},
-					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "s"}},
+					{
+						NamedSecretReference: v1alpha1.NamedSecretReference{
+							Name:      "repo-github",
+							SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "s"},
+						},
+						ProjectNamespace: "platform",
+						CredType:         "git",
+					},
+					{
+						NamedSecretReference: v1alpha1.NamedSecretReference{
+							SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "repo-github"},
+						},
+						ProjectNamespace: "platform",
+						CredType:         "git",
+					},
 				},
 			},
 		},
@@ -402,13 +418,40 @@ func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 	assert.Contains(t, err.Error(), "duplicate")
 }
 
+func TestResolveKargoSecrets_RepoCredsRejectsInvalidEffectiveName(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "Bad_Name"},
+		Data:       map[string][]byte{"password": []byte("x")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "Bad_Name"},
+					},
+					ProjectNamespace: "platform",
+					CredType:         "git",
+				}},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must match")
+}
+
 // TestKargoRepoCredsToPB_ShapeAndLabels confirms the synthesised Secret
 // carries the Kargo cred-type label, lands in the declared project
 // namespace, and omits entries with empty data.
 func TestKargoRepoCredsToPB_ShapeAndLabels(t *testing.T) {
 	pbs, err := kargoRepoCredsToPB([]kargoResolvedRepoCred{
-		{Slot: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretName: "s", Data: map[string]string{"password": "p"}},
-		{Slot: "repo-empty", ProjectNamespace: "platform", CredType: "helm", SecretName: "e", Data: map[string]string{}},
+		{Slot: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretNamespace: "team-a", SecretName: "s", Data: map[string]string{"password": "p"}},
+		{Slot: "repo-empty", ProjectNamespace: "platform", CredType: "helm", SecretNamespace: "team-a", SecretName: "e", Data: map[string]string{}},
 	})
 	require.NoError(t, err)
 	require.Len(t, pbs, 1, "entries with empty data are dropped")
@@ -427,7 +470,7 @@ func TestKargoRepoCredsToPB_ShapeAndLabels(t *testing.T) {
 // axis that should fire drift: slot rename, cred-type change, backing
 // Secret name change, and payload change.
 func TestKargoRepoCreds_HashChangesOnIdentityRotation(t *testing.T) {
-	base := kargoResolvedRepoCred{Slot: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretName: "s1", Data: map[string]string{"k": "v"}}
+	base := kargoResolvedRepoCred{Slot: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretNamespace: "team-a", SecretName: "s1", Data: map[string]string{"k": "v"}}
 	h := func(c kargoResolvedRepoCred) string {
 		return resolvedKargoSecrets{RepoCredentials: []kargoResolvedRepoCred{c}}.Hash()
 	}
@@ -444,6 +487,10 @@ func TestKargoRepoCreds_HashChangesOnIdentityRotation(t *testing.T) {
 	secRename := base
 	secRename.SecretName = "s2"
 	assert.NotEqual(t, original, h(secRename), "backing Secret rename must rotate hash")
+
+	secMove := base
+	secMove.SecretNamespace = "team-b"
+	assert.NotEqual(t, original, h(secMove), "backing Secret namespace change must rotate hash")
 
 	payload := base
 	payload.Data = map[string]string{"k": "v2"}

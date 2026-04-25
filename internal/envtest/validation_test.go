@@ -29,6 +29,7 @@ import (
 	"context"
 	"testing"
 
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -357,7 +358,7 @@ func TestKargoAgent_KubeConfigSourcesMutuallyExclusive(t *testing.T) {
 			ForProvider: v1alpha1.KargoAgentParameters{
 				KargoInstanceID:           "ki-abc",
 				Name:                      "agent-a",
-				KubeConfigSecretRef:       v1alpha1.SecretRef{Name: "kc", Namespace: "default"},
+				KubeConfigSecretRef:       xpv1.SecretReference{Name: "kc", Namespace: "default"},
 				EnableInClusterKubeConfig: true,
 			},
 		},
@@ -372,7 +373,7 @@ func TestKargoAgent_KubeConfigSourcesMutuallyExclusive(t *testing.T) {
 			ForProvider: v1alpha1.KargoAgentParameters{
 				KargoInstanceID:     "ki-abc",
 				Name:                "agent-a",
-				KubeConfigSecretRef: v1alpha1.SecretRef{Name: "kc", Namespace: "default"},
+				KubeConfigSecretRef: xpv1.SecretReference{Name: "kc", Namespace: "default"},
 			},
 		},
 	}

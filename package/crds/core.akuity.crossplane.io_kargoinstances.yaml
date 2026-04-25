@@ -273,7 +273,7 @@ spec:
                           because it carries provider-specific overlays the Akuity Crossplane
                           provider needs but the upstream API source type does not define:
 
-                            - DexConfigSecretRef: a same-namespace Secret reference resolved at
+                            - DexConfigSecretRef: a namespaced Secret reference resolved at
                               reconcile time into the wire-shape DexConfigSecret map. Plaintext
                               dex credentials never live on the managed resource spec.
                             - // +optional markers on every field so controller-gen drops them
@@ -313,22 +313,24 @@ spec:
                             type: object
                           dexConfigSecretRef:
                             description: |-
-                              DexConfigSecretRef references a Secret whose data is resolved at
-                              reconcile time by the Crossplane provider and forwarded to the
-                              Akuity gateway as the wire-shape DexConfigSecret map. Mutually
-                              exclusive with the inline DexConfigSecret above.
+                              DexConfigSecretRef references a namespaced Secret whose data is
+                              resolved at reconcile time by the Crossplane provider and
+                              forwarded to the Akuity gateway as the wire-shape
+                              DexConfigSecret map. Mutually exclusive with the inline
+                              DexConfigSecret above. Removing this ref stops applying the
+                              platform-side Secret, but does not delete it from the Akuity
+                              platform.
                             properties:
                               name:
-                                default: ""
-                                description: |-
-                                  Name of the referent.
-                                  This field is effectively required, but due to backwards compatibility is
-                                  allowed to be empty. Instances of this type with an empty value here are
-                                  almost certainly wrong.
-                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                description: Name of the secret.
                                 type: string
+                              namespace:
+                                description: Namespace of the secret.
+                                type: string
+                            required:
+                            - name
+                            - namespace
                             type: object
-                            x-kubernetes-map-type: atomic
                           dexEnabled:
                             type: boolean
                           enabled:
@@ -397,26 +399,29 @@ spec:
                     description: |-
                       KargoRepoCredentialSecretRefs registers repository credentials
                       with the Kargo gateway. Each entry's SecretRef points at a
-                      Secret in the MR's namespace; the controller synthesises a
+                      namespaced Secret; the controller synthesises a
                       labelled Kargo-shaped Secret (kargo.akuity.io/cred-type=<type>)
-                      named after the slot, writes it into the entry's
-                      ProjectNamespace, and forwards it to ApplyKargoInstance.
+                      named after the effective slot, writes it into the entry's
+                      ProjectNamespace, and forwards it to ApplyKargoInstance. If an
+                      entry omits Name, the controller uses SecretRef.Name as the slot.
                       Plaintext never lives on the managed resource spec.
 
                       Drift: this field is write-only on the Kargo gateway — the
                       Export response does not return repo_credentials — so rotation
                       participates in drift via the SecretHash on
                       status.atProvider. Removal from spec does NOT delete the
-                      Secret on the gateway; see the additive-semantics note on
-                      resources below.
-                      The uniqueness rule is written with exists_one rather than
-                      size(self.map(...)) == size(self): CEL's .map() returns a list
-                      (not a set) so the size comparison never catches duplicates.
-                      exists_one is O(n²), kept in budget by the MaxItems=128 cap.
+                      Secret on the gateway; delete it through the Akuity platform
+                      UI or API if it should be removed.
+                      Explicit Name values are validated at admission. When Name is
+                      omitted, the controller validates the effective SecretRef.Name
+                      and duplicate (projectNamespace, effective name) pairs at
+                      reconcile time; the upstream Crossplane SecretReference schema
+                      intentionally does not bound name length, so equivalent CEL rules
+                      would exceed the apiserver's CRD cost budget.
                     items:
                       description: |-
                         KargoRepoCredentialSecretRef binds a Kargo repository-credential slot
-                        to a kube Secret. Mirrors the ArgoCD NamedLocalSecretReference
+                        to a kube Secret. Mirrors the ArgoCD NamedSecretReference
                         pattern — no plaintext on the MR spec — but carries the extra
                         Kargo-specific identity bits (project namespace + credential type)
                         needed to route the resulting Secret into the correct Kargo project
@@ -434,12 +439,10 @@ spec:
                           type: string
                         name:
                           description: |-
-                            Name is the Secret name written into the Kargo project.
-                            Must be DNS-1123-compatible. The slot uniquely identifies the
-                            credential within its ProjectNamespace.
+                            Name is the optional identifier under which this Secret's data is
+                            sent to the Akuity gateway. When omitted, SecretRef.Name is used.
                           maxLength: 253
                           minLength: 1
-                          pattern: ^[a-z0-9][a-z0-9-]*$
                           type: string
                         projectNamespace:
                           description: |-
@@ -452,40 +455,59 @@ spec:
                           type: string
                         secretRef:
                           description: |-
-                            SecretRef points at a Secret. All keys of that Secret are
-                            forwarded to the gateway verbatim under the slot Name.
+                            SecretRef points at a namespaced Secret. All keys of that Secret
+                            are forwarded to the gateway verbatim.
+                            OpenAPI required only enforces field presence, so the CEL size checks
+                            reject empty name/namespace strings explicitly.
                           properties:
                             name:
                               description: Name of the secret.
                               type: string
+                            namespace:
+                              description: Namespace of the secret.
+                              type: string
                           required:
                           - name
+                          - namespace
                           type: object
+                          x-kubernetes-validations:
+                          - message: secretRef.name and secretRef.namespace are required
+                            rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
+                              && size(self.namespace) > 0
                       required:
                       - credType
-                      - name
                       - projectNamespace
                       - secretRef
                       type: object
                     maxItems: 128
                     type: array
                     x-kubernetes-validations:
-                    - message: kargoRepoCredentialSecretRefs entries must have unique
-                        (projectNamespace, name) pairs
-                      rule: self.all(i, self.exists_one(j, j.projectNamespace == i.projectNamespace
-                        && j.name == i.name))
+                    - message: kargoRepoCredentialSecretRefs names must match ^[a-z0-9][a-z0-9-]*$
+                        when set
+                      rule: self.all(r, !has(r.name) || r.name.matches('^[a-z0-9][a-z0-9-]*$'))
                   kargoSecretRef:
                     description: |-
-                      KargoSecretRef references a Secret whose data is sent verbatim
-                      as the kargo-secret payload (OIDC client secrets, webhook
-                      tokens, admin bootstrap).
+                      KargoSecretRef references a namespaced Secret whose data is sent
+                      verbatim as the kargo-secret payload (OIDC client secrets,
+                      webhook tokens, admin bootstrap). Removing this ref stops
+                      applying the platform-side Secret, but does not delete it from
+                      the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: kargoSecretRef.name and kargoSecretRef.namespace are
+                        required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
+                        && size(self.namespace) > 0
                   name:
                     description: Name of the Kargo instance in the Akuity Platform.
                       Required.
@@ -848,7 +870,7 @@ spec:
                           because it carries provider-specific overlays the Akuity Crossplane
                           provider needs but the upstream API source type does not define:
 
-                            - DexConfigSecretRef: a same-namespace Secret reference resolved at
+                            - DexConfigSecretRef: a namespaced Secret reference resolved at
                               reconcile time into the wire-shape DexConfigSecret map. Plaintext
                               dex credentials never live on the managed resource spec.
                             - // +optional markers on every field so controller-gen drops them
@@ -888,22 +910,24 @@ spec:
                             type: object
                           dexConfigSecretRef:
                             description: |-
-                              DexConfigSecretRef references a Secret whose data is resolved at
-                              reconcile time by the Crossplane provider and forwarded to the
-                              Akuity gateway as the wire-shape DexConfigSecret map. Mutually
-                              exclusive with the inline DexConfigSecret above.
+                              DexConfigSecretRef references a namespaced Secret whose data is
+                              resolved at reconcile time by the Crossplane provider and
+                              forwarded to the Akuity gateway as the wire-shape
+                              DexConfigSecret map. Mutually exclusive with the inline
+                              DexConfigSecret above. Removing this ref stops applying the
+                              platform-side Secret, but does not delete it from the Akuity
+                              platform.
                             properties:
                               name:
-                                default: ""
-                                description: |-
-                                  Name of the referent.
-                                  This field is effectively required, but due to backwards compatibility is
-                                  allowed to be empty. Instances of this type with an empty value here are
-                                  almost certainly wrong.
-                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                description: Name of the secret.
                                 type: string
+                              namespace:
+                                description: Namespace of the secret.
+                                type: string
+                            required:
+                            - name
+                            - namespace
                             type: object
-                            x-kubernetes-map-type: atomic
                           dexEnabled:
                             type: boolean
                           enabled:
@@ -981,16 +1005,6 @@ spec:
                         description: Message reported by the Akuity API.
                         type: string
                     type: object
-                  repoCredsAppliedAt:
-                    description: |-
-                      RepoCredsAppliedAt records the wall-clock time of the most
-                      recent Apply that included spec.forProvider.kargoRepoCredentialSecretRefs.
-                      The Kargo Export response has no repo_credentials field, so
-                      the controller periodically forces a re-Apply past a TTL to
-                      self-heal out-of-band deletions that neither the SecretHash
-                      nor the Export-based drift check can see.
-                    format: date-time
-                    type: string
                   secretHash:
                     description: |-
                       SecretHash is the SHA256 of the concatenation of every resolved

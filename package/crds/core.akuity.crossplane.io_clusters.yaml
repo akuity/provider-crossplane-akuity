@@ -240,12 +240,10 @@ spec:
                       to the cluster to apply the agent manifests. Optional.
                     properties:
                       name:
-                        description: The name of the Kubernetes secret being referenced.
-                          Required.
+                        description: Name of the secret.
                         type: string
                       namespace:
-                        description: The namespace of the Kubernetes secret being
-                          referenced. Required.
+                        description: Namespace of the secret.
                         type: string
                     required:
                     - name

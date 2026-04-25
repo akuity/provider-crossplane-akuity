@@ -6,6 +6,7 @@ import (
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -80,7 +81,7 @@ patches:
 			},
 		},
 		EnableInClusterKubeConfig: true,
-		KubeConfigSecretRef: v1alpha1.SecretRef{
+		KubeConfigSecretRef: xpv1.SecretReference{
 			Name:      "test-secret",
 			Namespace: "test-namespace",
 		},

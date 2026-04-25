@@ -106,7 +106,7 @@ func TestCreate_NoKubeConfig(t *testing.T) {
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = v1alpha1.SecretRef{}
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{}
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(nil).Times(1)
@@ -121,7 +121,7 @@ func TestCreate_ApplyClusterErr(t *testing.T) {
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = v1alpha1.SecretRef{}
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{}
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(errors.New("fake")).Times(1)
@@ -136,7 +136,7 @@ func TestCreate_WithKubeConfig_GetClusterManifestsErr(t *testing.T) {
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = v1alpha1.SecretRef{}
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{}
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(nil).Times(1)
@@ -176,7 +176,7 @@ func TestCreate_GetClusterKubeClientRestConfig(t *testing.T) {
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = v1alpha1.SecretRef{
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{
 		Name:      "kubeconfig",
 		Namespace: "default",
 	}
@@ -315,7 +315,7 @@ func TestDelete_RemoveAgentResourcesOnDestroy_GetClusterManifestsErr(t *testing.
 	}
 	managedCluster.Spec.ForProvider.RemoveAgentResourcesOnDestroy = true
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = v1alpha1.SecretRef{
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{
 		Name:      "kubeconfig",
 		Namespace: "default",
 	}

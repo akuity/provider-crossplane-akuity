@@ -71,7 +71,7 @@ type ClusterParameters struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	// A reference to a Kubernetes secret containing a KubeConfig that can be used to connect
 	// to the cluster to apply the agent manifests. Optional.
-	KubeConfigSecretRef SecretRef `json:"kubeconfigSecretRef,omitempty"`
+	KubeConfigSecretRef xpv1.SecretReference `json:"kubeconfigSecretRef,omitempty"`
 	// Rather than specifying a reference to a KubeConfig to use to connect to the cluster,
 	// we can enable incluster config if the managed cluster is the same cluster the
 	// Crossplane is running in. Optional.
@@ -79,13 +79,6 @@ type ClusterParameters struct {
 	// Whether or not to remove the Akuity agent Kubernetes resources from the managed cluster
 	// when destroying the cluster. Optional. Defaults to true.
 	RemoveAgentResourcesOnDestroy bool `json:"removeAgentResourcesOnDestroy,omitempty"`
-}
-
-type SecretRef struct {
-	// The name of the Kubernetes secret being referenced. Required.
-	Name string `json:"name"`
-	// The namespace of the Kubernetes secret being referenced. Required.
-	Namespace string `json:"namespace"`
 }
 
 // ClusterObservation are the observable fields of a Cluster.

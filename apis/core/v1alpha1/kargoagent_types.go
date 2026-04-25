@@ -94,7 +94,7 @@ type KargoAgentParameters struct {
 	// when Create reconciles. Mutually exclusive with
 	// EnableInClusterKubeConfig.
 	// +optional
-	KubeConfigSecretRef SecretRef `json:"kubeconfigSecretRef,omitempty"`
+	KubeConfigSecretRef xpv1.SecretReference `json:"kubeconfigSecretRef,omitempty"`
 
 	// EnableInClusterKubeConfig uses the provider pod's in-cluster
 	// configuration to install the agent manifests, when the managed

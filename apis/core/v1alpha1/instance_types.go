@@ -68,47 +68,64 @@ type InstanceParameters struct {
 	// plugin. The value is the definition of the Config Management Plugin (v2). Optional.
 	ConfigManagementPlugins map[string]crossplanetypes.ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
 
-	// ArgoCDSecretRef references a Secret whose data is sent verbatim
-	// as the argocd-secret payload (admin.password, server.secretkey,
-	// dex.config, webhook.*.secret, oidc.*.clientSecret).
+	// ArgoCDSecretRef references a namespaced Secret whose data is sent
+	// verbatim as the argocd-secret payload (admin.password,
+	// server.secretkey, dex.config, webhook.*.secret,
+	// oidc.*.clientSecret). Removing this ref stops applying the
+	// platform-side Secret, but does not delete it from the Akuity
+	// platform.
 	// +optional
-	ArgoCDSecretRef *xpv1.LocalSecretReference `json:"argocdSecretRef,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="argocdSecretRef.name and argocdSecretRef.namespace are required"
+	ArgoCDSecretRef *xpv1.SecretReference `json:"argocdSecretRef,omitempty"`
 
-	// ArgoCDNotificationsSecretRef references a Secret whose data is
-	// sent verbatim as the argocd-notifications-secret payload
-	// (SMTP, Slack, webhook tokens).
+	// ArgoCDNotificationsSecretRef references a namespaced Secret
+	// whose data is sent verbatim as the argocd-notifications-secret
+	// payload (SMTP, Slack, webhook tokens). Removing this ref stops
+	// applying the platform-side Secret, but does not delete it from
+	// the Akuity platform.
 	// +optional
-	ArgoCDNotificationsSecretRef *xpv1.LocalSecretReference `json:"argocdNotificationsSecretRef,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="argocdNotificationsSecretRef.name and argocdNotificationsSecretRef.namespace are required"
+	ArgoCDNotificationsSecretRef *xpv1.SecretReference `json:"argocdNotificationsSecretRef,omitempty"`
 
-	// ArgoCDImageUpdaterSecretRef references a Secret whose data is
-	// sent verbatim as the argocd-image-updater-secret payload
-	// (container registry credentials).
+	// ArgoCDImageUpdaterSecretRef references a namespaced Secret whose
+	// data is sent verbatim as the argocd-image-updater-secret payload
+	// (container registry credentials). Removing this ref stops
+	// applying the platform-side Secret, but does not delete it from
+	// the Akuity platform.
 	// +optional
-	ArgoCDImageUpdaterSecretRef *xpv1.LocalSecretReference `json:"argocdImageUpdaterSecretRef,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="argocdImageUpdaterSecretRef.name and argocdImageUpdaterSecretRef.namespace are required"
+	ArgoCDImageUpdaterSecretRef *xpv1.SecretReference `json:"argocdImageUpdaterSecretRef,omitempty"`
 
-	// ApplicationSetSecretRef references a Secret whose data is sent
-	// verbatim as the argocd-application-set-secret payload
-	// (ApplicationSet plugin credentials).
+	// ApplicationSetSecretRef references a namespaced Secret whose data
+	// is sent verbatim as the argocd-application-set-secret payload
+	// (ApplicationSet plugin credentials). Removing this ref stops
+	// applying the platform-side Secret, but does not delete it from
+	// the Akuity platform.
 	// +optional
-	ApplicationSetSecretRef *xpv1.LocalSecretReference `json:"applicationSetSecretRef,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="applicationSetSecretRef.name and applicationSetSecretRef.namespace are required"
+	ApplicationSetSecretRef *xpv1.SecretReference `json:"applicationSetSecretRef,omitempty"`
 
 	// RepoCredentialSecretRefs registers scoped repository credentials
 	// with the Akuity gateway. Each entry's Name (which must match
 	// ^repo-[a-z0-9][a-z0-9-]*$) becomes the server-side secret
 	// identifier; the pointed-at Secret's data supplies the credential
 	// key/value pairs (url, username, password, sshPrivateKey, etc.).
+	// If an entry omits Name, the controller uses SecretRef.Name as
+	// the server-side secret identifier.
+	// Removing an entry stops applying that platform-side credential,
+	// but does not delete it from the Akuity platform.
 	// +optional
 	// +kubebuilder:validation:MaxItems=128
-	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
-	RepoCredentialSecretRefs []NamedLocalSecretReference `json:"repoCredentialSecretRefs,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="self.all(r, !has(r.name) || r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoCredentialSecretRefs[] name must match ^repo-[a-z0-9][a-z0-9-]*$ when set"
+	RepoCredentialSecretRefs []NamedSecretReference `json:"repoCredentialSecretRefs,omitempty"`
 
 	// RepoTemplateCredentialSecretRefs registers scoped repository
 	// template credentials. Same shape + regex constraint as
 	// RepoCredentialSecretRefs.
 	// +optional
 	// +kubebuilder:validation:MaxItems=128
-	// +kubebuilder:validation:XValidation:rule="self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoTemplateCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$"
-	RepoTemplateCredentialSecretRefs []NamedLocalSecretReference `json:"repoTemplateCredentialSecretRefs,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="self.all(r, !has(r.name) || r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))",message="each repoTemplateCredentialSecretRefs[] name must match ^repo-[a-z0-9][a-z0-9-]*$ when set"
+	RepoTemplateCredentialSecretRefs []NamedSecretReference `json:"repoTemplateCredentialSecretRefs,omitempty"`
 
 	// Resources carries raw YAML manifests for declarative ArgoCD
 	// child resources (Application, ApplicationSet, AppProject).

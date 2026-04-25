@@ -96,33 +96,39 @@ type KargoInstanceParameters struct {
 	// +optional
 	KargoConfigMap map[string]string `json:"kargoConfigMap,omitempty"`
 
-	// KargoSecretRef references a Secret whose data is sent verbatim
-	// as the kargo-secret payload (OIDC client secrets, webhook
-	// tokens, admin bootstrap).
+	// KargoSecretRef references a namespaced Secret whose data is sent
+	// verbatim as the kargo-secret payload (OIDC client secrets,
+	// webhook tokens, admin bootstrap). Removing this ref stops
+	// applying the platform-side Secret, but does not delete it from
+	// the Akuity platform.
 	// +optional
-	KargoSecretRef *xpv1.LocalSecretReference `json:"kargoSecretRef,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="kargoSecretRef.name and kargoSecretRef.namespace are required"
+	KargoSecretRef *xpv1.SecretReference `json:"kargoSecretRef,omitempty"`
 
 	// KargoRepoCredentialSecretRefs registers repository credentials
 	// with the Kargo gateway. Each entry's SecretRef points at a
-	// Secret in the MR's namespace; the controller synthesises a
+	// namespaced Secret; the controller synthesises a
 	// labelled Kargo-shaped Secret (kargo.akuity.io/cred-type=<type>)
-	// named after the slot, writes it into the entry's
-	// ProjectNamespace, and forwards it to ApplyKargoInstance.
+	// named after the effective slot, writes it into the entry's
+	// ProjectNamespace, and forwards it to ApplyKargoInstance. If an
+	// entry omits Name, the controller uses SecretRef.Name as the slot.
 	// Plaintext never lives on the managed resource spec.
 	//
 	// Drift: this field is write-only on the Kargo gateway — the
 	// Export response does not return repo_credentials — so rotation
 	// participates in drift via the SecretHash on
 	// status.atProvider. Removal from spec does NOT delete the
-	// Secret on the gateway; see the additive-semantics note on
-	// resources below.
-	// The uniqueness rule is written with exists_one rather than
-	// size(self.map(...)) == size(self): CEL's .map() returns a list
-	// (not a set) so the size comparison never catches duplicates.
-	// exists_one is O(n²), kept in budget by the MaxItems=128 cap.
+	// Secret on the gateway; delete it through the Akuity platform
+	// UI or API if it should be removed.
+	// Explicit Name values are validated at admission. When Name is
+	// omitted, the controller validates the effective SecretRef.Name
+	// and duplicate (projectNamespace, effective name) pairs at
+	// reconcile time; the upstream Crossplane SecretReference schema
+	// intentionally does not bound name length, so equivalent CEL rules
+	// would exceed the apiserver's CRD cost budget.
 	// +optional
 	// +kubebuilder:validation:MaxItems=128
-	// +kubebuilder:validation:XValidation:rule="self.all(i, self.exists_one(j, j.projectNamespace == i.projectNamespace && j.name == i.name))",message="kargoRepoCredentialSecretRefs entries must have unique (projectNamespace, name) pairs"
+	// +kubebuilder:validation:XValidation:rule="self.all(r, !has(r.name) || r.name.matches('^[a-z0-9][a-z0-9-]*$'))",message="kargoRepoCredentialSecretRefs names must match ^[a-z0-9][a-z0-9-]*$ when set"
 	KargoRepoCredentialSecretRefs []KargoRepoCredentialSecretRef `json:"kargoRepoCredentialSecretRefs,omitempty"`
 
 	// Resources carries raw YAML manifests for declarative Kargo
@@ -194,14 +200,6 @@ type KargoInstanceObservation struct {
 	// means either the field has never been applied or the last apply
 	// sent an explicit empty payload (tombstone).
 	ConfigMapHash string `json:"configMapHash,omitempty"`
-
-	// RepoCredsAppliedAt records the wall-clock time of the most
-	// recent Apply that included spec.forProvider.kargoRepoCredentialSecretRefs.
-	// The Kargo Export response has no repo_credentials field, so
-	// the controller periodically forces a re-Apply past a TTL to
-	// self-heal out-of-band deletions that neither the SecretHash
-	// nor the Export-based drift check can see.
-	RepoCredsAppliedAt *metav1.Time `json:"repoCredsAppliedAt,omitempty"`
 
 	// Workspace is the canonical Akuity workspace ID this Kargo
 	// instance belongs to. The controller stamps it on the first

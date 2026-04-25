@@ -118,7 +118,7 @@ func TimePtrToStringPtr(t *metav1.Time) *string {
 // yields nil so callers can compose without pre-checks. Exposed so the
 // KargoInstance controller can inject resolved Secret data into the
 // wire payload after the generated converter has run (the curated
-// surface stores only a LocalObjectReference, not the wire-shape map).
+// surface stores only a SecretReference, not the wire-shape map).
 func DexConfigSecretResolvedToAPI(resolved map[string]string) map[string]akuitytypes.Value {
 	if len(resolved) == 0 {
 		return nil

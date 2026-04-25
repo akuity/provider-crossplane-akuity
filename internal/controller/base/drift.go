@@ -41,8 +41,8 @@ import (
 // Side checks run only if the struct comparison reports equal. Each
 // returns (upToDate, error); ALL must return true for the resource to
 // be considered up-to-date. Used by KargoInstance for Export-subset
-// checks against additively-owned children, Secret/ConfigMap hash
-// rotation, and periodic repo-credential re-apply windows.
+// checks against additively-owned children and Secret/ConfigMap hash
+// rotation.
 type DriftSpec[T any] struct {
 	Ignore    []cmp.Option
 	Normalize func(desired *T, observed *T)
