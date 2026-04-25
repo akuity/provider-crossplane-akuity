@@ -109,6 +109,7 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 				AutoscalerConfig:                apiToAutoscalerConfig(cluster.GetData().GetAutoscalerConfig()),
 				Project:                         cluster.GetData().GetProject(),
 				Compatibility:                   apiToCompatibility(cluster.GetData().GetCompatibility()),
+				ArgocdNotificationsSettings:     apiToArgocdNotificationsSettings(cluster.GetData().GetArgocdNotificationsSettings()),
 				// MaintenanceMode + MaintenanceModeExpiry are server-owned
 				// for drift purposes: ApplyInstance does not propagate
 				// them — they ride a dedicated set-maintenance-mode RPC —
@@ -349,6 +350,21 @@ func apiToCompatibility(in *argocdv1.ClusterCompatibility) *generated.ClusterCom
 	}
 	return &generated.ClusterCompatibility{
 		Ipv6Only: ptr.To(in.GetIpv6Only()),
+	}
+}
+
+// apiToArgocdNotificationsSettings lifts the GetCluster-shaped
+// ArgoCDNotificationsSettings onto the curated spec. Get echoes
+// server-stamped defaults that the Export response omits, so this
+// projection is the only way the drift comparator can see the
+// canonical observed value for these settings (see Observe override
+// in cluster.go).
+func apiToArgocdNotificationsSettings(in *argocdv1.ClusterArgoCDNotificationsSettings) *generated.ClusterArgoCDNotificationsSettings {
+	if in == nil {
+		return nil
+	}
+	return &generated.ClusterArgoCDNotificationsSettings{
+		InClusterSettings: ptr.To(in.GetInClusterSettings()),
 	}
 }
 

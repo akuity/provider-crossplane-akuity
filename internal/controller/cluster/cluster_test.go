@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubectl/pkg/scheme"
@@ -43,6 +44,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
+	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )
 
@@ -579,4 +581,124 @@ func TestObserve_ClusterNotUpToDate(t *testing.T) {
 	resp, err := e.Observe(ctx, &managedCluster)
 	require.NoError(t, err)
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: false}, resp)
+}
+
+// observeFixtureWithAutoscaler builds a Cluster MR + matching gateway
+// mocks for the AutoscalerConfig drift scenarios in Issue 2. The
+// helper centralises the boilerplate (external-name annotation,
+// per-test Get/Export plumbing) so each case stays focused on the
+// pointer-field semantics under test.
+func observeFixtureWithAutoscaler(
+	t *testing.T,
+	desired *argocdv1.AutoScalerConfig, // applied on the GetCluster echo
+	specAutoscaler *generated.AutoScalerConfig, // applied on the MR spec
+) (*external, *mock_akuity_client.MockClient, *v1alpha1.Cluster) {
+	t.Helper()
+	e, mc := newExt(t, nil)
+
+	mr := fixtures.CrossplaneManagedCluster.DeepCopy()
+	mr.ObjectMeta = metav1.ObjectMeta{
+		Annotations: map[string]string{
+			"crossplane.io/external-name": fixtures.ClusterName,
+		},
+	}
+	mr.Spec.ForProvider.ClusterSpec.Data.AutoscalerConfig = specAutoscaler
+
+	getCluster := proto.Clone(fixtures.ArgocdCluster).(*argocdv1.Cluster)
+	getData := getCluster.GetData()
+	if getData == nil {
+		getData = &argocdv1.ClusterData{}
+		getCluster.Data = getData
+	}
+	getData.AutoscalerConfig = desired
+
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(getCluster, nil).Times(1)
+	// Export omits AutoscalerConfig server-side for non-`auto` clusters
+	// (the lateInit-vs-Export gap); the fixture's ExportedCluster has
+	// no AutoscalerConfig in any of these scenarios. The drift override
+	// in Observe is what makes the comparator behave correctly.
+	mc.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{fixtures.ExportedCluster}}, nil).Times(1)
+
+	return e, mc, mr
+}
+
+// TestObserve_AutoscalerConfig_UserSetServerMissing covers the
+// principal Issue 2 symptom: user populates spec.data.autoscalerConfig,
+// the platform has not yet stamped it (Get echoes nil because Apply
+// hasn't propagated the value or the cluster size doesn't qualify).
+// The previous normalizePtrField path collapsed desired→nil and
+// reported up-to-date, silently dropping user intent. The fix routes
+// drift through the Get-based override so this case fires drift and
+// Apply runs.
+func TestObserve_AutoscalerConfig_UserSetServerMissing(t *testing.T) {
+	specAS := &generated.AutoScalerConfig{
+		ApplicationController: &generated.AppControllerAutoScalingConfig{
+			ResourceMinimum: &generated.Resources{Mem: "256Mi", Cpu: "100m"},
+		},
+	}
+	e, _, mr := observeFixtureWithAutoscaler(t, nil, specAS)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.False(t, resp.ResourceUpToDate,
+		"user-set AutoscalerConfig with server-side nil must surface as drift, not silent collapse")
+}
+
+// TestObserve_AutoscalerConfig_DesiredNilServerStamped covers the
+// reverse direction: user leaves the field unset, the platform
+// stamps a default. The comparator must NOT fire drift on the
+// server-stamped default — Apply with desired=nil would zero out the
+// server's stamp.
+func TestObserve_AutoscalerConfig_DesiredNilServerStamped(t *testing.T) {
+	getAS := &argocdv1.AutoScalerConfig{
+		ApplicationController: &argocdv1.AppControllerAutoScalingConfig{
+			ResourceMinimum: &argocdv1.Resources{Mem: "256Mi", Cpu: "100m"},
+		},
+	}
+	e, _, mr := observeFixtureWithAutoscaler(t, getAS, nil)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.True(t, resp.ResourceUpToDate,
+		"server-stamped default with desired-nil must adopt observed, not flap drift")
+}
+
+// TestObserve_AutoscalerConfig_BothPopulatedEqual covers the
+// agree case: user pinned a value and the platform agrees. No drift.
+func TestObserve_AutoscalerConfig_BothPopulatedEqual(t *testing.T) {
+	getAS := &argocdv1.AutoScalerConfig{
+		ApplicationController: &argocdv1.AppControllerAutoScalingConfig{
+			ResourceMinimum: &argocdv1.Resources{Mem: "256Mi", Cpu: "100m"},
+		},
+	}
+	specAS := &generated.AutoScalerConfig{
+		ApplicationController: &generated.AppControllerAutoScalingConfig{
+			ResourceMinimum: &generated.Resources{Mem: "256Mi", Cpu: "100m"},
+		},
+	}
+	e, _, mr := observeFixtureWithAutoscaler(t, getAS, specAS)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.True(t, resp.ResourceUpToDate)
+}
+
+// TestObserve_AutoscalerConfig_BothPopulatedDifferent covers the
+// disagree case: user pinned a different value than the platform.
+// Drift fires so Apply runs and the user's value wins (or the
+// platform rejects).
+func TestObserve_AutoscalerConfig_BothPopulatedDifferent(t *testing.T) {
+	getAS := &argocdv1.AutoScalerConfig{
+		ApplicationController: &argocdv1.AppControllerAutoScalingConfig{
+			ResourceMinimum: &argocdv1.Resources{Mem: "256Mi", Cpu: "100m"},
+		},
+	}
+	specAS := &generated.AutoScalerConfig{
+		ApplicationController: &generated.AppControllerAutoScalingConfig{
+			ResourceMinimum: &generated.Resources{Mem: "1Gi", Cpu: "500m"},
+		},
+	}
+	e, _, mr := observeFixtureWithAutoscaler(t, getAS, specAS)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.False(t, resp.ResourceUpToDate)
 }
