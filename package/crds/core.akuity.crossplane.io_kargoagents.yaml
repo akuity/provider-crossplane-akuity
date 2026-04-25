@@ -75,8 +75,13 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: KargoAgentParameters are the configurable fields of a
-                  KargoAgent.
+                description: |-
+                  KargoAgentParameters are the configurable fields of a KargoAgent.
+
+                  kubeConfigSecretRef is a non-pointer SecretRef with json:omitempty,
+                  but encoding/json never omits a zero struct. has(self.kubeconfigSecretRef)
+                  therefore returns true even when the user never set it. Treat the
+                  field as set only when the embedded secret name is non-empty.
                 properties:
                   annotations:
                     additionalProperties:
@@ -224,6 +229,10 @@ spec:
                     oldSelf.kargoInstanceRef.name))
                 - message: name is immutable
                   rule: self.name == oldSelf.name
+                - message: 'kubeConfigSecretRef and enableInClusterKubeConfig are
+                    mutually exclusive: set at most one'
+                  rule: '!(has(self.kubeconfigSecretRef) && size(self.kubeconfigSecretRef.name)
+                    > 0 && has(self.enableInClusterKubeconfig) && self.enableInClusterKubeconfig)'
               managementPolicies:
                 default:
                 - '*'

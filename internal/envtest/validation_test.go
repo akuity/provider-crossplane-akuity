@@ -342,6 +342,68 @@ func TestKargoAgent_NameImmutable(t *testing.T) {
 	assert.Contains(t, err.Error(), "name is immutable")
 }
 
+// TestKargoAgent_KubeConfigSourcesMutuallyExclusive covers the
+// at-most-one CEL rule between kubeConfigSecretRef and
+// enableInClusterKubeConfig on KargoAgentParameters. Neither-set is the
+// legitimate default for self-hosted agents (terminal Ready=False
+// agent-unknown), so the rule is at-most-one rather than exactly-one.
+func TestKargoAgent_KubeConfigSourcesMutuallyExclusive(t *testing.T) {
+	ctx := context.Background()
+
+	both := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-kube-both"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID:           "ki-abc",
+				Name:                      "agent-a",
+				KubeConfigSecretRef:       v1alpha1.SecretRef{Name: "kc", Namespace: "default"},
+				EnableInClusterKubeConfig: true,
+			},
+		},
+	}
+	err := kube.Create(ctx, both)
+	require.Error(t, err, "apiserver must reject KargoAgent with both kubeConfigSecretRef and enableInClusterKubeConfig")
+	assert.Contains(t, err.Error(), "kubeConfigSecretRef and enableInClusterKubeConfig are mutually exclusive")
+
+	withSecret := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-kube-secret"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID:     "ki-abc",
+				Name:                "agent-a",
+				KubeConfigSecretRef: v1alpha1.SecretRef{Name: "kc", Namespace: "default"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withSecret), "kubeConfigSecretRef alone must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withSecret) })
+
+	withInCluster := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-kube-incluster"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID:           "ki-abc",
+				Name:                      "agent-a",
+				EnableInClusterKubeConfig: true,
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withInCluster), "enableInClusterKubeConfig alone must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withInCluster) })
+
+	neither := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-kube-neither"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-a",
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, neither), "neither field set must be accepted (self-hosted agent-unknown path)")
+	t.Cleanup(func() { _ = kube.Delete(ctx, neither) })
+}
+
 // TestCluster_InstanceIDImmutable covers the id/ref-immutable rule on
 // ClusterParameters. The rule blocks flipping instanceId between two
 // values and flipping the *shape* of the reference (id <-> ref).

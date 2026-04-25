@@ -31,6 +31,11 @@ import (
 // +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) || has(self.kargoInstanceRef)",message="kargoInstanceId or kargoInstanceRef must be set"
 // +kubebuilder:validation:XValidation:rule="(!has(oldSelf.kargoInstanceId) || (has(self.kargoInstanceId) && self.kargoInstanceId == oldSelf.kargoInstanceId)) && (!has(oldSelf.kargoInstanceRef) || (has(self.kargoInstanceRef) && self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name))",message="kargoInstanceId/kargoInstanceRef are immutable"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
+// kubeConfigSecretRef is a non-pointer SecretRef with json:omitempty,
+// but encoding/json never omits a zero struct. has(self.kubeconfigSecretRef)
+// therefore returns true even when the user never set it. Treat the
+// field as set only when the embedded secret name is non-empty.
+// +kubebuilder:validation:XValidation:rule="!(has(self.kubeconfigSecretRef) && size(self.kubeconfigSecretRef.name) > 0 && has(self.enableInClusterKubeconfig) && self.enableInClusterKubeconfig)",message="kubeConfigSecretRef and enableInClusterKubeConfig are mutually exclusive: set at most one"
 type KargoAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by ID.
 	// Either KargoInstanceID or KargoInstanceRef must be set.
