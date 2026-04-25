@@ -84,7 +84,7 @@ type InstanceParameters struct {
 	// platform-side Secret, but does not delete it from the Akuity
 	// platform.
 	// +optional
-	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="argocdSecretRef.name and argocdSecretRef.namespace are required"
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="argocdSecretRef.name and argocdSecretRef.namespace are required"
 	ArgoCDSecretRef *xpv1.SecretReference `json:"argocdSecretRef,omitempty"`
 
 	// ArgoCDNotificationsSecretRef references a namespaced Secret
@@ -93,7 +93,7 @@ type InstanceParameters struct {
 	// applying the platform-side Secret, but does not delete it from
 	// the Akuity platform.
 	// +optional
-	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="argocdNotificationsSecretRef.name and argocdNotificationsSecretRef.namespace are required"
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="argocdNotificationsSecretRef.name and argocdNotificationsSecretRef.namespace are required"
 	ArgoCDNotificationsSecretRef *xpv1.SecretReference `json:"argocdNotificationsSecretRef,omitempty"`
 
 	// ArgoCDImageUpdaterSecretRef references a namespaced Secret whose
@@ -102,7 +102,7 @@ type InstanceParameters struct {
 	// applying the platform-side Secret, but does not delete it from
 	// the Akuity platform.
 	// +optional
-	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="argocdImageUpdaterSecretRef.name and argocdImageUpdaterSecretRef.namespace are required"
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="argocdImageUpdaterSecretRef.name and argocdImageUpdaterSecretRef.namespace are required"
 	ArgoCDImageUpdaterSecretRef *xpv1.SecretReference `json:"argocdImageUpdaterSecretRef,omitempty"`
 
 	// ApplicationSetSecretRef references a namespaced Secret whose data
@@ -111,7 +111,7 @@ type InstanceParameters struct {
 	// applying the platform-side Secret, but does not delete it from
 	// the Akuity platform.
 	// +optional
-	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="applicationSetSecretRef.name and applicationSetSecretRef.namespace are required"
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="applicationSetSecretRef.name and applicationSetSecretRef.namespace are required"
 	ApplicationSetSecretRef *xpv1.SecretReference `json:"applicationSetSecretRef,omitempty"`
 
 	// RepoCredentialSecretRefs registers scoped repository credentials

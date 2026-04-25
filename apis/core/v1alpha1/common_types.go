@@ -55,7 +55,7 @@ type NamedSecretReference struct {
 	// OpenAPI required only enforces field presence, so the CEL size checks
 	// reject empty name/namespace strings explicitly.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="secretRef.name and secretRef.namespace are required"
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="secretRef.name and secretRef.namespace are required"
 	SecretRef xpv1.SecretReference `json:"secretRef"`
 }
 

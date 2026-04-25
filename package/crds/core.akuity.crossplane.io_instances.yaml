@@ -94,8 +94,8 @@ spec:
                     x-kubernetes-validations:
                     - message: applicationSetSecretRef.name and applicationSetSecretRef.namespace
                         are required
-                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
-                        && size(self.namespace) > 0
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   argocd:
                     description: The attributes of the instance. Required.
                     properties:
@@ -656,8 +656,8 @@ spec:
                     x-kubernetes-validations:
                     - message: argocdImageUpdaterSecretRef.name and argocdImageUpdaterSecretRef.namespace
                         are required
-                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
-                        && size(self.namespace) > 0
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   argocdImageUpdaterSshConfigMap:
                     additionalProperties:
                       type: string
@@ -691,8 +691,8 @@ spec:
                     x-kubernetes-validations:
                     - message: argocdNotificationsSecretRef.name and argocdNotificationsSecretRef.namespace
                         are required
-                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
-                        && size(self.namespace) > 0
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   argocdRbacConfigMap:
                     additionalProperties:
                       type: string
@@ -721,8 +721,8 @@ spec:
                     x-kubernetes-validations:
                     - message: argocdSecretRef.name and argocdSecretRef.namespace
                         are required
-                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
-                        && size(self.namespace) > 0
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   argocdSshKnownHostsConfigMap:
                     additionalProperties:
                       type: string
@@ -888,8 +888,8 @@ spec:
                           type: object
                           x-kubernetes-validations:
                           - message: secretRef.name and secretRef.namespace are required
-                            rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
-                              && size(self.namespace) > 0
+                            rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                              && size(self.__namespace__) > 0
                       required:
                       - secretRef
                       type: object
@@ -937,8 +937,8 @@ spec:
                           type: object
                           x-kubernetes-validations:
                           - message: secretRef.name and secretRef.namespace are required
-                            rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
-                              && size(self.namespace) > 0
+                            rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                              && size(self.__namespace__) > 0
                       required:
                       - secretRef
                       type: object

@@ -476,8 +476,8 @@ spec:
                           type: object
                           x-kubernetes-validations:
                           - message: secretRef.name and secretRef.namespace are required
-                            rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
-                              && size(self.namespace) > 0
+                            rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                              && size(self.__namespace__) > 0
                       required:
                       - secretRef
                       type: object
@@ -508,8 +508,8 @@ spec:
                     x-kubernetes-validations:
                     - message: kargoSecretRef.name and kargoSecretRef.namespace are
                         required
-                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
-                        && size(self.namespace) > 0
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   name:
                     description: Name of the Kargo instance in the Akuity Platform.
                       Required.

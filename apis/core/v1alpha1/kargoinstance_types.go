@@ -105,7 +105,7 @@ type KargoInstanceParameters struct {
 	// applying the platform-side Secret, but does not delete it from
 	// the Akuity platform.
 	// +optional
-	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="kargoSecretRef.name and kargoSecretRef.namespace are required"
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="kargoSecretRef.name and kargoSecretRef.namespace are required"
 	KargoSecretRef *xpv1.SecretReference `json:"kargoSecretRef,omitempty"`
 
 	// KargoRepoCredentialSecretRefs registers repository credentials
