@@ -80,14 +80,12 @@ type KargoInstanceParameters struct {
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// Workspace is the ID of the Akuity workspace this Kargo instance
-	// belongs to. The Akuity API's ApplyKargoInstance / PatchKargoInstance
-	// / DeleteInstance HTTP routes are all scoped under a workspace; the
-	// workspace-less compat path is GET-only. Required when the target
-	// organization has more than one workspace; for single-workspace
-	// organizations the portal's default workspace is used when left
-	// unset (controller discovers it on first Observe and records the
-	// resolved ID on status.atProvider.workspaceId).
+	// Workspace is the Akuity workspace this Kargo instance belongs to. The
+	// preferred value is the workspace ID because workspace-scoped gateway calls
+	// are routed by ID. A workspace name is also accepted and resolved before
+	// gateway calls. When omitted, the organization default workspace is used on
+	// create. The canonical workspace ID is reported in
+	// status.atProvider.workspace.
 	//
 	// +optional
 	Workspace string `json:"workspace,omitempty"`

@@ -280,6 +280,7 @@ func BuildApplyInstanceRequest(instance v1alpha1.Instance, sec resolvedInstanceS
 	return &argocdv1.ApplyInstanceRequest{
 		IdType:                        idv1.Type_NAME,
 		Id:                            instance.Spec.ForProvider.Name,
+		WorkspaceId:                   instance.Spec.ForProvider.Workspace,
 		Argocd:                        argocdPB,
 		ArgocdConfigmap:               argocdConfigMapPB,
 		ArgocdRbacConfigmap:           argocdRbacConfigMapPB,

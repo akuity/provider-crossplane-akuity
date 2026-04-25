@@ -493,25 +493,39 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 // all workspace-scoped (`/orgs/{org}/workspaces/{workspace_id}/kargo/instances/...`)
 // and template the segment straight into the path; an empty ID
 // produces a 404 on every Apply / Export / Delete and the reconciler
-// hot-loops at the controller-runtime backoff cadence (~350 wasted
-// writes / 12 minutes observed) until the user fills the field in.
+// hot-loops until a workspace is provided or resolved.
 //
 // Resolution order:
-//  1. spec.forProvider.workspace (user-pinned name) — looked up by name
-//  2. status.atProvider.workspace (controller-cached canonical ID)
+//  1. spec.forProvider.workspace (user-pinned ID or name; canonical ID
+//     short-circuits against status.atProvider.workspace)
+//  2. status.atProvider.workspace (controller-cached canonical ID, when spec is empty)
 //  3. organisation default — discovered via the org gateway's
 //     ListWorkspaces (mirrors terraform-provider-akp's getWorkspace)
 //
 // On (1) and (3) the resolved canonical ID is stamped on
 // status.atProvider.workspace so subsequent reconciles short-circuit
-// straight to (2). The function preserves spec.forProvider.workspace
-// verbatim — the spec carries the user's intent (name or empty) and
+// when the spec is empty. The function preserves spec.forProvider.workspace
+// verbatim — the spec carries the user's intent (ID, name, or empty) and
 // must not be rewritten by Observe.
 func (e *external) resolveWorkspaceID(ctx context.Context, mg *v1alpha1.KargoInstance) (string, error) {
+	if ref := mg.Spec.ForProvider.Workspace; ref != "" {
+		if ref == mg.Status.AtProvider.Workspace {
+			return mg.Status.AtProvider.Workspace, nil
+		}
+		w, err := e.Client.ResolveWorkspace(ctx, ref)
+		if err != nil {
+			if reason.IsNotFound(err) {
+				return "", reason.AsTerminal(fmt.Errorf("spec.forProvider.workspace %q: %w", ref, err))
+			}
+			return "", err
+		}
+		mg.Status.AtProvider.Workspace = w.GetId()
+		return w.GetId(), nil
+	}
 	if id := mg.Status.AtProvider.Workspace; id != "" {
 		return id, nil
 	}
-	w, err := e.Client.ResolveWorkspace(ctx, mg.Spec.ForProvider.Workspace)
+	w, err := e.Client.ResolveWorkspace(ctx, "")
 	if err != nil {
 		return "", err
 	}

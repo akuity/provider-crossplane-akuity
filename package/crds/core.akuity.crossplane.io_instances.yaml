@@ -953,6 +953,15 @@ spec:
                       Resources carries raw YAML manifests for declarative ArgoCD
                       child resources (Application, ApplicationSet, AppProject).
                     x-kubernetes-preserve-unknown-fields: true
+                  workspace:
+                    description: |-
+                      Workspace is the Akuity workspace this Argo CD instance belongs to. The
+                      preferred value is the workspace ID because workspace-scoped gateway calls
+                      are routed by ID. A workspace name is also accepted and resolved before
+                      gateway calls. When omitted, the organization default workspace is used on
+                      create. The canonical workspace ID is reported in
+                      status.atProvider.workspace.
+                    type: string
                 required:
                 - argocd
                 - name
@@ -1746,6 +1755,8 @@ spec:
                       SecretHash is the SHA256 of the concatenation of every resolved
                       Secret referenced by spec.forProvider on the most recent Apply.
                       Used as the drift signal for Secret rotation.
+                    type: string
+                  workspace:
                     type: string
                 required:
                 - argocd

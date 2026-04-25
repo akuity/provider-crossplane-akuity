@@ -39,6 +39,15 @@ type InstanceParameters struct {
 	// The attributes of the instance. Required.
 	ArgoCD *crossplanetypes.ArgoCD `json:"argocd"`
 
+	// Workspace is the Akuity workspace this Argo CD instance belongs to. The
+	// preferred value is the workspace ID because workspace-scoped gateway calls
+	// are routed by ID. A workspace name is also accepted and resolved before
+	// gateway calls. When omitted, the organization default workspace is used on
+	// create. The canonical workspace ID is reported in
+	// status.atProvider.workspace.
+	// +optional
+	Workspace string `json:"workspace,omitempty"`
+
 	// Used to specify the options in the argocd-cm ConfigMap. Optional.
 	// Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
 	// for required keys when using this option.
@@ -145,6 +154,7 @@ type InstanceObservation struct {
 	ReconciliationStatus           ResourceStatusCode                                `json:"reconciliationStatus,omitempty"`
 	OwnerOrganizationName          string                                            `json:"ownerOrganizationName,omitempty"`
 	ArgoCD                         crossplanetypes.ArgoCD                            `json:"argocd"`
+	Workspace                      string                                            `json:"workspace,omitempty"`
 	ArgoCDConfigMap                map[string]string                                 `json:"argocdConfigMap,omitempty"`
 	ArgoCDImageUpdaterConfigMap    map[string]string                                 `json:"argocdImageUpdaterConfigMap,omitempty"`
 	ArgoCDImageUpdaterSSHConfigMap map[string]string                                 `json:"argocdImageUpdaterSshConfigMap,omitempty"`

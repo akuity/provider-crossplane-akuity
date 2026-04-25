@@ -341,6 +341,11 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 	if managedInstance == nil || actualInstance == nil {
 		return
 	}
+	// Workspace is a routing selector. The gateway reports the canonical ID,
+	// while spec may be empty, an ID, or a name; keep the drift comparison
+	// neutral and let the client resolve it for workspace-scoped calls.
+	actualInstance.Workspace = managedInstance.Workspace
+
 	if managedInstance.ArgoCD != nil {
 		// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {

@@ -101,6 +101,7 @@ func Instance(instance *argocdv1.Instance, exportedInstance *argocdv1.ExportInst
 		ClusterCount:                   instance.GetClusterCount(),
 		OwnerOrganizationName:          instance.GetOwnerOrganizationName(),
 		ArgoCD:                         argocd,
+		Workspace:                      instance.GetWorkspaceId(),
 		ArgoCDConfigMap:                argocdConfigMap,
 		ArgoCDImageUpdaterConfigMap:    argocdImageUpdaterConfigMap,
 		ArgoCDImageUpdaterSSHConfigMap: argocdImageUpdaterSSHConfigMap,
@@ -175,6 +176,7 @@ func InstanceSpec(instance *argocdv1.Instance, exportedInstance *argocdv1.Export
 			ForProvider: v1alpha1.InstanceParameters{
 				Name:                           instance.GetName(),
 				ArgoCD:                         &argocd,
+				Workspace:                      instance.GetWorkspaceId(),
 				ArgoCDConfigMap:                argocdConfigMap,
 				ArgoCDImageUpdaterConfigMap:    argocdImageUpdaterConfigMap,
 				ArgoCDImageUpdaterSSHConfigMap: argocdImageUpdaterSSHConfigMap,

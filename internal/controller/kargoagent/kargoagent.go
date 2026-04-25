@@ -434,7 +434,10 @@ func (e *external) resolveWorkspaceFromParent(ctx context.Context, mg *v1alpha1.
 	if err := e.Kube.Get(ctx, key, parent); err != nil {
 		return ""
 	}
-	return parent.Spec.ForProvider.Workspace
+	if parent.Spec.ForProvider.Workspace != "" {
+		return parent.Spec.ForProvider.Workspace
+	}
+	return parent.Status.AtProvider.Workspace
 }
 
 // resolveKargoInstanceID returns the Akuity ID of the owning Kargo

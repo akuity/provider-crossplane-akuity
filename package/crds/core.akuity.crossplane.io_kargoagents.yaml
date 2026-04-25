@@ -221,8 +221,11 @@ spec:
                       effective when a kubeconfig source is configured.
                     type: boolean
                   workspace:
-                    description: Workspace is the Kargo project/workspace the agent
-                      is bound to.
+                    description: |-
+                      Workspace is the Akuity workspace used to route Kargo agent gateway calls.
+                      Prefer the workspace ID; a workspace name is also accepted and resolved by
+                      the client. When omitted with kargoInstanceRef set, the controller
+                      inherits the parent KargoInstance workspace.
                     type: string
                 required:
                 - name
@@ -428,7 +431,8 @@ spec:
                         type: string
                     type: object
                   workspace:
-                    description: Workspace the agent is bound to.
+                    description: Workspace is the Akuity workspace routing value carried
+                      from spec.
                     type: string
                 type: object
               conditions:

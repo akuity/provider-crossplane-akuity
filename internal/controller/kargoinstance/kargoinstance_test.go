@@ -475,6 +475,29 @@ func TestUpdate_ReusesCachedWorkspace(t *testing.T) {
 	assert.Equal(t, "ws-existing-id", captured.GetWorkspaceId())
 }
 
+func TestUpdate_ReusesCanonicalSpecWorkspace(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	ki.Status.AtProvider.Workspace = "ws-existing-id"
+	ki.Spec.ForProvider.Workspace = "ws-existing-id"
+
+	// No ResolveWorkspace expectation — when spec already carries the
+	// canonical workspace ID stamped in status, re-listing workspaces is
+	// unnecessary.
+	var captured *kargov1.ApplyKargoInstanceRequest
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *kargov1.ApplyKargoInstanceRequest) error {
+			captured = req
+			return nil
+		}).Times(1)
+
+	_, err := e.Update(context.Background(), ki)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, "ws-existing-id", captured.GetWorkspaceId())
+}
+
 // TestCreate_WorkspaceResolutionErr surfaces ListWorkspaces failures
 // without firing ApplyKargoInstance — sending Apply with an empty
 // workspace_id is the bug we're trying to prevent.
@@ -493,6 +516,23 @@ func TestCreate_WorkspaceResolutionErr(t *testing.T) {
 	require.Error(t, err)
 	assert.Empty(t, ki.Status.AtProvider.Workspace,
 		"workspace must remain unset when resolution fails")
+}
+
+func TestCreate_MissingPinnedWorkspaceIsTerminal(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	ki.Status.AtProvider.Workspace = ""
+	ki.Spec.ForProvider.Workspace = "missing-workspace"
+
+	mc.EXPECT().ResolveWorkspace(gomock.Any(), "missing-workspace").
+		Return(nil, reason.AsNotFound(errors.New("workspace not found"))).Times(1)
+	// No ApplyKargoInstance expectation — a user-supplied bad workspace
+	// should stop as terminal configuration, not hot-loop Apply.
+
+	_, err := e.Create(context.Background(), ki)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err))
+	assert.Empty(t, ki.Status.AtProvider.Workspace)
 }
 
 // TestDelete_EmptyExternalName short-circuits before the gateway call

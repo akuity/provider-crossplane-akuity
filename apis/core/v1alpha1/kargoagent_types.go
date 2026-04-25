@@ -58,7 +58,10 @@ type KargoAgentParameters struct {
 	// +optional
 	KargoInstanceRef *LocalReference `json:"kargoInstanceRef,omitempty"`
 
-	// Workspace is the Kargo project/workspace the agent is bound to.
+	// Workspace is the Akuity workspace used to route Kargo agent gateway calls.
+	// Prefer the workspace ID; a workspace name is also accepted and resolved by
+	// the client. When omitted with kargoInstanceRef set, the controller
+	// inherits the parent KargoInstance workspace.
 	// +optional
 	Workspace string `json:"workspace,omitempty"`
 
@@ -116,7 +119,7 @@ type KargoAgentObservation struct {
 	ID string `json:"id,omitempty"`
 	// Name of the agent as reported by the Akuity Platform.
 	Name string `json:"name,omitempty"`
-	// Workspace the agent is bound to.
+	// Workspace is the Akuity workspace routing value carried from spec.
 	Workspace string `json:"workspace,omitempty"`
 	// HealthStatus is the agent health.
 	HealthStatus ResourceStatusCode `json:"healthStatus,omitempty"`
