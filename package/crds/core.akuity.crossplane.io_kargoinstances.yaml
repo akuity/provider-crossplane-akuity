@@ -571,9 +571,10 @@ spec:
                     ''admin_account_token_ttl''])'
                 - message: kargoConfigMap must not set both lowerCamel and snake_case
                     aliases for the same key
-                  rule: '!has(self.kargoConfigMap) || !(''adminAccountEnabled'' in self.kargoConfigMap
-                    && ''admin_account_enabled'' in self.kargoConfigMap) && !(''adminAccountTokenTtl''
-                    in self.kargoConfigMap && ''admin_account_token_ttl'' in self.kargoConfigMap)'
+                  rule: '!has(self.kargoConfigMap) || !(''adminAccountEnabled'' in
+                    self.kargoConfigMap && ''admin_account_enabled'' in self.kargoConfigMap)
+                    && !(''adminAccountTokenTtl'' in self.kargoConfigMap && ''admin_account_token_ttl''
+                    in self.kargoConfigMap)'
               managementPolicies:
                 default:
                 - '*'
