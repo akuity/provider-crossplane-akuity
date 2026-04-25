@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -402,6 +403,68 @@ func TestKargoAgent_KubeConfigSourcesMutuallyExclusive(t *testing.T) {
 	}
 	require.NoError(t, kube.Create(ctx, neither), "neither field set must be accepted (self-hosted agent-unknown path)")
 	t.Cleanup(func() { _ = kube.Delete(ctx, neither) })
+}
+
+// TestKargoAgent_AkuityManagedImmutable covers the UPDATE-time
+// immutability rule on kargoAgentSpec.data.akuityManaged. The platform
+// silently ignores updates to this field, so admission rejects them
+// to give users immediate feedback. has() guards on every level let
+// lateInit-style first stamping through.
+func TestKargoAgent_AkuityManagedImmutable(t *testing.T) {
+	ctx := context.Background()
+
+	// Create with akuityManaged=false; flipping to true must be rejected.
+	immut := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-am-immut"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-a",
+				KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+					Data: crossplanetypes.KargoAgentData{AkuityManaged: ptr.To(false)},
+				},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, immut))
+	t.Cleanup(func() { _ = kube.Delete(ctx, immut) })
+
+	got := &v1alpha1.KargoAgent{}
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(immut), got))
+	got.Spec.ForProvider.KargoAgentSpec.Data.AkuityManaged = ptr.To(true)
+	err := kube.Update(ctx, got)
+	require.Error(t, err, "apiserver must reject akuityManaged change after create")
+	assert.Contains(t, err.Error(), "akuityManaged is immutable after create")
+
+	// No-op update with the same value must be accepted.
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(immut), got))
+	got.Spec.ForProvider.KargoAgentSpec.Data.AkuityManaged = ptr.To(false)
+	require.NoError(t, kube.Update(ctx, got), "no-op update with matching akuityManaged must be accepted")
+
+	// Create with the field unset; first-time stamp on update must be allowed.
+	lateInit := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-am-lateinit"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-b",
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, lateInit))
+	t.Cleanup(func() { _ = kube.Delete(ctx, lateInit) })
+
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(lateInit), got))
+	got.Spec.ForProvider.KargoAgentSpec.Data.AkuityManaged = ptr.To(true)
+	require.NoError(t, kube.Update(ctx, got),
+		"first-time stamp of akuityManaged when oldSelf had no value must be allowed")
+
+	// Once stamped, a flip is still rejected.
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(lateInit), got))
+	got.Spec.ForProvider.KargoAgentSpec.Data.AkuityManaged = ptr.To(false)
+	err = kube.Update(ctx, got)
+	require.Error(t, err, "apiserver must reject akuityManaged flip after lateInit stamp")
+	assert.Contains(t, err.Error(), "akuityManaged is immutable after create")
 }
 
 // TestCluster_InstanceIDImmutable covers the id/ref-immutable rule on
