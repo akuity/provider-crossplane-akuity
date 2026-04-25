@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -153,6 +154,16 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 		driftTarget = actualCluster
 	}
 
+	// MaintenanceMode + MaintenanceModeExpiry ride the dedicated
+	// set-maintenance-mode RPC, not ApplyInstance, so ExportInstance
+	// never echoes them. GetCluster does — APIToSpec lifts them onto
+	// actualCluster. Override the Export-derived driftTarget with the
+	// Get-derived values so the comparator detects real drift on these
+	// specific fields without flapping against an Export shape that
+	// always reports nil.
+	driftTarget.ClusterSpec.Data.MaintenanceMode = actualCluster.ClusterSpec.Data.MaintenanceMode
+	driftTarget.ClusterSpec.Data.MaintenanceModeExpiry = actualCluster.ClusterSpec.Data.MaintenanceModeExpiry
+
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
 	isUpToDate, err := base.EvaluateDrift(ctx, spec, &desired, &driftTarget, e.Logger, "Cluster")
@@ -175,6 +186,10 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	}
 	if err := e.Client.ApplyInstance(ctx, req); err != nil {
 		return managed.ExternalCreation{}, fmt.Errorf("could not create cluster: %w", err)
+	}
+
+	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
+		return managed.ExternalCreation{}, err
 	}
 
 	// One-time apply: manifests are installed on the managed cluster at
@@ -210,7 +225,46 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	if err != nil {
 		return managed.ExternalUpdate{}, errors.Wrap(err, errTransformCluster)
 	}
-	return managed.ExternalUpdate{}, e.Client.ApplyInstance(ctx, req)
+	if err := e.Client.ApplyInstance(ctx, req); err != nil {
+		return managed.ExternalUpdate{}, err
+	}
+	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
+		return managed.ExternalUpdate{}, err
+	}
+	return managed.ExternalUpdate{}, nil
+}
+
+// syncMaintenanceMode pushes data.maintenanceMode + data.maintenanceModeExpiry
+// through the dedicated set-maintenance-mode endpoint when the user has
+// configured either field. ApplyInstance silently drops both fields, so
+// without this separate RPC the user-set state never reaches the
+// platform and the drift comparator hot-loops Apply on every poll
+// (~4 wasted writes / 2 minutes observed before the fix). Mirrors
+// terraform-provider-akp's syncClusterMaintenanceMode in
+// resource_akp_cluster.go.
+//
+// When neither field is configured (both *bool nil and *string nil) the
+// call is skipped — leaving an unset maintenance state alone matches
+// terraform parity and avoids implicitly clearing a value the user
+// didn't ask to control.
+func (e *external) syncMaintenanceMode(ctx context.Context, mg *v1alpha1.Cluster) error {
+	data := mg.Spec.ForProvider.ClusterSpec.Data
+	if data.MaintenanceMode == nil && data.MaintenanceModeExpiry == nil {
+		return nil
+	}
+	mode := false
+	if data.MaintenanceMode != nil {
+		mode = *data.MaintenanceMode
+	}
+	var expiry *time.Time
+	if data.MaintenanceModeExpiry != nil && *data.MaintenanceModeExpiry != "" {
+		t, err := time.Parse(time.RFC3339, *data.MaintenanceModeExpiry)
+		if err != nil {
+			return fmt.Errorf("could not parse spec.forProvider.data.maintenanceModeExpiry as RFC3339: %w", err)
+		}
+		expiry = &t
+	}
+	return e.Client.SetClusterMaintenanceMode(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name, mode, expiry)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalDelete, error) {

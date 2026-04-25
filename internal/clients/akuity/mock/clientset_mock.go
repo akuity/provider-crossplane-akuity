@@ -12,6 +12,7 @@ package mock_akuity_client
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
@@ -364,4 +365,18 @@ func (m *MockClient) ResolveWorkspace(ctx context.Context, name string) (*organi
 func (mr *MockClientMockRecorder) ResolveWorkspace(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveWorkspace", reflect.TypeOf((*MockClient)(nil).ResolveWorkspace), ctx, name)
+}
+
+// SetClusterMaintenanceMode mocks base method.
+func (m *MockClient) SetClusterMaintenanceMode(ctx context.Context, instanceID, clusterName string, mode bool, expiry *time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClusterMaintenanceMode", ctx, instanceID, clusterName, mode, expiry)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetClusterMaintenanceMode indicates an expected call of SetClusterMaintenanceMode.
+func (mr *MockClientMockRecorder) SetClusterMaintenanceMode(ctx, instanceID, clusterName, mode, expiry any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClusterMaintenanceMode", reflect.TypeOf((*MockClient)(nil).SetClusterMaintenanceMode), ctx, instanceID, clusterName, mode, expiry)
 }

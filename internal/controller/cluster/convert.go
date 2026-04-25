@@ -18,10 +18,12 @@ package cluster
 
 import (
 	"fmt"
+	"time"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
@@ -107,6 +109,17 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 				AutoscalerConfig:                apiToAutoscalerConfig(cluster.GetData().GetAutoscalerConfig()),
 				Project:                         cluster.GetData().GetProject(),
 				Compatibility:                   apiToCompatibility(cluster.GetData().GetCompatibility()),
+				// MaintenanceMode + MaintenanceModeExpiry are server-owned
+				// for drift purposes: ApplyInstance does not propagate
+				// them — they ride a dedicated set-maintenance-mode RPC —
+				// and ExportInstance therefore does not echo them either.
+				// GetCluster is the only response shape that carries the
+				// canonical values, so the drift comparator targets the
+				// Get-derived spec for these specific fields (see Observe
+				// in cluster.go for the override that lifts these values
+				// onto the Export-derived driftTarget).
+				MaintenanceMode:       cluster.GetData().MaintenanceMode, //nolint:all
+				MaintenanceModeExpiry: timestampPtrToStringPtr(cluster.GetData().GetMaintenanceModeExpiry()),
 			},
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
@@ -309,6 +322,25 @@ func specToAutoscalerConfig(in *generated.AutoScalerConfig) *akuitytypes.AutoSca
 		out.RepoServer = rs
 	}
 	return out
+}
+
+// timestampPtrToStringPtr renders the gateway's *timestamppb.Timestamp
+// shape into the curated *string (RFC3339) shape used on the Crossplane
+// CRD. Nil or zero input yields nil so callers compose without
+// pre-checks. Mirrors generated.TimePtrToStringPtr but bridges the
+// argocdv1 wire type rather than the akuitytypes intermediate; the
+// GetCluster path returns the gateway shape directly without going
+// through ClusterDataAPIToSpec.
+func timestampPtrToStringPtr(t *timestamppb.Timestamp) *string {
+	if t == nil {
+		return nil
+	}
+	tt := t.AsTime()
+	if tt.IsZero() {
+		return nil
+	}
+	s := tt.UTC().Format(time.RFC3339)
+	return &s
 }
 
 func apiToCompatibility(in *argocdv1.ClusterCompatibility) *generated.ClusterCompatibility {

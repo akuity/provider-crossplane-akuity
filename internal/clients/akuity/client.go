@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/avast/retry-go/v4"
 
@@ -39,6 +40,14 @@ type Client interface {
 	// API wait.
 	GetClusterManifestsOnce(ctx context.Context, instanceID, clusterID string) (string, error)
 	DeleteCluster(ctx context.Context, instanceID string, name string) error
+	// SetClusterMaintenanceMode targets the dedicated set-maintenance-mode
+	// gateway route. ApplyInstance does not propagate
+	// data.maintenanceMode / data.maintenanceModeExpiry — those fields
+	// have to flow through this separate RPC (terraform-provider-akp's
+	// resource_akp_cluster.go:syncClusterMaintenanceMode follows the
+	// same pattern). Pass expiry=nil when the maintenance mode has no
+	// time bound on the platform.
+	SetClusterMaintenanceMode(ctx context.Context, instanceID, clusterName string, mode bool, expiry *time.Time) error
 	GetInstance(ctx context.Context, name string) (*argocdv1.Instance, error)
 	// GetInstanceByID fetches an Instance by its canonical ID. Used by
 	// narrow-patch controllers that have the ID on their spec and want
@@ -229,6 +238,32 @@ func (c client) DeleteCluster(ctx context.Context, instanceID string, name strin
 		return fmt.Errorf("could not delete cluster %s using Akuity API, error: %w", name, err)
 	}
 
+	return nil
+}
+
+// SetClusterMaintenanceMode implements Client.SetClusterMaintenanceMode.
+//
+// The Akuity gateway exposes maintenance state through a dedicated
+// /clusters/set-maintenance-mode route rather than the standard
+// ApplyInstance Cluster sub-payload. ApplyInstance silently drops
+// data.maintenanceMode / data.maintenanceModeExpiry, so without this
+// separate call the user-set maintenance state never reaches the
+// platform and the drift comparator hot-loops Apply on every poll.
+func (c client) SetClusterMaintenanceMode(ctx context.Context, instanceID, clusterName string, mode bool, expiry *time.Time) error {
+	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
+	req := &argocdv1.SetClusterMaintenanceModeRequest{
+		OrganizationId:  c.organizationID,
+		InstanceId:      instanceID,
+		ClusterNames:    []string{clusterName},
+		MaintenanceMode: mode,
+	}
+	if expiry != nil {
+		req.Expiry = timestamppb.New(*expiry)
+	}
+	incAPIWrite("SetClusterMaintenanceMode", instanceID+"/"+clusterName)
+	if _, err := c.gatewayClient.SetClusterMaintenanceMode(ctx, req); err != nil {
+		return fmt.Errorf("could not set maintenance mode for cluster %s/%s: %w", instanceID, clusterName, err)
+	}
 	return nil
 }
 

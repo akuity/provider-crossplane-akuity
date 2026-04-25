@@ -19,6 +19,7 @@ package cluster
 import (
 	"context"
 	"testing"
+	"time"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
@@ -30,6 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubectl/pkg/scheme"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -201,6 +203,95 @@ func TestUpdate(t *testing.T) {
 	resp, err := e.Update(ctx, &fixtures.CrossplaneManagedCluster)
 	require.NoError(t, err)
 	assert.Equal(t, managed.ExternalUpdate{}, resp)
+}
+
+// TestUpdate_MaintenanceModeSetCallsSetEndpoint covers the SET case:
+// when the user populates data.maintenanceMode (and optionally
+// data.maintenanceModeExpiry), Update must Apply the rest of the
+// cluster spec AND call SetClusterMaintenanceMode exactly once with
+// the user-set values. Without this, ApplyInstance silently drops the
+// maintenance fields, the platform never enters maintenance, and the
+// drift comparator fires Apply on every poll.
+func TestUpdate_MaintenanceModeSetCallsSetEndpoint(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
+	expiryStr := "2027-01-15T03:30:00Z"
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To(expiryStr)
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
+	mc.EXPECT().
+		SetClusterMaintenanceMode(ctx, fixtures.InstanceID, fixtures.ClusterName, true, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ string, mode bool, expiry *time.Time) error {
+			assert.True(t, mode)
+			require.NotNil(t, expiry)
+			parsed, err := time.Parse(time.RFC3339, expiryStr)
+			require.NoError(t, err)
+			assert.True(t, expiry.Equal(parsed),
+				"expiry sent through SetClusterMaintenanceMode must match the spec value")
+			return nil
+		}).Times(1)
+
+	_, err := e.Update(ctx, &managedCluster)
+	require.NoError(t, err)
+}
+
+// TestUpdate_MaintenanceModeFlipCallsSetEndpoint covers the FLIP case:
+// toggling the maintenance flag must produce exactly one new
+// SetClusterMaintenanceMode call with the new value.
+func TestUpdate_MaintenanceModeFlipCallsSetEndpoint(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(false)
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
+	mc.EXPECT().
+		SetClusterMaintenanceMode(ctx, fixtures.InstanceID, fixtures.ClusterName, false, nil).
+		Return(nil).Times(1)
+
+	_, err := e.Update(ctx, &managedCluster)
+	require.NoError(t, err)
+}
+
+// TestUpdate_MaintenanceModeUnsetSkipsSetEndpoint covers the
+// terraform-parity skip: when neither MaintenanceMode nor
+// MaintenanceModeExpiry is configured, Update must NOT call the
+// dedicated endpoint. Implicitly clearing a value the user didn't ask
+// to control would silently override out-of-band UI changes.
+func TestUpdate_MaintenanceModeUnsetSkipsSetEndpoint(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = nil
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = nil
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
+	// gomock.NewController fails on unexpected calls — no expectation
+	// here doubles as an assertion that SetClusterMaintenanceMode is
+	// never invoked when the field is unset.
+
+	_, err := e.Update(ctx, &managedCluster)
+	require.NoError(t, err)
+}
+
+// TestUpdate_MaintenanceModeBadExpiryFails locks the parse error in
+// place: a non-RFC3339 expiry string must surface as a reconcile error
+// rather than silently ignoring the user's input.
+func TestUpdate_MaintenanceModeBadExpiryFails(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To("not-a-timestamp")
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
+	// SetClusterMaintenanceMode must NOT be called when expiry parsing fails.
+
+	_, err := e.Update(ctx, &managedCluster)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "maintenanceModeExpiry")
 }
 
 func TestDelete_NoExternalName(t *testing.T) {
