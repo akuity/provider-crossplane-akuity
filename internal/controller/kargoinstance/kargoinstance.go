@@ -825,16 +825,10 @@ func resolveKargoSecrets(ctx context.Context, kube client.Client, mg *v1alpha1.K
 		}
 		out.Kargo = kargoResolvedSecret{Name: ref.Name, Data: kargoData}
 	}
-	var dexRef *xpv1.LocalSecretReference
-	if oidc := mg.Spec.ForProvider.Kargo.OidcConfig; oidc != nil && oidc.DexConfigSecretRef != nil {
-		dexRef = &xpv1.LocalSecretReference{Name: oidc.DexConfigSecretRef.Name}
-	}
-	if dexRef != nil {
-		data, derr := secrets.ResolveAllKeys(ctx, kube, ns, dexRef)
-		if derr != nil {
-			return out, fmt.Errorf("spec.oidcConfig.dexConfigSecretRef: %w", derr)
-		}
-		out.DexConfig = kargoResolvedSecret{Name: dexRef.Name, Data: data}
+	if dex, derr := resolveKargoDexSecret(ctx, kube, ns, mg); derr != nil {
+		return out, derr
+	} else if dex != nil {
+		out.DexConfig = *dex
 	}
 	if refs := mg.Spec.ForProvider.KargoRepoCredentialSecretRefs; len(refs) > 0 {
 		creds, rerr := resolveKargoRepoCreds(ctx, kube, ns, refs)
@@ -844,6 +838,21 @@ func resolveKargoSecrets(ctx context.Context, kube client.Client, mg *v1alpha1.K
 		out.RepoCredentials = creds
 	}
 	return out, nil
+}
+
+// resolveKargoDexSecret resolves the OIDC dex config Secret when the CR
+// references one. Returns nil when the CR carries no dexConfigSecretRef.
+func resolveKargoDexSecret(ctx context.Context, kube client.Client, ns string, mg *v1alpha1.KargoInstance) (*kargoResolvedSecret, error) {
+	oidc := mg.Spec.ForProvider.Kargo.OidcConfig
+	if oidc == nil || oidc.DexConfigSecretRef == nil {
+		return nil, nil
+	}
+	ref := &xpv1.LocalSecretReference{Name: oidc.DexConfigSecretRef.Name}
+	data, err := secrets.ResolveAllKeys(ctx, kube, ns, ref)
+	if err != nil {
+		return nil, fmt.Errorf("spec.oidcConfig.dexConfigSecretRef: %w", err)
+	}
+	return &kargoResolvedSecret{Name: ref.Name, Data: data}, nil
 }
 
 // resolveKargoRepoCreds resolves each typed repo-credential ref in
