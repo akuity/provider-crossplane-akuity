@@ -196,6 +196,24 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestObserve_EmptyKargoConfigMapIsNoOpinion(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	ki.Spec.ForProvider.KargoConfigMap = nil
+	meta.SetExternalName(ki, "ki")
+
+	mc.EXPECT().GetKargoInstance(gomock.Any(), "ki").Return(&kargov1.KargoInstance{
+		Id:           "id-1",
+		Name:         "ki",
+		Version:      "v1.0.0",
+		HealthStatus: &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil)
+
+	obs, err := e.Observe(context.Background(), ki)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceUpToDate, "removing kargoConfigMap keys from spec stops managing them and must not force Apply")
+}
+
 // TestObserve_RepoCredsHashOnlyNoPeriodicReapply locks in the
 // provider-side ownership contract: repo credentials are re-applied
 // when the local desired Secret hash changes, not periodically to
@@ -259,6 +277,24 @@ func TestExtractKargoConfigMapData_ShapeGuards(t *testing.T) {
 	require.NoError(t, err)
 	_, err = extractKargoConfigMapData(pb)
 	require.Error(t, err, "non-object data must surface an error so drift doesn't silently pass")
+}
+
+func TestKargoConfigMapUpToDate_CanonicalizesBoolValues(t *testing.T) {
+	desired := map[string]string{"adminAccountEnabled": "true"}
+	pb, err := structpb.NewStruct(map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata":   map[string]interface{}{"name": "kargo-cm"},
+		"data": map[string]interface{}{
+			"adminAccountEnabled": true,
+		},
+	})
+	require.NoError(t, err)
+
+	ok, observed, err := kargoConfigMapUpToDate(desired, &kargov1.ExportKargoInstanceResponse{KargoConfigmap: pb})
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, "true", observed["adminAccountEnabled"])
 }
 
 // TestUpdate_DelegatesToApply covers the Update path: Update must reuse

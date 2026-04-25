@@ -483,11 +483,11 @@ func TestKargoInstance_KargoConfigMapKeyAllowlist(t *testing.T) {
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				Name:           "ki-cm-1",
 				Kargo:          minimalKargoSpec(),
-				KargoConfigMap: map[string]string{"admin_account_enabled": "true"},
+				KargoConfigMap: map[string]string{"adminAccountEnabled": "true"},
 			},
 		},
 	}
-	require.NoError(t, kube.Create(ctx, withEnabled), "admin_account_enabled must be accepted")
+	require.NoError(t, kube.Create(ctx, withEnabled), "adminAccountEnabled must be accepted")
 	t.Cleanup(func() { _ = kube.Delete(ctx, withEnabled) })
 
 	withTTL := &v1alpha1.KargoInstance{
@@ -496,12 +496,25 @@ func TestKargoInstance_KargoConfigMapKeyAllowlist(t *testing.T) {
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				Name:           "ki-cm-2",
 				Kargo:          minimalKargoSpec(),
-				KargoConfigMap: map[string]string{"admin_account_token_ttl": "24h"},
+				KargoConfigMap: map[string]string{"adminAccountTokenTtl": "24h"},
 			},
 		},
 	}
-	require.NoError(t, kube.Create(ctx, withTTL), "admin_account_token_ttl must be accepted")
+	require.NoError(t, kube.Create(ctx, withTTL), "adminAccountTokenTtl must be accepted")
 	t.Cleanup(func() { _ = kube.Delete(ctx, withTTL) })
+
+	withProtoNames := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-proto"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:           "ki-cm-5",
+				Kargo:          minimalKargoSpec(),
+				KargoConfigMap: map[string]string{"admin_account_enabled": "true"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withProtoNames), "proto field names must remain accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withProtoNames) })
 
 	withoutCM := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-absent"},
@@ -528,6 +541,23 @@ func TestKargoInstance_KargoConfigMapKeyAllowlist(t *testing.T) {
 	err := kube.Create(ctx, withUnknown)
 	require.Error(t, err, "apiserver must reject KargoInstance with unknown kargoConfigMap key")
 	assert.Contains(t, err.Error(), "kargoConfigMap accepts only these keys")
+
+	withMixedAliases := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-mixed-aliases"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:  "ki-cm-6",
+				Kargo: minimalKargoSpec(),
+				KargoConfigMap: map[string]string{
+					"adminAccountEnabled":   "true",
+					"admin_account_enabled": "false",
+				},
+			},
+		},
+	}
+	err = kube.Create(ctx, withMixedAliases)
+	require.Error(t, err, "apiserver must reject mixed aliases for the same kargoConfigMap key")
+	assert.Contains(t, err.Error(), "must not set both lowerCamel and snake_case aliases")
 }
 
 // TestCluster_InstanceIDImmutable covers the id/ref-immutable rule on

@@ -206,6 +206,64 @@ func TestObserve_EmptyExternalName(t *testing.T) {
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: false}, resp)
 }
 
+func TestDriftSpec_ArgocdConfigMapComparesOnlyUserKeys(t *testing.T) {
+	presence := base.FieldPresence{
+		Object:  true,
+		Present: true,
+		Children: map[string]base.FieldPresence{
+			"argocdConfigMap": {
+				Object:  true,
+				Present: true,
+				Children: map[string]base.FieldPresence{
+					"exec.enabled": {Present: true},
+				},
+			},
+		},
+	}
+	desired := v1alpha1.InstanceParameters{
+		ArgoCDConfigMap: map[string]string{"exec.enabled": "true"},
+	}
+	observed := v1alpha1.InstanceParameters{
+		ArgoCDConfigMap: map[string]string{
+			"exec.enabled":                       "true",
+			"application.resourceTrackingMethod": "annotation",
+			"resource.respectRBAC":               "normal",
+			"url":                                "https://platform.example",
+		},
+	}
+
+	spec := driftSpec()
+	spec.Presence = &presence
+	ok, err := spec.UpToDate(ctx, &desired, &observed)
+	require.NoError(t, err)
+	assert.True(t, ok)
+}
+
+func TestNormalizeInstanceParameters_StripsIgnoredArgocdConfigMapKeysFromBothSides(t *testing.T) {
+	desired := v1alpha1.InstanceParameters{
+		ArgoCDConfigMap: map[string]string{
+			"exec.enabled": "true",
+			"url":          "https://user.example",
+		},
+	}
+	observed := v1alpha1.InstanceParameters{
+		ArgoCDConfigMap: map[string]string{
+			"exec.enabled":         "true",
+			"url":                  "https://platform.example",
+			"resource.respectRBAC": "normal",
+		},
+	}
+
+	normalizeInstanceParameters(&desired, &observed)
+
+	assert.Equal(t, "true", desired.ArgoCDConfigMap["exec.enabled"])
+	assert.Equal(t, "true", observed.ArgoCDConfigMap["exec.enabled"])
+	for _, key := range ignoredArgocdCMKeys {
+		assert.NotContains(t, desired.ArgoCDConfigMap, key)
+		assert.NotContains(t, observed.ArgoCDConfigMap, key)
+	}
+}
+
 func TestObserve_GetInstanceNotFoundErr(t *testing.T) {
 	e, mc := newExt(t)
 

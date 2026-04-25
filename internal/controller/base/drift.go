@@ -37,15 +37,19 @@ import (
 // late-init unset fields from observed, strip server-managed keys,
 // canonicalise YAML ordering, etc. Controllers that previously called
 // a local `normalize*Parameters` helper should move the body here.
+// Presence, when set, projects desired and observed to only the
+// user-supplied spec.forProvider paths before comparison. This keeps
+// server defaults and platform-owned extra map keys from triggering
+// reconciliation.
 //
 // Side checks run only if the struct comparison reports equal. Each
 // returns (upToDate, error); ALL must return true for the resource to
 // be considered up-to-date. Used by KargoInstance for Export-subset
-// checks against additively-owned children and Secret/ConfigMap hash
-// rotation.
+// checks against additively-owned children and Secret hash rotation.
 type DriftSpec[T any] struct {
 	Ignore    []cmp.Option
 	Normalize func(desired *T, observed *T)
+	Presence  *FieldPresence
 	Side      []func(ctx context.Context) (bool, error)
 }
 
@@ -58,6 +62,10 @@ type DriftSpec[T any] struct {
 func (d DriftSpec[T]) UpToDate(ctx context.Context, desired, observed *T) (bool, error) {
 	if d.Normalize != nil {
 		d.Normalize(desired, observed)
+	}
+	if d.Presence != nil {
+		*desired = ProjectByPresence(desired, *d.Presence)
+		*observed = ProjectByPresence(observed, *d.Presence)
 	}
 
 	opts := utilcmp.EquateEmpty()
@@ -82,6 +90,12 @@ func (d DriftSpec[T]) UpToDate(ctx context.Context, desired, observed *T) (bool,
 // using the same options UpToDate applied. Intended for Debug logging
 // when drift is detected.
 func (d DriftSpec[T]) Diff(desired, observed *T) string {
+	if d.Presence != nil {
+		projectedDesired := ProjectByPresence(desired, *d.Presence)
+		projectedObserved := ProjectByPresence(observed, *d.Presence)
+		desired = &projectedDesired
+		observed = &projectedObserved
+	}
 	opts := utilcmp.EquateEmpty()
 	opts = append(opts, d.Ignore...)
 	return cmp.Diff(*desired, *observed, opts...)

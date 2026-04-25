@@ -565,11 +565,17 @@ spec:
                     == 0'
                 - message: name is immutable
                   rule: self.name == oldSelf.name
-                - message: 'kargoConfigMap accepts only these keys: admin_account_enabled,
-                    admin_account_token_ttl. Other keys are silently rejected by the
-                    platform.'
+                - message: 'kargoConfigMap accepts only these keys: adminAccountEnabled,
+                    adminAccountTokenTtl, admin_account_enabled, admin_account_token_ttl.
+                    Other keys are rejected before Apply.'
                   rule: '!has(self.kargoConfigMap) || self.kargoConfigMap.all(k, k
-                    in [''admin_account_enabled'', ''admin_account_token_ttl''])'
+                    in [''adminAccountEnabled'', ''adminAccountTokenTtl'', ''admin_account_enabled'',
+                    ''admin_account_token_ttl''])'
+                - message: kargoConfigMap must not set both lowerCamel and snake_case
+                    aliases for the same key
+                  rule: '!has(self.kargoConfigMap) || !(''adminAccountEnabled'' in self.kargoConfigMap
+                    && ''admin_account_enabled'' in self.kargoConfigMap) && !(''adminAccountTokenTtl''
+                    in self.kargoConfigMap && ''admin_account_token_ttl'' in self.kargoConfigMap)'
               managementPolicies:
                 default:
                 - '*'
@@ -666,15 +672,6 @@ spec:
                   KargoInstanceObservation are the observable fields of a Kargo
                   instance.
                 properties:
-                  configMapHash:
-                    description: |-
-                      ConfigMapHash is the SHA256 of the last-applied
-                      spec.forProvider.kargoConfigMap key/value set. Observe compares
-                      the current desired digest against this to detect key removals
-                      — a case the export-based subset check misses. An empty value
-                      means either the field has never been applied or the last apply
-                      sent an explicit empty payload (tombstone).
-                    type: string
                   healthStatus:
                     description: HealthStatus is the instance health.
                     properties:

@@ -94,6 +94,12 @@ Secrets are treated as terminal configuration errors because the platform apply
 APIs treat omitted or empty secret payloads as "no opinion", not as remote
 delete/clear requests.
 
+**Note** - Instance and KargoInstance ConfigMap fields are additive and
+key-owned. The provider compares only keys present in the managed resource
+spec, ignores platform-added/default keys, and reapplies when a managed key
+differs. Removing a ConfigMap key from the spec stops managing that key; it does
+not delete or clear the key from Akuity.
+
 ## Local Development
 
 ### Crossplane

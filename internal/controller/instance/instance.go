@@ -122,6 +122,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, newErr
 	}
+	presence := base.ForProviderPresence(ctx, e.Kube, mg, v1alpha1.InstanceGroupVersionKind)
 
 	if err := lateInitializeInstance(&mg.Spec.ForProvider, akuityInstance, akuityExportedInstance); err != nil {
 		mg.SetConditions(xpv1.ReconcileError(err))
@@ -150,6 +151,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 	// DeepCopy so Normalize's map mutations (ArgoCDConfigMap rewrites,
 	// ignored-key deletions) don't leak back into the managed resource.
 	spec := driftSpec()
+	spec.Presence = presence
 	desired := mg.Spec.ForProvider.DeepCopy()
 	observed := actualInstance.Spec.ForProvider.DeepCopy()
 	isUpToDate, err := base.EvaluateDrift(ctx, spec, desired, observed, e.Logger, "Instance")
@@ -443,6 +445,7 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 	}
 	for _, k := range ignoredArgocdCMKeys {
 		delete(managedInstance.ArgoCDConfigMap, k)
+		delete(actualInstance.ArgoCDConfigMap, k)
 	}
 }
 

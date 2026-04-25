@@ -91,7 +91,8 @@ spec:
           - "groups"
     kargoConfigMap:
       # Keys are forwarded to the kargo-cm ConfigMap.
-      controller.log.level: "info"
+      adminAccountEnabled: "true"
+      adminAccountTokenTtl: "24h"
     # kargoSecretRef references a Secret whose keys become the
     # kargo-secret payload (OIDC client secrets, webhook tokens).
     # kargoSecretRef:

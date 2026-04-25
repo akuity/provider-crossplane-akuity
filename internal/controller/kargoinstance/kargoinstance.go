@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
@@ -249,6 +250,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		}
 		return obs, rerr
 	}
+	presence := base.ForProviderPresence(ctx, e.Kube, mg, v1alpha1.KargoInstanceGroupVersionKind)
 
 	actual, err := apiToSpec(ki)
 	if err != nil {
@@ -285,11 +287,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 
 	// Preserve controller-authored AtProvider fields across the refresh.
 	// apiToObservation rebuilds the struct from gateway data, which has
-	// no SecretHash / ConfigMapHash; without this carry-over every
-	// Observe would zero them, masking rotation and the CM-tombstone
-	// state until the next Create/Update writes new values.
+	// no SecretHash; without this carry-over every Observe would zero it,
+	// masking rotation until the next Create/Update writes a new value.
 	prevSecretHash := mg.Status.AtProvider.SecretHash
-	prevCMHashCarry := mg.Status.AtProvider.ConfigMapHash
 	prevWorkspace := mg.Status.AtProvider.Workspace
 	mg.Status.AtProvider = observation.KargoInstance(ki)
 	// Mirror the observed Kargo sub-tree onto AtProvider so
@@ -302,7 +302,6 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	// package (circular import otherwise).
 	mg.Status.AtProvider.Kargo = actual.Kargo
 	mg.Status.AtProvider.SecretHash = prevSecretHash
-	mg.Status.AtProvider.ConfigMapHash = prevCMHashCarry
 	// GetKargoInstance echoes the canonical workspace ID; cache it on
 	// AtProvider so the ExportKargoInstance call below — and any future
 	// Apply / Delete — can route to the right workspace-scoped HTTP
@@ -322,37 +321,21 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	// DriftSpec also contributes
 	// utilcmp.EquateEmpty() so nil-vs-empty sub-trees resolve equal.
 	structSpec := driftSpec()
+	structSpec.Presence = presence
 	desired := mg.Spec.ForProvider
 	upToDate, err := base.EvaluateDrift(ctx, structSpec, &desired, &actual, e.Logger, "KargoInstance")
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
 
-	// kargoConfigMap drift: combine a local hash check with the
-	// Export-based subset check.
-	//   - hash mismatch (desired-now vs last-applied) catches key
-	//     removals and value changes without a gateway round-trip.
-	//     This also handles the tombstone case: desired empty +
-	//     prev hash non-empty → re-Apply with an empty payload.
-	//   - export subset check catches out-of-band server changes to
-	//     keys the user still has in spec.
-	// Export must run whenever the MR has ever tracked a CM, not
-	// just when the desired map is currently non-empty; otherwise
-	// a transient clear would evade detection on the next reconcile.
-	prevCMHash := getConfigMapHash(mg)
-	desiredCMHash := hashConfigMap(mg.Spec.ForProvider.KargoConfigMap)
-	if upToDate && desiredCMHash != prevCMHash {
-		e.Logger.Debug("kargoConfigMap hash changed since last apply; forcing re-Apply",
-			"previous", prevCMHash, "current", desiredCMHash)
-		upToDate = false
-	}
-
 	// Export-based drift check runs when the user has spec-level
-	// opinions on either kargoConfigMap (current or historical) or
-	// kargoResources. A single Export serves both, minimising
-	// gateway round-trips.
+	// opinions on either kargoConfigMap or kargoResources. A single
+	// Export serves both, minimising gateway round-trips.
+	// kargoConfigMap is key-additive: desired keys must match
+	// observed, platform-added keys are ignored, and removing a key
+	// from spec means "stop managing this key" rather than "clear it
+	// on the platform".
 	needsExport := len(mg.Spec.ForProvider.KargoConfigMap) > 0 ||
-		prevCMHash != "" ||
 		len(mg.Spec.ForProvider.Resources) > 0
 	if upToDate && needsExport {
 		// ExportKargoInstanceRequest.Id is the canonical instance ID
@@ -463,14 +446,8 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	if err != nil {
 		return err
 	}
-	// CM tombstone: if the controller has ever applied a non-empty CM
-	// (prevHash != "") and the current desired is empty, send an
-	// explicit empty ConfigMap payload so the gateway can clear the
-	// previously-applied keys. Without the tombstone, emptying the
-	// field in spec would be an un-Applyable delete.
-	prevCMHash := getConfigMapHash(mg)
 	desiredCM := mg.Spec.ForProvider.KargoConfigMap
-	cmPB, err := buildKargoConfigMapPB(desiredCM, prevCMHash != "")
+	cmPB, err := buildKargoConfigMapPB(desiredCM)
 	if err != nil {
 		return err
 	}
@@ -506,7 +483,6 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 		return reason.ClassifyApplyError(err)
 	}
 	setSecretHash(mg, sec.Hash())
-	setConfigMapHash(mg, hashConfigMap(desiredCM))
 	return nil
 }
 
@@ -605,11 +581,20 @@ func extractKargoConfigMapData(pb *structpb.Struct) (map[string]string, error) {
 	}
 	out := make(map[string]string, len(obj))
 	for k, v := range obj {
-		s, ok := v.(string)
-		if !ok {
+		switch typed := v.(type) {
+		case string:
+			out[k] = typed
+		case bool:
+			out[k] = strconv.FormatBool(typed)
+		case nil:
+			// Keep an explicit null as an observed empty value. That
+			// still differs from any desired non-empty string, so a
+			// platform-side clear self-heals instead of being mistaken
+			// for a missing/unmanaged key.
+			out[k] = ""
+		default:
 			return nil, fmt.Errorf("kargo_configmap.data[%q]: want string, got %T", k, v)
 		}
-		out[k] = s
 	}
 	return out, nil
 }
@@ -999,37 +984,12 @@ func getSecretHash(mg *v1alpha1.KargoInstance) string {
 	return mg.Status.AtProvider.SecretHash
 }
 
-// setConfigMapHash records the SHA256 of the last-applied
-// kargo-cm payload so Observe can spot key removals that the
-// subset check on the Export response would otherwise miss.
-func setConfigMapHash(mg *v1alpha1.KargoInstance, h string) {
-	mg.Status.AtProvider.ConfigMapHash = h
-}
-
-func getConfigMapHash(mg *v1alpha1.KargoInstance) string {
-	return mg.Status.AtProvider.ConfigMapHash
-}
-
-// hashConfigMap returns a stable digest for a map[string]string.
-// An empty / nil input yields the empty string so callers can
-// distinguish "never applied" (empty prev hash) from "applied then
-// cleared" by comparing against the stored value.
-func hashConfigMap(m map[string]string) string {
-	if len(m) == 0 {
-		return ""
-	}
-	return secrets.Hash(m)
-}
-
-// buildKargoConfigMapPB serialises the desired kargo-cm payload,
-// respecting the tombstone semantics needed for B1: when the user
-// previously applied a non-empty map and now wants it cleared, send
-// an explicit empty ConfigMap struct so the gateway understands the
-// intent as "clear all keys" rather than "no opinion, leave as-is".
-// Returns (nil, nil) only when the field has never been set, which
-// is the only case the gateway may safely ignore.
-func buildKargoConfigMapPB(data map[string]string, tombstoneOnEmpty bool) (*structpb.Struct, error) {
-	if len(data) == 0 && !tombstoneOnEmpty {
+// buildKargoConfigMapPB serialises the desired kargo-cm payload. An
+// empty desired map means the user has no currently managed ConfigMap
+// keys, so the Apply payload omits the ConfigMap and leaves any
+// platform-side keys alone.
+func buildKargoConfigMapPB(data map[string]string) (*structpb.Struct, error) {
+	if len(data) == 0 {
 		return nil, nil
 	}
 	cm := corev1.ConfigMap{

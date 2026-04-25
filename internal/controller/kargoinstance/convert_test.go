@@ -100,7 +100,7 @@ func TestKubeSecretToPB_Populated(t *testing.T) {
 }
 
 func TestBuildKargoConfigMapPB_Populated(t *testing.T) {
-	pb, err := buildKargoConfigMapPB(map[string]string{"a": "b"}, false)
+	pb, err := buildKargoConfigMapPB(map[string]string{"a": "b"})
 	require.NoError(t, err)
 	require.NotNil(t, pb)
 	m := pb.AsMap()
@@ -110,43 +110,14 @@ func TestBuildKargoConfigMapPB_Populated(t *testing.T) {
 	assert.Equal(t, "b", data["a"])
 }
 
-// TestBuildKargoConfigMapPB_TombstoneSendsEmptyStruct covers B1:
-// an empty desired + tombstoneOnEmpty=true must serialise an empty
-// ConfigMap (not nil), otherwise the gateway has no way to
-// understand "clear previously-applied keys" on Apply.
-func TestBuildKargoConfigMapPB_TombstoneSendsEmptyStruct(t *testing.T) {
-	pb, err := buildKargoConfigMapPB(nil, true)
+func TestBuildKargoConfigMapPB_EmptyOmitted(t *testing.T) {
+	pb, err := buildKargoConfigMapPB(nil)
 	require.NoError(t, err)
-	require.NotNil(t, pb, "tombstone must send an empty ConfigMap, not nil")
-	m := pb.AsMap()
-	md, _ := m["metadata"].(map[string]interface{})
-	assert.Equal(t, kargoCMKey, md["name"])
-	data, _ := m["data"].(map[string]interface{})
-	assert.Empty(t, data, "tombstone data map must be empty")
+	assert.Nil(t, pb, "empty desired means no currently managed ConfigMap keys")
 
-	// Empty + not tombstone still returns nil (field never applied).
-	pb, err = buildKargoConfigMapPB(nil, false)
+	pb, err = buildKargoConfigMapPB(map[string]string{})
 	require.NoError(t, err)
-	assert.Nil(t, pb, "never-applied empty map must yield nil so the gateway leaves the CM alone")
-}
-
-// TestHashKargoConfigMap_EmptyIsEmpty makes the never-applied signal
-// unambiguous: empty input = empty digest, so comparing against the
-// stored hash reliably distinguishes "never applied" from "applied
-// and cleared" (stored hash non-empty → tombstone needed).
-func TestHashKargoConfigMap_EmptyIsEmpty(t *testing.T) {
-	assert.Empty(t, hashConfigMap(nil))
-	assert.Empty(t, hashConfigMap(map[string]string{}))
-	assert.NotEmpty(t, hashConfigMap(map[string]string{"k": "v"}))
-}
-
-// TestHashKargoConfigMap_DetectsKeyRemoval is the core regression
-// guard for B1: removing a key from the desired map must produce a
-// different digest so Observe can trigger re-Apply.
-func TestHashKargoConfigMap_DetectsKeyRemoval(t *testing.T) {
-	a := hashConfigMap(map[string]string{"foo": "bar", "baz": "qux"})
-	b := hashConfigMap(map[string]string{"foo": "bar"})
-	assert.NotEqual(t, a, b, "removing a key must rotate the digest")
+	assert.Nil(t, pb)
 }
 
 func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
