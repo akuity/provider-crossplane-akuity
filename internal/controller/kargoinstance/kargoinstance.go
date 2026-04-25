@@ -342,7 +342,18 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		prevCMHash != "" ||
 		len(mg.Spec.ForProvider.Resources) > 0
 	if upToDate && needsExport {
-		exp, err := e.Client.ExportKargoInstance(ctx, meta.GetExternalName(mg), mg.Spec.ForProvider.Workspace)
+		// ExportKargoInstanceRequest.Id is the canonical instance ID
+		// (UUID), not the human-readable name: unlike ExportInstance
+		// (Argo CD) or GetKargoInstance, the proto carries no IdType
+		// discriminator, and the server-side handler resolves the
+		// argument as `models.KargoInstanceWhere.ID.EQ(req.GetId())`.
+		// Passing meta.GetExternalName here makes every Export call
+		// fail with PermissionDenied, the upToDate=true defer below
+		// then swallows the error, and the kargoConfigMap +
+		// kargoResources drift checks become silent no-ops once the
+		// instance is past Create. The Apply-time GetKargoInstance
+		// already populates the canonical ID on the response.
+		exp, err := e.Client.ExportKargoInstance(ctx, ki.GetId(), mg.Spec.ForProvider.Workspace)
 		if err != nil {
 			// A failed Export on an otherwise-healthy instance is
 			// recoverable; leaving upToDate=true lets the next poll
