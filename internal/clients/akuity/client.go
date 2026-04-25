@@ -16,6 +16,7 @@ import (
 	"github.com/akuity/api-client-go/pkg/api/gateway/accesscontrol"
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	httpctx "github.com/akuity/grpc-gateway-client/pkg/http/context"
@@ -97,6 +98,15 @@ type Client interface {
 	// GetKargoInstanceAgentManifestsOnce fetches install manifests for
 	// a Kargo agent without waiting for reconciliation.
 	GetKargoInstanceAgentManifestsOnce(ctx context.Context, kargoInstanceID, agentID string) (string, error)
+
+	// ResolveWorkspace resolves an Akuity workspace by name and returns
+	// it. When name is empty the organization's default workspace is
+	// returned (the same fallback the terraform-provider-akp uses, see
+	// resource_akp_kargo.go:getWorkspace). Used by KargoInstance to
+	// avoid hot-looping ApplyKargoInstance against a workspace-scoped
+	// HTTP route with an empty workspace_id (the route templates the
+	// id straight into the path so empty produces a 404).
+	ResolveWorkspace(ctx context.Context, name string) (*orgcv1.Workspace, error)
 }
 
 type client struct {
@@ -104,13 +114,16 @@ type client struct {
 	credentials        accesscontrol.ClientCredential
 	gatewayClient      argocdv1.ArgoCDServiceGatewayClient
 	kargoGatewayClient kargov1.KargoServiceGatewayClient
+	orgGatewayClient   orgcv1.OrganizationServiceGatewayClient
 }
 
-// NewClient constructs an Akuity client backed by both the ArgoCD and
-// Kargo gateway clients. kargoGatewayClient may be nil when the
-// caller only intends to use Argo-plane methods (e.g. in legacy
-// tests); Kargo methods will then return a descriptive error.
-func NewClient(organizationID string, apiKeyID string, apiKeySecret string, gatewayClient argocdv1.ArgoCDServiceGatewayClient, kargoGatewayClient kargov1.KargoServiceGatewayClient) (Client, error) {
+// NewClient constructs an Akuity client backed by the ArgoCD, Kargo,
+// and Organization gateway clients. kargoGatewayClient and
+// orgGatewayClient may be nil when the caller only intends to use a
+// subset of the API surface (e.g. in legacy tests that exercise only
+// the Argo plane); the corresponding methods will then return a
+// descriptive error rather than panicking on a nil dispatch.
+func NewClient(organizationID string, apiKeyID string, apiKeySecret string, gatewayClient argocdv1.ArgoCDServiceGatewayClient, kargoGatewayClient kargov1.KargoServiceGatewayClient, orgGatewayClient orgcv1.OrganizationServiceGatewayClient) (Client, error) {
 	if organizationID == "" {
 		return client{}, errors.New("organization ID must not be empty")
 	}
@@ -128,6 +141,7 @@ func NewClient(organizationID string, apiKeyID string, apiKeySecret string, gate
 		credentials:        accesscontrol.NewAPIKeyCredential(apiKeyID, apiKeySecret),
 		gatewayClient:      gatewayClient,
 		kargoGatewayClient: kargoGatewayClient,
+		orgGatewayClient:   orgGatewayClient,
 	}
 
 	return c, nil
@@ -667,6 +681,51 @@ func (c client) DeleteKargoInstanceAgent(ctx context.Context, kargoInstanceID, a
 		return fmt.Errorf("could not delete kargo agent %s/%s: %w", kargoInstanceID, agentName, err)
 	}
 	return nil
+}
+
+func (c client) orgRequired(op string) error {
+	if c.orgGatewayClient == nil {
+		return fmt.Errorf("%s: organization gateway client not configured on this Akuity client", op)
+	}
+	return nil
+}
+
+// ResolveWorkspace implements Client.ResolveWorkspace.
+//
+// When name is empty the function selects the workspace flagged
+// IsDefault by the Akuity portal — this is the same fallback the
+// terraform-provider-akp uses (resource_akp_kargo.go:getWorkspace) and
+// is what the platform expects for single-workspace organisations.
+// When name is non-empty the matching workspace is returned, with
+// codes.NotFound semantics surfaced via reason.NotFound when no match
+// exists so callers can distinguish "workspace not found" from
+// "transient gateway error".
+func (c client) ResolveWorkspace(ctx context.Context, name string) (*orgcv1.Workspace, error) {
+	if err := c.orgRequired("ResolveWorkspace"); err != nil {
+		return nil, err
+	}
+	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
+	resp, err := c.orgGatewayClient.ListWorkspaces(ctx, &orgcv1.ListWorkspacesRequest{
+		OrganizationId: c.organizationID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not list workspaces: %w", err)
+	}
+	for _, w := range resp.GetWorkspaces() {
+		if name == "" {
+			if w.GetIsDefault() {
+				return w, nil
+			}
+			continue
+		}
+		if w.GetName() == name {
+			return w, nil
+		}
+	}
+	if name == "" {
+		return nil, reason.AsNotFound(fmt.Errorf("default workspace not found in organization %s", c.organizationID))
+	}
+	return nil, reason.AsNotFound(fmt.Errorf("workspace %q not found in organization %s", name, c.organizationID))
 }
 
 func clusterNotFoundOrReconciledError(err error) bool {

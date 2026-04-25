@@ -15,6 +15,7 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	organizationv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
 	gomock "go.uber.org/mock/gomock"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
@@ -348,4 +349,19 @@ func (m *MockClient) PatchKargoInstance(ctx context.Context, id string, patch *s
 func (mr *MockClientMockRecorder) PatchKargoInstance(ctx, id, patch any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchKargoInstance", reflect.TypeOf((*MockClient)(nil).PatchKargoInstance), ctx, id, patch)
+}
+
+// ResolveWorkspace mocks base method.
+func (m *MockClient) ResolveWorkspace(ctx context.Context, name string) (*organizationv1.Workspace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveWorkspace", ctx, name)
+	ret0, _ := ret[0].(*organizationv1.Workspace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveWorkspace indicates an expected call of ResolveWorkspace.
+func (mr *MockClientMockRecorder) ResolveWorkspace(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveWorkspace", reflect.TypeOf((*MockClient)(nil).ResolveWorkspace), ctx, name)
 }

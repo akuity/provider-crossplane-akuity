@@ -288,6 +288,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	prevSecretHash := mg.Status.AtProvider.SecretHash
 	prevCMHashCarry := mg.Status.AtProvider.ConfigMapHash
 	prevRepoCredsAt := mg.Status.AtProvider.RepoCredsAppliedAt
+	prevWorkspace := mg.Status.AtProvider.Workspace
 	mg.Status.AtProvider = observation.KargoInstance(ki)
 	// Mirror the observed Kargo sub-tree onto AtProvider so
 	// compositions and dashboards can read the effective server-side
@@ -301,6 +302,16 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	mg.Status.AtProvider.SecretHash = prevSecretHash
 	mg.Status.AtProvider.ConfigMapHash = prevCMHashCarry
 	mg.Status.AtProvider.RepoCredsAppliedAt = prevRepoCredsAt
+	// GetKargoInstance echoes the canonical workspace ID; cache it on
+	// AtProvider so the ExportKargoInstance call below — and any future
+	// Apply / Delete — can route to the right workspace-scoped HTTP
+	// path without an extra ListWorkspaces round-trip. Carry the prior
+	// stamped value forward when the gateway response omits it.
+	if ws := ki.GetWorkspaceId(); ws != "" {
+		mg.Status.AtProvider.Workspace = ws
+	} else {
+		mg.Status.AtProvider.Workspace = prevWorkspace
+	}
 	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
 
 	// Struct-level comparison of the primary spec shape. Resources,
@@ -354,7 +365,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		// kargoResources drift checks become silent no-ops once the
 		// instance is past Create. The Apply-time GetKargoInstance
 		// already populates the canonical ID on the response.
-		exp, err := e.Client.ExportKargoInstance(ctx, ki.GetId(), mg.Spec.ForProvider.Workspace)
+		exp, err := e.Client.ExportKargoInstance(ctx, ki.GetId(), mg.Status.AtProvider.Workspace)
 		if err != nil {
 			// A failed Export on an otherwise-healthy instance is
 			// recoverable; leaving upToDate=true lets the next poll
@@ -450,6 +461,11 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 		}
 	}
 
+	workspaceID, err := e.resolveWorkspaceID(ctx, mg)
+	if err != nil {
+		return err
+	}
+
 	sec, err := resolveKargoSecrets(ctx, e.Kube, mg)
 	if err != nil {
 		return err
@@ -485,7 +501,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	req := &kargov1.ApplyKargoInstanceRequest{
 		IdType:                idv1.Type_NAME,
 		Id:                    mg.Spec.ForProvider.Name,
-		WorkspaceId:           mg.Spec.ForProvider.Workspace,
+		WorkspaceId:           workspaceID,
 		Kargo:                 kargoPB,
 		KargoConfigmap:        cmPB,
 		KargoSecret:           secretPB,
@@ -509,6 +525,39 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 		mg.Status.AtProvider.RepoCredsAppliedAt = nil
 	}
 	return nil
+}
+
+// resolveWorkspaceID returns the canonical Akuity workspace ID for the
+// MR, resolving and caching the organisation's default workspace when
+// neither the spec nor a previously-stamped status field carries an
+// explicit value. The Akuity gateway's KargoInstance HTTP routes are
+// all workspace-scoped (`/orgs/{org}/workspaces/{workspace_id}/kargo/instances/...`)
+// and template the segment straight into the path; an empty ID
+// produces a 404 on every Apply / Export / Delete and the reconciler
+// hot-loops at the controller-runtime backoff cadence (~350 wasted
+// writes / 12 minutes observed) until the user fills the field in.
+//
+// Resolution order:
+//  1. spec.forProvider.workspace (user-pinned name) — looked up by name
+//  2. status.atProvider.workspace (controller-cached canonical ID)
+//  3. organisation default — discovered via the org gateway's
+//     ListWorkspaces (mirrors terraform-provider-akp's getWorkspace)
+//
+// On (1) and (3) the resolved canonical ID is stamped on
+// status.atProvider.workspace so subsequent reconciles short-circuit
+// straight to (2). The function preserves spec.forProvider.workspace
+// verbatim — the spec carries the user's intent (name or empty) and
+// must not be rewritten by Observe.
+func (e *external) resolveWorkspaceID(ctx context.Context, mg *v1alpha1.KargoInstance) (string, error) {
+	if id := mg.Status.AtProvider.Workspace; id != "" {
+		return id, nil
+	}
+	w, err := e.Client.ResolveWorkspace(ctx, mg.Spec.ForProvider.Workspace)
+	if err != nil {
+		return "", err
+	}
+	mg.Status.AtProvider.Workspace = w.GetId()
+	return w.GetId(), nil
 }
 
 // kargoChildren is the per-kind breakdown of the user's

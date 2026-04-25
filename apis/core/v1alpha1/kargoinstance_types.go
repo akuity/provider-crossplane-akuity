@@ -180,6 +180,18 @@ type KargoInstanceObservation struct {
 	// self-heal out-of-band deletions that neither the SecretHash
 	// nor the Export-based drift check can see.
 	RepoCredsAppliedAt *metav1.Time `json:"repoCredsAppliedAt,omitempty"`
+
+	// Workspace is the canonical Akuity workspace ID this Kargo
+	// instance belongs to. The controller stamps it on the first
+	// reconcile after resolving the organisation's default workspace
+	// (when spec.forProvider.workspace is empty) so subsequent polls
+	// route ApplyKargoInstance / ExportKargoInstance / DeleteKargoInstance
+	// to the correct workspace-scoped HTTP path without a fresh
+	// ListWorkspaces round-trip. The HTTP routes 404 when the
+	// workspace_id template segment is empty, which previously hot-looped
+	// portal-server (~350 wasted writes / 12 minutes) on first-create
+	// for any KargoInstance that omitted spec.workspace.
+	Workspace string `json:"workspace,omitempty"`
 }
 
 // A KargoInstanceSpec defines the desired state of a Kargo instance.

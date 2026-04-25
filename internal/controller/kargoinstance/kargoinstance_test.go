@@ -22,6 +22,7 @@ import (
 	"time"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
@@ -54,7 +55,7 @@ func provisioningWaitErr() error {
 }
 
 func newKI() *v1alpha1.KargoInstance {
-	return &v1alpha1.KargoInstance{
+	ki := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "ki", Namespace: "ns"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
@@ -63,6 +64,11 @@ func newKI() *v1alpha1.KargoInstance {
 			},
 		},
 	}
+	// Pre-stash the canonical workspace ID so apply() short-circuits the
+	// ListWorkspaces resolution path. Tests that exercise the resolution
+	// path itself clear this field explicitly.
+	ki.Status.AtProvider.Workspace = "ws-cached"
+	return ki
 }
 
 func newExt(t *testing.T) (*external, *mockclient.MockClient) {
@@ -350,6 +356,115 @@ func TestUpdate_ProvisioningWait_NotTerminal(t *testing.T) {
 	assert.False(t, reason.IsTerminal(err),
 		"provisioning-wait InvalidArgument must stay retryable, got Terminal: %v", err)
 	assert.True(t, reason.IsRetryable(err))
+}
+
+// TestCreate_ResolvesDefaultWorkspace covers the symptom where a user
+// creates a KargoInstance without spec.forProvider.workspace. The
+// gateway's ApplyKargoInstance route is workspace-scoped
+// (/orgs/{org}/workspaces/{workspace_id}/kargo/instances/{id}/apply);
+// without resolution the empty path segment 404s and the reconciler
+// hot-loops. The fix calls ResolveWorkspace("") to discover the
+// organisation's default workspace, stamps the canonical ID on
+// status.atProvider.workspace, and routes ApplyKargoInstance through
+// the resolved ID.
+func TestCreate_ResolvesDefaultWorkspace(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	// Clear the test fixture's pre-stashed workspace so apply() takes
+	// the resolution path.
+	ki.Status.AtProvider.Workspace = ""
+	ki.Spec.ForProvider.Workspace = ""
+
+	mc.EXPECT().ResolveWorkspace(gomock.Any(), "").
+		Return(&orgcv1.Workspace{Id: "ws-default-id", Name: "default", IsDefault: true}, nil).Times(1)
+
+	var captured *kargov1.ApplyKargoInstanceRequest
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *kargov1.ApplyKargoInstanceRequest) error {
+			captured = req
+			return nil
+		}).Times(1)
+
+	_, err := e.Create(context.Background(), ki)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, "ws-default-id", captured.GetWorkspaceId(),
+		"ApplyKargoInstance must route through the resolved default workspace ID, not empty")
+	assert.Equal(t, "ws-default-id", ki.Status.AtProvider.Workspace,
+		"resolved workspace ID must be cached on status.atProvider.workspace for future reconciles")
+}
+
+// TestCreate_ResolvesNamedWorkspace exercises the spec-pinned path:
+// when the user names a workspace, ResolveWorkspace is called with
+// that name and the canonical ID flows into ApplyKargoInstance.
+func TestCreate_ResolvesNamedWorkspace(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	ki.Status.AtProvider.Workspace = ""
+	ki.Spec.ForProvider.Workspace = "platform"
+
+	mc.EXPECT().ResolveWorkspace(gomock.Any(), "platform").
+		Return(&orgcv1.Workspace{Id: "ws-platform-id", Name: "platform"}, nil).Times(1)
+
+	var captured *kargov1.ApplyKargoInstanceRequest
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *kargov1.ApplyKargoInstanceRequest) error {
+			captured = req
+			return nil
+		}).Times(1)
+
+	_, err := e.Create(context.Background(), ki)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, "ws-platform-id", captured.GetWorkspaceId())
+	assert.Equal(t, "ws-platform-id", ki.Status.AtProvider.Workspace)
+}
+
+// TestUpdate_ReusesCachedWorkspace verifies the short-circuit — once
+// status.atProvider.workspace carries a canonical ID, the apply path
+// must NOT re-resolve via the org gateway. Re-resolving on every
+// reconcile would defeat the cache and re-introduce the ListWorkspaces
+// round-trip cost on the hot path.
+func TestUpdate_ReusesCachedWorkspace(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	ki.Status.AtProvider.Workspace = "ws-existing-id"
+	ki.Spec.ForProvider.Workspace = ""
+
+	// No ResolveWorkspace expectation — gomock will fail the test if
+	// the controller calls it.
+	var captured *kargov1.ApplyKargoInstanceRequest
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *kargov1.ApplyKargoInstanceRequest) error {
+			captured = req
+			return nil
+		}).Times(1)
+
+	_, err := e.Update(context.Background(), ki)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, "ws-existing-id", captured.GetWorkspaceId())
+}
+
+// TestCreate_WorkspaceResolutionErr surfaces ListWorkspaces failures
+// without firing ApplyKargoInstance — sending Apply with an empty
+// workspace_id is the bug we're trying to prevent.
+func TestCreate_WorkspaceResolutionErr(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	ki.Status.AtProvider.Workspace = ""
+	ki.Spec.ForProvider.Workspace = ""
+
+	mc.EXPECT().ResolveWorkspace(gomock.Any(), "").
+		Return(nil, errors.New("list workspaces failed")).Times(1)
+	// No ApplyKargoInstance expectation — must not fire on resolution
+	// failure.
+
+	_, err := e.Create(context.Background(), ki)
+	require.Error(t, err)
+	assert.Empty(t, ki.Status.AtProvider.Workspace,
+		"workspace must remain unset when resolution fails")
 }
 
 // TestDelete_EmptyExternalName short-circuits before the gateway call
