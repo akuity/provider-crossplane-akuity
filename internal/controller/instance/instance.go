@@ -178,6 +178,29 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		}
 	}
 
+	// Declarative Argo CD child-resource drift: Application,
+	// ApplicationSet, AppProject manifests on
+	// spec.forProvider.resources are additive — desired ⊆ observed.
+	// The struct compare ignores the Resources slice (Export does not
+	// return them inline; they live on the Applications /
+	// ApplicationSets / AppProjects slices on the response). Walk the
+	// already-fetched Export response and report drift if any desired
+	// child is missing or not subset-matched on the gateway. Removing
+	// an entry from spec is intentionally NOT drift — operators must
+	// delete via the Akuity platform UI.
+	if isUpToDate && len(mg.Spec.ForProvider.Resources) > 0 {
+		ok, report, rerr := argocdResourcesUpToDate(mg.Spec.ForProvider.Resources, akuityExportedInstance)
+		if rerr != nil {
+			mg.SetConditions(xpv1.ReconcileError(rerr))
+			return managed.ExternalObservation{}, rerr
+		}
+		if !ok {
+			e.Logger.Debug("argocd resources drift detected",
+				"missing", report.Missing, "changed", report.Changed)
+			isUpToDate = false
+		}
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: isUpToDate,
@@ -440,11 +463,17 @@ var ignoredArgocdCMKeys = []string{
 // ApplicationSet + the two repo-cred lists) are spec-only — the Akuity
 // Export endpoint returns the Secret data masked/nil, so comparing a
 // populated desired ref against an observed nil always flags drift and
-// an Apply fires every poll. These refs are write-only per §2.11; the
-// reconcile path rotates via status.atProvider.secretHash (when the
-// secret-resolution plumbing lands). Ignore them in the struct
-// comparison; drift detection for the referenced secret content lives
-// on the hash compare.
+// an Apply fires every poll. These refs are write-only; the reconcile
+// path rotates via status.atProvider.secretHash. Ignore them in the
+// struct comparison; drift detection for the referenced secret content
+// lives on the hash compare.
+//
+// Resources is ignored here too: declarative Argo CD children are
+// additive, the gateway returns them in separate Export slices
+// (Applications / ApplicationSets / AppProjects), and the struct
+// compare would flag desired=[...] vs observed=nil forever. The
+// argocdResourcesUpToDate side-check on the Export response replaces
+// the struct-level comparison for these.
 func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
 	return base.DriftSpec[v1alpha1.InstanceParameters]{
 		Ignore: []cmp.Option{
@@ -455,19 +484,6 @@ func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
 				"ApplicationSetSecretRef",
 				"RepoCredentialSecretRefs",
 				"RepoTemplateCredentialSecretRefs",
-				// Resources are additive declarative children (Application,
-				// ApplicationSet, AppProject). The Akuity gateway's
-				// ExportInstance does NOT return them inline — the
-				// CrossplaneExtension wire field only carries per-resource
-				// Group metadata for bookkeeping, not the full manifest,
-				// so the struct compare would flag desired=[...] vs
-				// observed=nil forever. KargoInstance uses the same
-				// IgnoreFields pattern (see kargoinstance.go driftSpec) and
-				// relies on a Side check for true drift detection. Tier 2
-				// 2.Children will add the Export-based side check mirroring
-				// kargoResourcesUpToDate; for Tier 1C it's enough that
-				// Apply carries the resources once at Create and struct
-				// compare stops churning per-poll.
 				"Resources",
 			),
 		},

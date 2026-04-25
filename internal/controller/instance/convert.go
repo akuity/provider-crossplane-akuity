@@ -18,6 +18,7 @@ package instance
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -37,7 +38,9 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	argocdtypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/argocd/v1alpha1"
@@ -341,6 +344,11 @@ func BuildApplyInstanceRequest(instance v1alpha1.Instance, sec resolvedInstanceS
 		return nil, err
 	}
 
+	argocdChildren, err := splitArgocdResources(instance.Spec.ForProvider.Resources)
+	if err != nil {
+		return nil, err
+	}
+
 	return &argocdv1.ApplyInstanceRequest{
 		IdType:                        idv1.Type_NAME,
 		Id:                            instance.Spec.ForProvider.Name,
@@ -359,6 +367,9 @@ func BuildApplyInstanceRequest(instance v1alpha1.Instance, sec resolvedInstanceS
 		ApplicationSetSecret:          applicationSetSecretPB,
 		RepoCredentialSecrets:         repoCredsPB,
 		RepoTemplateCredentialSecrets: repoTemplateCredsPB,
+		Applications:                  argocdChildren.Applications,
+		ApplicationSets:               argocdChildren.ApplicationSets,
+		AppProjects:                   argocdChildren.AppProjects,
 	}, nil
 }
 
@@ -741,4 +752,129 @@ func specToAppReconciliationsRateLimiting(in *crossplanetypes.AppReconciliations
 	}
 
 	return rl, nil
+}
+
+// Declarative Argo CD child-resource contract. Each entry in
+// spec.forProvider.resources must carry one of these
+// (apiVersion, kind) pairs; anything else is rejected at reconcile
+// entry. Matches the kinds the Akuity gateway's ApplyInstance proto
+// accepts on its Applications / ApplicationSets / AppProjects slices.
+const (
+	argocdAPIVersion           = "argoproj.io/v1alpha1"
+	argocdKindApplication      = "Application"
+	argocdKindApplicationSet   = "ApplicationSet"
+	argocdKindAppProject       = "AppProject"
+	errSecretInArgocdResources = "resources[%d]: v1/Secret entries are not accepted; use spec.forProvider.argocdSecretRef or spec.forProvider.repoCredentialSecretRefs"
+)
+
+// argocdChildren is the per-kind breakdown of the user's
+// spec.forProvider.resources bundle, already marshalled into the
+// structpb.Struct shape the ApplyInstance proto expects on its
+// Applications / ApplicationSets / AppProjects slices. Mirrors the
+// kargoChildren shape on the KargoInstance controller — the wire shape
+// is the only thing that differs.
+type argocdChildren struct {
+	Applications    []*structpb.Struct
+	ApplicationSets []*structpb.Struct
+	AppProjects     []*structpb.Struct
+}
+
+// splitArgocdResources validates each spec.forProvider.resources
+// entry and routes it into argocdChildren by (apiVersion, kind).
+// Empty input yields a zero struct and no error so callers can
+// compose without pre-checks. Mirrors splitKargoResources on the
+// KargoInstance controller.
+//
+// Inline v1/Secret entries are rejected as a terminal error: storing
+// plaintext credential data on an MR spec is the very thing the typed
+// SecretRef fields exist to avoid. The terminal classification halts
+// the reconcile loop on the bad input rather than retrying it on
+// every poll while admission controllers complain.
+func splitArgocdResources(in []runtime.RawExtension) (argocdChildren, error) {
+	out := argocdChildren{}
+	if len(in) == 0 {
+		return out, nil
+	}
+	for i, raw := range in {
+		if err := routeArgocdResource(&out, i, raw); err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
+// routeArgocdResource decodes a single resources[i] entry, runs the
+// allowlist + Secret-rejection checks, and appends the encoded
+// structpb onto the matching kind slice. Split out from
+// splitArgocdResources so the per-entry validation pipeline stays
+// readable without inflating the parent's cyclomatic complexity.
+func routeArgocdResource(out *argocdChildren, i int, raw runtime.RawExtension) error {
+	if len(raw.Raw) == 0 {
+		return fmt.Errorf("resources[%d]: empty payload", i)
+	}
+	obj := map[string]interface{}{}
+	if err := json.Unmarshal(raw.Raw, &obj); err != nil {
+		return fmt.Errorf("resources[%d]: invalid JSON: %w", i, err)
+	}
+	apiVersion, _ := obj["apiVersion"].(string)
+	kind, _ := obj["kind"].(string)
+	if apiVersion == "v1" && kind == "Secret" {
+		return reason.AsTerminal(fmt.Errorf(errSecretInArgocdResources, i))
+	}
+	pb, err := structpb.NewStruct(obj)
+	if err != nil {
+		return fmt.Errorf("resources[%d]: structpb encode: %w", i, err)
+	}
+	if apiVersion != argocdAPIVersion {
+		return fmt.Errorf("resources[%d]: unsupported %s/%s", i, apiVersion, kind)
+	}
+	switch kind {
+	case argocdKindApplication:
+		out.Applications = append(out.Applications, pb)
+	case argocdKindApplicationSet:
+		out.ApplicationSets = append(out.ApplicationSets, pb)
+	case argocdKindAppProject:
+		out.AppProjects = append(out.AppProjects, pb)
+	default:
+		return fmt.Errorf("resources[%d]: unsupported %s/%s", i, apiVersion, kind)
+	}
+	return nil
+}
+
+// argocdResourcesUpToDate reports whether every declarative Argo CD
+// child listed in spec.forProvider.resources is present on the gateway
+// with an equivalent payload. Mirrors kargoResourcesUpToDate on the
+// KargoInstance controller: additive semantics, desired ⊆ observed.
+// Removing an entry from spec does NOT trigger server-side deletion —
+// out-of-band resources managed via the Akuity UI must not be wiped
+// by a missing entry on the Crossplane side.
+func argocdResourcesUpToDate(desired []runtime.RawExtension, exp *argocdv1.ExportInstanceResponse) (bool, children.DriftReport, error) {
+	if len(desired) == 0 {
+		return true, children.DriftReport{}, nil
+	}
+	desiredIdx, err := children.Index(desired)
+	if err != nil {
+		return false, children.DriftReport{}, fmt.Errorf("resources: %w", err)
+	}
+	observedAll := make(map[children.Identity]map[string]interface{})
+	groups := [][]*structpb.Struct{
+		exp.GetApplications(),
+		exp.GetApplicationSets(),
+		exp.GetAppProjects(),
+	}
+	for _, group := range groups {
+		group := group
+		idx, err := children.IndexStructs(group)
+		if err != nil {
+			// Defer the failure to the Apply path rather than failing
+			// the reconcile loop on a transient decode issue.
+			//nolint:nilerr // intentional swallow; see comment above
+			return true, children.DriftReport{}, nil
+		}
+		for k, v := range idx {
+			observedAll[k] = v
+		}
+	}
+	report := children.Compare(desiredIdx, observedAll)
+	return report.Empty(), report, nil
 }
