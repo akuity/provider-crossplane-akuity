@@ -59,7 +59,7 @@ type NamedSecretReference struct {
 	SecretRef xpv1.SecretReference `json:"secretRef"`
 }
 
-func (r NamedSecretReference) CredentialName() string {
+func (r *NamedSecretReference) CredentialName() string {
 	if r.Name != "" {
 		return r.Name
 	}

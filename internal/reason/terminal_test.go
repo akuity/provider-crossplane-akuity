@@ -17,7 +17,7 @@ func TestAsTerminal(t *testing.T) {
 	tw := reason.AsTerminal(err)
 	assert.Equal(t, err.Error(), tw.Error())
 	assert.True(t, reason.IsTerminal(tw))
-	assert.True(t, errors.Is(tw, err))
+	assert.ErrorIs(t, tw, err)
 }
 
 func TestIsTerminal_NotWrapped(t *testing.T) {

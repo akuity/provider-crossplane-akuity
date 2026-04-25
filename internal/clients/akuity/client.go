@@ -1051,7 +1051,7 @@ func (c client) orgRequired(op string) error {
 // codes.NotFound semantics surfaced via reason.NotFound when no match
 // exists so callers can distinguish "workspace not found" from
 // "transient gateway error".
-func (c client) ResolveWorkspace(ctx context.Context, name string) (*orgcv1.Workspace, error) {
+func (c client) ResolveWorkspace(ctx context.Context, name string) (*orgcv1.Workspace, error) { //nolint:gocyclo // Branching is naturally one-per-state for the dual ID/name resolution path; splitting into helpers obscures the intended precedence.
 	if err := c.orgRequired("ResolveWorkspace"); err != nil {
 		return nil, err
 	}

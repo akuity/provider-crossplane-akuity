@@ -140,7 +140,7 @@ func projectValue(src reflect.Value, presence FieldPresence) reflect.Value { //n
 		return src
 	}
 
-	switch src.Kind() {
+	switch src.Kind() { //nolint:exhaustive // only Pointer/Struct/Map need recursive projection; other kinds fall through to whole-field copy.
 	case reflect.Pointer:
 		if src.IsNil() {
 			return reflect.Zero(src.Type())
