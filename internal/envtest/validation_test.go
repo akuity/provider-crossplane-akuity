@@ -467,6 +467,68 @@ func TestKargoAgent_AkuityManagedImmutable(t *testing.T) {
 	assert.Contains(t, err.Error(), "akuityManaged is immutable after create")
 }
 
+// TestKargoInstance_KargoConfigMapKeyAllowlist covers the map-key
+// XValidation on kargoConfigMap. The platform's PatchKargoInstance
+// receiver strictly protojson-unmarshals into the closed-set
+// KargoApiCM proto; any unknown key crashes the unmarshal and would
+// otherwise hot-loop the reconciler on every poll. Admission rejects
+// unknown keys so users get an immediate, fixable error.
+func TestKargoInstance_KargoConfigMapKeyAllowlist(t *testing.T) {
+	ctx := context.Background()
+
+	withEnabled := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-enabled"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:           "ki-cm-1",
+				Kargo:          minimalKargoSpec(),
+				KargoConfigMap: map[string]string{"admin_account_enabled": "true"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withEnabled), "admin_account_enabled must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withEnabled) })
+
+	withTTL := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-ttl"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:           "ki-cm-2",
+				Kargo:          minimalKargoSpec(),
+				KargoConfigMap: map[string]string{"admin_account_token_ttl": "24h"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withTTL), "admin_account_token_ttl must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withTTL) })
+
+	withoutCM := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-absent"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:  "ki-cm-3",
+				Kargo: minimalKargoSpec(),
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withoutCM), "absent kargoConfigMap must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withoutCM) })
+
+	withUnknown := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-unknown"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:           "ki-cm-4",
+				Kargo:          minimalKargoSpec(),
+				KargoConfigMap: map[string]string{"some_unknown_key": "value"},
+			},
+		},
+	}
+	err := kube.Create(ctx, withUnknown)
+	require.Error(t, err, "apiserver must reject KargoInstance with unknown kargoConfigMap key")
+	assert.Contains(t, err.Error(), "kargoConfigMap accepts only these keys")
+}
+
 // TestCluster_InstanceIDImmutable covers the id/ref-immutable rule on
 // ClusterParameters. The rule blocks flipping instanceId between two
 // values and flipping the *shape* of the reference (id <-> ref).

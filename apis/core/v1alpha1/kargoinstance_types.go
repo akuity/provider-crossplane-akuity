@@ -27,6 +27,23 @@ import (
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
+// KargoConfigMapAllowedKeys mirrors the field names on the platform's
+// KargoApiCM proto (akuity-platform/pkg/api/gen/kargo/v1/kargo.pb.go,
+// search for `type KargoApiCM struct`). Any key outside this set
+// causes ApplyKargoInstance on the platform to fail strict protojson
+// unmarshal because the receiver decodes the patched instance into
+// KargoApiCM with no DiscardUnknown. The CRD CEL rule on
+// KargoInstanceParameters enforces the same set at admission so users
+// get an immediate error instead of a cryptic Apply retry storm.
+//
+// The Go list and the CEL string are hand-typed in two places, kept in
+// sync conceptually by this comment. Updating one requires updating
+// the other, both keyed off the same upstream proto.
+var KargoConfigMapAllowedKeys = []string{
+	"admin_account_enabled",
+	"admin_account_token_ttl",
+}
+
 // KargoInstanceParameters are the configurable fields of a Kargo
 // instance.
 //
@@ -36,6 +53,10 @@ import (
 //     the secret map can keep doing so; new deployments should use
 //     dexConfigSecretRef so plaintext never lives on the managed
 //     resource spec.
+//   - kargoConfigMap keys are constrained to the platform's KargoApiCM
+//     proto field set (see kargoConfigMapAllowedKeys above). Any other
+//     key would crash ApplyKargoInstance's strict protojson unmarshal
+//     server-side and hot-loop the reconciler on retries.
 //
 // v1/Secret manifests are forbidden inside resources, but the check
 // lives in the controller (splitKargoResources) rather than CEL: the
@@ -47,6 +68,7 @@ import (
 //
 // +kubebuilder:validation:XValidation:rule="!has(self.kargo.oidcConfig) || !has(self.kargo.oidcConfig.dexConfigSecretRef) || !has(self.kargo.oidcConfig.dexConfigSecret) || size(self.kargo.oidcConfig.dexConfigSecret) == 0",message="set either kargo.oidcConfig.dexConfigSecretRef or kargo.oidcConfig.dexConfigSecret, not both"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(self.kargoConfigMap) || self.kargoConfigMap.all(k, k in ['admin_account_enabled', 'admin_account_token_ttl'])",message="kargoConfigMap accepts only these keys: admin_account_enabled, admin_account_token_ttl. Other keys are silently rejected by the platform."
 type KargoInstanceParameters struct {
 	// Name of the Kargo instance in the Akuity Platform. Required.
 	// +kubebuilder:validation:Required

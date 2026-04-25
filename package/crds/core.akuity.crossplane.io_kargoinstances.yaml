@@ -84,6 +84,10 @@ spec:
                       the secret map can keep doing so; new deployments should use
                       dexConfigSecretRef so plaintext never lives on the managed
                       resource spec.
+                    - kargoConfigMap keys are constrained to the platform's KargoApiCM
+                      proto field set (see kargoConfigMapAllowedKeys above). Any other
+                      key would crash ApplyKargoInstance's strict protojson unmarshal
+                      server-side and hot-loop the reconciler on retries.
 
                   v1/Secret manifests are forbidden inside resources, but the check
                   lives in the controller (splitKargoResources) rather than CEL: the
@@ -537,6 +541,11 @@ spec:
                     == 0'
                 - message: name is immutable
                   rule: self.name == oldSelf.name
+                - message: 'kargoConfigMap accepts only these keys: admin_account_enabled,
+                    admin_account_token_ttl. Other keys are silently rejected by the
+                    platform.'
+                  rule: '!has(self.kargoConfigMap) || self.kargoConfigMap.all(k, k
+                    in [''admin_account_enabled'', ''admin_account_token_ttl''])'
               managementPolicies:
                 default:
                 - '*'
