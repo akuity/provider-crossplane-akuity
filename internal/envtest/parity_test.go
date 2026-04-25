@@ -288,9 +288,10 @@ func TestKargoInstance_KargoResourcesRoundTrip(t *testing.T) {
 }
 
 // TestKargoInstance_RepoCredentialSecretRefs covers the typed
-// repo-credential ref field: CredType enum and admission-safe shape
-// validation. Effective-name validation for omitted Name values and
-// duplicate (projectNamespace, effective name) pairs runs in the
+// repo-credential ref field: optional project namespace / cred type,
+// CredType enum when specified, and admission-safe shape validation.
+// Effective-name validation for omitted Name values and duplicate
+// (effective project namespace, effective name) pairs runs in the
 // controller because upstream SecretReference does not bound name
 // length tightly enough for the equivalent CEL rule.
 func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
@@ -314,6 +315,23 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 	}
 	require.NoError(t, kube.Create(ctx, good), "well-formed ref must be accepted")
 	t.Cleanup(func() { _ = kube.Delete(ctx, good) })
+
+	derived := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-repocreds-derived"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:  "ki-repocreds-derived",
+				Kargo: minimalKargoSpec(),
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+				}},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, derived), "projectNamespace and credType may be derived at reconcile time")
+	t.Cleanup(func() { _ = kube.Delete(ctx, derived) })
 
 	badType := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "ki-repocreds-badtype"},

@@ -68,25 +68,26 @@ func (r NamedSecretReference) CredentialName() string {
 
 // KargoRepoCredentialSecretRef binds a Kargo repository-credential slot
 // to a kube Secret. Mirrors the ArgoCD NamedSecretReference
-// pattern — no plaintext on the MR spec — but carries the extra
-// Kargo-specific identity bits (project namespace + credential type)
-// needed to route the resulting Secret into the correct Kargo project
-// on the gateway.
+// pattern — no plaintext on the MR spec — while allowing Kargo-specific
+// routing metadata to be set explicitly or derived from the source Secret.
 type KargoRepoCredentialSecretRef struct {
 	NamedSecretReference `json:",inline"`
 
 	// ProjectNamespace is the Kargo project namespace the credential
-	// belongs to. Kargo enforces DNS-1123 naming on project
-	// namespaces; the Pattern here mirrors that.
-	// +kubebuilder:validation:Required
+	// belongs to. Defaults to SecretRef.Namespace when omitted. Kargo
+	// enforces DNS-1123 naming on project namespaces; the Pattern here
+	// mirrors that.
+	// +optional
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][a-z0-9-]*$`
-	ProjectNamespace string `json:"projectNamespace"`
+	ProjectNamespace string `json:"projectNamespace,omitempty"`
 
 	// CredType selects the Kargo credential family. Stamped onto the
 	// Secret as the kargo.akuity.io/cred-type label before submission.
-	// +kubebuilder:validation:Required
+	// Defaults to the referenced Secret's kargo.akuity.io/cred-type
+	// label when omitted.
+	// +optional
 	// +kubebuilder:validation:Enum=git;helm;generic;image
-	CredType string `json:"credType"`
+	CredType string `json:"credType,omitempty"`
 }

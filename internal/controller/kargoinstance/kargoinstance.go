@@ -24,7 +24,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
+	"strings"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
@@ -81,6 +83,12 @@ const (
 	coreKindSecret = "Secret"
 
 	kargoCredTypeLabel = "kargo.akuity.io/cred-type"
+	kargoCredTypeGit   = "git"
+	kargoCredTypeHelm  = "helm"
+	kargoCredTypeGen   = "generic"
+	kargoCredTypeImage = "image"
+
+	kargoDNS1123LabelPattern = `^[a-z0-9][a-z0-9-]*$`
 )
 
 // driftSpec is the struct-level drift recipe for KargoInstance.
@@ -178,7 +186,11 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 // plaintext never lives on the MR spec.
 const errSecretInKargoResources = "resources[%d]: v1/Secret entries are not accepted; use spec.forProvider.kargoRepoCredentialSecretRefs"
 
-var kargoRepoCredentialNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+var (
+	kargoDNS1123LabelRE = regexp.MustCompile(kargoDNS1123LabelPattern)
+	kargoCredTypes      = []string{kargoCredTypeGit, kargoCredTypeHelm, kargoCredTypeGen, kargoCredTypeImage}
+	kargoCredTypesMsg   = strings.Join(kargoCredTypes, ", ")
+)
 
 // Setup registers the controller with the manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
@@ -712,10 +724,11 @@ type kargoResolvedSecret struct {
 
 // kargoResolvedRepoCred is a single entry out of
 // KargoRepoCredentialSecretRefs after its backing kube Secret has
-// been resolved. Slot+ProjectNamespace form the identity; CredType
-// becomes the kargo.akuity.io/cred-type label; SecretNamespace and
-// SecretName participate in the hash so a move/rename with identical
-// content rotates the digest.
+// been resolved. Slot+ProjectNamespace form the identity; CredType is
+// either explicit or derived from the source Secret label and becomes
+// the kargo.akuity.io/cred-type label; SecretNamespace and SecretName
+// participate in the hash so a move/rename with identical content
+// rotates the digest.
 type kargoResolvedRepoCred struct {
 	Slot             string
 	ProjectNamespace string
@@ -840,38 +853,67 @@ func resolveKargoDexSecret(ctx context.Context, kube client.Client, mg *v1alpha1
 }
 
 // resolveKargoRepoCreds resolves each typed repo-credential ref in
-// spec order. Duplicate (projectNamespace, effective name) pairs are
-// rejected at reconcile time in addition to the CRD-level CEL
-// uniqueness rule, so in-cluster drift of already-admitted objects
-// still gets caught.
+// spec order. ProjectNamespace defaults to SecretRef.Namespace and
+// CredType defaults to the source Secret's kargo.akuity.io/cred-type
+// label. Duplicate (effective projectNamespace, effective name) pairs
+// are rejected at reconcile time, so in-cluster drift of already-
+// admitted objects still gets caught.
 func resolveKargoRepoCreds(ctx context.Context, kube client.Client, refs []v1alpha1.KargoRepoCredentialSecretRef) ([]kargoResolvedRepoCred, error) {
 	out := make([]kargoResolvedRepoCred, 0, len(refs))
 	seen := map[string]struct{}{}
 	for i := range refs {
 		r := &refs[i]
 		slot := r.CredentialName()
-		if !kargoRepoCredentialNameRE.MatchString(slot) {
-			return nil, fmt.Errorf("%w: slot %q must match ^[a-z0-9][a-z0-9-]*$", secrets.ErrInvalidSecretReference, slot)
+		if !kargoDNS1123LabelRE.MatchString(slot) {
+			return nil, fmt.Errorf("%w: slot %q must match %s", secrets.ErrInvalidSecretReference, slot, kargoDNS1123LabelPattern)
 		}
-		key := r.ProjectNamespace + "/" + slot
+		// Resolve before the final duplicate check because the effective
+		// credType may be derived from the source Secret label.
+		resolved, err := secrets.Resolve(ctx, kube, &r.SecretRef)
+		if err != nil {
+			return nil, fmt.Errorf("slot %q: %w", slot, err)
+		}
+		projectNamespace := effectiveKargoProjectNamespace(r)
+		if !kargoDNS1123LabelRE.MatchString(projectNamespace) {
+			return nil, fmt.Errorf("%w: slot %q projectNamespace %q must match %s", secrets.ErrInvalidSecretReference, slot, projectNamespace, kargoDNS1123LabelPattern)
+		}
+		credType := effectiveKargoCredType(r, resolved.Labels)
+		if !isKargoCredType(credType) {
+			return nil, fmt.Errorf("%w: repo credential %q credType must be one of %s", secrets.ErrInvalidSecretReference, projectNamespace+"/"+slot, kargoCredTypesMsg)
+		}
+		key := projectNamespace + "/" + slot
 		if _, dup := seen[key]; dup {
 			return nil, fmt.Errorf("%w: duplicate slot %q", secrets.ErrInvalidSecretReference, key)
 		}
 		seen[key] = struct{}{}
-		resolved, err := secrets.Resolve(ctx, kube, &r.SecretRef)
-		if err != nil {
-			return nil, fmt.Errorf("slot %q: %w", key, err)
-		}
 		out = append(out, kargoResolvedRepoCred{
 			Slot:             slot,
-			ProjectNamespace: r.ProjectNamespace,
-			CredType:         r.CredType,
+			ProjectNamespace: projectNamespace,
+			CredType:         credType,
 			SecretNamespace:  resolved.Namespace,
 			SecretName:       resolved.Name,
 			Data:             resolved.Data,
 		})
 	}
 	return out, nil
+}
+
+func effectiveKargoProjectNamespace(r *v1alpha1.KargoRepoCredentialSecretRef) string {
+	if r.ProjectNamespace != "" {
+		return r.ProjectNamespace
+	}
+	return r.SecretRef.Namespace
+}
+
+func effectiveKargoCredType(r *v1alpha1.KargoRepoCredentialSecretRef, labels map[string]string) string {
+	if r.CredType != "" {
+		return r.CredType
+	}
+	return labels[kargoCredTypeLabel]
+}
+
+func isKargoCredType(v string) bool {
+	return slices.Contains(kargoCredTypes, v)
 }
 
 // kargoRepoCredsToPB serialises each resolved repo credential into a

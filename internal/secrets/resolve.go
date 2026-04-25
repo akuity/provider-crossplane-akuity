@@ -66,6 +66,7 @@ func AsTerminalIfConfig(err error) error {
 type ResolvedSecret struct {
 	Namespace string
 	Name      string
+	Labels    map[string]string
 	Data      map[string]string
 }
 
@@ -110,7 +111,7 @@ func resolve(ctx context.Context, c client.Client, namespace, name string) (Reso
 	if len(data) == 0 {
 		return ResolvedSecret{}, fmt.Errorf("%w: %s/%s", ErrEmptySecret, namespace, name)
 	}
-	return ResolvedSecret{Namespace: namespace, Name: name, Data: data}, nil
+	return ResolvedSecret{Namespace: namespace, Name: name, Labels: copyStringMap(sec.Labels), Data: data}, nil
 }
 
 // ResolveAllKeys loads the Secret at ref and returns a copy of its data
@@ -204,6 +205,17 @@ func bytesToStringMap(in map[string][]byte) map[string]string {
 	out := make(map[string]string, len(in))
 	for k, v := range in {
 		out[k] = string(v)
+	}
+	return out
+}
+
+func copyStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
 	}
 	return out
 }

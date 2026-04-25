@@ -342,7 +342,11 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
 	sec := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "repo-github"},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "team-a",
+			Name:      "repo-github",
+			Labels:    map[string]string{kargoCredTypeLabel: "helm"},
+		},
 		Data: map[string][]byte{
 			"repoURL":  []byte("https://github.com/acme/platform.git"),
 			"username": []byte("bot"),
@@ -370,25 +374,114 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 	rc := got.RepoCredentials[0]
 	assert.Equal(t, "repo-github", rc.Slot)
 	assert.Equal(t, "platform", rc.ProjectNamespace)
-	assert.Equal(t, "git", rc.CredType)
+	assert.Equal(t, "git", rc.CredType, "explicit credType must override source Secret label")
 	assert.Equal(t, "team-a", rc.SecretNamespace)
 	assert.Equal(t, "repo-github", rc.SecretName)
 	assert.Equal(t, "ghp-xyz", rc.Data["password"])
 	assert.NotEmpty(t, got.Hash(), "repo-cred resolution must contribute to the digest")
 }
 
+func TestResolveKargoSecrets_RepoCredsDerivesMetadata(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "platform",
+			Name:      "repo-github",
+			Labels:    map[string]string{kargoCredTypeLabel: "git"},
+		},
+		Data: map[string][]byte{"password": []byte("ghp-xyz")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+				}},
+			},
+		},
+	}
+	got, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.NoError(t, err)
+	require.Len(t, got.RepoCredentials, 1)
+	assert.Equal(t, "platform", got.RepoCredentials[0].ProjectNamespace)
+	assert.Equal(t, "git", got.RepoCredentials[0].CredType)
+}
+
+func TestResolveKargoSecrets_RepoCredsRejectsMissingDerivedCredType(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "platform", Name: "repo-github"},
+		Data:       map[string][]byte{"password": []byte("x")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+				}},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "credType")
+}
+
+func TestResolveKargoSecrets_RepoCredsRejectsInvalidDerivedCredType(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "platform",
+			Name:      "repo-github",
+			Labels:    map[string]string{kargoCredTypeLabel: "oci"},
+		},
+		Data: map[string][]byte{"password": []byte("x")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+				}},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "credType")
+}
+
 // TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot guards against
-// a CEL bypass (e.g. admission race) for (projectNamespace, effective
-// name) uniqueness: the controller runs the check again at reconcile
-// time.
+// a CEL bypass (e.g. admission race) for (effective project namespace,
+// effective name) uniqueness: the controller runs the check again at
+// reconcile time.
 func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
 	sec := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "s"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "s", Labels: map[string]string{kargoCredTypeLabel: "git"}},
 		Data:       map[string][]byte{"password": []byte("x")},
 	}
-	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	repo := sec.DeepCopy()
+	repo.Name = "repo-github"
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec, repo).Build()
+	// The first ref uses explicit Name + derived projectNamespace;
+	// the second derives both. Both collapse to team-a/repo-github.
 	mg := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha1.KargoInstanceSpec{
@@ -399,15 +492,11 @@ func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 							Name:      "repo-github",
 							SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "s"},
 						},
-						ProjectNamespace: "platform",
-						CredType:         "git",
 					},
 					{
 						NamedSecretReference: v1alpha1.NamedSecretReference{
 							SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "repo-github"},
 						},
-						ProjectNamespace: "platform",
-						CredType:         "git",
 					},
 				},
 			},

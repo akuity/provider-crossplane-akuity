@@ -109,9 +109,12 @@ type KargoInstanceParameters struct {
 	// with the Kargo gateway. Each entry's SecretRef points at a
 	// namespaced Secret; the controller synthesises a
 	// labelled Kargo-shaped Secret (kargo.akuity.io/cred-type=<type>)
-	// named after the effective slot, writes it into the entry's
-	// ProjectNamespace, and forwards it to ApplyKargoInstance. If an
-	// entry omits Name, the controller uses SecretRef.Name as the slot.
+	// named after the effective slot, writes it into the effective
+	// Kargo project namespace, and forwards it to ApplyKargoInstance.
+	// If an entry omits Name, the controller uses SecretRef.Name as
+	// the slot. If ProjectNamespace is omitted, the controller uses
+	// SecretRef.Namespace. If CredType is omitted, the controller uses
+	// the referenced Secret's kargo.akuity.io/cred-type label.
 	// Plaintext never lives on the managed resource spec.
 	//
 	// Drift: this field is write-only on the Kargo gateway — the
@@ -122,7 +125,7 @@ type KargoInstanceParameters struct {
 	// UI or API if it should be removed.
 	// Explicit Name values are validated at admission. When Name is
 	// omitted, the controller validates the effective SecretRef.Name
-	// and duplicate (projectNamespace, effective name) pairs at
+	// and duplicate (effective project namespace, effective name) pairs at
 	// reconcile time; the upstream Crossplane SecretReference schema
 	// intentionally does not bound name length, so equivalent CEL rules
 	// would exceed the apiserver's CRD cost budget.

@@ -401,9 +401,12 @@ spec:
                       with the Kargo gateway. Each entry's SecretRef points at a
                       namespaced Secret; the controller synthesises a
                       labelled Kargo-shaped Secret (kargo.akuity.io/cred-type=<type>)
-                      named after the effective slot, writes it into the entry's
-                      ProjectNamespace, and forwards it to ApplyKargoInstance. If an
-                      entry omits Name, the controller uses SecretRef.Name as the slot.
+                      named after the effective slot, writes it into the effective
+                      Kargo project namespace, and forwards it to ApplyKargoInstance.
+                      If an entry omits Name, the controller uses SecretRef.Name as
+                      the slot. If ProjectNamespace is omitted, the controller uses
+                      SecretRef.Namespace. If CredType is omitted, the controller uses
+                      the referenced Secret's kargo.akuity.io/cred-type label.
                       Plaintext never lives on the managed resource spec.
 
                       Drift: this field is write-only on the Kargo gateway — the
@@ -414,7 +417,7 @@ spec:
                       UI or API if it should be removed.
                       Explicit Name values are validated at admission. When Name is
                       omitted, the controller validates the effective SecretRef.Name
-                      and duplicate (projectNamespace, effective name) pairs at
+                      and duplicate (effective project namespace, effective name) pairs at
                       reconcile time; the upstream Crossplane SecretReference schema
                       intentionally does not bound name length, so equivalent CEL rules
                       would exceed the apiserver's CRD cost budget.
@@ -422,15 +425,15 @@ spec:
                       description: |-
                         KargoRepoCredentialSecretRef binds a Kargo repository-credential slot
                         to a kube Secret. Mirrors the ArgoCD NamedSecretReference
-                        pattern — no plaintext on the MR spec — but carries the extra
-                        Kargo-specific identity bits (project namespace + credential type)
-                        needed to route the resulting Secret into the correct Kargo project
-                        on the gateway.
+                        pattern — no plaintext on the MR spec — while allowing Kargo-specific
+                        routing metadata to be set explicitly or derived from the source Secret.
                       properties:
                         credType:
                           description: |-
                             CredType selects the Kargo credential family. Stamped onto the
                             Secret as the kargo.akuity.io/cred-type label before submission.
+                            Defaults to the referenced Secret's kargo.akuity.io/cred-type
+                            label when omitted.
                           enum:
                           - git
                           - helm
@@ -447,8 +450,9 @@ spec:
                         projectNamespace:
                           description: |-
                             ProjectNamespace is the Kargo project namespace the credential
-                            belongs to. Kargo enforces DNS-1123 naming on project
-                            namespaces; the Pattern here mirrors that.
+                            belongs to. Defaults to SecretRef.Namespace when omitted. Kargo
+                            enforces DNS-1123 naming on project namespaces; the Pattern here
+                            mirrors that.
                           maxLength: 253
                           minLength: 1
                           pattern: ^[a-z0-9][a-z0-9-]*$
@@ -475,8 +479,6 @@ spec:
                             rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
                               && size(self.namespace) > 0
                       required:
-                      - credType
-                      - projectNamespace
                       - secretRef
                       type: object
                     maxItems: 128
