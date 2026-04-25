@@ -301,6 +301,57 @@ func TestCreate_ApplyErr(t *testing.T) {
 	assert.Empty(t, meta.GetExternalName(ki), "external name must not be set on Apply failure")
 }
 
+// TestUpdate_InvalidArgument_Terminal asserts that the gateway returning
+// codes.InvalidArgument from Apply (e.g. a SecretRef populated with a
+// reserved key like server.secretkey or a Kargo repo cred whose project
+// namespace doesn't yet exist on the cluster) is wrapped as
+// reason.Terminal so retries don't hammer portal-server until the user
+// fixes the spec.
+func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(grpcstatus.Error(codes.InvalidArgument, "reserved key admin.password")).
+		Times(1)
+	_, err := e.Update(context.Background(), ki)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from ApplyKargoInstance must be reason.Terminal-classified, got %T %v", err, err)
+}
+
+// TestCreate_InvalidArgument_Terminal mirrors the Update assertion for
+// the Create path — a first-Apply rejection must not hot-loop either.
+func TestCreate_InvalidArgument_Terminal(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(grpcstatus.Error(codes.InvalidArgument, "kargo project namespace not found")).
+		Times(1)
+	_, err := e.Create(context.Background(), ki)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from ApplyKargoInstance must be reason.Terminal-classified, got %T %v", err, err)
+	assert.Empty(t, meta.GetExternalName(ki))
+}
+
+// TestUpdate_ProvisioningWait_NotTerminal locks in that the
+// "still being provisioned" InvalidArgument substring stays retryable
+// rather than being downgraded to Terminal — KargoInstance bootstrapping
+// is transient.
+func TestUpdate_ProvisioningWait_NotTerminal(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(provisioningWaitErr()).Times(1)
+	_, err := e.Update(context.Background(), ki)
+	require.Error(t, err)
+	assert.False(t, reason.IsTerminal(err),
+		"provisioning-wait InvalidArgument must stay retryable, got Terminal: %v", err)
+	assert.True(t, reason.IsRetryable(err))
+}
+
 // TestDelete_EmptyExternalName short-circuits before the gateway call
 // so Crossplane can release the finalizer on MRs that never got an
 // external name (Create failed before SetExternalName).

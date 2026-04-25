@@ -44,6 +44,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
@@ -196,7 +197,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 	}
 
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
-		return managed.ExternalCreation{}, err
+		return managed.ExternalCreation{}, reason.ClassifyApplyError(err)
 	}
 	mg.Status.AtProvider.SecretHash = sec.Hash()
 	meta.SetExternalName(mg, request.GetId())
@@ -215,7 +216,7 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 		return managed.ExternalUpdate{}, errors.New(errTransformInstance)
 	}
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
-		return managed.ExternalUpdate{}, err
+		return managed.ExternalUpdate{}, reason.ClassifyApplyError(err)
 	}
 	mg.Status.AtProvider.SecretHash = sec.Hash()
 	return managed.ExternalUpdate{}, nil

@@ -53,6 +53,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
@@ -497,7 +498,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 		RepoCredentials:       repoCredsPB,
 	}
 	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
-		return err
+		return reason.ClassifyApplyError(err)
 	}
 	setSecretHash(mg, sec.Hash())
 	setConfigMapHash(mg, hashConfigMap(desiredCM))
