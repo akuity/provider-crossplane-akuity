@@ -75,16 +75,27 @@ spec:
                 properties:
                   applicationSetSecretRef:
                     description: |-
-                      ApplicationSetSecretRef references a Secret whose data is sent
-                      verbatim as the argocd-application-set-secret payload
-                      (ApplicationSet plugin credentials).
+                      ApplicationSetSecretRef references a namespaced Secret whose data
+                      is sent verbatim as the argocd-application-set-secret payload
+                      (ApplicationSet plugin credentials). Removing this ref stops
+                      applying the platform-side Secret, but does not delete it from
+                      the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: applicationSetSecretRef.name and applicationSetSecretRef.namespace
+                        are required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
+                        && size(self.namespace) > 0
                   argocd:
                     description: The attributes of the instance. Required.
                     properties:
@@ -626,16 +637,27 @@ spec:
                     type: object
                   argocdImageUpdaterSecretRef:
                     description: |-
-                      ArgoCDImageUpdaterSecretRef references a Secret whose data is
-                      sent verbatim as the argocd-image-updater-secret payload
-                      (container registry credentials).
+                      ArgoCDImageUpdaterSecretRef references a namespaced Secret whose
+                      data is sent verbatim as the argocd-image-updater-secret payload
+                      (container registry credentials). Removing this ref stops
+                      applying the platform-side Secret, but does not delete it from
+                      the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: argocdImageUpdaterSecretRef.name and argocdImageUpdaterSecretRef.namespace
+                        are required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
+                        && size(self.namespace) > 0
                   argocdImageUpdaterSshConfigMap:
                     additionalProperties:
                       type: string
@@ -650,16 +672,27 @@ spec:
                     type: object
                   argocdNotificationsSecretRef:
                     description: |-
-                      ArgoCDNotificationsSecretRef references a Secret whose data is
-                      sent verbatim as the argocd-notifications-secret payload
-                      (SMTP, Slack, webhook tokens).
+                      ArgoCDNotificationsSecretRef references a namespaced Secret
+                      whose data is sent verbatim as the argocd-notifications-secret
+                      payload (SMTP, Slack, webhook tokens). Removing this ref stops
+                      applying the platform-side Secret, but does not delete it from
+                      the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: argocdNotificationsSecretRef.name and argocdNotificationsSecretRef.namespace
+                        are required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
+                        && size(self.namespace) > 0
                   argocdRbacConfigMap:
                     additionalProperties:
                       type: string
@@ -668,16 +701,28 @@ spec:
                     type: object
                   argocdSecretRef:
                     description: |-
-                      ArgoCDSecretRef references a Secret whose data is sent verbatim
-                      as the argocd-secret payload (admin.password, server.secretkey,
-                      dex.config, webhook.*.secret, oidc.*.clientSecret).
+                      ArgoCDSecretRef references a namespaced Secret whose data is sent
+                      verbatim as the argocd-secret payload (admin.password,
+                      server.secretkey, dex.config, webhook.*.secret,
+                      oidc.*.clientSecret). Removing this ref stops applying the
+                      platform-side Secret, but does not delete it from the Akuity
+                      platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: argocdSecretRef.name and argocdSecretRef.namespace
+                        are required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
+                        && size(self.namespace) > 0
                   argocdSshKnownHostsConfigMap:
                     additionalProperties:
                       type: string
@@ -806,44 +851,54 @@ spec:
                       ^repo-[a-z0-9][a-z0-9-]*$) becomes the server-side secret
                       identifier; the pointed-at Secret's data supplies the credential
                       key/value pairs (url, username, password, sshPrivateKey, etc.).
+                      If an entry omits Name, the controller uses SecretRef.Name as
+                      the server-side secret identifier.
+                      Removing an entry stops applying that platform-side credential,
+                      but does not delete it from the Akuity platform.
                     items:
                       description: |-
-                        NamedLocalSecretReference binds a gateway-facing credential name to a
-                        kube Secret. The Secret's data keys are forwarded to the Akuity
-                        gateway verbatim under the Name slot (e.g.
-                        repoCredentialSecrets["repo-github"] = {"url": "...", "password":
-                        "..."}).
+                        NamedSecretReference binds a gateway-facing credential name to a
+                        namespaced kube Secret. If Name is omitted, SecretRef.Name is used as
+                        the gateway credential name. Resource-specific controllers validate
+                        the effective name against the destination's rules.
                       properties:
                         name:
                           description: |-
-                            Name is the identifier under which this Secret's data is sent
-                            to the Akuity gateway. For ArgoCD repo credentials this must
-                            start with "repo-"; per-field CEL rules enforce a stricter
-                            pattern. The MaxLength matches Kubernetes object-name bounds
-                            and keeps CEL cost estimates within the apiserver's budget.
+                            Name is the optional identifier under which this Secret's data is
+                            sent to the Akuity gateway. When omitted, SecretRef.Name is used.
                           maxLength: 253
                           minLength: 1
                           type: string
                         secretRef:
                           description: |-
-                            SecretRef points at a Secret. All keys of that Secret are
-                            forwarded to the gateway verbatim.
+                            SecretRef points at a namespaced Secret. All keys of that Secret
+                            are forwarded to the gateway verbatim.
+                            OpenAPI required only enforces field presence, so the CEL size checks
+                            reject empty name/namespace strings explicitly.
                           properties:
                             name:
                               description: Name of the secret.
                               type: string
+                            namespace:
+                              description: Namespace of the secret.
+                              type: string
                           required:
                           - name
+                          - namespace
                           type: object
+                          x-kubernetes-validations:
+                          - message: secretRef.name and secretRef.namespace are required
+                            rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
+                              && size(self.namespace) > 0
                       required:
-                      - name
                       - secretRef
                       type: object
                     maxItems: 128
                     type: array
                     x-kubernetes-validations:
-                    - message: each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$
-                      rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
+                    - message: each repoCredentialSecretRefs[] name must match ^repo-[a-z0-9][a-z0-9-]*$
+                        when set
+                      rule: self.all(r, !has(r.name) || r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
                   repoTemplateCredentialSecretRefs:
                     description: |-
                       RepoTemplateCredentialSecretRefs registers scoped repository
@@ -851,48 +906,62 @@ spec:
                       RepoCredentialSecretRefs.
                     items:
                       description: |-
-                        NamedLocalSecretReference binds a gateway-facing credential name to a
-                        kube Secret. The Secret's data keys are forwarded to the Akuity
-                        gateway verbatim under the Name slot (e.g.
-                        repoCredentialSecrets["repo-github"] = {"url": "...", "password":
-                        "..."}).
+                        NamedSecretReference binds a gateway-facing credential name to a
+                        namespaced kube Secret. If Name is omitted, SecretRef.Name is used as
+                        the gateway credential name. Resource-specific controllers validate
+                        the effective name against the destination's rules.
                       properties:
                         name:
                           description: |-
-                            Name is the identifier under which this Secret's data is sent
-                            to the Akuity gateway. For ArgoCD repo credentials this must
-                            start with "repo-"; per-field CEL rules enforce a stricter
-                            pattern. The MaxLength matches Kubernetes object-name bounds
-                            and keeps CEL cost estimates within the apiserver's budget.
+                            Name is the optional identifier under which this Secret's data is
+                            sent to the Akuity gateway. When omitted, SecretRef.Name is used.
                           maxLength: 253
                           minLength: 1
                           type: string
                         secretRef:
                           description: |-
-                            SecretRef points at a Secret. All keys of that Secret are
-                            forwarded to the gateway verbatim.
+                            SecretRef points at a namespaced Secret. All keys of that Secret
+                            are forwarded to the gateway verbatim.
+                            OpenAPI required only enforces field presence, so the CEL size checks
+                            reject empty name/namespace strings explicitly.
                           properties:
                             name:
                               description: Name of the secret.
                               type: string
+                            namespace:
+                              description: Namespace of the secret.
+                              type: string
                           required:
                           - name
+                          - namespace
                           type: object
+                          x-kubernetes-validations:
+                          - message: secretRef.name and secretRef.namespace are required
+                            rule: has(self.name) && size(self.name) > 0 && has(self.namespace)
+                              && size(self.namespace) > 0
                       required:
-                      - name
                       - secretRef
                       type: object
                     maxItems: 128
                     type: array
                     x-kubernetes-validations:
-                    - message: each repoTemplateCredentialSecretRefs[].name must match
-                        ^repo-[a-z0-9][a-z0-9-]*$
-                      rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
+                    - message: each repoTemplateCredentialSecretRefs[] name must match
+                        ^repo-[a-z0-9][a-z0-9-]*$ when set
+                      rule: self.all(r, !has(r.name) || r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
                   resources:
                     description: |-
                       Resources carries raw YAML manifests for declarative ArgoCD
                       child resources (Application, ApplicationSet, AppProject).
                     x-kubernetes-preserve-unknown-fields: true
+                  workspace:
+                    description: |-
+                      Workspace is the Akuity workspace this Argo CD instance belongs to. The
+                      preferred value is the workspace ID because workspace-scoped gateway calls
+                      are routed by ID. A workspace name is also accepted and resolved before
+                      gateway calls. When omitted, the organization default workspace is used on
+                      create. The canonical workspace ID is reported in
+                      status.atProvider.workspace.
+                    type: string
                 required:
                 - argocd
                 - name
@@ -1686,6 +1755,8 @@ spec:
                       SecretHash is the SHA256 of the concatenation of every resolved
                       Secret referenced by spec.forProvider on the most recent Apply.
                       Used as the drift signal for Secret rotation.
+                    type: string
+                  workspace:
                     type: string
                 required:
                 - argocd

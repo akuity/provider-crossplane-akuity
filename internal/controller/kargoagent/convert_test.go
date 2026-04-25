@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,13 +32,21 @@ import (
 
 // TestApiToSpec_CarriesSpecOnlyFields verifies the key contract on
 // apiToSpec: fields the user owns locally (KargoInstanceID / Ref /
-// Workspace) must come from the *desired* struct, because the Akuity
-// API has no notion of the Crossplane MR's parent reference.
+// Workspace, plus the agent-install kubeconfig trio that never
+// round-trips through the Akuity gateway) must come from the *desired*
+// struct, because the Akuity API has no notion of the Crossplane MR's
+// parent reference or the managed cluster's kubeconfig source.
 func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{
 		KargoInstanceID:  "ki-1",
 		KargoInstanceRef: &v1alpha1.LocalReference{Name: "kiref"},
 		Workspace:        "ws-1",
+		KubeConfigSecretRef: xpv1.SecretReference{
+			Name:      "customer-kcfg",
+			Namespace: "crossplane-system",
+		},
+		EnableInClusterKubeConfig:     false,
+		RemoveAgentResourcesOnDestroy: true,
 	}
 	agent := &kargov1.KargoAgent{
 		Id:          "ag-1",
@@ -63,6 +72,12 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 	assert.NotEmpty(t, out.KargoAgentSpec.Data.Size, "size must roundtrip through the bridge")
 	require.NotNil(t, out.KargoAgentSpec.Data.AutoUpgradeDisabled)
 	assert.True(t, *out.KargoAgentSpec.Data.AutoUpgradeDisabled)
+	// Kubeconfig / teardown fields are MR-local and must round-trip from
+	// desired — otherwise drift detection fires every poll.
+	assert.Equal(t, "customer-kcfg", out.KubeConfigSecretRef.Name)
+	assert.Equal(t, "crossplane-system", out.KubeConfigSecretRef.Namespace)
+	assert.False(t, out.EnableInClusterKubeConfig)
+	assert.True(t, out.RemoveAgentResourcesOnDestroy)
 }
 
 // TestApiToSpec_NilDataDoesNotPanic covers the boundary: an agent
@@ -93,6 +108,12 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{
 		KargoInstanceID: "ki-1",
 		Workspace:       "ws-1",
+		KubeConfigSecretRef: xpv1.SecretReference{
+			Name:      "customer-kcfg",
+			Namespace: "crossplane-system",
+		},
+		EnableInClusterKubeConfig:     true,
+		RemoveAgentResourcesOnDestroy: true,
 	}
 	wire := &akuitytypes.KargoAgent{
 		ObjectMeta: metav1.ObjectMeta{
@@ -116,6 +137,12 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 	assert.Equal(t, map[string]string{"note": "x"}, out.Annotations)
 	assert.Equal(t, "observed", out.KargoAgentSpec.Description)
 	assert.Equal(t, crossplanetypes.KargoAgentSize("medium"), out.KargoAgentSpec.Data.Size)
+	// Kubeconfig / teardown fields are MR-local and must round-trip from
+	// desired — otherwise drift detection fires every poll.
+	assert.Equal(t, "customer-kcfg", out.KubeConfigSecretRef.Name)
+	assert.Equal(t, "crossplane-system", out.KubeConfigSecretRef.Namespace)
+	assert.True(t, out.EnableInClusterKubeConfig)
+	assert.True(t, out.RemoveAgentResourcesOnDestroy)
 }
 
 // TestWireToSpec_EmptyLabelMapsBecomeNil exercises the nil-vs-empty

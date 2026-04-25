@@ -26,6 +26,9 @@
 # metadata:
 #   name: repo-github
 #   namespace: default
+#   labels:
+#     # Optional when the ref sets credType explicitly.
+#     kargo.akuity.io/cred-type: git
 # type: Opaque
 # stringData:
 #   # Kargo repo credential slot — see kargoRepoCredentialSecretRefs
@@ -82,25 +85,29 @@ spec:
         # Use dexConfigSecretRef instead of inlining dexConfigSecret to
         # keep plaintext out of the MR spec.
         # dexConfigSecretRef:
+        #   namespace: crossplane-system
         #   name: my-kargo-dex
         additionalScopes:
           - "groups"
     kargoConfigMap:
       # Keys are forwarded to the kargo-cm ConfigMap.
-      controller.log.level: "info"
+      adminAccountEnabled: "true"
+      adminAccountTokenTtl: "24h"
     # kargoSecretRef references a Secret whose keys become the
     # kargo-secret payload (OIDC client secrets, webhook tokens).
     # kargoSecretRef:
+    #   namespace: crossplane-system
     #   name: my-kargo-secret
     # kargoRepoCredentialSecretRefs registers repository credentials
-    # with Kargo. Each entry's SecretRef points at a Secret in the MR's
-    # namespace; the controller projects it into ProjectNamespace as a
-    # labelled Kargo-shaped Secret.
+    # with Kargo. Each entry's SecretRef points at a namespaced Secret;
+    # the controller projects it into the effective project namespace
+    # as a labelled Kargo-shaped Secret.
     # kargoRepoCredentialSecretRefs:
-    #   - name: repo-github
-    #     projectNamespace: my-project
-    #     credentialType: git
+    #   - name: repo-github # optional; defaults to secretRef.name
+    #     projectNamespace: my-project # optional; defaults to secretRef.namespace
+    #     credType: git # optional; defaults to source Secret label
     #     secretRef:
+    #       namespace: crossplane-system
     #       name: repo-github
     resources:
       # Inline Kargo resource manifests (Projects, Warehouses, Stages,

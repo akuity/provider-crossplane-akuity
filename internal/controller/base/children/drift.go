@@ -256,11 +256,27 @@ func matchesSubset(desired, observed interface{}) bool {
 	case map[string]interface{}:
 		o, ok := observed.(map[string]interface{})
 		if !ok {
-			return false
+			// A desired empty map matches an absent observed value:
+			// "spec: {}" / "metadata: {}" is the same shape the
+			// gateway returns when no fields under that key carry
+			// content, but the gateway suppresses the empty container
+			// from the export response. Treating `present-empty` and
+			// `absent` as distinct produces drift on every reconcile
+			// for any user-supplied manifest with an empty section
+			// (Kargo Project's `spec: {}` is the canonical case —
+			// the kind has no required spec fields and the server
+			// echoes back metadata only).
+			return len(d) == 0 && observed == nil
 		}
 		for k, dv := range d {
 			ov, present := o[k]
 			if !present {
+				// Same logic as the absent-observed branch above:
+				// a desired empty map / empty list / nil is
+				// indistinguishable from absent on the gateway side.
+				if isEmptyJSONValue(dv) {
+					continue
+				}
 				return false
 			}
 			if !matchesSubset(dv, ov) {
@@ -271,7 +287,7 @@ func matchesSubset(desired, observed interface{}) bool {
 	case []interface{}:
 		o, ok := observed.([]interface{})
 		if !ok {
-			return false
+			return len(d) == 0 && observed == nil
 		}
 		if len(d) != len(o) {
 			return false
@@ -285,6 +301,25 @@ func matchesSubset(desired, observed interface{}) bool {
 	default:
 		// Scalars and untyped nils.
 		return reflect.DeepEqual(desired, observed)
+	}
+}
+
+// isEmptyJSONValue reports whether v is the JSON-decoded representation
+// of "this key has no content" — empty map, empty array, or nil. Treated
+// as equivalent to absent during desired ⊆ observed matching so that
+// users can spell out a structural placeholder ("spec: {}") without
+// every reconcile flagging drift against a gateway that suppresses
+// empty containers from its export response.
+func isEmptyJSONValue(v interface{}) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case map[string]interface{}:
+		return len(t) == 0
+	case []interface{}:
+		return len(t) == 0
+	default:
+		return false
 	}
 }
 

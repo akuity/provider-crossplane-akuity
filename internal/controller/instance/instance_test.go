@@ -27,6 +27,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -106,6 +108,56 @@ func TestUpdate_ClientErr(t *testing.T) {
 	assert.Equal(t, managed.ExternalUpdate{}, resp)
 }
 
+// TestUpdate_InvalidArgument_Terminal asserts that codes.InvalidArgument
+// from ApplyInstance (e.g. argocdSecretRef populated with the reserved
+// server.secretkey, or admin.password not in bcrypt format) is wrapped
+// as reason.Terminal. Without classification, the next Observe re-fires
+// Update from rotation drift and the gateway sees a steady ~15 ApplyInstance
+// calls per minute against the same bad payload.
+func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
+	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})
+	require.NoError(t, err)
+	e, mc := newExt(t)
+	mc.EXPECT().ApplyInstance(ctx, applyInstanceRequest).
+		Return(grpcstatus.Error(codes.InvalidArgument, "reserved key admin.password")).
+		Times(1)
+	_, err = e.Update(ctx, &fixtures.CrossplaneManagedInstance)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from ApplyInstance must be reason.Terminal-classified, got %T %v", err, err)
+}
+
+// TestCreate_InvalidArgument_Terminal mirrors the Update assertion for
+// Create — a first-Apply rejection must not hot-loop either.
+func TestCreate_InvalidArgument_Terminal(t *testing.T) {
+	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})
+	require.NoError(t, err)
+	e, mc := newExt(t)
+	mc.EXPECT().ApplyInstance(ctx, applyInstanceRequest).
+		Return(grpcstatus.Error(codes.InvalidArgument, "admin.password not in bcrypt format")).
+		Times(1)
+	_, err = e.Create(ctx, &fixtures.CrossplaneManagedInstance)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from ApplyInstance must be reason.Terminal-classified, got %T %v", err, err)
+}
+
+// TestUpdate_ProvisioningWait_NotTerminal locks in that the
+// "still being provisioned" InvalidArgument variant stays retryable —
+// it's a transient bootstrap signal, not a bad-input signal.
+func TestUpdate_ProvisioningWait_NotTerminal(t *testing.T) {
+	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})
+	require.NoError(t, err)
+	e, mc := newExt(t)
+	mc.EXPECT().ApplyInstance(ctx, applyInstanceRequest).
+		Return(grpcstatus.Error(codes.InvalidArgument, "instance still being provisioned")).
+		Times(1)
+	_, err = e.Update(ctx, &fixtures.CrossplaneManagedInstance)
+	require.Error(t, err)
+	assert.False(t, reason.IsTerminal(err))
+	assert.True(t, reason.IsRetryable(err))
+}
+
 func TestDelete(t *testing.T) {
 	e, mc := newExt(t)
 
@@ -152,6 +204,64 @@ func TestObserve_EmptyExternalName(t *testing.T) {
 	resp, err := e.Observe(ctx, &v1alpha1.Instance{})
 	require.NoError(t, err)
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: false}, resp)
+}
+
+func TestDriftSpec_ArgocdConfigMapComparesOnlyUserKeys(t *testing.T) {
+	presence := base.FieldPresence{
+		Object:  true,
+		Present: true,
+		Children: map[string]base.FieldPresence{
+			"argocdConfigMap": {
+				Object:  true,
+				Present: true,
+				Children: map[string]base.FieldPresence{
+					"exec.enabled": {Present: true},
+				},
+			},
+		},
+	}
+	desired := v1alpha1.InstanceParameters{
+		ArgoCDConfigMap: map[string]string{"exec.enabled": "true"},
+	}
+	observed := v1alpha1.InstanceParameters{
+		ArgoCDConfigMap: map[string]string{
+			"exec.enabled":                       "true",
+			"application.resourceTrackingMethod": "annotation",
+			"resource.respectRBAC":               "normal",
+			"url":                                "https://platform.example",
+		},
+	}
+
+	spec := driftSpec()
+	spec.Presence = &presence
+	ok, err := spec.UpToDate(ctx, &desired, &observed)
+	require.NoError(t, err)
+	assert.True(t, ok)
+}
+
+func TestNormalizeInstanceParameters_StripsIgnoredArgocdConfigMapKeysFromBothSides(t *testing.T) {
+	desired := v1alpha1.InstanceParameters{
+		ArgoCDConfigMap: map[string]string{
+			"exec.enabled": "true",
+			"url":          "https://user.example",
+		},
+	}
+	observed := v1alpha1.InstanceParameters{
+		ArgoCDConfigMap: map[string]string{
+			"exec.enabled":         "true",
+			"url":                  "https://platform.example",
+			"resource.respectRBAC": "normal",
+		},
+	}
+
+	normalizeInstanceParameters(&desired, &observed)
+
+	assert.Equal(t, "true", desired.ArgoCDConfigMap["exec.enabled"])
+	assert.Equal(t, "true", observed.ArgoCDConfigMap["exec.enabled"])
+	for _, key := range ignoredArgocdCMKeys {
+		assert.NotContains(t, desired.ArgoCDConfigMap, key)
+		assert.NotContains(t, observed.ArgoCDConfigMap, key)
+	}
 }
 
 func TestObserve_GetInstanceNotFoundErr(t *testing.T) {

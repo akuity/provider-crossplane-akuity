@@ -449,3 +449,84 @@ func TestMatchesSubset_NestedMapDivergence(t *testing.T) {
 	}
 	assert.False(t, matchesSubset(desired, observedDiff), "divergent path fires mismatch")
 }
+
+// TestMatchesSubset_EmptyValueAbsentEquivalence locks in the
+// "spec: {}" / metadata-only Kargo Project case: a user-declared
+// empty map / empty list / nil under a key MUST match an observed
+// payload that omits the key entirely. Without this equivalence, the
+// gateway's habit of suppressing empty containers from its export
+// response (e.g. Kargo Project echoes back metadata only when no
+// status fields are populated) flags drift on every reconcile and
+// hot-loops the Apply path.
+func TestMatchesSubset_EmptyValueAbsentEquivalence(t *testing.T) {
+	cases := []struct {
+		name     string
+		desired  map[string]interface{}
+		observed map[string]interface{}
+		match    bool
+	}{
+		{
+			name: "desired empty map vs observed key absent",
+			desired: map[string]interface{}{
+				"apiVersion": "kargo.akuity.io/v1alpha1",
+				"kind":       "Project",
+				"metadata":   map[string]interface{}{"name": "p1"},
+				"spec":       map[string]interface{}{},
+			},
+			observed: map[string]interface{}{
+				"apiVersion": "kargo.akuity.io/v1alpha1",
+				"kind":       "Project",
+				"metadata":   map[string]interface{}{"name": "p1", "finalizers": []interface{}{"kargo.akuity.io/finalizer"}},
+			},
+			match: true,
+		},
+		{
+			name: "desired empty list vs observed key absent",
+			desired: map[string]interface{}{
+				"spec": map[string]interface{}{"items": []interface{}{}},
+			},
+			observed: map[string]interface{}{
+				"spec": map[string]interface{}{},
+			},
+			match: true,
+		},
+		{
+			name: "desired nil vs observed key absent",
+			desired: map[string]interface{}{
+				"spec": map[string]interface{}{"x": nil},
+			},
+			observed: map[string]interface{}{
+				"spec": map[string]interface{}{},
+			},
+			match: true,
+		},
+		{
+			name: "desired non-empty map still requires presence",
+			desired: map[string]interface{}{
+				"spec": map[string]interface{}{"x": float64(1)},
+			},
+			observed: map[string]interface{}{},
+			match:    false,
+		},
+		{
+			name: "desired all-empty values vs nil observed map",
+			desired: map[string]interface{}{
+				"top": map[string]interface{}{},
+			},
+			observed: nil,
+			// nil observed of declared type map[string]interface{}
+			// behaves like an empty map under range; an all-empty
+			// desired therefore matches symmetrically with the
+			// per-key absent-equivalence rule above.
+			match: true,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := matchesSubset(tc.desired, tc.observed)
+			assert.Equal(t, tc.match, got, "matchesSubset diverged from expected")
+		})
+	}
+}

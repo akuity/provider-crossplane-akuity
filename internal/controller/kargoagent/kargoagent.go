@@ -67,6 +67,25 @@ import (
 // Without this normalize every poll sees desired="" vs observed=<default>
 // and fires ApplyKargoInstance wastefully; the server Equals() short-
 // circuits the DB-gen bump but the local counter still advances 1/poll.
+//
+// AkuityManaged is server-authority on update: the create path
+// (create_kargo_instance_agent_v1.go:256) persists whatever the client
+// sends, but the update path (update_kargo_instance_agent_v1.go:72)
+// copies the existing DB value and IGNORES any incoming change. Without
+// normalisation, a post-create flip to `true` on a row that was
+// created with `false` produces desired=&true vs observed=nil
+// (proto3 bool -> omitempty wire -> nil *bool), drift fires every
+// poll, ApplyKargoInstance hits 1/poll, and the guarded SQL trigger
+// keeps DB gen frozen — classic wasteful-Apply signature. Copy
+// observed into desired so the pair matches the server-retained
+// value; Normalize only runs on the Observe path (post-Create), so
+// the user's chosen AkuityManaged at create time still writes
+// through unchanged.
+//
+// TargetVersion is server-defaulted to the latest agent version when
+// the CR leaves it empty (update_kargo_instance_agent_v1.go:161-163).
+// Same shape as ArgocdNamespace: inherit observed when desired is
+// empty so UNSET doesn't round-trip as perpetual drift.
 func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 	return base.DriftSpec[v1alpha1.KargoAgentParameters]{
 		Normalize: func(desired, observed *v1alpha1.KargoAgentParameters) {
@@ -83,6 +102,33 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 				desired.KargoAgentSpec.Data.ArgocdNamespace =
 					observed.KargoAgentSpec.Data.ArgocdNamespace
 			}
+			if desired.KargoAgentSpec.Data.TargetVersion == "" {
+				desired.KargoAgentSpec.Data.TargetVersion =
+					observed.KargoAgentSpec.Data.TargetVersion
+			}
+			desired.KargoAgentSpec.Data.AkuityManaged =
+				observed.KargoAgentSpec.Data.AkuityManaged
+			// PodInheritMetadata and AutoscalerConfig are dropped on
+			// the gateway's Apply path: apply_kargo_instance_v1.go
+			// builds kargov1.KargoAgentData at :380-395 and never
+			// copies these two fields from the Apply request's
+			// agent.Spec.Data, so the CreateKargoInstanceAgent /
+			// UpdateKargoInstanceAgent sub-requests it emits never
+			// see the user's value. Terraform-provider-akp hits the
+			// same gap (it also drives Apply and carries the fields
+			// in the structpb payload). Without normalisation the CR
+			// stays desired=<value> forever while observed stays
+			// nil/zero, firing ApplyKargoInstance every poll — the
+			// same wasteful-Apply shape as AkuityManaged. Copy
+			// observed into desired so drift detection doesn't chase
+			// a field the platform ignores; an upstream fix to
+			// apply_kargo_instance_v1.go can remove this without CR
+			// churn (observed will start reflecting the user's value
+			// and equality holds).
+			desired.KargoAgentSpec.Data.PodInheritMetadata =
+				observed.KargoAgentSpec.Data.PodInheritMetadata
+			desired.KargoAgentSpec.Data.AutoscalerConfig =
+				observed.KargoAgentSpec.Data.AutoscalerConfig
 		},
 	}
 }
@@ -301,15 +347,19 @@ func targetKubeConfig(fp v1alpha1.KargoAgentParameters) kube.TargetKubeConfig {
 // for mg's agent and applies (or deletes when del is true) them onto
 // the cluster identified by target. Requires mg.Spec.ForProvider
 // .KargoInstanceID to be resolved.
+//
+// Uses the wait-for-reconciliation manifest fetcher so the first Create
+// right after ApplyKargoInstance doesn't race the gateway's manifest
+// renderer and hit codes.Unavailable; terraform-provider-akp applies
+// the same wait (resource_akp_kargoagent.go#waitKargoAgentReconStatus).
+// A one-shot failure here would leave the platform row stamped without
+// the agent installed on the managed cluster because
+// reapply_manifests_on_update=false keeps the Update path from retrying.
 func (e *external) installAgentManifests(ctx context.Context, mg *v1alpha1.KargoAgent, target kube.TargetKubeConfig, del bool) error {
 	instanceID := mg.Spec.ForProvider.KargoInstanceID
-	agent, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, mg.Spec.ForProvider.Name)
+	manifests, err := e.Client.GetKargoInstanceAgentManifests(ctx, instanceID, mg.Spec.ForProvider.Name)
 	if err != nil {
-		return fmt.Errorf("could not get kargo agent to %s manifests: %w", applyVerb(del), err)
-	}
-	manifests, err := e.Client.GetKargoInstanceAgentManifestsOnce(ctx, instanceID, agent.GetId())
-	if err != nil {
-		return fmt.Errorf("could not get kargo agent manifests: %w", err)
+		return fmt.Errorf("could not get kargo agent manifests to %s: %w", applyVerb(del), err)
 	}
 	if err := kube.ApplyManifestsToTarget(ctx, e.Kube, e.Logger, target, manifests, del); err != nil {
 		return fmt.Errorf("could not %s kargo agent manifests: %w", applyVerb(del), err)
@@ -384,7 +434,10 @@ func (e *external) resolveWorkspaceFromParent(ctx context.Context, mg *v1alpha1.
 	if err := e.Kube.Get(ctx, key, parent); err != nil {
 		return ""
 	}
-	return parent.Spec.ForProvider.Workspace
+	if parent.Spec.ForProvider.Workspace != "" {
+		return parent.Spec.ForProvider.Workspace
+	}
+	return parent.Status.AtProvider.Workspace
 }
 
 // resolveKargoInstanceID returns the Akuity ID of the owning Kargo

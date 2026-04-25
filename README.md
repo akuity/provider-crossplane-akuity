@@ -83,9 +83,27 @@ v2.0.0 adds four new cluster-scoped MR types under the same group:
 
 For all supported fields for Akuity resources, please check [https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity/).
 
-**Note** - Managing ArgoCD secrets for instances using the Crossplane provider is not supported. The Akuity API does not currently support exporting
-secret values, which makes it impossible to compare the desired and actual state of the secrets in a reconciliation loop. Please let us know if this is something
-you would like to see supported by opening an issue for this repository.
+**Note** - Instance and KargoInstance secret payloads are managed through
+namespaced Kubernetes `Secret` references so plaintext stays out of managed
+resource specs. Akuity export APIs do not return secret values, so the provider
+uses a hash of the local source `Secret` as its drift signal and reapplies only
+when the provider-side desired source changes. Platform-side edits or deletions
+are not detected, and removing a ref from the managed resource stops applying
+that platform secret but does not delete it from Akuity. Empty referenced
+Secrets are treated as terminal configuration errors because the platform apply
+APIs treat omitted or empty secret payloads as "no opinion", not as remote
+delete/clear requests.
+Kargo repository credential refs may omit `projectNamespace` and `credType`;
+the provider then derives the project namespace from `secretRef.namespace` and
+the credential type from the source Secret's `kargo.akuity.io/cred-type` label.
+Missing or invalid derived values are surfaced as terminal reconcile errors
+rather than admission-time schema errors.
+
+**Note** - Instance and KargoInstance ConfigMap fields are additive and
+key-owned. The provider compares only keys present in the managed resource
+spec, ignores platform-added/default keys, and reapplies when a managed key
+differs. Removing a ConfigMap key from the spec stops managing that key; it does
+not delete or clear the key from Akuity.
 
 ## Local Development
 

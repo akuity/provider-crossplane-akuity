@@ -24,6 +24,7 @@ import (
 	gwoption "github.com/akuity/api-client-go/pkg/api/gateway/option"
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/providerconfig"
@@ -86,7 +87,8 @@ func GetAkuityClientFromProviderConfig(ctx context.Context, kubeClient client.Cl
 	gw := gwoption.NewClient(getAkuityClientServerURL(providerConfig.Spec.ServerURL), providerConfig.Spec.SkipTLSVerify)
 	gatewayClient := argocdv1.NewArgoCDServiceGatewayClient(gw)
 	kargoGatewayClient := kargov1.NewKargoServiceGatewayClient(gw)
-	akuityClient, err := akuity.NewClient(providerConfig.Spec.OrganizationID, secretData[CredentialsAPIKeyID], secretData[CredentialsAPIKeySecret], gatewayClient, kargoGatewayClient)
+	orgGatewayClient := orgcv1.NewOrganizationServiceGatewayClient(gw)
+	akuityClient, err := akuity.NewClient(providerConfig.Spec.OrganizationID, secretData[CredentialsAPIKeyID], secretData[CredentialsAPIKeySecret], gatewayClient, kargoGatewayClient, orgGatewayClient)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create Akuity client: %w", err)
 	}

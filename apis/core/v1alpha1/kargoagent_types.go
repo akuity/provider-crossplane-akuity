@@ -31,6 +31,22 @@ import (
 // +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) || has(self.kargoInstanceRef)",message="kargoInstanceId or kargoInstanceRef must be set"
 // +kubebuilder:validation:XValidation:rule="(!has(oldSelf.kargoInstanceId) || (has(self.kargoInstanceId) && self.kargoInstanceId == oldSelf.kargoInstanceId)) && (!has(oldSelf.kargoInstanceRef) || (has(self.kargoInstanceRef) && self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name))",message="kargoInstanceId/kargoInstanceRef are immutable"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
+// kubeConfigSecretRef is a non-pointer SecretRef with json:omitempty,
+// but encoding/json never omits a zero struct. has(self.kubeconfigSecretRef)
+// therefore returns true even when the user never set it. Treat the
+// field as set only when the embedded secret name is non-empty.
+// +kubebuilder:validation:XValidation:rule="!(has(self.kubeconfigSecretRef) && size(self.kubeconfigSecretRef.name) > 0 && has(self.enableInClusterKubeconfig) && self.enableInClusterKubeconfig)",message="kubeConfigSecretRef and enableInClusterKubeConfig are mutually exclusive: set at most one"
+// kargoAgentSpec.data.akuityManaged is immutable on the Akuity
+// platform: PatchKargoInstanceAgent silently drops incoming changes
+// to this field on update, so a user's edit looks successful from the
+// CR side but has no server-side effect. Surface the constraint at
+// admission so users get an immediate error instead of a no-op edit.
+// has() guards on every level let lateInit-style first stamping
+// through (oldSelf had no value) while rejecting any subsequent
+// change. Intermediate has() chaining mirrors the dexConfig rule: a
+// CR submitted without kargoAgentSpec at all leaves those parents
+// absent in the apiserver's stored state.
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.kargoAgentSpec) || !has(oldSelf.kargoAgentSpec.data) || !has(oldSelf.kargoAgentSpec.data.akuityManaged) || (has(self.kargoAgentSpec) && has(self.kargoAgentSpec.data) && has(self.kargoAgentSpec.data.akuityManaged) && self.kargoAgentSpec.data.akuityManaged == oldSelf.kargoAgentSpec.data.akuityManaged)",message="akuityManaged is immutable after create: the platform ignores updates to this field"
 type KargoAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by ID.
 	// Either KargoInstanceID or KargoInstanceRef must be set.
@@ -42,7 +58,10 @@ type KargoAgentParameters struct {
 	// +optional
 	KargoInstanceRef *LocalReference `json:"kargoInstanceRef,omitempty"`
 
-	// Workspace is the Kargo project/workspace the agent is bound to.
+	// Workspace is the Akuity workspace used to route Kargo agent gateway calls.
+	// Prefer the workspace ID; a workspace name is also accepted and resolved by
+	// the client. When omitted with kargoInstanceRef set, the controller
+	// inherits the parent KargoInstance workspace.
 	// +optional
 	Workspace string `json:"workspace,omitempty"`
 
@@ -78,7 +97,7 @@ type KargoAgentParameters struct {
 	// when Create reconciles. Mutually exclusive with
 	// EnableInClusterKubeConfig.
 	// +optional
-	KubeConfigSecretRef SecretRef `json:"kubeconfigSecretRef,omitempty"`
+	KubeConfigSecretRef xpv1.SecretReference `json:"kubeconfigSecretRef,omitempty"`
 
 	// EnableInClusterKubeConfig uses the provider pod's in-cluster
 	// configuration to install the agent manifests, when the managed
@@ -100,7 +119,7 @@ type KargoAgentObservation struct {
 	ID string `json:"id,omitempty"`
 	// Name of the agent as reported by the Akuity Platform.
 	Name string `json:"name,omitempty"`
-	// Workspace the agent is bound to.
+	// Workspace is the Akuity workspace routing value carried from spec.
 	Workspace string `json:"workspace,omitempty"`
 	// HealthStatus is the agent health.
 	HealthStatus ResourceStatusCode `json:"healthStatus,omitempty"`

@@ -75,8 +75,23 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: KargoAgentParameters are the configurable fields of a
-                  KargoAgent.
+                description: |-
+                  KargoAgentParameters are the configurable fields of a KargoAgent.
+
+                  kubeConfigSecretRef is a non-pointer SecretRef with json:omitempty,
+                  but encoding/json never omits a zero struct. has(self.kubeconfigSecretRef)
+                  therefore returns true even when the user never set it. Treat the
+                  field as set only when the embedded secret name is non-empty.
+                  kargoAgentSpec.data.akuityManaged is immutable on the Akuity
+                  platform: PatchKargoInstanceAgent silently drops incoming changes
+                  to this field on update, so a user's edit looks successful from the
+                  CR side but has no server-side effect. Surface the constraint at
+                  admission so users get an immediate error instead of a no-op edit.
+                  has() guards on every level let lateInit-style first stamping
+                  through (oldSelf had no value) while rejecting any subsequent
+                  change. Intermediate has() chaining mirrors the dexConfig rule: a
+                  CR submitted without kargoAgentSpec at all leaves those parents
+                  absent in the apiserver's stored state.
                 properties:
                   annotations:
                     additionalProperties:
@@ -177,12 +192,10 @@ spec:
                       EnableInClusterKubeConfig.
                     properties:
                       name:
-                        description: The name of the Kubernetes secret being referenced.
-                          Required.
+                        description: Name of the secret.
                         type: string
                       namespace:
-                        description: The namespace of the Kubernetes secret being
-                          referenced. Required.
+                        description: Namespace of the secret.
                         type: string
                     required:
                     - name
@@ -208,8 +221,11 @@ spec:
                       effective when a kubeconfig source is configured.
                     type: boolean
                   workspace:
-                    description: Workspace is the Kargo project/workspace the agent
-                      is bound to.
+                    description: |-
+                      Workspace is the Akuity workspace used to route Kargo agent gateway calls.
+                      Prefer the workspace ID; a workspace name is also accepted and resolved by
+                      the client. When omitted with kargoInstanceRef set, the controller
+                      inherits the parent KargoInstance workspace.
                     type: string
                 required:
                 - name
@@ -224,6 +240,16 @@ spec:
                     oldSelf.kargoInstanceRef.name))
                 - message: name is immutable
                   rule: self.name == oldSelf.name
+                - message: 'kubeConfigSecretRef and enableInClusterKubeConfig are
+                    mutually exclusive: set at most one'
+                  rule: '!(has(self.kubeconfigSecretRef) && size(self.kubeconfigSecretRef.name)
+                    > 0 && has(self.enableInClusterKubeconfig) && self.enableInClusterKubeconfig)'
+                - message: 'akuityManaged is immutable after create: the platform
+                    ignores updates to this field'
+                  rule: '!has(oldSelf.kargoAgentSpec) || !has(oldSelf.kargoAgentSpec.data)
+                    || !has(oldSelf.kargoAgentSpec.data.akuityManaged) || (has(self.kargoAgentSpec)
+                    && has(self.kargoAgentSpec.data) && has(self.kargoAgentSpec.data.akuityManaged)
+                    && self.kargoAgentSpec.data.akuityManaged == oldSelf.kargoAgentSpec.data.akuityManaged)'
               managementPolicies:
                 default:
                 - '*'
@@ -405,7 +431,8 @@ spec:
                         type: string
                     type: object
                   workspace:
-                    description: Workspace the agent is bound to.
+                    description: Workspace is the Akuity workspace routing value carried
+                      from spec.
                     type: string
                 type: object
               conditions:

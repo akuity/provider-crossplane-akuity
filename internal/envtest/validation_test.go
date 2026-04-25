@@ -29,9 +29,11 @@ import (
 	"context"
 	"testing"
 
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -340,6 +342,222 @@ func TestKargoAgent_NameImmutable(t *testing.T) {
 	err := kube.Update(ctx, got)
 	require.Error(t, err, "apiserver must reject KargoAgent name rename")
 	assert.Contains(t, err.Error(), "name is immutable")
+}
+
+// TestKargoAgent_KubeConfigSourcesMutuallyExclusive covers the
+// at-most-one CEL rule between kubeConfigSecretRef and
+// enableInClusterKubeConfig on KargoAgentParameters. Neither-set is the
+// legitimate default for self-hosted agents (terminal Ready=False
+// agent-unknown), so the rule is at-most-one rather than exactly-one.
+func TestKargoAgent_KubeConfigSourcesMutuallyExclusive(t *testing.T) {
+	ctx := context.Background()
+
+	both := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-kube-both"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID:           "ki-abc",
+				Name:                      "agent-a",
+				KubeConfigSecretRef:       xpv1.SecretReference{Name: "kc", Namespace: "default"},
+				EnableInClusterKubeConfig: true,
+			},
+		},
+	}
+	err := kube.Create(ctx, both)
+	require.Error(t, err, "apiserver must reject KargoAgent with both kubeConfigSecretRef and enableInClusterKubeConfig")
+	assert.Contains(t, err.Error(), "kubeConfigSecretRef and enableInClusterKubeConfig are mutually exclusive")
+
+	withSecret := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-kube-secret"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID:     "ki-abc",
+				Name:                "agent-a",
+				KubeConfigSecretRef: xpv1.SecretReference{Name: "kc", Namespace: "default"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withSecret), "kubeConfigSecretRef alone must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withSecret) })
+
+	withInCluster := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-kube-incluster"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID:           "ki-abc",
+				Name:                      "agent-a",
+				EnableInClusterKubeConfig: true,
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withInCluster), "enableInClusterKubeConfig alone must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withInCluster) })
+
+	neither := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-kube-neither"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-a",
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, neither), "neither field set must be accepted (self-hosted agent-unknown path)")
+	t.Cleanup(func() { _ = kube.Delete(ctx, neither) })
+}
+
+// TestKargoAgent_AkuityManagedImmutable covers the UPDATE-time
+// immutability rule on kargoAgentSpec.data.akuityManaged. The platform
+// silently ignores updates to this field, so admission rejects them
+// to give users immediate feedback. has() guards on every level let
+// lateInit-style first stamping through.
+func TestKargoAgent_AkuityManagedImmutable(t *testing.T) {
+	ctx := context.Background()
+
+	// Create with akuityManaged=false; flipping to true must be rejected.
+	immut := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-am-immut"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-a",
+				KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+					Data: crossplanetypes.KargoAgentData{AkuityManaged: ptr.To(false)},
+				},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, immut))
+	t.Cleanup(func() { _ = kube.Delete(ctx, immut) })
+
+	got := &v1alpha1.KargoAgent{}
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(immut), got))
+	got.Spec.ForProvider.KargoAgentSpec.Data.AkuityManaged = ptr.To(true)
+	err := kube.Update(ctx, got)
+	require.Error(t, err, "apiserver must reject akuityManaged change after create")
+	assert.Contains(t, err.Error(), "akuityManaged is immutable after create")
+
+	// No-op update with the same value must be accepted.
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(immut), got))
+	got.Spec.ForProvider.KargoAgentSpec.Data.AkuityManaged = ptr.To(false)
+	require.NoError(t, kube.Update(ctx, got), "no-op update with matching akuityManaged must be accepted")
+
+	// Create with the field unset; first-time stamp on update must be allowed.
+	lateInit := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-am-lateinit"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-b",
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, lateInit))
+	t.Cleanup(func() { _ = kube.Delete(ctx, lateInit) })
+
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(lateInit), got))
+	got.Spec.ForProvider.KargoAgentSpec.Data.AkuityManaged = ptr.To(true)
+	require.NoError(t, kube.Update(ctx, got),
+		"first-time stamp of akuityManaged when oldSelf had no value must be allowed")
+
+	// Once stamped, a flip is still rejected.
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(lateInit), got))
+	got.Spec.ForProvider.KargoAgentSpec.Data.AkuityManaged = ptr.To(false)
+	err = kube.Update(ctx, got)
+	require.Error(t, err, "apiserver must reject akuityManaged flip after lateInit stamp")
+	assert.Contains(t, err.Error(), "akuityManaged is immutable after create")
+}
+
+// TestKargoInstance_KargoConfigMapKeyAllowlist covers the map-key
+// XValidation on kargoConfigMap. The platform's PatchKargoInstance
+// receiver strictly protojson-unmarshals into the closed-set
+// KargoApiCM proto; any unknown key crashes the unmarshal and would
+// otherwise hot-loop the reconciler on every poll. Admission rejects
+// unknown keys so users get an immediate, fixable error.
+func TestKargoInstance_KargoConfigMapKeyAllowlist(t *testing.T) {
+	ctx := context.Background()
+
+	withEnabled := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-enabled"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:           "ki-cm-1",
+				Kargo:          minimalKargoSpec(),
+				KargoConfigMap: map[string]string{"adminAccountEnabled": "true"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withEnabled), "adminAccountEnabled must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withEnabled) })
+
+	withTTL := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-ttl"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:           "ki-cm-2",
+				Kargo:          minimalKargoSpec(),
+				KargoConfigMap: map[string]string{"adminAccountTokenTtl": "24h"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withTTL), "adminAccountTokenTtl must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withTTL) })
+
+	withProtoNames := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-proto"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:           "ki-cm-5",
+				Kargo:          minimalKargoSpec(),
+				KargoConfigMap: map[string]string{"admin_account_enabled": "true"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withProtoNames), "proto field names must remain accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withProtoNames) })
+
+	withoutCM := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-absent"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:  "ki-cm-3",
+				Kargo: minimalKargoSpec(),
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, withoutCM), "absent kargoConfigMap must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withoutCM) })
+
+	withUnknown := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-unknown"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:           "ki-cm-4",
+				Kargo:          minimalKargoSpec(),
+				KargoConfigMap: map[string]string{"some_unknown_key": "value"},
+			},
+		},
+	}
+	err := kube.Create(ctx, withUnknown)
+	require.Error(t, err, "apiserver must reject KargoInstance with unknown kargoConfigMap key")
+	assert.Contains(t, err.Error(), "kargoConfigMap accepts only these keys")
+
+	withMixedAliases := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-mixed-aliases"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:  "ki-cm-6",
+				Kargo: minimalKargoSpec(),
+				KargoConfigMap: map[string]string{
+					"adminAccountEnabled":   "true",
+					"admin_account_enabled": "false",
+				},
+			},
+		},
+	}
+	err = kube.Create(ctx, withMixedAliases)
+	require.Error(t, err, "apiserver must reject mixed aliases for the same kargoConfigMap key")
+	assert.Contains(t, err.Error(), "must not set both lowerCamel and snake_case aliases")
 }
 
 // TestCluster_InstanceIDImmutable covers the id/ref-immutable rule on

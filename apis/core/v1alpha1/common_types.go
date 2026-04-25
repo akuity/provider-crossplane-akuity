@@ -16,9 +16,7 @@ limitations under the License.
 
 package v1alpha1
 
-import (
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
-)
+import xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 
 // LocalReference is a cluster-wide reference to another managed
 // resource by name. Cluster-scoped MRs in v1alpha1 do not live in
@@ -40,61 +38,56 @@ type ResourceStatusCode struct {
 	Message string `json:"message,omitempty"`
 }
 
-// NamedLocalSecretReference binds a gateway-facing credential name to a
-// kube Secret. The Secret's data keys are forwarded to the Akuity
-// gateway verbatim under the Name slot (e.g.
-// repoCredentialSecrets["repo-github"] = {"url": "...", "password":
-// "..."}).
-type NamedLocalSecretReference struct {
-	// Name is the identifier under which this Secret's data is sent
-	// to the Akuity gateway. For ArgoCD repo credentials this must
-	// start with "repo-"; per-field CEL rules enforce a stricter
-	// pattern. The MaxLength matches Kubernetes object-name bounds
-	// and keeps CEL cost estimates within the apiserver's budget.
-	// +kubebuilder:validation:Required
+// NamedSecretReference binds a gateway-facing credential name to a
+// namespaced kube Secret. If Name is omitted, SecretRef.Name is used as
+// the gateway credential name. Resource-specific controllers validate
+// the effective name against the destination's rules.
+type NamedSecretReference struct {
+	// Name is the optional identifier under which this Secret's data is
+	// sent to the Akuity gateway. When omitted, SecretRef.Name is used.
+	// +optional
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
-	// SecretRef points at a Secret. All keys of that Secret are
-	// forwarded to the gateway verbatim.
+	// SecretRef points at a namespaced Secret. All keys of that Secret
+	// are forwarded to the gateway verbatim.
+	// OpenAPI required only enforces field presence, so the CEL size checks
+	// reject empty name/namespace strings explicitly.
 	// +kubebuilder:validation:Required
-	SecretRef xpv1.LocalSecretReference `json:"secretRef"`
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.namespace) && size(self.namespace) > 0",message="secretRef.name and secretRef.namespace are required"
+	SecretRef xpv1.SecretReference `json:"secretRef"`
+}
+
+func (r *NamedSecretReference) CredentialName() string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return r.SecretRef.Name
 }
 
 // KargoRepoCredentialSecretRef binds a Kargo repository-credential slot
-// to a kube Secret. Mirrors the ArgoCD NamedLocalSecretReference
-// pattern — no plaintext on the MR spec — but carries the extra
-// Kargo-specific identity bits (project namespace + credential type)
-// needed to route the resulting Secret into the correct Kargo project
-// on the gateway.
+// to a kube Secret. Mirrors the ArgoCD NamedSecretReference
+// pattern — no plaintext on the MR spec — while allowing Kargo-specific
+// routing metadata to be set explicitly or derived from the source Secret.
 type KargoRepoCredentialSecretRef struct {
-	// Name is the Secret name written into the Kargo project.
-	// Must be DNS-1123-compatible. The slot uniquely identifies the
-	// credential within its ProjectNamespace.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern=`^[a-z0-9][a-z0-9-]*$`
-	Name string `json:"name"`
+	NamedSecretReference `json:",inline"`
 
 	// ProjectNamespace is the Kargo project namespace the credential
-	// belongs to. Kargo enforces DNS-1123 naming on project
-	// namespaces; the Pattern here mirrors that.
-	// +kubebuilder:validation:Required
+	// belongs to. Defaults to SecretRef.Namespace when omitted. Kargo
+	// enforces DNS-1123 naming on project namespaces; the Pattern here
+	// mirrors that.
+	// +optional
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][a-z0-9-]*$`
-	ProjectNamespace string `json:"projectNamespace"`
+	ProjectNamespace string `json:"projectNamespace,omitempty"`
 
 	// CredType selects the Kargo credential family. Stamped onto the
 	// Secret as the kargo.akuity.io/cred-type label before submission.
-	// +kubebuilder:validation:Required
+	// Defaults to the referenced Secret's kargo.akuity.io/cred-type
+	// label when omitted.
+	// +optional
 	// +kubebuilder:validation:Enum=git;helm;generic;image
-	CredType string `json:"credType"`
-
-	// SecretRef points at a Secret. All keys of that Secret are
-	// forwarded to the gateway verbatim under the slot Name.
-	// +kubebuilder:validation:Required
-	SecretRef xpv1.LocalSecretReference `json:"secretRef"`
+	CredType string `json:"credType,omitempty"`
 }

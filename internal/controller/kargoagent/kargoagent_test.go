@@ -33,6 +33,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mockclient "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
@@ -226,6 +228,25 @@ func TestUpdate_ApplyErr(t *testing.T) {
 	_, err := e.Update(context.Background(), a)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestResolveWorkspaceFromParentUsesStatusFallback(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.SchemeBuilder.AddToScheme(scheme))
+	parent := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-ref", Namespace: "ns"},
+	}
+	parent.Status.AtProvider.Workspace = "ws-cached-id"
+	e := &external{ExternalClient: base.ExternalClient{
+		Kube:   fake.NewClientBuilder().WithScheme(scheme).WithObjects(parent).Build(),
+		Logger: logging.NewNopLogger(),
+	}}
+	a := newAgent()
+	a.Spec.ForProvider.KargoInstanceID = ""
+	a.Spec.ForProvider.KargoInstanceRef = &v1alpha1.LocalReference{Name: "ki-ref"}
+
+	got := e.resolveWorkspaceFromParent(context.Background(), a)
+	assert.Equal(t, "ws-cached-id", got)
 }
 
 // TestObserve_ProvisioningWait covers the short-circuit: the Kargo

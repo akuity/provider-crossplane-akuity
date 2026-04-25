@@ -44,6 +44,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
@@ -121,6 +122,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, newErr
 	}
+	presence := base.ForProviderPresence(ctx, e.Kube, mg, v1alpha1.InstanceGroupVersionKind)
 
 	if err := lateInitializeInstance(&mg.Spec.ForProvider, akuityInstance, akuityExportedInstance); err != nil {
 		mg.SetConditions(xpv1.ReconcileError(err))
@@ -134,12 +136,22 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		return managed.ExternalObservation{}, newErr
 	}
 
+	// SecretHash is written by Create/Update after a successful Apply and
+	// drives rotation drift in the block below. instanceObservation is
+	// projected from the gateway response (which returns secret data
+	// masked/nil) and therefore carries no SecretHash — assigning the
+	// whole struct would clobber the controller-managed hash every poll
+	// and re-trigger Apply on every reconcile (§2.11 invariant 2/4).
+	// Preserve across the assignment.
+	preservedSecretHash := mg.Status.AtProvider.SecretHash
 	mg.Status.AtProvider = instanceObservation
+	mg.Status.AtProvider.SecretHash = preservedSecretHash
 	base.SetHealthCondition(mg, instanceObservation.HealthStatus.Code == 1)
 
 	// DeepCopy so Normalize's map mutations (ArgoCDConfigMap rewrites,
 	// ignored-key deletions) don't leak back into the managed resource.
 	spec := driftSpec()
+	spec.Presence = presence
 	desired := mg.Spec.ForProvider.DeepCopy()
 	observed := actualInstance.Spec.ForProvider.DeepCopy()
 	isUpToDate, err := base.EvaluateDrift(ctx, spec, desired, observed, e.Logger, "Instance")
@@ -168,6 +180,29 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		}
 	}
 
+	// Declarative Argo CD child-resource drift: Application,
+	// ApplicationSet, AppProject manifests on
+	// spec.forProvider.resources are additive — desired ⊆ observed.
+	// The struct compare ignores the Resources slice (Export does not
+	// return them inline; they live on the Applications /
+	// ApplicationSets / AppProjects slices on the response). Walk the
+	// already-fetched Export response and report drift if any desired
+	// child is missing or not subset-matched on the gateway. Removing
+	// an entry from spec is intentionally NOT drift — operators must
+	// delete via the Akuity platform UI.
+	if isUpToDate && len(mg.Spec.ForProvider.Resources) > 0 {
+		ok, report, rerr := argocdResourcesUpToDate(mg.Spec.ForProvider.Resources, akuityExportedInstance)
+		if rerr != nil {
+			mg.SetConditions(xpv1.ReconcileError(rerr))
+			return managed.ExternalObservation{}, rerr
+		}
+		if !ok {
+			e.Logger.Debug("argocd resources drift detected",
+				"missing", report.Missing, "changed", report.Changed)
+			isUpToDate = false
+		}
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: isUpToDate,
@@ -187,7 +222,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 	}
 
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
-		return managed.ExternalCreation{}, err
+		return managed.ExternalCreation{}, reason.ClassifyApplyError(err)
 	}
 	mg.Status.AtProvider.SecretHash = sec.Hash()
 	meta.SetExternalName(mg, request.GetId())
@@ -206,7 +241,7 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 		return managed.ExternalUpdate{}, errors.New(errTransformInstance)
 	}
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
-		return managed.ExternalUpdate{}, err
+		return managed.ExternalUpdate{}, reason.ClassifyApplyError(err)
 	}
 	mg.Status.AtProvider.SecretHash = sec.Hash()
 	return managed.ExternalUpdate{}, nil
@@ -306,6 +341,11 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 	if managedInstance == nil || actualInstance == nil {
 		return
 	}
+	// Workspace is a routing selector. The gateway reports the canonical ID,
+	// while spec may be empty, an ID, or a name; keep the drift comparison
+	// neutral and let the client resolve it for workspace-scoped calls.
+	actualInstance.Workspace = managedInstance.Workspace
+
 	if managedInstance.ArgoCD != nil {
 		// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
@@ -320,6 +360,23 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 
 		if managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig = actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+		} else if actualInstance.ArgoCD != nil && actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig != nil {
+			// Partial-struct fill (§6 #6 / §6 #7 scalar lateInit gap):
+			// server forces CveScanConfig.RescanInterval to a non-empty
+			// string (>= 8h) when scanEnabled=true; if the CR populates
+			// CveScanConfig but omits RescanInterval, the empty-string
+			// zero-value produces a per-poll drift-flap against the
+			// server's stamped value. Inherit the observed scalar so
+			// provider-side compare stays quiescent.
+			mkv := managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+			akv := actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+			if mkv.CveScanConfig != nil && akv.CveScanConfig != nil {
+				if mkv.CveScanConfig.RescanInterval == "" {
+					mkv.CveScanConfig.RescanInterval = akv.CveScanConfig.RescanInterval
+				}
+			} else if mkv.CveScanConfig == nil {
+				mkv.CveScanConfig = akv.CveScanConfig
+			}
 		}
 
 		// If Akuity Intelligence is enabled by default, sync the value
@@ -332,12 +389,20 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		// BucketQps:50} + ItemRateLimiting{Enabled:true, FailureCooldown:10000,
 		// BaseDelay:1, MaxDelay:1000, BackoffFactor:"1.5"}). If the CR omits
 		// it entirely, inherit the server's defaults to avoid a per-poll
-		// drift-flap. Users who populate the struct partially get their
-		// explicit values honoured; scalar-field defaulting inside a
-		// partially-set struct is Tier 2 territory (§6 #7 scalar lateInit
-		// gap).
+		// drift-flap. If the CR populates it partially (e.g. only
+		// BucketRateLimiting), inherit the missing sibling sub-struct to
+		// avoid the same drift-flap (§6 #7 partial-struct variant).
 		if managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting = actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+		} else if actualInstance.ArgoCD != nil && actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting != nil {
+			arl := managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+			aarl := actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+			if arl.ItemRateLimiting == nil {
+				arl.ItemRateLimiting = aarl.ItemRateLimiting
+			}
+			if arl.BucketRateLimiting == nil {
+				arl.BucketRateLimiting = aarl.BucketRateLimiting
+			}
 		}
 
 		// IpAllowList is owned by a separate InstanceIpAllowList MR. When
@@ -385,6 +450,7 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 	}
 	for _, k := range ignoredArgocdCMKeys {
 		delete(managedInstance.ArgoCDConfigMap, k)
+		delete(actualInstance.ArgoCDConfigMap, k)
 	}
 }
 
@@ -405,11 +471,17 @@ var ignoredArgocdCMKeys = []string{
 // ApplicationSet + the two repo-cred lists) are spec-only — the Akuity
 // Export endpoint returns the Secret data masked/nil, so comparing a
 // populated desired ref against an observed nil always flags drift and
-// an Apply fires every poll. These refs are write-only per §2.11; the
-// reconcile path rotates via status.atProvider.secretHash (when the
-// secret-resolution plumbing lands). Ignore them in the struct
-// comparison; drift detection for the referenced secret content lives
-// on the hash compare.
+// an Apply fires every poll. These refs are write-only; the reconcile
+// path rotates via status.atProvider.secretHash. Ignore them in the
+// struct comparison; drift detection for the referenced secret content
+// lives on the hash compare.
+//
+// Resources is ignored here too: declarative Argo CD children are
+// additive, the gateway returns them in separate Export slices
+// (Applications / ApplicationSets / AppProjects), and the struct
+// compare would flag desired=[...] vs observed=nil forever. The
+// argocdResourcesUpToDate side-check on the Export response replaces
+// the struct-level comparison for these.
 func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
 	return base.DriftSpec[v1alpha1.InstanceParameters]{
 		Ignore: []cmp.Option{
@@ -420,19 +492,6 @@ func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
 				"ApplicationSetSecretRef",
 				"RepoCredentialSecretRefs",
 				"RepoTemplateCredentialSecretRefs",
-				// Resources are additive declarative children (Application,
-				// ApplicationSet, AppProject). The Akuity gateway's
-				// ExportInstance does NOT return them inline — the
-				// CrossplaneExtension wire field only carries per-resource
-				// Group metadata for bookkeeping, not the full manifest,
-				// so the struct compare would flag desired=[...] vs
-				// observed=nil forever. KargoInstance uses the same
-				// IgnoreFields pattern (see kargoinstance.go driftSpec) and
-				// relies on a Side check for true drift detection. Tier 2
-				// 2.Children will add the Export-based side check mirroring
-				// kargoResourcesUpToDate; for Tier 1C it's enough that
-				// Apply carries the resources once at Create and struct
-				// compare stops churning per-poll.
 				"Resources",
 			),
 		},

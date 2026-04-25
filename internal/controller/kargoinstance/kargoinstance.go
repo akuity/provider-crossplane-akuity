@@ -23,8 +23,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"slices"
 	"sort"
-	"time"
+	"strconv"
+	"strings"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
@@ -52,6 +55,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
@@ -80,12 +84,18 @@ const (
 	coreKindSecret = "Secret"
 
 	kargoCredTypeLabel = "kargo.akuity.io/cred-type"
+	kargoCredTypeGit   = "git"
+	kargoCredTypeHelm  = "helm"
+	kargoCredTypeGen   = "generic"
+	kargoCredTypeImage = "image"
+
+	kargoDNS1123LabelPattern = `^[a-z0-9][a-z0-9-]*$`
 )
 
 // driftSpec is the struct-level drift recipe for KargoInstance.
 // Resources, KargoConfigMap, and KargoRepoCredentialSecretRefs are
 // intentionally ignored here: each has additive semantics, hash-based
-// rotation, or TTL re-apply windows that the Observe path handles
+// rotation, or write-only semantics that the Observe path handles
 // separately. EquateEmpty is contributed by the shared DriftSpec
 // baseline.
 //
@@ -101,6 +111,16 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 		Ignore: []cmp.Option{
 			cmpopts.IgnoreFields(v1alpha1.KargoInstanceParameters{},
 				"Resources", "KargoConfigMap", "KargoRepoCredentialSecretRefs"),
+			// Every []string on the KargoInstance tree is set-semantic
+			// on the gateway: OidcConfig.AdditionalScopes,
+			// KargoInstanceSpec.{GlobalCredentialsNs,GlobalServiceAccountNs},
+			// AkuityIntelligence.{AllowedUsernames,AllowedGroups},
+			// and KargoPredefinedAccountClaimValue.Values. The Export
+			// response always returns them sorted alphabetically; the
+			// CR round-trips user order. Without order-insensitive
+			// compare, a user writing `[groups, email]` and a server
+			// echoing `[email, groups]` hot-loop Apply on every poll.
+			cmpopts.SortSlices(func(a, b string) bool { return a < b }),
 		},
 		Normalize: func(desired, observed *v1alpha1.KargoInstanceParameters) {
 			if desired == nil || observed == nil {
@@ -120,6 +140,31 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 			if desired.Kargo.KargoInstanceSpec.AkuityIntelligence == nil {
 				desired.Kargo.KargoInstanceSpec.AkuityIntelligence =
 					observed.Kargo.KargoInstanceSpec.AkuityIntelligence
+			}
+			// GcConfig is server-retained: once a value has been Applied,
+			// the gateway keeps it even after the CR clears the field.
+			// Without this inherit the drift compare would see
+			// desired=nil vs observed=<last-applied> and hot-loop Apply
+			// forever. User SET / FLIP still propagates because desired
+			// non-nil short-circuits this branch — terraform parity is
+			// resource_akp_kargo_schema.go:187 where the attribute is
+			// Computed and TF carries last-known-state as effective plan.
+			if desired.Kargo.KargoInstanceSpec.GcConfig == nil {
+				desired.Kargo.KargoInstanceSpec.GcConfig =
+					observed.Kargo.KargoInstanceSpec.GcConfig
+			}
+			// OidcConfig follows the same server-retained shape as
+			// GcConfig: enabling OIDC once (issuer/client IDs + scopes
+			// + predefined-account claims) writes values the gateway
+			// keeps even after the CR removes spec.kargo.oidcConfig
+			// entirely. Without this inherit we hot-loop Apply because
+			// desired=nil vs observed={issuerUrl, clientId, ...} fires
+			// drift on every poll. DexConfigSecretRef — the one OIDC
+			// field carried forward from desired across Observe
+			// (kargoinstance.go:239-244) — happens before Normalize
+			// runs, so the ref-based path is unaffected.
+			if desired.Kargo.OidcConfig == nil {
+				desired.Kargo.OidcConfig = observed.Kargo.OidcConfig
 			}
 			// DefaultShardAgent is owned by the KargoDefaultShardAgent MR,
 			// not the KargoInstance MR. Mirror terraform's
@@ -142,14 +187,11 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 // plaintext never lives on the MR spec.
 const errSecretInKargoResources = "resources[%d]: v1/Secret entries are not accepted; use spec.forProvider.kargoRepoCredentialSecretRefs"
 
-// repoCredsReapplyTTL is the upper bound between two successful
-// Applies of spec.forProvider.kargoRepoCredentialSecretRefs. Because
-// the Kargo Export response does not return repo_credentials, an
-// out-of-band deletion via the Akuity UI would otherwise stay
-// invisible to Observe (local SecretHash unchanged → UpToDate=true
-// forever). Forcing a re-Apply past this TTL self-heals that case at
-// the cost of one Apply per hour per instance carrying repo creds.
-const repoCredsReapplyTTL = 1 * time.Hour
+var (
+	kargoDNS1123LabelRE = regexp.MustCompile(kargoDNS1123LabelPattern)
+	kargoCredTypes      = []string{kargoCredTypeGit, kargoCredTypeHelm, kargoCredTypeGen, kargoCredTypeImage}
+	kargoCredTypesMsg   = strings.Join(kargoCredTypes, ", ")
+)
 
 // Setup registers the controller with the manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
@@ -188,7 +230,7 @@ type external struct {
 	base.ExternalClient
 }
 
-//nolint:gocyclo // Observe coordinates struct cmp + 2 export-based drift checks + secret hash + repo-cred TTL; the linear branching is the simplest readable form.
+//nolint:gocyclo // Observe coordinates struct cmp + 2 export-based drift checks + secret hash; the linear branching is the simplest readable form.
 func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (managed.ExternalObservation, error) {
 	defer base.PropagateObservedGeneration(mg)
 	if meta.GetExternalName(mg) == "" {
@@ -208,6 +250,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		}
 		return obs, rerr
 	}
+	presence := base.ForProviderPresence(ctx, e.Kube, mg, v1alpha1.KargoInstanceGroupVersionKind)
 
 	actual, err := apiToSpec(ki)
 	if err != nil {
@@ -244,13 +287,10 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 
 	// Preserve controller-authored AtProvider fields across the refresh.
 	// apiToObservation rebuilds the struct from gateway data, which has
-	// no SecretHash / ConfigMapHash / RepoCredsAppliedAt; without
-	// this carry-over every Observe would zero them, masking rotation
-	// and the CM-tombstone state until the next Create/Update writes
-	// new values.
+	// no SecretHash; without this carry-over every Observe would zero it,
+	// masking rotation until the next Create/Update writes a new value.
 	prevSecretHash := mg.Status.AtProvider.SecretHash
-	prevCMHashCarry := mg.Status.AtProvider.ConfigMapHash
-	prevRepoCredsAt := mg.Status.AtProvider.RepoCredsAppliedAt
+	prevWorkspace := mg.Status.AtProvider.Workspace
 	mg.Status.AtProvider = observation.KargoInstance(ki)
 	// Mirror the observed Kargo sub-tree onto AtProvider so
 	// compositions and dashboards can read the effective server-side
@@ -262,51 +302,54 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	// package (circular import otherwise).
 	mg.Status.AtProvider.Kargo = actual.Kargo
 	mg.Status.AtProvider.SecretHash = prevSecretHash
-	mg.Status.AtProvider.ConfigMapHash = prevCMHashCarry
-	mg.Status.AtProvider.RepoCredsAppliedAt = prevRepoCredsAt
+	// GetKargoInstance echoes the canonical workspace ID; cache it on
+	// AtProvider so the ExportKargoInstance call below — and any future
+	// Apply / Delete — can route to the right workspace-scoped HTTP
+	// path without an extra ListWorkspaces round-trip. Carry the prior
+	// stamped value forward when the gateway response omits it.
+	if ws := ki.GetWorkspaceId(); ws != "" {
+		mg.Status.AtProvider.Workspace = ws
+	} else {
+		mg.Status.AtProvider.Workspace = prevWorkspace
+	}
 	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
 
 	// Struct-level comparison of the primary spec shape. Resources,
 	// KargoConfigMap, and KargoRepoCredentialSecretRefs are checked
-	// separately below — they have additive semantics, hash-based
-	// rotation, or TTL re-apply windows that a plain struct cmp
-	// cannot express. The shared DriftSpec also contributes
+	// separately below — they have additive semantics or hash-based
+	// rotation that a plain struct cmp cannot express. The shared
+	// DriftSpec also contributes
 	// utilcmp.EquateEmpty() so nil-vs-empty sub-trees resolve equal.
 	structSpec := driftSpec()
+	structSpec.Presence = presence
 	desired := mg.Spec.ForProvider
 	upToDate, err := base.EvaluateDrift(ctx, structSpec, &desired, &actual, e.Logger, "KargoInstance")
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
 
-	// kargoConfigMap drift: combine a local hash check with the
-	// Export-based subset check.
-	//   - hash mismatch (desired-now vs last-applied) catches key
-	//     removals and value changes without a gateway round-trip.
-	//     This also handles the tombstone case: desired empty +
-	//     prev hash non-empty → re-Apply with an empty payload.
-	//   - export subset check catches out-of-band server changes to
-	//     keys the user still has in spec.
-	// Export must run whenever the MR has ever tracked a CM, not
-	// just when the desired map is currently non-empty; otherwise
-	// a transient clear would evade detection on the next reconcile.
-	prevCMHash := getConfigMapHash(mg)
-	desiredCMHash := hashConfigMap(mg.Spec.ForProvider.KargoConfigMap)
-	if upToDate && desiredCMHash != prevCMHash {
-		e.Logger.Debug("kargoConfigMap hash changed since last apply; forcing re-Apply",
-			"previous", prevCMHash, "current", desiredCMHash)
-		upToDate = false
-	}
-
 	// Export-based drift check runs when the user has spec-level
-	// opinions on either kargoConfigMap (current or historical) or
-	// kargoResources. A single Export serves both, minimising
-	// gateway round-trips.
+	// opinions on either kargoConfigMap or kargoResources. A single
+	// Export serves both, minimising gateway round-trips.
+	// kargoConfigMap is key-additive: desired keys must match
+	// observed, platform-added keys are ignored, and removing a key
+	// from spec means "stop managing this key" rather than "clear it
+	// on the platform".
 	needsExport := len(mg.Spec.ForProvider.KargoConfigMap) > 0 ||
-		prevCMHash != "" ||
 		len(mg.Spec.ForProvider.Resources) > 0
 	if upToDate && needsExport {
-		exp, err := e.Client.ExportKargoInstance(ctx, meta.GetExternalName(mg), mg.Spec.ForProvider.Workspace)
+		// ExportKargoInstanceRequest.Id is the canonical instance ID
+		// (UUID), not the human-readable name: unlike ExportInstance
+		// (Argo CD) or GetKargoInstance, the proto carries no IdType
+		// discriminator, and the server-side handler resolves the
+		// argument as `models.KargoInstanceWhere.ID.EQ(req.GetId())`.
+		// Passing meta.GetExternalName here makes every Export call
+		// fail with PermissionDenied, the upToDate=true defer below
+		// then swallows the error, and the kargoConfigMap +
+		// kargoResources drift checks become silent no-ops once the
+		// instance is past Create. The Apply-time GetKargoInstance
+		// already populates the canonical ID on the response.
+		exp, err := e.Client.ExportKargoInstance(ctx, ki.GetId(), mg.Status.AtProvider.Workspace)
 		if err != nil {
 			// A failed Export on an otherwise-healthy instance is
 			// recoverable; leaving upToDate=true lets the next poll
@@ -351,18 +394,6 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 				"previous", getSecretHash(mg), "current", sec.Hash())
 			upToDate = false
 		}
-		// Periodic re-apply for repo credentials: the Kargo Export
-		// response has no repo_credentials field, so OOB deletions
-		// via the Akuity UI cannot be detected. Force a re-Apply
-		// past the TTL so the next reconcile resurfaces the credential
-		// server-side.
-		if upToDate && len(mg.Spec.ForProvider.KargoRepoCredentialSecretRefs) > 0 {
-			if ts := mg.Status.AtProvider.RepoCredsAppliedAt; ts == nil || time.Since(ts.Time) > repoCredsReapplyTTL {
-				e.Logger.Debug("kargoRepoCredentialSecretRefs TTL elapsed; forcing re-Apply",
-					"lastApplied", ts, "ttl", repoCredsReapplyTTL)
-				upToDate = false
-			}
-		}
 	}
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate}, nil
 }
@@ -402,6 +433,11 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 		}
 	}
 
+	workspaceID, err := e.resolveWorkspaceID(ctx, mg)
+	if err != nil {
+		return err
+	}
+
 	sec, err := resolveKargoSecrets(ctx, e.Kube, mg)
 	if err != nil {
 		return err
@@ -410,14 +446,8 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	if err != nil {
 		return err
 	}
-	// CM tombstone: if the controller has ever applied a non-empty CM
-	// (prevHash != "") and the current desired is empty, send an
-	// explicit empty ConfigMap payload so the gateway can clear the
-	// previously-applied keys. Without the tombstone, emptying the
-	// field in spec would be an un-Applyable delete.
-	prevCMHash := getConfigMapHash(mg)
 	desiredCM := mg.Spec.ForProvider.KargoConfigMap
-	cmPB, err := buildKargoConfigMapPB(desiredCM, prevCMHash != "")
+	cmPB, err := buildKargoConfigMapPB(desiredCM)
 	if err != nil {
 		return err
 	}
@@ -437,7 +467,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	req := &kargov1.ApplyKargoInstanceRequest{
 		IdType:                idv1.Type_NAME,
 		Id:                    mg.Spec.ForProvider.Name,
-		WorkspaceId:           mg.Spec.ForProvider.Workspace,
+		WorkspaceId:           workspaceID,
 		Kargo:                 kargoPB,
 		KargoConfigmap:        cmPB,
 		KargoSecret:           secretPB,
@@ -450,17 +480,57 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 		RepoCredentials:       repoCredsPB,
 	}
 	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
-		return err
+		return reason.ClassifyApplyError(err)
 	}
 	setSecretHash(mg, sec.Hash())
-	setConfigMapHash(mg, hashConfigMap(desiredCM))
-	if len(mg.Spec.ForProvider.KargoRepoCredentialSecretRefs) > 0 {
-		now := metav1.Now()
-		mg.Status.AtProvider.RepoCredsAppliedAt = &now
-	} else {
-		mg.Status.AtProvider.RepoCredsAppliedAt = nil
-	}
 	return nil
+}
+
+// resolveWorkspaceID returns the canonical Akuity workspace ID for the
+// MR, resolving and caching the organisation's default workspace when
+// neither the spec nor a previously-stamped status field carries an
+// explicit value. The Akuity gateway's KargoInstance HTTP routes are
+// all workspace-scoped (`/orgs/{org}/workspaces/{workspace_id}/kargo/instances/...`)
+// and template the segment straight into the path; an empty ID
+// produces a 404 on every Apply / Export / Delete and the reconciler
+// hot-loops until a workspace is provided or resolved.
+//
+// Resolution order:
+//  1. spec.forProvider.workspace (user-pinned ID or name; canonical ID
+//     short-circuits against status.atProvider.workspace)
+//  2. status.atProvider.workspace (controller-cached canonical ID, when spec is empty)
+//  3. organisation default — discovered via the org gateway's
+//     ListWorkspaces (mirrors terraform-provider-akp's getWorkspace)
+//
+// On (1) and (3) the resolved canonical ID is stamped on
+// status.atProvider.workspace so subsequent reconciles short-circuit
+// when the spec is empty. The function preserves spec.forProvider.workspace
+// verbatim — the spec carries the user's intent (ID, name, or empty) and
+// must not be rewritten by Observe.
+func (e *external) resolveWorkspaceID(ctx context.Context, mg *v1alpha1.KargoInstance) (string, error) {
+	if ref := mg.Spec.ForProvider.Workspace; ref != "" {
+		if ref == mg.Status.AtProvider.Workspace {
+			return mg.Status.AtProvider.Workspace, nil
+		}
+		w, err := e.Client.ResolveWorkspace(ctx, ref)
+		if err != nil {
+			if reason.IsNotFound(err) {
+				return "", reason.AsTerminal(fmt.Errorf("spec.forProvider.workspace %q: %w", ref, err))
+			}
+			return "", err
+		}
+		mg.Status.AtProvider.Workspace = w.GetId()
+		return w.GetId(), nil
+	}
+	if id := mg.Status.AtProvider.Workspace; id != "" {
+		return id, nil
+	}
+	w, err := e.Client.ResolveWorkspace(ctx, "")
+	if err != nil {
+		return "", err
+	}
+	mg.Status.AtProvider.Workspace = w.GetId()
+	return w.GetId(), nil
 }
 
 // kargoChildren is the per-kind breakdown of the user's
@@ -525,11 +595,20 @@ func extractKargoConfigMapData(pb *structpb.Struct) (map[string]string, error) {
 	}
 	out := make(map[string]string, len(obj))
 	for k, v := range obj {
-		s, ok := v.(string)
-		if !ok {
+		switch typed := v.(type) {
+		case string:
+			out[k] = typed
+		case bool:
+			out[k] = strconv.FormatBool(typed)
+		case nil:
+			// Keep an explicit null as an observed empty value. That
+			// still differs from any desired non-empty string, so a
+			// platform-side clear self-heals instead of being mistaken
+			// for a missing/unmanaged key.
+			out[k] = ""
+		default:
 			return nil, fmt.Errorf("kargo_configmap.data[%q]: want string, got %T", k, v)
 		}
-		out[k] = s
 	}
 	return out, nil
 }
@@ -632,24 +711,28 @@ func splitKargoResources(in []runtime.RawExtension) (kargoChildren, error) {
 	return out, nil
 }
 
-// kargoResolvedSecret pairs a referenced kube Secret name with its
-// resolved key/value data. Carrying the name into the digest means a
-// user who renames the reference (from Secret "A" to Secret "B" with
-// identical content) still gets a drift signal.
+// kargoResolvedSecret pairs a referenced kube Secret namespace/name
+// with its resolved key/value data. Carrying the source identity into
+// the digest means a user who moves or renames the reference with
+// identical content still gets a drift signal.
 type kargoResolvedSecret struct {
-	Name string
-	Data map[string]string
+	Namespace string
+	Name      string
+	Data      map[string]string
 }
 
 // kargoResolvedRepoCred is a single entry out of
 // KargoRepoCredentialSecretRefs after its backing kube Secret has
-// been resolved. Slot+ProjectNamespace form the identity; CredType
-// becomes the kargo.akuity.io/cred-type label; SecretName participates
-// in the hash so a rename-with-identical-content rotates the digest.
+// been resolved. Slot+ProjectNamespace form the identity; CredType is
+// either explicit or derived from the source Secret label and becomes
+// the kargo.akuity.io/cred-type label; SecretNamespace and SecretName
+// participate in the hash so a move/rename with identical content
+// rotates the digest.
 type kargoResolvedRepoCred struct {
 	Slot             string
 	ProjectNamespace string
 	CredType         string
+	SecretNamespace  string
 	SecretName       string
 	Data             map[string]string
 }
@@ -678,8 +761,9 @@ type resolvedKargoSecrets struct {
 }
 
 // Hash combines the digests of every resolved Secret, including the
-// referenced Secret names, so a rename-with-identical-content rotates
-// the digest as well as a straight content rotation. Repo-credential
+// referenced Secret namespaces/names, so a move/rename with identical
+// content rotates the digest as well as a straight content rotation.
+// Repo-credential
 // rotation flows through this hash because the Kargo gateway does
 // not round-trip repo_credentials on Export.
 func (r resolvedKargoSecrets) Hash() string {
@@ -693,19 +777,21 @@ func (r resolvedKargoSecrets) Hash() string {
 }
 
 func kargoHashOne(s kargoResolvedSecret) string {
-	if s.Name == "" && len(s.Data) == 0 {
+	if s.Namespace == "" && s.Name == "" && len(s.Data) == 0 {
 		return ""
 	}
 	return secrets.Hash(map[string]string{
-		"__ref__":  s.Name,
-		"__data__": secrets.Hash(s.Data),
+		"__namespace__": s.Namespace,
+		"__name__":      s.Name,
+		"__data__":      secrets.Hash(s.Data),
 	})
 }
 
 // kargoHashRepoCreds mixes every identity bit (slot, project ns,
-// cred type, backing Secret name) and the resolved payload into a
-// stable digest. A change in any of those — rotation, rename, moving
-// to a different Kargo project — rotates the digest.
+// cred type, backing Secret namespace/name) and the resolved payload
+// into a stable digest. A change in any of those — rotation, source
+// move/rename, moving to a different Kargo project — rotates the
+// digest.
 func kargoHashRepoCreds(entries []kargoResolvedRepoCred) string {
 	if len(entries) == 0 {
 		return ""
@@ -714,11 +800,12 @@ func kargoHashRepoCreds(entries []kargoResolvedRepoCred) string {
 	for _, e := range entries {
 		key := e.ProjectNamespace + "/" + e.Slot
 		per[key] = secrets.Hash(map[string]string{
-			"__slot__":      e.Slot,
-			"__projectNs__": e.ProjectNamespace,
-			"__credType__":  e.CredType,
-			"__secret__":    e.SecretName,
-			"__data__":      secrets.Hash(e.Data),
+			"__slot__":       e.Slot,
+			"__projectNs__":  e.ProjectNamespace,
+			"__credType__":   e.CredType,
+			"__secretNs__":   e.SecretNamespace,
+			"__secretName__": e.SecretName,
+			"__data__":       secrets.Hash(e.Data),
 		})
 	}
 	return secrets.Hash(per)
@@ -727,63 +814,105 @@ func kargoHashRepoCreds(entries []kargoResolvedRepoCred) string {
 // resolveKargoSecrets loads every Secret referenced by the KargoInstance
 // spec (kargo-secret + dex config + repo credentials).
 func resolveKargoSecrets(ctx context.Context, kube client.Client, mg *v1alpha1.KargoInstance) (resolvedKargoSecrets, error) {
-	ns := mg.GetNamespace()
 	out := resolvedKargoSecrets{}
-	kargoData, err := secrets.ResolveAllKeys(ctx, kube, ns, mg.Spec.ForProvider.KargoSecretRef)
-	if err != nil {
-		return out, fmt.Errorf("kargoSecretRef: %w", err)
-	}
 	if ref := mg.Spec.ForProvider.KargoSecretRef; ref != nil {
-		out.Kargo = kargoResolvedSecret{Name: ref.Name, Data: kargoData}
-	}
-	var dexRef *xpv1.LocalSecretReference
-	if oidc := mg.Spec.ForProvider.Kargo.OidcConfig; oidc != nil && oidc.DexConfigSecretRef != nil {
-		dexRef = &xpv1.LocalSecretReference{Name: oidc.DexConfigSecretRef.Name}
-	}
-	if dexRef != nil {
-		data, derr := secrets.ResolveAllKeys(ctx, kube, ns, dexRef)
-		if derr != nil {
-			return out, fmt.Errorf("spec.oidcConfig.dexConfigSecretRef: %w", derr)
+		resolved, kerr := secrets.Resolve(ctx, kube, ref)
+		if kerr != nil {
+			return out, secrets.AsTerminalIfConfig(fmt.Errorf("kargoSecretRef: %w", kerr))
 		}
-		out.DexConfig = kargoResolvedSecret{Name: dexRef.Name, Data: data}
+		out.Kargo = kargoResolvedSecret{Namespace: resolved.Namespace, Name: resolved.Name, Data: resolved.Data}
+	}
+	if dex, derr := resolveKargoDexSecret(ctx, kube, mg); derr != nil {
+		return out, secrets.AsTerminalIfConfig(derr)
+	} else if dex != nil {
+		out.DexConfig = *dex
 	}
 	if refs := mg.Spec.ForProvider.KargoRepoCredentialSecretRefs; len(refs) > 0 {
-		creds, rerr := resolveKargoRepoCreds(ctx, kube, ns, refs)
+		creds, rerr := resolveKargoRepoCreds(ctx, kube, refs)
 		if rerr != nil {
-			return out, fmt.Errorf("kargoRepoCredentialSecretRefs: %w", rerr)
+			return out, secrets.AsTerminalIfConfig(fmt.Errorf("kargoRepoCredentialSecretRefs: %w", rerr))
 		}
 		out.RepoCredentials = creds
 	}
 	return out, nil
 }
 
+// resolveKargoDexSecret resolves the OIDC dex config Secret when the CR
+// references one. Returns nil when the CR carries no dexConfigSecretRef.
+func resolveKargoDexSecret(ctx context.Context, kube client.Client, mg *v1alpha1.KargoInstance) (*kargoResolvedSecret, error) {
+	oidc := mg.Spec.ForProvider.Kargo.OidcConfig
+	if oidc == nil || oidc.DexConfigSecretRef == nil {
+		return nil, nil
+	}
+	resolved, err := secrets.Resolve(ctx, kube, oidc.DexConfigSecretRef)
+	if err != nil {
+		return nil, fmt.Errorf("spec.oidcConfig.dexConfigSecretRef: %w", err)
+	}
+	return &kargoResolvedSecret{Namespace: resolved.Namespace, Name: resolved.Name, Data: resolved.Data}, nil
+}
+
 // resolveKargoRepoCreds resolves each typed repo-credential ref in
-// spec order. Duplicate (projectNamespace, name) pairs are rejected
-// at reconcile time in addition to the CRD-level CEL uniqueness rule,
-// so in-cluster drift of already-admitted objects still gets caught.
-func resolveKargoRepoCreds(ctx context.Context, kube client.Client, ns string, refs []v1alpha1.KargoRepoCredentialSecretRef) ([]kargoResolvedRepoCred, error) {
+// spec order. ProjectNamespace defaults to SecretRef.Namespace and
+// CredType defaults to the source Secret's kargo.akuity.io/cred-type
+// label. Duplicate (effective projectNamespace, effective name) pairs
+// are rejected at reconcile time, so in-cluster drift of already-
+// admitted objects still gets caught.
+func resolveKargoRepoCreds(ctx context.Context, kube client.Client, refs []v1alpha1.KargoRepoCredentialSecretRef) ([]kargoResolvedRepoCred, error) {
 	out := make([]kargoResolvedRepoCred, 0, len(refs))
 	seen := map[string]struct{}{}
 	for i := range refs {
 		r := &refs[i]
-		key := r.ProjectNamespace + "/" + r.Name
+		slot := r.CredentialName()
+		if !kargoDNS1123LabelRE.MatchString(slot) {
+			return nil, fmt.Errorf("%w: slot %q must match %s", secrets.ErrInvalidSecretReference, slot, kargoDNS1123LabelPattern)
+		}
+		// Resolve before the final duplicate check because the effective
+		// credType may be derived from the source Secret label.
+		resolved, err := secrets.Resolve(ctx, kube, &r.SecretRef)
+		if err != nil {
+			return nil, fmt.Errorf("slot %q: %w", slot, err)
+		}
+		projectNamespace := effectiveKargoProjectNamespace(r)
+		if !kargoDNS1123LabelRE.MatchString(projectNamespace) {
+			return nil, fmt.Errorf("%w: slot %q projectNamespace %q must match %s", secrets.ErrInvalidSecretReference, slot, projectNamespace, kargoDNS1123LabelPattern)
+		}
+		credType := effectiveKargoCredType(r, resolved.Labels)
+		if !isKargoCredType(credType) {
+			return nil, fmt.Errorf("%w: repo credential %q credType must be one of %s", secrets.ErrInvalidSecretReference, projectNamespace+"/"+slot, kargoCredTypesMsg)
+		}
+		key := projectNamespace + "/" + slot
 		if _, dup := seen[key]; dup {
-			return nil, fmt.Errorf("duplicate slot %q", key)
+			return nil, fmt.Errorf("%w: duplicate slot %q", secrets.ErrInvalidSecretReference, key)
 		}
 		seen[key] = struct{}{}
-		data, err := secrets.ResolveAllKeys(ctx, kube, ns, &r.SecretRef)
-		if err != nil {
-			return nil, fmt.Errorf("slot %q: %w", key, err)
-		}
 		out = append(out, kargoResolvedRepoCred{
-			Slot:             r.Name,
-			ProjectNamespace: r.ProjectNamespace,
-			CredType:         r.CredType,
-			SecretName:       r.SecretRef.Name,
-			Data:             data,
+			Slot:             slot,
+			ProjectNamespace: projectNamespace,
+			CredType:         credType,
+			SecretNamespace:  resolved.Namespace,
+			SecretName:       resolved.Name,
+			Data:             resolved.Data,
 		})
 	}
 	return out, nil
+}
+
+func effectiveKargoProjectNamespace(r *v1alpha1.KargoRepoCredentialSecretRef) string {
+	if r.ProjectNamespace != "" {
+		return r.ProjectNamespace
+	}
+	return r.SecretRef.Namespace
+}
+
+func effectiveKargoCredType(r *v1alpha1.KargoRepoCredentialSecretRef, labels map[string]string) string {
+	if r.CredType != "" {
+		return r.CredType
+	}
+	return labels[kargoCredTypeLabel]
+}
+
+func isKargoCredType(v string) bool {
+	return slices.Contains(kargoCredTypes, v)
 }
 
 // kargoRepoCredsToPB serialises each resolved repo credential into a
@@ -869,37 +998,12 @@ func getSecretHash(mg *v1alpha1.KargoInstance) string {
 	return mg.Status.AtProvider.SecretHash
 }
 
-// setConfigMapHash records the SHA256 of the last-applied
-// kargo-cm payload so Observe can spot key removals that the
-// subset check on the Export response would otherwise miss.
-func setConfigMapHash(mg *v1alpha1.KargoInstance, h string) {
-	mg.Status.AtProvider.ConfigMapHash = h
-}
-
-func getConfigMapHash(mg *v1alpha1.KargoInstance) string {
-	return mg.Status.AtProvider.ConfigMapHash
-}
-
-// hashConfigMap returns a stable digest for a map[string]string.
-// An empty / nil input yields the empty string so callers can
-// distinguish "never applied" (empty prev hash) from "applied then
-// cleared" by comparing against the stored value.
-func hashConfigMap(m map[string]string) string {
-	if len(m) == 0 {
-		return ""
-	}
-	return secrets.Hash(m)
-}
-
-// buildKargoConfigMapPB serialises the desired kargo-cm payload,
-// respecting the tombstone semantics needed for B1: when the user
-// previously applied a non-empty map and now wants it cleared, send
-// an explicit empty ConfigMap struct so the gateway understands the
-// intent as "clear all keys" rather than "no opinion, leave as-is".
-// Returns (nil, nil) only when the field has never been set, which
-// is the only case the gateway may safely ignore.
-func buildKargoConfigMapPB(data map[string]string, tombstoneOnEmpty bool) (*structpb.Struct, error) {
-	if len(data) == 0 && !tombstoneOnEmpty {
+// buildKargoConfigMapPB serialises the desired kargo-cm payload. An
+// empty desired map means the user has no currently managed ConfigMap
+// keys, so the Apply payload omits the ConfigMap and leaves any
+// platform-side keys alone.
+func buildKargoConfigMapPB(data map[string]string) (*structpb.Struct, error) {
+	if len(data) == 0 {
 		return nil, nil
 	}
 	cm := corev1.ConfigMap{

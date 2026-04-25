@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -153,6 +154,34 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 		driftTarget = actualCluster
 	}
 
+	// MaintenanceMode + MaintenanceModeExpiry ride the dedicated
+	// set-maintenance-mode RPC, not ApplyInstance, so ExportInstance
+	// never echoes them. GetCluster does — APIToSpec lifts them onto
+	// actualCluster. Override the Export-derived driftTarget with the
+	// Get-derived values so the comparator detects real drift on these
+	// specific fields without flapping against an Export shape that
+	// always reports nil.
+	driftTarget.ClusterSpec.Data.MaintenanceMode = actualCluster.ClusterSpec.Data.MaintenanceMode
+	driftTarget.ClusterSpec.Data.MaintenanceModeExpiry = actualCluster.ClusterSpec.Data.MaintenanceModeExpiry
+
+	// MultiClusterK8SDashboardEnabled, AutoscalerConfig, Compatibility,
+	// and ArgocdNotificationsSettings are pointer fields the Akuity
+	// gateway server-stamps with defaults that ExportInstance does NOT
+	// echo (Export only returns fields the platform actively manages
+	// for the instance, which for non-`auto` cluster sizes excludes
+	// AutoscalerConfig and friends). GetCluster echoes them — the
+	// previous normalizePtrField path tried to bridge the lateInit
+	// residue case by collapsing desired→nil whenever observed (Export)
+	// was nil, which silently dropped user-pinned values that the
+	// platform hadn't observed yet (commit db52bb7's known limitation).
+	// Targeting Get-based truth makes the comparator behave correctly
+	// for both lateInit residue (server echoes its stamped value, both
+	// sides agree) and user intent (server-side missing → real drift).
+	driftTarget.ClusterSpec.Data.MultiClusterK8SDashboardEnabled = actualCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
+	driftTarget.ClusterSpec.Data.AutoscalerConfig = actualCluster.ClusterSpec.Data.AutoscalerConfig
+	driftTarget.ClusterSpec.Data.Compatibility = actualCluster.ClusterSpec.Data.Compatibility
+	driftTarget.ClusterSpec.Data.ArgocdNotificationsSettings = actualCluster.ClusterSpec.Data.ArgocdNotificationsSettings
+
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
 	isUpToDate, err := base.EvaluateDrift(ctx, spec, &desired, &driftTarget, e.Logger, "Cluster")
@@ -175,6 +204,10 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	}
 	if err := e.Client.ApplyInstance(ctx, req); err != nil {
 		return managed.ExternalCreation{}, fmt.Errorf("could not create cluster: %w", err)
+	}
+
+	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
+		return managed.ExternalCreation{}, err
 	}
 
 	// One-time apply: manifests are installed on the managed cluster at
@@ -210,7 +243,46 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	if err != nil {
 		return managed.ExternalUpdate{}, errors.Wrap(err, errTransformCluster)
 	}
-	return managed.ExternalUpdate{}, e.Client.ApplyInstance(ctx, req)
+	if err := e.Client.ApplyInstance(ctx, req); err != nil {
+		return managed.ExternalUpdate{}, err
+	}
+	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
+		return managed.ExternalUpdate{}, err
+	}
+	return managed.ExternalUpdate{}, nil
+}
+
+// syncMaintenanceMode pushes data.maintenanceMode + data.maintenanceModeExpiry
+// through the dedicated set-maintenance-mode endpoint when the user has
+// configured either field. ApplyInstance silently drops both fields, so
+// without this separate RPC the user-set state never reaches the
+// platform and the drift comparator hot-loops Apply on every poll
+// (~4 wasted writes / 2 minutes observed before the fix). Mirrors
+// terraform-provider-akp's syncClusterMaintenanceMode in
+// resource_akp_cluster.go.
+//
+// When neither field is configured (both *bool nil and *string nil) the
+// call is skipped — leaving an unset maintenance state alone matches
+// terraform parity and avoids implicitly clearing a value the user
+// didn't ask to control.
+func (e *external) syncMaintenanceMode(ctx context.Context, mg *v1alpha1.Cluster) error {
+	data := mg.Spec.ForProvider.ClusterSpec.Data
+	if data.MaintenanceMode == nil && data.MaintenanceModeExpiry == nil {
+		return nil
+	}
+	mode := false
+	if data.MaintenanceMode != nil {
+		mode = *data.MaintenanceMode
+	}
+	var expiry *time.Time
+	if data.MaintenanceModeExpiry != nil && *data.MaintenanceModeExpiry != "" {
+		t, err := time.Parse(time.RFC3339, *data.MaintenanceModeExpiry)
+		if err != nil {
+			return fmt.Errorf("could not parse spec.forProvider.data.maintenanceModeExpiry as RFC3339: %w", err)
+		}
+		expiry = &t
+	}
+	return e.Client.SetClusterMaintenanceMode(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name, mode, expiry)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalDelete, error) {
@@ -382,17 +454,28 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 	}
 }
 
-// normalizePtrField bridges a single pointer field across the
-// lateInit-vs-Export gap. When one side is nil and the other is
-// populated, adopt the OBSERVED value (Export is the source of truth
-// for drift comparison; lateInit residue is collapsed). When both
-// sides are populated, leave them alone — go-cmp will compare element
-// by element. When both are nil, no-op.
+// normalizePtrField adopts the observed pointer value onto desired
+// when desired is unset and observed carries a server-stamped value.
+// This is the safe direction of the lateInit-vs-Export bridge: the
+// user didn't pin anything, so silently inheriting whatever the
+// platform considers current avoids per-poll drift flap on default
+// values the user doesn't care about.
+//
+// The reverse direction (desired set, observed nil) is intentionally
+// NOT handled here. Earlier behaviour collapsed desired → nil to
+// match observed, which silently dropped user-pinned values whenever
+// the platform hadn't observed them yet — e.g. a freshly-set
+// AutoscalerConfig the gateway responded to with a sparse Export
+// shape, or a value the platform had in fact discarded. Real drift
+// must surface so Apply runs and either persists the value or
+// returns the platform's rejection. Drift-target callers route Get-
+// based truth onto observed so this rarely triggers in practice;
+// when it does (server genuinely has no value for the user's input),
+// firing Apply is the correct user-visible behaviour.
 func normalizePtrField[T any](desired, observed **T) {
-	if (*desired == nil) == (*observed == nil) {
-		return
+	if *desired == nil && *observed != nil {
+		*desired = *observed
 	}
-	*desired = *observed
 }
 
 // kustomizationEmptyEquivalent returns true when both Kustomization
