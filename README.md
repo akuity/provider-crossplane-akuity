@@ -93,6 +93,11 @@ that platform secret but does not delete it from Akuity. Empty referenced
 Secrets are treated as terminal configuration errors because the platform apply
 APIs treat omitted or empty secret payloads as "no opinion", not as remote
 delete/clear requests.
+Kargo repository credential refs may omit `projectNamespace` and `credType`;
+the provider then derives the project namespace from `secretRef.namespace` and
+the credential type from the source Secret's `kargo.akuity.io/cred-type` label.
+Missing or invalid derived values are surfaced as terminal reconcile errors
+rather than admission-time schema errors.
 
 **Note** - Instance and KargoInstance ConfigMap fields are additive and
 key-owned. The provider compares only keys present in the managed resource
