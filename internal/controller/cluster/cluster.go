@@ -180,6 +180,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	driftTarget.ClusterSpec.Data.AutoscalerConfig = actualCluster.ClusterSpec.Data.AutoscalerConfig
 	driftTarget.ClusterSpec.Data.Compatibility = actualCluster.ClusterSpec.Data.Compatibility
 	driftTarget.ClusterSpec.Data.ArgocdNotificationsSettings = actualCluster.ClusterSpec.Data.ArgocdNotificationsSettings
+	driftTarget.ClusterSpec.Data.PodInheritMetadata = actualCluster.ClusterSpec.Data.PodInheritMetadata
 
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
@@ -320,6 +321,7 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 	in.ClusterSpec.Data.Kustomization = pointer.LateInitialize(in.ClusterSpec.Data.Kustomization, actual.ClusterSpec.Data.Kustomization)
 	in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled = pointer.LateInitialize(in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled, actual.ClusterSpec.Data.MultiClusterK8SDashboardEnabled)
 	in.ClusterSpec.Data.AutoscalerConfig = pointer.LateInitialize(in.ClusterSpec.Data.AutoscalerConfig, actual.ClusterSpec.Data.AutoscalerConfig)
+	in.ClusterSpec.Data.PodInheritMetadata = pointer.LateInitialize(in.ClusterSpec.Data.PodInheritMetadata, actual.ClusterSpec.Data.PodInheritMetadata)
 }
 
 // exportedClusterSpec returns the canonical ClusterParameters for

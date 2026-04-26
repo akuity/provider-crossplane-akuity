@@ -122,6 +122,7 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 				// onto the Export-derived driftTarget).
 				MaintenanceMode:       cluster.GetData().MaintenanceMode, //nolint:all
 				MaintenanceModeExpiry: timestampPtrToStringPtr(cluster.GetData().GetMaintenanceModeExpiry()),
+				PodInheritMetadata:    cluster.GetData().PodInheritMetadata, //nolint:all
 			},
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,

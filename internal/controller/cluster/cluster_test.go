@@ -702,3 +702,78 @@ func TestObserve_AutoscalerConfig_BothPopulatedDifferent(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, resp.ResourceUpToDate)
 }
+
+// observeFixtureWithPodInheritMetadata mirrors observeFixtureWithAutoscaler
+// for the PodInheritMetadata pointer-field case: GetCluster carries the
+// platform-stored value while ExportInstance omits it (same wire-shape
+// gap as AutoscalerConfig / Compatibility / ArgocdNotificationsSettings).
+func observeFixtureWithPodInheritMetadata(
+	t *testing.T,
+	getValue *bool,
+	specValue *bool,
+) (*external, *mock_akuity_client.MockClient, *v1alpha1.Cluster) {
+	t.Helper()
+	e, mc := newExt(t, nil)
+
+	mr := fixtures.CrossplaneManagedCluster.DeepCopy()
+	mr.ObjectMeta = metav1.ObjectMeta{
+		Annotations: map[string]string{
+			"crossplane.io/external-name": fixtures.ClusterName,
+		},
+	}
+	mr.Spec.ForProvider.ClusterSpec.Data.PodInheritMetadata = specValue
+
+	getCluster := proto.Clone(fixtures.ArgocdCluster).(*argocdv1.Cluster)
+	getData := getCluster.GetData()
+	if getData == nil {
+		getData = &argocdv1.ClusterData{}
+		getCluster.Data = getData
+	}
+	getData.PodInheritMetadata = getValue
+
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(getCluster, nil).Times(1)
+	mc.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{fixtures.ExportedCluster}}, nil).Times(1)
+
+	return e, mc, mr
+}
+
+// TestObserve_PodInheritMetadata_DesiredTrueServerEcho covers the
+// reported drift-flap: user pins data.podInheritMetadata=true,
+// GetCluster echoes true, but ExportInstance omits the field. Without
+// the GetCluster-based override the comparator sees desired=&true vs
+// driftTarget=nil and re-Applies on every poll.
+func TestObserve_PodInheritMetadata_DesiredTrueServerEcho(t *testing.T) {
+	v := true
+	e, _, mr := observeFixtureWithPodInheritMetadata(t, &v, &v)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.True(t, resp.ResourceUpToDate,
+		"user-pinned PodInheritMetadata=true that GetCluster echoes must not flap drift when Export omits the field")
+}
+
+// TestObserve_PodInheritMetadata_DesiredNilServerStamped covers the
+// reverse direction: user leaves the field unset, the platform stamps
+// a value. Apply with desired=nil would clear the platform's stamp;
+// driftTarget must adopt the observed value so no Apply fires.
+func TestObserve_PodInheritMetadata_DesiredNilServerStamped(t *testing.T) {
+	v := true
+	e, _, mr := observeFixtureWithPodInheritMetadata(t, &v, nil)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.True(t, resp.ResourceUpToDate,
+		"server-stamped PodInheritMetadata with desired-nil must adopt observed, not flap drift")
+}
+
+// TestObserve_PodInheritMetadata_DesiredTrueServerFalse covers the
+// disagree case: user pinned true, the platform actually has false.
+// Drift must fire so Apply runs.
+func TestObserve_PodInheritMetadata_DesiredTrueServerFalse(t *testing.T) {
+	tr, fa := true, false
+	e, _, mr := observeFixtureWithPodInheritMetadata(t, &fa, &tr)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.False(t, resp.ResourceUpToDate,
+		"user-pinned PodInheritMetadata=true with GetCluster=false must surface as drift")
+}
