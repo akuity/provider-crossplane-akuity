@@ -155,14 +155,29 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	}
 
 	// MaintenanceMode + MaintenanceModeExpiry ride the dedicated
-	// set-maintenance-mode RPC, not ApplyInstance, so ExportInstance
-	// never echoes them. GetCluster does — APIToSpec lifts them onto
-	// actualCluster. Override the Export-derived driftTarget with the
-	// Get-derived values so the comparator detects real drift on these
-	// specific fields without flapping against an Export shape that
-	// always reports nil.
-	driftTarget.ClusterSpec.Data.MaintenanceMode = actualCluster.ClusterSpec.Data.MaintenanceMode
-	driftTarget.ClusterSpec.Data.MaintenanceModeExpiry = actualCluster.ClusterSpec.Data.MaintenanceModeExpiry
+	// set-maintenance-mode RPC, not ApplyInstance. ExportInstance
+	// echoes them anyway: when the user flips MaintenanceMode without
+	// pinning an expiry, the platform stamps a 24h-ahead expiry and
+	// advances it on every subsequent Update call. Comparing user-nil
+	// vs server-stamped expiry would flap drift forever.
+	//
+	// Branch on user intent: when the user has pinned the field,
+	// override driftTarget with the Get-derived value (real drift
+	// surfaces). When the user is silent, force driftTarget back to
+	// nil so the comparator sees nil-vs-nil — the user has not asked
+	// to control this field and the server's rolling stamp must not
+	// look like drift.
+	desiredData := mg.Spec.ForProvider.ClusterSpec.Data
+	if desiredData.MaintenanceMode != nil {
+		driftTarget.ClusterSpec.Data.MaintenanceMode = actualCluster.ClusterSpec.Data.MaintenanceMode
+	} else {
+		driftTarget.ClusterSpec.Data.MaintenanceMode = nil
+	}
+	if desiredData.MaintenanceModeExpiry != nil {
+		driftTarget.ClusterSpec.Data.MaintenanceModeExpiry = actualCluster.ClusterSpec.Data.MaintenanceModeExpiry
+	} else {
+		driftTarget.ClusterSpec.Data.MaintenanceModeExpiry = nil
+	}
 
 	// MultiClusterK8SDashboardEnabled, AutoscalerConfig, Compatibility,
 	// and ArgocdNotificationsSettings are pointer fields the Akuity
