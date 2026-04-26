@@ -19,6 +19,9 @@ package base
 import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
@@ -31,10 +34,64 @@ type ExternalClient struct {
 	Kube     client.Client
 	Logger   logging.Logger
 	Recorder event.Recorder
+
+	TerminalWrites *TerminalWriteGuard
 }
 
 // NewExternalClient is a small constructor used by the per-resource
 // ExternalClientBuilder glue.
 func NewExternalClient(c akuity.Client, kube client.Client, logger logging.Logger, recorder event.Recorder) ExternalClient {
-	return ExternalClient{Client: c, Kube: kube, Logger: logger, Recorder: recorder}
+	return ExternalClient{
+		Client:         c,
+		Kube:           kube,
+		Logger:         logger,
+		Recorder:       recorder,
+		TerminalWrites: DefaultTerminalWriteGuard,
+	}
+}
+
+func (e ExternalClient) SuppressTerminalWrite(mg resource.Managed, key TerminalWriteKey) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	return e.TerminalWrites.Suppress(mg, key)
+}
+
+func (e ExternalClient) RecordTerminalWrite(key TerminalWriteKey, err error) error {
+	if e.TerminalWrites != nil {
+		e.TerminalWrites.Record(key, err)
+	}
+	return err
+}
+
+func (e ExternalClient) ClearTerminalWrite(key TerminalWriteKey) {
+	if e.TerminalWrites != nil {
+		e.TerminalWrites.Clear(key)
+	}
+}
+
+func (e ExternalClient) ClearTerminalWriteResource(mg resource.Managed, gvk schema.GroupVersionKind) {
+	if e.TerminalWrites != nil {
+		e.TerminalWrites.Clear(NewTerminalWriteResourceKey(mg, gvk))
+	}
+}
+
+func (e ExternalClient) HasTerminalWriteResource(mg resource.Managed, gvk schema.GroupVersionKind) bool {
+	if e.TerminalWrites == nil {
+		return false
+	}
+	return e.TerminalWrites.HasResource(NewTerminalWriteResourceKey(mg, gvk))
+}
+
+func (e ExternalClient) SkipTerminalWriteGuard(err error) (managed.ExternalObservation, error, bool) {
+	if e.Logger != nil {
+		e.Logger.Debug("terminal write guard skipped", "err", err)
+	}
+	return managed.ExternalObservation{}, nil, false
+}
+
+func (e ExternalClient) LogTerminalWriteGuardSkipped(err error) {
+	if e.Logger != nil {
+		e.Logger.Debug("terminal write guard skipped", "err", err)
+	}
 }

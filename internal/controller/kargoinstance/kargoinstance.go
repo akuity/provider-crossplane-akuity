@@ -222,6 +222,9 @@ type external struct {
 func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (managed.ExternalObservation, error) {
 	defer base.PropagateObservedGeneration(mg)
 	if meta.GetExternalName(mg) == "" {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+			return obs, err
+		}
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
@@ -378,6 +381,13 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 			upToDate = false
 		}
 	}
+	if !upToDate {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+			return obs, err
+		}
+	} else {
+		e.clearTerminalWrite(ctx, mg)
+	}
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate}, nil
 }
 
@@ -397,6 +407,8 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.KargoInstance) (mana
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoInstance) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
+	e.ClearTerminalWriteResource(mg, v1alpha1.KargoInstanceGroupVersionKind)
+
 	name := meta.GetExternalName(mg)
 	if name == "" {
 		return managed.ExternalDelete{}, nil
@@ -422,6 +434,10 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	}
 
 	sec, err := resolveKargoSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		return err
+	}
+	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec.Hash())
 	if err != nil {
 		return err
 	}
@@ -463,10 +479,56 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 		RepoCredentials:       repoCredsPB,
 	}
 	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
-		return reason.ClassifyApplyError(err)
+		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
+	e.ClearTerminalWrite(key)
 	setSecretHash(mg, sec.Hash())
 	return nil
+}
+
+func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.KargoInstance) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	workspaceID, err := e.resolveWorkspaceID(ctx, mg)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	sec, err := resolveKargoSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec.Hash())
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	return e.SuppressTerminalWrite(mg, key)
+}
+
+func kargoInstanceTerminalWriteKey(mg *v1alpha1.KargoInstance, workspaceID, secretHash string) (base.TerminalWriteKey, error) {
+	return base.NewTerminalWriteKey(mg, v1alpha1.KargoInstanceGroupVersionKind, workspaceID, mg.Spec.ForProvider, secretHash)
+}
+
+func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.KargoInstance) {
+	if !e.HasTerminalWriteResource(mg, v1alpha1.KargoInstanceGroupVersionKind) {
+		return
+	}
+	workspaceID, err := e.resolveWorkspaceID(ctx, mg)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	sec, err := resolveKargoSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec.Hash())
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	e.ClearTerminalWrite(key)
 }
 
 // resolveWorkspaceID returns the canonical Akuity workspace ID for the

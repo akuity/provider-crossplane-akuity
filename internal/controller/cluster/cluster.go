@@ -17,6 +17,7 @@ limitations under the License.
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -43,6 +44,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
@@ -97,6 +99,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	mg.Spec.ForProvider.InstanceID = instanceID
 
 	if meta.GetExternalName(mg) == "" {
+		if obs, err, ok := e.suppressTerminalWrite(mg); ok {
+			return obs, err
+		}
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
@@ -180,6 +185,8 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	driftTarget.ClusterSpec.Data.AutoscalerConfig = actualCluster.ClusterSpec.Data.AutoscalerConfig
 	driftTarget.ClusterSpec.Data.Compatibility = actualCluster.ClusterSpec.Data.Compatibility
 	driftTarget.ClusterSpec.Data.ArgocdNotificationsSettings = actualCluster.ClusterSpec.Data.ArgocdNotificationsSettings
+	driftTarget.ClusterSpec.Data.DirectClusterSpec = actualCluster.ClusterSpec.Data.DirectClusterSpec
+	driftTarget.ClusterSpec.Data.ServerSideDiffEnabled = actualCluster.ClusterSpec.Data.ServerSideDiffEnabled
 	driftTarget.ClusterSpec.Data.PodInheritMetadata = actualCluster.ClusterSpec.Data.PodInheritMetadata
 	driftTarget.ClusterSpec.Data.DatadogAnnotationsEnabled = actualCluster.ClusterSpec.Data.DatadogAnnotationsEnabled
 	driftTarget.ClusterSpec.Data.EksAddonEnabled = actualCluster.ClusterSpec.Data.EksAddonEnabled
@@ -191,6 +198,14 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 		return managed.ExternalObservation{}, err
 	}
 
+	if !isUpToDate {
+		if obs, err, ok := e.suppressTerminalWrite(mg); ok {
+			return obs, err
+		}
+	} else {
+		e.clearTerminalWrite(mg)
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: isUpToDate,
@@ -200,17 +215,22 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalCreation, error) {
 	defer base.PropagateObservedGeneration(mg)
 
+	key, err := clusterTerminalWriteKey(mg)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
 	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
 		return managed.ExternalCreation{}, errors.Wrap(err, errTransformCluster)
 	}
 	if err := e.Client.ApplyInstance(ctx, req); err != nil {
-		return managed.ExternalCreation{}, fmt.Errorf("could not create cluster: %w", err)
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 
 	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
-		return managed.ExternalCreation{}, err
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
+	e.ClearTerminalWrite(key)
 
 	// One-time apply: manifests are installed on the managed cluster at
 	// Create only. Update intentionally does not re-apply them.
@@ -240,16 +260,21 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalUpdate, error) {
 	defer base.PropagateObservedGeneration(mg)
 
+	key, err := clusterTerminalWriteKey(mg)
+	if err != nil {
+		return managed.ExternalUpdate{}, err
+	}
 	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
 		return managed.ExternalUpdate{}, errors.Wrap(err, errTransformCluster)
 	}
 	if err := e.Client.ApplyInstance(ctx, req); err != nil {
-		return managed.ExternalUpdate{}, err
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
-		return managed.ExternalUpdate{}, err
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
+	e.ClearTerminalWrite(key)
 	return managed.ExternalUpdate{}, nil
 }
 
@@ -277,7 +302,7 @@ func (e *external) syncMaintenanceMode(ctx context.Context, mg *v1alpha1.Cluster
 	if data.MaintenanceModeExpiry != nil && *data.MaintenanceModeExpiry != "" {
 		t, err := time.Parse(time.RFC3339, *data.MaintenanceModeExpiry)
 		if err != nil {
-			return fmt.Errorf("could not parse spec.forProvider.data.maintenanceModeExpiry as RFC3339: %w", err)
+			return reason.AsTerminal(fmt.Errorf("could not parse spec.forProvider.data.maintenanceModeExpiry as RFC3339: %w", err))
 		}
 		expiry = &t
 	}
@@ -286,6 +311,7 @@ func (e *external) syncMaintenanceMode(ctx context.Context, mg *v1alpha1.Cluster
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
+	e.ClearTerminalWriteResource(mg, v1alpha1.ClusterGroupVersionKind)
 
 	externalName := meta.GetExternalName(mg)
 	if externalName == "" {
@@ -312,6 +338,33 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 }
 
 func (e *external) Disconnect(_ context.Context) error { return nil }
+
+func (e *external) suppressTerminalWrite(mg *v1alpha1.Cluster) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	key, err := clusterTerminalWriteKey(mg)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	return e.SuppressTerminalWrite(mg, key)
+}
+
+func clusterTerminalWriteKey(mg *v1alpha1.Cluster) (base.TerminalWriteKey, error) {
+	return base.NewTerminalWriteKey(mg, v1alpha1.ClusterGroupVersionKind, mg.Spec.ForProvider)
+}
+
+func (e *external) clearTerminalWrite(mg *v1alpha1.Cluster) {
+	if !e.HasTerminalWriteResource(mg, v1alpha1.ClusterGroupVersionKind) {
+		return
+	}
+	key, err := clusterTerminalWriteKey(mg)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	e.ClearTerminalWrite(key)
+}
 
 func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.ClusterParameters) {
 	in.Namespace = pointer.LateInitialize(in.Namespace, actual.Namespace)
@@ -422,6 +475,14 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 				&observed.ClusterSpec.Data.ArgocdNotificationsSettings,
 			)
 			normalizePtrField(
+				&desired.ClusterSpec.Data.DirectClusterSpec,
+				&observed.ClusterSpec.Data.DirectClusterSpec,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.ServerSideDiffEnabled,
+				&observed.ClusterSpec.Data.ServerSideDiffEnabled,
+			)
+			normalizePtrField(
 				&desired.ClusterSpec.Data.DatadogAnnotationsEnabled,
 				&observed.ClusterSpec.Data.DatadogAnnotationsEnabled,
 			)
@@ -442,8 +503,7 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 			// stores the string verbatim, so "value" and "value\n" would
 			// otherwise fire ApplyCluster every poll while the server
 			// short-circuits the write.
-			if kustomizationEmptyEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) ||
-				strings.TrimRight(desired.ClusterSpec.Data.Kustomization, "\n") == strings.TrimRight(observed.ClusterSpec.Data.Kustomization, "\n") {
+			if kustomizationEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
 				desired.ClusterSpec.Data.Kustomization = observed.ClusterSpec.Data.Kustomization
 			}
 		},
@@ -484,6 +544,21 @@ func kustomizationEmptyEquivalent(a, b string) bool {
 		return false
 	}
 	return aEmpty && bEmpty
+}
+
+func kustomizationEquivalent(a, b string) bool {
+	if kustomizationEmptyEquivalent(a, b) {
+		return true
+	}
+	if strings.TrimRight(a, "\n") == strings.TrimRight(b, "\n") {
+		return true
+	}
+	aRaw, aErr := clusterKustomizationRaw(a)
+	bRaw, bErr := clusterKustomizationRaw(b)
+	if aErr != nil || bErr != nil {
+		return false
+	}
+	return bytes.Equal(aRaw.Raw, bRaw.Raw)
 }
 
 // isEmptyKustomization decides whether a Kustomization YAML string

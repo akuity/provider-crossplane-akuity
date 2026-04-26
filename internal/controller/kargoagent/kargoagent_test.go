@@ -133,6 +133,29 @@ func TestObserve_Reconciled(t *testing.T) {
 	assert.Nil(t, obs.ConnectionDetails)
 }
 
+func TestObserve_PodInheritMetadataPropagatesToAtProvider(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:   "ag-1",
+		Name: "agt",
+		Data: &kargov1.KargoAgentData{
+			PodInheritMetadata: boolPtr(true),
+		},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	require.NotNil(t, a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
+	assert.True(t, *a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
+}
+
 func TestCreate_Apply(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
@@ -228,6 +251,57 @@ func TestUpdate_ApplyErr(t *testing.T) {
 	_, err := e.Update(context.Background(), a)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(status.Error(codes.InvalidArgument, "invalid kargo agent config")).Times(1)
+	_, err := e.Update(context.Background(), a)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from ApplyKargoInstance must be reason.Terminal-classified, got %T %v", err, err)
+}
+
+func TestDriftSpec_PodInheritMetadataDesiredNilAdoptsObserved(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				PodInheritMetadata: boolPtr(true),
+			},
+		},
+	}
+
+	driftSpec().Normalize(&desired, &observed)
+
+	require.NotNil(t, desired.KargoAgentSpec.Data.PodInheritMetadata)
+	assert.True(t, *desired.KargoAgentSpec.Data.PodInheritMetadata)
+}
+
+func TestDriftSpec_PodInheritMetadataDesiredSetDoesNotAdoptObserved(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				PodInheritMetadata: boolPtr(true),
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				PodInheritMetadata: boolPtr(false),
+			},
+		},
+	}
+
+	driftSpec().Normalize(&desired, &observed)
+
+	require.NotNil(t, desired.KargoAgentSpec.Data.PodInheritMetadata)
+	assert.True(t, *desired.KargoAgentSpec.Data.PodInheritMetadata,
+		"user-pinned podInheritMetadata must not be overwritten by observed drift")
 }
 
 func TestResolveWorkspaceFromParentUsesStatusFallback(t *testing.T) {

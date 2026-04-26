@@ -17,7 +17,9 @@ limitations under the License.
 package cluster
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -103,6 +105,7 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 				AppReplication:                  ptr.To(cluster.GetData().GetAppReplication()),
 				TargetVersion:                   cluster.GetData().GetTargetVersion(),
 				RedisTunneling:                  ptr.To(cluster.GetData().GetRedisTunneling()),
+				DirectClusterSpec:               apiToDirectClusterSpec(cluster.GetData().GetDirectClusterSpec()),
 				DatadogAnnotationsEnabled:       cluster.GetData().DatadogAnnotationsEnabled, //nolint:all
 				EksAddonEnabled:                 cluster.GetData().EksAddonEnabled,           //nolint:all
 				ManagedClusterConfig:            apiToManagedClusterConfig(cluster.GetData().GetManagedClusterConfig()),
@@ -111,6 +114,7 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 				Project:                         cluster.GetData().GetProject(),
 				Compatibility:                   apiToCompatibility(cluster.GetData().GetCompatibility()),
 				ArgocdNotificationsSettings:     apiToArgocdNotificationsSettings(cluster.GetData().GetArgocdNotificationsSettings()),
+				ServerSideDiffEnabled:           cluster.GetData().ServerSideDiffEnabled, //nolint:all
 				// MaintenanceMode + MaintenanceModeExpiry are server-owned
 				// for drift purposes: ApplyInstance does not propagate
 				// them because they ride a dedicated set-maintenance-mode RPC,
@@ -185,10 +189,20 @@ func SpecToAPI(cluster v1alpha1.ClusterParameters) (akuitytypes.Cluster, error) 
 		cluster.ClusterSpec.Data.Size = "small"
 	}
 
-	kustomization := runtime.RawExtension{}
-	if err := yaml.Unmarshal([]byte(cluster.ClusterSpec.Data.Kustomization), &kustomization); err != nil {
-		return akuitytypes.Cluster{}, fmt.Errorf("could not unmarshal cluster Kustomization from YAML to runtime raw extension: %w", err)
+	kustomization, err := clusterKustomizationRaw(cluster.ClusterSpec.Data.Kustomization)
+	if err != nil {
+		return akuitytypes.Cluster{}, fmt.Errorf("spec.forProvider.clusterSpec.data.kustomization: %w", err)
 	}
+	data := generated.ClusterDataSpecToAPI(&cluster.ClusterSpec.Data)
+	if data == nil {
+		data = &akuitytypes.ClusterData{}
+	}
+	data.Kustomization = kustomization
+	// MaintenanceMode and MaintenanceModeExpiry are owned by the
+	// dedicated set-maintenance-mode RPC; never send them through
+	// ApplyInstance even if the generated converter can populate them.
+	data.MaintenanceMode = nil
+	data.MaintenanceModeExpiry = nil
 
 	return akuitytypes.Cluster{
 		TypeMeta: metav1.TypeMeta{
@@ -204,24 +218,120 @@ func SpecToAPI(cluster v1alpha1.ClusterParameters) (akuitytypes.Cluster, error) 
 		Spec: akuitytypes.ClusterSpec{
 			Description:     cluster.ClusterSpec.Description,
 			NamespaceScoped: cluster.ClusterSpec.NamespaceScoped,
-			Data: akuitytypes.ClusterData{
-				Size:                            akuitytypes.ClusterSize(cluster.ClusterSpec.Data.Size),
-				AutoUpgradeDisabled:             cluster.ClusterSpec.Data.AutoUpgradeDisabled,
-				Kustomization:                   kustomization,
-				AppReplication:                  cluster.ClusterSpec.Data.AppReplication,
-				TargetVersion:                   cluster.ClusterSpec.Data.TargetVersion,
-				RedisTunneling:                  cluster.ClusterSpec.Data.RedisTunneling,
-				DatadogAnnotationsEnabled:       cluster.ClusterSpec.Data.DatadogAnnotationsEnabled,
-				EksAddonEnabled:                 cluster.ClusterSpec.Data.EksAddonEnabled,
-				ManagedClusterConfig:            specToManagedClusterConfig(cluster.ClusterSpec.Data.ManagedClusterConfig),
-				MultiClusterK8SDashboardEnabled: cluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
-				AutoscalerConfig:                specToAutoscalerConfig(cluster.ClusterSpec.Data.AutoscalerConfig),
-				Project:                         cluster.ClusterSpec.Data.Project,
-				Compatibility:                   specToCompatibility(cluster.ClusterSpec.Data.Compatibility),
-				PodInheritMetadata:              cluster.ClusterSpec.Data.PodInheritMetadata,
-			},
+			Data:            *data,
 		},
 	}, nil
+}
+
+func clusterKustomizationRaw(s string) (runtime.RawExtension, error) {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" || trimmed == "null" {
+		return runtime.RawExtension{}, nil
+	}
+	raw, err := yaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return runtime.RawExtension{}, fmt.Errorf("invalid kustomization YAML: %w", err)
+	}
+	var top map[string]any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return runtime.RawExtension{}, fmt.Errorf("kustomization YAML must be an object at the top level: %w", err)
+	}
+	if top == nil {
+		return runtime.RawExtension{}, nil
+	}
+	if err := validateClusterKustomizationObject(top); err != nil {
+		return runtime.RawExtension{}, err
+	}
+	if _, ok := top["apiVersion"]; !ok {
+		top["apiVersion"] = "kustomize.config.k8s.io/v1beta1"
+	}
+	if _, ok := top["kind"]; !ok {
+		top["kind"] = "Kustomization"
+	}
+	raw, err = json.Marshal(top)
+	if err != nil {
+		return runtime.RawExtension{}, fmt.Errorf("could not encode kustomization JSON: %w", err)
+	}
+	return runtime.RawExtension{Raw: raw}, nil
+}
+
+func validateClusterKustomizationObject(top map[string]any) error {
+	for k, v := range top {
+		if !clusterKustomizationTopLevelKeys[k] {
+			return fmt.Errorf("unknown top-level Kustomization field %q", k)
+		}
+		if k == "kind" && v != "Kustomization" {
+			return fmt.Errorf("kind must be Kustomization when set")
+		}
+		if (k == "apiVersion" || k == "kind") && v != nil {
+			if _, ok := v.(string); !ok {
+				return fmt.Errorf("%s must be a string when set", k)
+			}
+		}
+	}
+	return nil
+}
+
+var clusterKustomizationTopLevelKeys = map[string]bool{
+	"apiVersion":                true,
+	"kind":                      true,
+	"metadata":                  true,
+	"namespace":                 true,
+	"namePrefix":                true,
+	"nameSuffix":                true,
+	"commonLabels":              true,
+	"labels":                    true,
+	"commonAnnotations":         true,
+	"resources":                 true,
+	"bases":                     true,
+	"components":                true,
+	"crds":                      true,
+	"configurations":            true,
+	"vars":                      true,
+	"images":                    true,
+	"replicas":                  true,
+	"patches":                   true,
+	"patchesJson6902":           true,
+	"patchesStrategicMerge":     true,
+	"replacements":              true,
+	"configMapGenerator":        true,
+	"secretGenerator":           true,
+	"generators":                true,
+	"generatorOptions":          true,
+	"transformers":              true,
+	"validators":                true,
+	"openapi":                   true,
+	"buildMetadata":             true,
+	"helmCharts":                true,
+	"helmGlobals":               true,
+	"sortOptions":               true,
+	"configMapGeneratorOptions": true,
+	"secretGeneratorOptions":    true,
+}
+
+func apiToDirectClusterSpec(in *argocdv1.DirectClusterSpec) *generated.DirectClusterSpec {
+	if in == nil {
+		return nil
+	}
+	return &generated.DirectClusterSpec{
+		ClusterType:     apiToDirectClusterType(in.GetClusterType()),
+		KargoInstanceId: in.KargoInstanceId,
+		Server:          in.Server,
+		Organization:    in.Organization,
+		Token:           in.Token,
+		CaData:          in.CaData,
+	}
+}
+
+func apiToDirectClusterType(in argocdv1.DirectClusterType) generated.DirectClusterType {
+	switch in {
+	case argocdv1.DirectClusterType_DIRECT_CLUSTER_TYPE_KARGO:
+		return "kargo"
+	case argocdv1.DirectClusterType_DIRECT_CLUSTER_TYPE_UPBOUND:
+		return "upbound"
+	default:
+		return ""
+	}
 }
 
 func apiToManagedClusterConfig(in *argocdv1.ManagedClusterConfig) *generated.ManagedClusterConfig {
@@ -231,16 +341,6 @@ func apiToManagedClusterConfig(in *argocdv1.ManagedClusterConfig) *generated.Man
 	return &generated.ManagedClusterConfig{
 		SecretName: in.GetSecretName(),
 		SecretKey:  in.GetSecretKey(),
-	}
-}
-
-func specToManagedClusterConfig(in *generated.ManagedClusterConfig) *akuitytypes.ManagedClusterConfig {
-	if in == nil {
-		return nil
-	}
-	return &akuitytypes.ManagedClusterConfig{
-		SecretName: in.SecretName,
-		SecretKey:  in.SecretKey,
 	}
 }
 
@@ -286,48 +386,6 @@ func apiToAutoscalerConfig(in *argocdv1.AutoScalerConfig) *generated.AutoScalerC
 	return out
 }
 
-func specToAutoscalerConfig(in *generated.AutoScalerConfig) *akuitytypes.AutoScalerConfig {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.AutoScalerConfig{}
-	if in.ApplicationController != nil {
-		ac := &akuitytypes.AppControllerAutoScalingConfig{}
-		if in.ApplicationController.ResourceMinimum != nil {
-			ac.ResourceMinimum = &akuitytypes.Resources{
-				Mem: in.ApplicationController.ResourceMinimum.Mem,
-				Cpu: in.ApplicationController.ResourceMinimum.Cpu,
-			}
-		}
-		if in.ApplicationController.ResourceMaximum != nil {
-			ac.ResourceMaximum = &akuitytypes.Resources{
-				Mem: in.ApplicationController.ResourceMaximum.Mem,
-				Cpu: in.ApplicationController.ResourceMaximum.Cpu,
-			}
-		}
-		out.ApplicationController = ac
-	}
-	if in.RepoServer != nil {
-		rs := &akuitytypes.RepoServerAutoScalingConfig{}
-		if in.RepoServer.ResourceMinimum != nil {
-			rs.ResourceMinimum = &akuitytypes.Resources{
-				Mem: in.RepoServer.ResourceMinimum.Mem,
-				Cpu: in.RepoServer.ResourceMinimum.Cpu,
-			}
-		}
-		if in.RepoServer.ResourceMaximum != nil {
-			rs.ResourceMaximum = &akuitytypes.Resources{
-				Mem: in.RepoServer.ResourceMaximum.Mem,
-				Cpu: in.RepoServer.ResourceMaximum.Cpu,
-			}
-		}
-		rs.ReplicaMinimum = in.RepoServer.ReplicaMinimum
-		rs.ReplicaMaximum = in.RepoServer.ReplicaMaximum
-		out.RepoServer = rs
-	}
-	return out
-}
-
 // timestampPtrToStringPtr renders the gateway's *timestamppb.Timestamp
 // shape into the curated *string (RFC3339) shape used on the Crossplane
 // CRD. Nil or zero input yields nil so callers compose without
@@ -368,14 +426,5 @@ func apiToArgocdNotificationsSettings(in *argocdv1.ClusterArgoCDNotificationsSet
 	}
 	return &generated.ClusterArgoCDNotificationsSettings{
 		InClusterSettings: ptr.To(in.GetInClusterSettings()),
-	}
-}
-
-func specToCompatibility(in *generated.ClusterCompatibility) *akuitytypes.ClusterCompatibility {
-	if in == nil {
-		return nil
-	}
-	return &akuitytypes.ClusterCompatibility{
-		Ipv6Only: in.Ipv6Only,
 	}
 }

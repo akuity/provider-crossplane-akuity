@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
@@ -38,6 +39,7 @@ import (
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )
 
@@ -182,6 +184,23 @@ func TestDelete_EmptyExternalName(t *testing.T) {
 	assert.Equal(t, managed.ExternalDelete{}, resp)
 }
 
+func TestDelete_ClearsTerminalWriteGuard(t *testing.T) {
+	e, _ := newExt(t)
+	e.TerminalWrites = base.NewTerminalWriteGuard()
+
+	managedInstance := fixtures.CrossplaneManagedInstance
+	managedInstance.ObjectMeta = metav1.ObjectMeta{Name: "bad-instance", Generation: 3}
+	key, err := instanceTerminalWriteKey(&managedInstance, resolvedInstanceSecrets{})
+	require.NoError(t, err)
+	e.TerminalWrites.Record(key, reason.AsTerminal(errors.New("bad payload")))
+
+	_, err = e.Delete(ctx, &managedInstance)
+	require.NoError(t, err)
+
+	_, _, ok := e.TerminalWrites.Suppress(&managedInstance, key)
+	assert.False(t, ok)
+}
+
 func TestDelete_ClientErr(t *testing.T) {
 	e, mc := newExt(t)
 
@@ -204,6 +223,24 @@ func TestObserve_EmptyExternalName(t *testing.T) {
 	resp, err := e.Observe(ctx, &v1alpha1.Instance{})
 	require.NoError(t, err)
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: false}, resp)
+}
+
+func TestObserve_EmptyExternalName_SuppressesTerminalWrite(t *testing.T) {
+	e, _ := newExt(t)
+	e.TerminalWrites = base.NewTerminalWriteGuard()
+
+	managedInstance := fixtures.CrossplaneManagedInstance
+	managedInstance.ObjectMeta = metav1.ObjectMeta{Name: "bad-instance", Generation: 3}
+	key, err := instanceTerminalWriteKey(&managedInstance, resolvedInstanceSecrets{})
+	require.NoError(t, err)
+	e.TerminalWrites.Record(key, reason.AsTerminal(errors.New("bad payload")))
+
+	resp, err := e.Observe(ctx, &managedInstance)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err))
+	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, resp)
+	require.Len(t, managedInstance.Status.Conditions, 1)
+	assert.Equal(t, xpv1.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
 }
 
 func TestDriftSpec_ArgocdConfigMapComparesOnlyUserKeys(t *testing.T) {
@@ -262,6 +299,85 @@ func TestNormalizeInstanceParameters_StripsIgnoredArgocdConfigMapKeysFromBothSid
 		assert.NotContains(t, desired.ArgoCDConfigMap, key)
 		assert.NotContains(t, observed.ArgoCDConfigMap, key)
 	}
+}
+
+func TestNormalizeInstanceParameters_DisabledBucketRateLimitingAdoptsServerScalars(t *testing.T) {
+	desired := v1alpha1.InstanceParameters{
+		ArgoCD: &crossplanetypes.ArgoCD{
+			Spec: crossplanetypes.ArgoCDSpec{
+				InstanceSpec: crossplanetypes.InstanceSpec{
+					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
+						BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
+							BucketSize: 200,
+							BucketQps:  50,
+						},
+					},
+				},
+			},
+		},
+	}
+	observed := v1alpha1.InstanceParameters{
+		ArgoCD: &crossplanetypes.ArgoCD{
+			Spec: crossplanetypes.ArgoCDSpec{
+				InstanceSpec: crossplanetypes.InstanceSpec{
+					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
+						BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
+							Enabled:    ptr.To(false),
+							BucketSize: 500,
+							BucketQps:  50,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	normalizeInstanceParameters(&desired, &observed)
+
+	bucket := desired.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting.BucketRateLimiting
+	require.NotNil(t, bucket.Enabled)
+	assert.False(t, *bucket.Enabled)
+	assert.Equal(t, uint32(500), bucket.BucketSize)
+	assert.Equal(t, uint32(50), bucket.BucketQps)
+}
+
+func TestNormalizeInstanceParameters_EnabledBucketRateLimitingKeepsUserScalars(t *testing.T) {
+	desired := v1alpha1.InstanceParameters{
+		ArgoCD: &crossplanetypes.ArgoCD{
+			Spec: crossplanetypes.ArgoCDSpec{
+				InstanceSpec: crossplanetypes.InstanceSpec{
+					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
+						BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
+							Enabled:    ptr.To(true),
+							BucketSize: 200,
+							BucketQps:  50,
+						},
+					},
+				},
+			},
+		},
+	}
+	observed := v1alpha1.InstanceParameters{
+		ArgoCD: &crossplanetypes.ArgoCD{
+			Spec: crossplanetypes.ArgoCDSpec{
+				InstanceSpec: crossplanetypes.InstanceSpec{
+					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
+						BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
+							Enabled:    ptr.To(true),
+							BucketSize: 500,
+							BucketQps:  50,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	normalizeInstanceParameters(&desired, &observed)
+
+	bucket := desired.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting.BucketRateLimiting
+	assert.Equal(t, uint32(200), bucket.BucketSize)
+	assert.Equal(t, uint32(50), bucket.BucketQps)
 }
 
 func TestObserve_GetInstanceNotFoundErr(t *testing.T) {

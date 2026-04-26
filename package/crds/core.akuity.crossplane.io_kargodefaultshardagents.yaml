@@ -86,8 +86,7 @@ spec:
                   the KargoInstance's Status.AtProvider.ID field.
                 properties:
                   agentName:
-                    description: |-
-                      AgentName is the name of the shard agent to promote as default.
+                    description: AgentName is the shard agent name to promote as default.
                       Required.
                     minLength: 1
                     type: string
@@ -105,7 +104,7 @@ spec:
                       Mutually exclusive with KargoInstanceID.
                     properties:
                       name:
-                        description: Name of the referenced object. Required.
+                        description: Name is the referenced object's name. Required.
                         minLength: 1
                         type: string
                     required:

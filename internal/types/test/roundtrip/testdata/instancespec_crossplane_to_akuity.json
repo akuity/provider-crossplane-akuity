@@ -33,7 +33,8 @@
       ]
     },
     "appReplication": true,
-    "redisTunneling": true
+    "redisTunneling": true,
+    "serverSideDiffEnabled": false
   },
   "imageUpdaterEnabled": true,
   "backendIpAllowListEnabled": true,

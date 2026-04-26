@@ -92,6 +92,15 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 		return managed.ExternalObservation{}, err
 	}
 	if meta.GetExternalName(mg) == "" {
+		if e.TerminalWrites != nil {
+			desiredID, derr := e.resolveDesiredAgentID(ctx, kargoID, mg.Spec.ForProvider.AgentName)
+			if derr != nil {
+				return managed.ExternalObservation{ResourceExists: false}, nil
+			}
+			if obs, err, ok := e.suppressTerminalWrite(mg, kargoID, desiredID); ok {
+				return obs, err
+			}
+		}
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
@@ -116,7 +125,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 	observedID := ki.GetSpec().GetDefaultShardAgent()
 	var desiredID string
 	if mg.Spec.ForProvider.AgentName != "" {
-		agent, rerr := e.Client.GetKargoInstanceAgent(ctx, kargoID, mg.Spec.ForProvider.AgentName)
+		resolved, rerr := e.resolveDesiredAgentID(ctx, kargoID, mg.Spec.ForProvider.AgentName)
 		if rerr != nil {
 			// Missing agent means the pin cannot exist yet. Let Create
 			// retry once the agent appears; surface other errors.
@@ -125,7 +134,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 			}
 			return managed.ExternalObservation{}, rerr
 		}
-		desiredID = agent.GetId()
+		desiredID = resolved
 	}
 
 	mg.Status.AtProvider = v1alpha1.KargoDefaultShardAgentObservation{
@@ -149,6 +158,11 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 	if !upToDate {
 		e.Logger.Debug("KargoDefaultShardAgent drift detected",
 			"observedID", observedID, "desiredID", desiredID, "agentName", mg.Spec.ForProvider.AgentName)
+		if obs, err, ok := e.suppressTerminalWrite(mg, kargoID, desiredID); ok {
+			return obs, err
+		}
+	} else {
+		e.clearTerminalWrite(mg, kargoID, desiredID)
 	}
 
 	return managed.ExternalObservation{
@@ -173,6 +187,8 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.KargoDefaultShardAge
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgent) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
+	e.ClearTerminalWriteResource(mg, v1alpha1.KargoDefaultShardAgentGroupVersionKind)
+
 	// Clearing the default is the API-neutral "no pinning" signal; we
 	// intentionally do not delete the Kargo instance itself.
 	return managed.ExternalDelete{}, e.patch(ctx, mg, "")
@@ -201,11 +217,15 @@ func (e *external) patch(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgen
 	// name-to-ID resolution.
 	value := ""
 	if desiredAgentName != "" {
-		agent, rerr := e.Client.GetKargoInstanceAgent(ctx, kargoID, desiredAgentName)
+		resolved, rerr := e.resolveDesiredAgentID(ctx, kargoID, desiredAgentName)
 		if rerr != nil {
 			return fmt.Errorf("resolve default-shard agent %q: %w", desiredAgentName, rerr)
 		}
-		value = agent.GetId()
+		value = resolved
+	}
+	key, err := kargoDefaultShardAgentTerminalWriteKey(mg, kargoID, value)
+	if err != nil {
+		return err
 	}
 
 	patch, err := structpb.NewStruct(map[string]any{
@@ -217,7 +237,55 @@ func (e *external) patch(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgen
 		return fmt.Errorf("build defaultShardAgent patch: %w", err)
 	}
 
-	return e.Client.PatchKargoInstance(ctx, kargoID, patch)
+	if err := e.Client.PatchKargoInstance(ctx, kargoID, patch); err != nil {
+		err = reason.ClassifyApplyError(err)
+		if meta.WasDeleted(mg) {
+			return err
+		}
+		return e.RecordTerminalWrite(key, err)
+	}
+	if !meta.WasDeleted(mg) {
+		e.ClearTerminalWrite(key)
+	}
+	return nil
+}
+
+func (e *external) suppressTerminalWrite(mg *v1alpha1.KargoDefaultShardAgent, kargoID, desiredID string) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	key, err := kargoDefaultShardAgentTerminalWriteKey(mg, kargoID, desiredID)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	return e.SuppressTerminalWrite(mg, key)
+}
+
+func kargoDefaultShardAgentTerminalWriteKey(mg *v1alpha1.KargoDefaultShardAgent, kargoID, desiredID string) (base.TerminalWriteKey, error) {
+	return base.NewTerminalWriteKey(mg, v1alpha1.KargoDefaultShardAgentGroupVersionKind, kargoID, mg.Spec.ForProvider.AgentName, desiredID)
+}
+
+func (e *external) clearTerminalWrite(mg *v1alpha1.KargoDefaultShardAgent, kargoID, desiredID string) {
+	if !e.HasTerminalWriteResource(mg, v1alpha1.KargoDefaultShardAgentGroupVersionKind) {
+		return
+	}
+	key, err := kargoDefaultShardAgentTerminalWriteKey(mg, kargoID, desiredID)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	e.ClearTerminalWrite(key)
+}
+
+func (e *external) resolveDesiredAgentID(ctx context.Context, kargoID, name string) (string, error) {
+	if name == "" {
+		return "", nil
+	}
+	agent, err := e.Client.GetKargoInstanceAgent(ctx, kargoID, name)
+	if err != nil {
+		return "", err
+	}
+	return agent.GetId(), nil
 }
 
 // resolveKargoID returns the opaque Akuity ID of the target Kargo

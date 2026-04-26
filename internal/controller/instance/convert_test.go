@@ -23,9 +23,11 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )
 
@@ -41,6 +43,68 @@ func mustStruct(t *testing.T, obj map[string]interface{}) *structpb.Struct {
 	pb, err := structpb.NewStruct(obj)
 	require.NoError(t, err)
 	return pb
+}
+
+func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
+	spec := crossplanetypes.InstanceSpec{
+		ClusterCustomizationDefaults: &crossplanetypes.ClusterCustomization{
+			Kustomization:         "{}\n",
+			ServerSideDiffEnabled: ptr.To(true),
+		},
+		Secrets: &crossplanetypes.SecretsManagementConfig{
+			Sources: []*crossplanetypes.ClusterSecretMapping{
+				{
+					Clusters: &crossplanetypes.ObjectSelector{
+						MatchLabels: map[string]string{"cluster": "prod"},
+					},
+					Secrets: &crossplanetypes.ObjectSelector{
+						MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
+							{
+								Key:      ptr.To("sync"),
+								Operator: ptr.To("Exists"),
+							},
+						},
+					},
+				},
+			},
+		},
+		MetricsIngressUsername:        ptr.To("metrics-user"),
+		MetricsIngressPasswordHash:    ptr.To("metrics-hash"),
+		PrivilegedNotificationCluster: ptr.To("notifications"),
+		ClusterAddonsExtension: &crossplanetypes.ClusterAddonsExtension{
+			Enabled:          ptr.To(true),
+			AllowedUsernames: []string{"alice"},
+			AllowedGroups:    []string{"admins"},
+		},
+		ManifestGeneration: &crossplanetypes.ManifestGeneration{
+			Kustomize: &crossplanetypes.ConfigManagementToolVersions{
+				DefaultVersion:     "v5.4.3",
+				AdditionalVersions: []string{"v4.5.7"},
+			},
+		},
+	}
+
+	wire, err := SpecToInstanceSpec(spec)
+	require.NoError(t, err)
+
+	require.NotNil(t, wire.ClusterCustomizationDefaults)
+	assert.Equal(t, ptr.To(true), wire.ClusterCustomizationDefaults.ServerSideDiffEnabled)
+	assert.NotEmpty(t, wire.ClusterCustomizationDefaults.Kustomization.Raw)
+	require.NotNil(t, wire.Secrets)
+	assert.Equal(t, map[string]string{"cluster": "prod"}, wire.Secrets.Sources[0].Clusters.MatchLabels)
+	assert.Equal(t, ptr.To("sync"), wire.Secrets.Sources[0].Secrets.MatchExpressions[0].Key)
+	assert.Equal(t, ptr.To("Exists"), wire.Secrets.Sources[0].Secrets.MatchExpressions[0].Operator)
+	assert.Equal(t, ptr.To("metrics-user"), wire.MetricsIngressUsername)
+	assert.Equal(t, ptr.To("metrics-hash"), wire.MetricsIngressPasswordHash)
+	assert.Equal(t, ptr.To("notifications"), wire.PrivilegedNotificationCluster)
+	require.NotNil(t, wire.ClusterAddonsExtension)
+	assert.Equal(t, ptr.To(true), wire.ClusterAddonsExtension.Enabled)
+	assert.Equal(t, []string{"alice"}, wire.ClusterAddonsExtension.AllowedUsernames)
+	assert.Equal(t, []string{"admins"}, wire.ClusterAddonsExtension.AllowedGroups)
+	require.NotNil(t, wire.ManifestGeneration)
+	require.NotNil(t, wire.ManifestGeneration.Kustomize)
+	assert.Equal(t, "v5.4.3", wire.ManifestGeneration.Kustomize.DefaultVersion)
+	assert.Equal(t, []string{"v4.5.7"}, wire.ManifestGeneration.Kustomize.AdditionalVersions)
 }
 
 // TestSplitArgocdResources_Routing locks in the (apiVersion, kind)

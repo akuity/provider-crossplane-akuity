@@ -49,6 +49,7 @@ import (
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
 // Setup registers the controller with the manager.
@@ -95,21 +96,12 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.InstanceIpAllowList
 		return managed.ExternalObservation{}, err
 	}
 	if meta.GetExternalName(mg) == "" {
-		return managed.ExternalObservation{ResourceExists: false}, nil
+		return e.observeMissingExternalName(mg, instanceID)
 	}
 
 	ai, err := e.Client.GetInstanceByID(ctx, instanceID)
 	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
-		switch outcome {
-		case base.GetOK, base.GetAbsent:
-			// GetOK is filtered by the enclosing `if`; GetAbsent's
-			// pre-shaped obs (ResourceExists=false) is returned as-is.
-		case base.GetProvisioning:
-			base.SetHealthCondition(mg, false)
-		case base.GetTerminal:
-			mg.SetConditions(xpv1.ReconcileError(err))
-		}
-		return obs, rerr
+		return handleGetOutcome(mg, err, outcome, obs, rerr)
 	}
 
 	observed := pbEntriesToSpec(ai.GetSpec().GetIpAllowList())
@@ -144,10 +136,48 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.InstanceIpAllowList
 		return managed.ExternalObservation{}, err
 	}
 
+	if obs, err, ok := e.terminalGuardedObservation(mg, instanceID, upToDate); ok {
+		return obs, err
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: upToDate,
 	}, nil
+}
+
+func handleGetOutcome(
+	mg *v1alpha1.InstanceIpAllowList,
+	err error,
+	outcome base.GetOutcome,
+	obs managed.ExternalObservation,
+	rerr error,
+) (managed.ExternalObservation, error) {
+	switch outcome {
+	case base.GetOK, base.GetAbsent:
+		// GetOK is filtered by the caller; GetAbsent's pre-shaped
+		// obs (ResourceExists=false) is returned as-is.
+	case base.GetProvisioning:
+		base.SetHealthCondition(mg, false)
+	case base.GetTerminal:
+		mg.SetConditions(xpv1.ReconcileError(err))
+	}
+	return obs, rerr
+}
+
+func (e *external) observeMissingExternalName(mg *v1alpha1.InstanceIpAllowList, instanceID string) (managed.ExternalObservation, error) {
+	if obs, err, ok := e.suppressTerminalWrite(mg, instanceID); ok {
+		return obs, err
+	}
+	return managed.ExternalObservation{ResourceExists: false}, nil
+}
+
+func (e *external) terminalGuardedObservation(mg *v1alpha1.InstanceIpAllowList, instanceID string, upToDate bool) (managed.ExternalObservation, error, bool) {
+	if !upToDate {
+		return e.suppressTerminalWrite(mg, instanceID)
+	}
+	e.clearTerminalWrite(mg, instanceID)
+	return managed.ExternalObservation{}, nil, false
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha1.InstanceIpAllowList) (managed.ExternalCreation, error) {
@@ -166,6 +196,8 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.InstanceIpAllowList)
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.InstanceIpAllowList) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
+	e.ClearTerminalWriteResource(mg, v1alpha1.InstanceIpAllowListGroupVersionKind)
+
 	// Delete clears the allow list (empty list, not missing key) rather
 	// than deleting the Instance itself. This assumes the MR exclusively
 	// owns the instance's ipAllowList; mixed ownership must be modelled
@@ -180,6 +212,10 @@ func (e *external) Disconnect(_ context.Context) error { return nil }
 // merges into only the provided sub-tree.
 func (e *external) patch(ctx context.Context, mg *v1alpha1.InstanceIpAllowList, desired []*crossplanetypes.IPAllowListEntry) error {
 	instanceID, err := e.resolveInstanceID(ctx, mg)
+	if err != nil {
+		return err
+	}
+	key, err := instanceIPAllowListTerminalWriteKey(mg, instanceID, desired)
 	if err != nil {
 		return err
 	}
@@ -205,7 +241,44 @@ func (e *external) patch(ctx context.Context, mg *v1alpha1.InstanceIpAllowList, 
 		return fmt.Errorf("build ipAllowList patch: %w", err)
 	}
 
-	return e.Client.PatchInstance(ctx, instanceID, patch)
+	if err := e.Client.PatchInstance(ctx, instanceID, patch); err != nil {
+		err = reason.ClassifyApplyError(err)
+		if meta.WasDeleted(mg) {
+			return err
+		}
+		return e.RecordTerminalWrite(key, err)
+	}
+	if !meta.WasDeleted(mg) {
+		e.ClearTerminalWrite(key)
+	}
+	return nil
+}
+
+func (e *external) suppressTerminalWrite(mg *v1alpha1.InstanceIpAllowList, instanceID string) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	key, err := instanceIPAllowListTerminalWriteKey(mg, instanceID, mg.Spec.ForProvider.AllowList)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	return e.SuppressTerminalWrite(mg, key)
+}
+
+func instanceIPAllowListTerminalWriteKey(mg *v1alpha1.InstanceIpAllowList, instanceID string, desired []*crossplanetypes.IPAllowListEntry) (base.TerminalWriteKey, error) {
+	return base.NewTerminalWriteKey(mg, v1alpha1.InstanceIpAllowListGroupVersionKind, instanceID, desired)
+}
+
+func (e *external) clearTerminalWrite(mg *v1alpha1.InstanceIpAllowList, instanceID string) {
+	if !e.HasTerminalWriteResource(mg, v1alpha1.InstanceIpAllowListGroupVersionKind) {
+		return
+	}
+	key, err := instanceIPAllowListTerminalWriteKey(mg, instanceID, mg.Spec.ForProvider.AllowList)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	e.ClearTerminalWrite(key)
 }
 
 // resolveInstanceID returns the opaque Akuity ID of the target Instance.

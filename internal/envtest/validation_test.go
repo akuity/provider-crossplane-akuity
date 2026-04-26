@@ -272,6 +272,49 @@ func TestInstance_NameImmutable(t *testing.T) {
 	assert.Contains(t, err.Error(), "name is immutable")
 }
 
+func TestInstance_BucketRateLimitSizeFloor(t *testing.T) {
+	ctx := context.Background()
+
+	badArgoCD := minimalArgoCD()
+	badArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting = &crossplanetypes.AppReconciliationsRateLimiting{
+		BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
+			Enabled:    ptr.To(true),
+			BucketSize: 250,
+		},
+	}
+	bad := &v1alpha1.Instance{
+		ObjectMeta: metav1.ObjectMeta{Name: "inst-bad-bucket-size"},
+		Spec: v1alpha1.InstanceSpec{
+			ForProvider: v1alpha1.InstanceParameters{
+				Name:   "inst-bad-bucket-size",
+				ArgoCD: badArgoCD,
+			},
+		},
+	}
+	err := kube.Create(ctx, bad)
+	require.Error(t, err, "apiserver must reject enabled bucket rate limiting below the platform floor")
+	assert.Contains(t, err.Error(), "bucketSize must be at least 500")
+
+	goodArgoCD := minimalArgoCD()
+	goodArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting = &crossplanetypes.AppReconciliationsRateLimiting{
+		BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
+			Enabled:    ptr.To(true),
+			BucketSize: 500,
+		},
+	}
+	good := &v1alpha1.Instance{
+		ObjectMeta: metav1.ObjectMeta{Name: "inst-good-bucket-size"},
+		Spec: v1alpha1.InstanceSpec{
+			ForProvider: v1alpha1.InstanceParameters{
+				Name:   "inst-good-bucket-size",
+				ArgoCD: goodArgoCD,
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, good), "bucketSize at the platform floor must be accepted")
+	t.Cleanup(func() { _ = kube.Delete(ctx, good) })
+}
+
 // TestCluster_NameImmutable covers the name-immutable rule on
 // ClusterParameters.
 func TestCluster_NameImmutable(t *testing.T) {

@@ -18,11 +18,14 @@ package kargoagent
 
 import (
 	"testing"
+	"time"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -190,6 +193,73 @@ func TestBuildApplyKargoInstanceRequest_InjectsNamespaceAndLabels(t *testing.T) 
 	assert.Equal(t, map[string]any{"note": "x"}, meta["annotations"])
 }
 
+func TestSpecToAPI_PropagatesPodInheritMetadata(t *testing.T) {
+	p := v1alpha1.KargoAgentParameters{
+		Name: "agt",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size:               crossplanetypes.KargoAgentSize("small"),
+				PodInheritMetadata: boolPtr(true),
+			},
+		},
+	}
+
+	wire, err := SpecToAPI(p)
+	require.NoError(t, err)
+	require.NotNil(t, wire.Spec.Data.PodInheritMetadata)
+	assert.True(t, *wire.Spec.Data.PodInheritMetadata)
+}
+
+func TestSpecToAPI_PropagatesAllCurrentGeneratedAgentDataFields(t *testing.T) {
+	expiry := "2026-04-26T12:00:00Z"
+	p := v1alpha1.KargoAgentParameters{
+		Name: "agt",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size:                  crossplanetypes.KargoAgentSize("medium"),
+				AutoUpgradeDisabled:   boolPtr(true),
+				TargetVersion:         "v1.2.3",
+				Kustomization:         "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n",
+				RemoteArgocd:          "remote",
+				AkuityManaged:         boolPtr(true),
+				ArgocdNamespace:       "argocd",
+				SelfManagedArgocdUrl:  "https://argocd.example.com",
+				AllowedJobSa:          []string{"jobs/default"},
+				MaintenanceMode:       boolPtr(true),
+				MaintenanceModeExpiry: &expiry,
+				PodInheritMetadata:    boolPtr(true),
+				AutoscalerConfig: &crossplanetypes.KargoAutoscalerConfig{
+					KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
+						ResourceMinimum: &crossplanetypes.KargoResources{Cpu: "100m", Mem: "256Mi"},
+						ResourceMaximum: &crossplanetypes.KargoResources{Cpu: "1", Mem: "1Gi"},
+					},
+				},
+			},
+		},
+	}
+
+	wire, err := SpecToAPI(p)
+	require.NoError(t, err)
+
+	assert.Equal(t, akuitytypes.KargoAgentSize("medium"), wire.Spec.Data.Size)
+	assert.Equal(t, boolPtr(true), wire.Spec.Data.AutoUpgradeDisabled)
+	assert.Equal(t, "v1.2.3", wire.Spec.Data.TargetVersion)
+	assert.NotEmpty(t, wire.Spec.Data.Kustomization.Raw)
+	assert.Equal(t, "remote", wire.Spec.Data.RemoteArgocd)
+	assert.Equal(t, boolPtr(true), wire.Spec.Data.AkuityManaged)
+	assert.Equal(t, "argocd", wire.Spec.Data.ArgocdNamespace)
+	assert.Equal(t, "https://argocd.example.com", wire.Spec.Data.SelfManagedArgocdUrl)
+	assert.Equal(t, []string{"jobs/default"}, wire.Spec.Data.AllowedJobSa)
+	assert.Equal(t, boolPtr(true), wire.Spec.Data.MaintenanceMode)
+	require.NotNil(t, wire.Spec.Data.MaintenanceModeExpiry)
+	assert.Equal(t, expiry, wire.Spec.Data.MaintenanceModeExpiry.Time.UTC().Format(time.RFC3339))
+	assert.Equal(t, boolPtr(true), wire.Spec.Data.PodInheritMetadata)
+	require.NotNil(t, wire.Spec.Data.AutoscalerConfig)
+	require.NotNil(t, wire.Spec.Data.AutoscalerConfig.KargoController)
+	assert.Equal(t, &akuitytypes.KargoResources{Cpu: "100m", Mem: "256Mi"}, wire.Spec.Data.AutoscalerConfig.KargoController.ResourceMinimum)
+	assert.Equal(t, &akuitytypes.KargoResources{Cpu: "1", Mem: "1Gi"}, wire.Spec.Data.AutoscalerConfig.KargoController.ResourceMaximum)
+}
+
 // TestBuildApplyKargoInstanceRequest_InvalidKustomizationErrors keeps
 // the validation guard on Kustomization. Users pass raw YAML, and a
 // malformed kustomization.yaml must fail at encode rather than be
@@ -222,6 +292,69 @@ func TestConvertAgentData_PropagatesSize(t *testing.T) {
 	out := convertAgentData(pb)
 	require.NotNil(t, out)
 	assert.NotEmpty(t, out.Size, "wire drift would drop Size during the bridge")
+}
+
+func TestConvertAgentData_PropagatesPodInheritMetadata(t *testing.T) {
+	pb := &kargov1.KargoAgentData{PodInheritMetadata: boolPtr(true)}
+	out := convertAgentData(pb)
+	require.NotNil(t, out)
+	require.NotNil(t, out.PodInheritMetadata)
+	assert.True(t, *out.PodInheritMetadata)
+}
+
+func TestConvertAgentData_PropagatesAllCurrentGeneratedAgentDataFields(t *testing.T) {
+	kustomization, err := structpb.NewStruct(map[string]any{
+		"apiVersion": "kustomize.config.k8s.io/v1beta1",
+		"kind":       "Kustomization",
+	})
+	require.NoError(t, err)
+	expiry := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	pb := &kargov1.KargoAgentData{
+		Size:                  KargoAgentSizeProto("medium"),
+		AutoUpgradeDisabled:   boolPtr(true),
+		TargetVersion:         "v1.2.3",
+		Kustomization:         kustomization,
+		RemoteArgocd:          "remote",
+		AkuityManaged:         true,
+		ArgocdNamespace:       "argocd",
+		SelfManagedArgocdUrl:  "https://argocd.example.com",
+		AllowedJobSa:          []string{"jobs/default"},
+		MaintenanceMode:       boolPtr(true),
+		MaintenanceModeExpiry: timestamppb.New(expiry),
+		PodInheritMetadata:    boolPtr(true),
+		AutoscalerConfig: &kargov1.KargoAutoscalerConfig{
+			KargoController: &kargov1.KargoControllerAutoScalingConfig{
+				ResourceMinimum: &kargov1.KargoResources{Cpu: "100m", Mem: "256Mi"},
+				ResourceMaximum: &kargov1.KargoResources{Cpu: "1", Mem: "1Gi"},
+			},
+		},
+	}
+
+	out := convertAgentData(pb)
+	require.NotNil(t, out)
+
+	assert.NotEmpty(t, out.Size)
+	assert.Equal(t, boolPtr(true), out.AutoUpgradeDisabled)
+	assert.Equal(t, "v1.2.3", out.TargetVersion)
+	assert.Contains(t, out.Kustomization, "apiVersion: kustomize.config.k8s.io/v1beta1")
+	assert.Contains(t, out.Kustomization, "kind: Kustomization")
+	assert.Equal(t, "remote", out.RemoteArgocd)
+	assert.Equal(t, boolPtr(true), out.AkuityManaged)
+	assert.Equal(t, "argocd", out.ArgocdNamespace)
+	assert.Equal(t, "https://argocd.example.com", out.SelfManagedArgocdUrl)
+	assert.Equal(t, []string{"jobs/default"}, out.AllowedJobSa)
+	assert.Equal(t, boolPtr(true), out.MaintenanceMode)
+	require.NotNil(t, out.MaintenanceModeExpiry)
+	actualExpiry, err := time.Parse(time.RFC3339, *out.MaintenanceModeExpiry)
+	require.NoError(t, err)
+	assert.True(t, actualExpiry.Equal(expiry), "expiry should preserve the same instant")
+	assert.Equal(t, boolPtr(true), out.PodInheritMetadata)
+	assert.Equal(t, &crossplanetypes.KargoAutoscalerConfig{
+		KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
+			ResourceMinimum: &crossplanetypes.KargoResources{Cpu: "100m", Mem: "256Mi"},
+			ResourceMaximum: &crossplanetypes.KargoResources{Cpu: "1", Mem: "1Gi"},
+		},
+	}, out.AutoscalerConfig)
 }
 
 // TestIsConnectedAgentDeleteError_Substring locks the substring match

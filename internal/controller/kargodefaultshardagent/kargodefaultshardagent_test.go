@@ -38,6 +38,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mockclient "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
@@ -271,6 +272,22 @@ func TestUpdate_PatchErr(t *testing.T) {
 	_, err := e.Update(context.Background(), dsa)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
+	e, mc := newExt(t, newKI())
+	dsa := newDSAByRef()
+	meta.SetExternalName(dsa, dsa.Name)
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-a").Return(&kargov1.KargoAgent{
+		Id:   "shard-a-id",
+		Name: "shard-a",
+	}, nil).Times(1)
+	mc.EXPECT().PatchKargoInstance(gomock.Any(), "ki-1", gomock.Any()).
+		Return(status.Error(codes.InvalidArgument, "invalid default shard agent")).Times(1)
+	_, err := e.Update(context.Background(), dsa)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from PatchKargoInstance must be reason.Terminal-classified, got %T %v", err, err)
 }
 
 // TestObserve_ProvisioningWait covers the short-circuit: gateway

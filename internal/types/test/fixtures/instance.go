@@ -203,10 +203,11 @@ var (
 	}
 
 	CrossplaneClusterCustomization = &crossplanetypes.ClusterCustomization{
-		AutoUpgradeDisabled: ptr.To(true),
-		Kustomization:       KustomizationYAML,
-		AppReplication:      ptr.To(true),
-		RedisTunneling:      ptr.To(true),
+		AutoUpgradeDisabled:   ptr.To(true),
+		Kustomization:         KustomizationYAML,
+		AppReplication:        ptr.To(true),
+		RedisTunneling:        ptr.To(true),
+		ServerSideDiffEnabled: ptr.To(false),
 	}
 
 	AkuityIntelligenceExtension = &akuitytypes.AkuityIntelligenceExtension{

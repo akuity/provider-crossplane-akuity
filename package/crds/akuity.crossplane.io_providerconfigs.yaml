@@ -25,7 +25,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A ProviderConfig configures a Akuity provider.
+        description: A ProviderConfig configures an Akuity provider.
         properties:
           apiVersion:
             description: |-
@@ -48,7 +48,9 @@ spec:
             description: A ProviderConfigSpec defines the desired state of a ProviderConfig.
             properties:
               credentialsSecretRef:
-                description: Credentials required to authenticate to this provider.
+                description: |-
+                  CredentialsSecretRef selects the Secret key used to authenticate
+                  to the Akuity API.
                 properties:
                   key:
                     description: The key to select.
@@ -65,15 +67,18 @@ spec:
                 - namespace
                 type: object
               organizationId:
-                description: The ID of the Akuity organization the provided credentials
-                  are for.
+                description: OrganizationID is the Akuity organization ID for these
+                  credentials.
                 type: string
               serverUrl:
-                description: The URL of the Akuity Platform API. Defaults to https://akuity.cloud.
+                description: |-
+                  ServerURL is the Akuity platform API URL. Defaults to
+                  https://akuity.cloud.
                 type: string
               skipTlsVerify:
-                description: Whether or not to skip TLS verification when connecting
-                  to the Akuity Platform API. Defaults to false.
+                description: |-
+                  SkipTLSVerify skips TLS certificate verification when connecting
+                  to the Akuity platform API. Defaults to false.
                 type: boolean
             required:
             - credentialsSecretRef

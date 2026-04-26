@@ -13,11 +13,10 @@ import (
 // "transient gateway error worth retrying" from "bad input" do so via
 // IsTerminal without re-parsing the underlying gRPC status.
 //
-// The current code does not stop the controller-runtime requeue itself
-// (the managed reconciler still polls at PollInterval); the wrapper is
-// load-bearing for: (a) the Synced=False condition message that surfaces
-// the platform's reason to the user, and (b) downstream callers that
-// want to short-circuit retries on a Terminal-classified error.
+// The wrapper is load-bearing for: (a) the Synced=False condition
+// message that surfaces the platform's reason to the user, and (b)
+// controller-side write guards that short-circuit repeated writes for
+// the same generation and effective payload.
 type Terminal struct {
 	error
 }

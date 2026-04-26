@@ -293,9 +293,15 @@ func InstanceArgoCDSpec(instanceSpec *argocdv1.InstanceSpec) (crossplanetypes.In
 		AppInAnyNamespaceConfig:         AppInAnyNamespaceConfig(instanceSpec.GetAppInAnyNamespaceConfig()),
 		Basepath:                        instanceSpec.GetBasepath(),
 		AppsetProgressiveSyncsEnabled:   ptr.To(instanceSpec.GetAppsetProgressiveSyncsEnabled()),
+		Secrets:                         SecretsManagementConfig(instanceSpec.GetSecrets()),
 		AppsetPlugins:                   AppsetPlugins(instanceSpec.GetAppsetPlugins()),
 		ApplicationSetExtension:         ApplicationSetExtension(instanceSpec.GetApplicationSetExtension()),
 		AppReconciliationsRateLimiting:  AppReconciliationsRateLimiting(instanceSpec.GetAppReconciliationsRateLimiting()),
+		MetricsIngressUsername:          instanceSpec.MetricsIngressUsername,
+		MetricsIngressPasswordHash:      instanceSpec.MetricsIngressPasswordHash,
+		PrivilegedNotificationCluster:   instanceSpec.PrivilegedNotificationCluster,
+		ClusterAddonsExtension:          ClusterAddonsExtension(instanceSpec.GetClusterAddonsExtension()),
+		ManifestGeneration:              ManifestGeneration(instanceSpec.GetManifestGeneration()),
 	}, nil
 }
 
@@ -342,11 +348,114 @@ func ClusterCustomization(clusterCustomization *argocdv1.ClusterCustomization) (
 		return nil, err
 	}
 	return &crossplanetypes.ClusterCustomization{
-		AutoUpgradeDisabled: ptr.To(clusterCustomization.GetAutoUpgradeDisabled()),
-		Kustomization:       string(kustomizationYAML),
-		AppReplication:      ptr.To(clusterCustomization.GetAppReplication()),
-		RedisTunneling:      ptr.To(clusterCustomization.GetRedisTunneling()),
+		AutoUpgradeDisabled:   ptr.To(clusterCustomization.GetAutoUpgradeDisabled()),
+		Kustomization:         string(kustomizationYAML),
+		AppReplication:        ptr.To(clusterCustomization.GetAppReplication()),
+		RedisTunneling:        ptr.To(clusterCustomization.GetRedisTunneling()),
+		ServerSideDiffEnabled: ptr.To(clusterCustomization.GetServerSideDiffEnabled()),
 	}, nil
+}
+
+// SecretsManagementConfig decodes the secret sync mapping config.
+func SecretsManagementConfig(in *argocdv1.SecretsManagementConfig) *crossplanetypes.SecretsManagementConfig {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.SecretsManagementConfig{
+		Sources:      ClusterSecretMappings(in.GetSources()),
+		Destinations: ClusterSecretMappings(in.GetDestinations()),
+	}
+}
+
+// ClusterSecretMappings decodes a list of cluster/secret selector pairs.
+func ClusterSecretMappings(in []*argocdv1.ClusterSecretMapping) []*crossplanetypes.ClusterSecretMapping {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*crossplanetypes.ClusterSecretMapping, 0, len(in))
+	for _, item := range in {
+		out = append(out, ClusterSecretMapping(item))
+	}
+	return out
+}
+
+// ClusterSecretMapping decodes one cluster/secret selector pair.
+func ClusterSecretMapping(in *argocdv1.ClusterSecretMapping) *crossplanetypes.ClusterSecretMapping {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.ClusterSecretMapping{
+		Clusters: ObjectSelector(in.GetClusters()),
+		Secrets:  ObjectSelector(in.GetSecrets()),
+	}
+}
+
+// ObjectSelector decodes a Kubernetes label selector shape.
+func ObjectSelector(in *argocdv1.ObjectSelector) *crossplanetypes.ObjectSelector {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.ObjectSelector{
+		MatchLabels:      in.GetMatchLabels(),
+		MatchExpressions: LabelSelectorRequirements(in.GetMatchExpressions()),
+	}
+}
+
+// LabelSelectorRequirements decodes label selector requirements.
+func LabelSelectorRequirements(in []*argocdv1.LabelSelectorRequirement) []*crossplanetypes.LabelSelectorRequirement {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*crossplanetypes.LabelSelectorRequirement, 0, len(in))
+	for _, item := range in {
+		out = append(out, LabelSelectorRequirement(item))
+	}
+	return out
+}
+
+// LabelSelectorRequirement decodes one label selector requirement.
+func LabelSelectorRequirement(in *argocdv1.LabelSelectorRequirement) *crossplanetypes.LabelSelectorRequirement {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.LabelSelectorRequirement{
+		Key:      in.Key,
+		Operator: in.Operator,
+		Values:   in.GetValues(),
+	}
+}
+
+// ClusterAddonsExtension decodes cluster-addons extension settings.
+func ClusterAddonsExtension(in *argocdv1.ClusterAddonsExtension) *crossplanetypes.ClusterAddonsExtension {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.ClusterAddonsExtension{
+		Enabled:          ptr.To(in.GetEnabled()),
+		AllowedUsernames: in.GetAllowedUsernames(),
+		AllowedGroups:    in.GetAllowedGroups(),
+	}
+}
+
+// ManifestGeneration decodes manifest generation settings.
+func ManifestGeneration(in *argocdv1.ManifestGeneration) *crossplanetypes.ManifestGeneration {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.ManifestGeneration{
+		Kustomize: ConfigManagementToolVersions(in.GetKustomize()),
+	}
+}
+
+// ConfigManagementToolVersions decodes config management tool version settings.
+func ConfigManagementToolVersions(in *argocdv1.ConfigManagementToolVersions) *crossplanetypes.ConfigManagementToolVersions {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.ConfigManagementToolVersions{
+		DefaultVersion:     in.GetDefaultVersion(),
+		AdditionalVersions: in.GetAdditionalVersions(),
+	}
 }
 
 // RepoServerDelegate decodes the repo-server delegate proto.

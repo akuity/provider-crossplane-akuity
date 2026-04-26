@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -194,6 +196,18 @@ func TestUpdate_ApplyClusterErr(t *testing.T) {
 	resp, err := e.Update(ctx, &fixtures.CrossplaneManagedCluster)
 	require.Error(t, err)
 	assert.Equal(t, managed.ExternalUpdate{}, resp)
+}
+
+func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
+		Return(grpcstatus.Error(codes.InvalidArgument, "invalid cluster autoscaler config")).Times(1)
+
+	_, err := e.Update(ctx, &fixtures.CrossplaneManagedCluster)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from ApplyInstance must be reason.Terminal-classified, got %T %v", err, err)
 }
 
 func TestUpdate(t *testing.T) {
@@ -701,6 +715,20 @@ func TestObserve_AutoscalerConfig_BothPopulatedDifferent(t *testing.T) {
 	resp, err := e.Observe(ctx, mr)
 	require.NoError(t, err)
 	assert.False(t, resp.ResourceUpToDate)
+}
+
+func TestKustomizationEquivalent_DefaultedScaffold(t *testing.T) {
+	desired := "resources:\n- namespace.yaml\n"
+	observed := "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- namespace.yaml\n"
+
+	assert.True(t, kustomizationEquivalent(desired, observed))
+}
+
+func TestKustomizationEquivalent_UnknownFieldIsNotCollapsed(t *testing.T) {
+	desired := ":bad: yaml"
+	observed := ":bad: yaml\napiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n"
+
+	assert.False(t, kustomizationEquivalent(desired, observed))
 }
 
 // observeFixtureWithPodInheritMetadata mirrors observeFixtureWithAutoscaler

@@ -38,6 +38,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mockclient "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
@@ -293,6 +294,18 @@ func TestUpdate_PatchErr(t *testing.T) {
 	_, err := e.Update(context.Background(), al)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
+	e, mc := newExt(t, newInst())
+	al := newAllowListByRef()
+	meta.SetExternalName(al, al.Name)
+	mc.EXPECT().PatchInstance(gomock.Any(), "inst-1", gomock.Any()).
+		Return(status.Error(codes.InvalidArgument, "invalid ip allow list")).Times(1)
+	_, err := e.Update(context.Background(), al)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from PatchInstance must be reason.Terminal-classified, got %T %v", err, err)
 }
 
 // TestObserve_ProvisioningWait covers the short-circuit contract:

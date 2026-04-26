@@ -177,7 +177,7 @@ spec:
                       the same namespace as this KargoAgent.
                     properties:
                       name:
-                        description: Name of the referenced object. Required.
+                        description: Name is the referenced object's name. Required.
                         minLength: 1
                         type: string
                     required:
@@ -340,8 +340,8 @@ spec:
             description: A KargoAgentStatus represents the observed state of a KargoAgent.
             properties:
               atProvider:
-                description: KargoAgentObservation are the observable fields of a
-                  KargoAgent.
+                description: KargoAgentObservation contains the observable fields
+                  of a KargoAgent.
                 properties:
                   healthStatus:
                     description: HealthStatus is the agent health.
@@ -355,7 +355,7 @@ spec:
                         type: string
                     type: object
                   id:
-                    description: ID assigned by the Akuity Platform.
+                    description: ID assigned by the Akuity platform.
                     type: string
                   kargoAgentSpec:
                     description: |-
@@ -416,7 +416,7 @@ spec:
                         type: string
                     type: object
                   name:
-                    description: Name of the agent as reported by the Akuity Platform.
+                    description: Name of the agent as reported by the Akuity platform.
                     type: string
                   reconciliationStatus:
                     description: ReconciliationStatus is the agent reconciliation

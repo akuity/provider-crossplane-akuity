@@ -368,9 +368,15 @@ func SpecToInstanceSpec(instanceSpec crossplanetypes.InstanceSpec) (akuitytypes.
 		AppInAnyNamespaceConfig:         specToAppInAnyNamespaceConfig(instanceSpec.AppInAnyNamespaceConfig),
 		Basepath:                        instanceSpec.Basepath,
 		AppsetProgressiveSyncsEnabled:   instanceSpec.AppsetProgressiveSyncsEnabled,
+		Secrets:                         crossplanetypes.SecretsManagementConfigSpecToAPI(instanceSpec.Secrets),
 		AppsetPlugins:                   specToAppsetPlugins(instanceSpec.AppsetPlugins),
 		ApplicationSetExtension:         specToApplicationSetExtension(instanceSpec.ApplicationSetExtension),
 		AppReconciliationsRateLimiting:  appReconciliationsRateLimiting,
+		MetricsIngressUsername:          instanceSpec.MetricsIngressUsername,
+		MetricsIngressPasswordHash:      instanceSpec.MetricsIngressPasswordHash,
+		PrivilegedNotificationCluster:   instanceSpec.PrivilegedNotificationCluster,
+		ClusterAddonsExtension:          crossplanetypes.ClusterAddonsExtensionSpecToAPI(instanceSpec.ClusterAddonsExtension),
+		ManifestGeneration:              crossplanetypes.ManifestGenerationSpecToAPI(instanceSpec.ManifestGeneration),
 	}, nil
 }
 
@@ -405,10 +411,11 @@ func specToClusterCustomization(in *crossplanetypes.ClusterCustomization) (*akui
 		return nil, fmt.Errorf("could not unmarshal cluster Kustomization from YAML to runtime raw extension: %w", err)
 	}
 	return &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: in.AutoUpgradeDisabled,
-		Kustomization:       kustomization,
-		AppReplication:      in.AppReplication,
-		RedisTunneling:      in.RedisTunneling,
+		AutoUpgradeDisabled:   in.AutoUpgradeDisabled,
+		Kustomization:         kustomization,
+		AppReplication:        in.AppReplication,
+		RedisTunneling:        in.RedisTunneling,
+		ServerSideDiffEnabled: in.ServerSideDiffEnabled,
 	}, nil
 }
 

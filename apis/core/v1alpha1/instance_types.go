@@ -30,6 +30,7 @@ import (
 // InstanceParameters are the configurable fields of an Instance.
 //
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(self.argocd) || !has(self.argocd.spec) || !has(self.argocd.spec.instanceSpec) || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting) || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting) || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.enabled) || self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.enabled != true || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize) || self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize >= 500",message="argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize must be at least 500 when bucket rate limiting is enabled"
 type InstanceParameters struct {
 	// Name is the Akuity Argo CD instance name. Required.
 	// +kubebuilder:validation:Required

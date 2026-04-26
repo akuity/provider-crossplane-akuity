@@ -34,7 +34,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A Instance is an Akuity ArgoCD Instance API type.
+        description: An Instance is an Akuity Argo CD instance.
         properties:
           apiVersion:
             description: |-
@@ -54,7 +54,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: A InstanceSpec defines the desired state of a Instance.
+            description: An InstanceSpec defines the desired state of an Instance.
             properties:
               deletionPolicy:
                 default: Delete
@@ -71,7 +71,8 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: InstanceParameters are the configurable fields of a Instance.
+                description: InstanceParameters are the configurable fields of an
+                  Instance.
                 properties:
                   applicationSetSecretRef:
                     description: |-
@@ -97,7 +98,9 @@ spec:
                       rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
                         && size(self.__namespace__) > 0
                   argocd:
-                    description: The attributes of the instance. Required.
+                    description: |-
+                      ArgoCD contains the instance configuration sent to the Akuity
+                      platform. Required.
                     properties:
                       spec:
                         properties:
@@ -625,15 +628,16 @@ spec:
                     additionalProperties:
                       type: string
                     description: |-
-                      Used to specify the options in the argocd-cm ConfigMap. Optional.
+                      ArgoCDConfigMap sets options in the argocd-cm ConfigMap.
                       Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
                       for required keys when using this option.
                     type: object
                   argocdImageUpdaterConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-image-updater-config
-                      ConfigMap. Optional.
+                    description: |-
+                      ArgoCDImageUpdaterConfigMap sets options in the
+                      argocd-image-updater-config ConfigMap.
                     type: object
                   argocdImageUpdaterSecretRef:
                     description: |-
@@ -661,14 +665,16 @@ spec:
                   argocdImageUpdaterSshConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-image-updater-ssh-config
-                      ConfigMap. Optional.
+                    description: |-
+                      ArgoCDImageUpdaterSSHConfigMap sets options in the
+                      argocd-image-updater-ssh-config ConfigMap.
                     type: object
                   argocdNotificationsConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-notifications-cm
-                      ConfigMap. Optional.
+                    description: |-
+                      ArgoCDNotificationsConfigMap sets options in the
+                      argocd-notifications-cm ConfigMap.
                     type: object
                   argocdNotificationsSecretRef:
                     description: |-
@@ -696,8 +702,8 @@ spec:
                   argocdRbacConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-rbac-cm
-                      ConfigMap. Optional.
+                    description: ArgoCDRBACConfigMap sets options in the argocd-rbac-cm
+                      ConfigMap.
                     type: object
                   argocdSecretRef:
                     description: |-
@@ -727,15 +733,17 @@ spec:
                     additionalProperties:
                       type: string
                     description: |-
-                      Used to specify the options in the argocd-ssh-known-hosts-cm ConfigMap. Optional.
+                      ArgoCDSSHKnownHostsConfigMap sets options in the
+                      argocd-ssh-known-hosts-cm ConfigMap.
                       Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
                       for required entries when using this option.
                     type: object
                   argocdTlsCertsConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-tls-certs-cm
-                      ConfigMap. Optional.
+                    description: |-
+                      ArgoCDTLSCertsConfigMap sets options in the
+                      argocd-tls-certs-cm ConfigMap.
                     type: object
                   configManagementPlugins:
                     additionalProperties:
@@ -837,11 +845,11 @@ spec:
                       - image
                       type: object
                     description: |-
-                      Used to specify config management plugins. The key of the map entry is the name of the
-                      plugin. The value is the definition of the Config Management Plugin (v2). Optional.
+                      ConfigManagementPlugins maps plugin names to Config Management
+                      Plugin v2 definitions.
                     type: object
                   name:
-                    description: The name of the instance. Required.
+                    description: Name is the Akuity Argo CD instance name. Required.
                     minLength: 1
                     type: string
                   repoCredentialSecretRefs:
@@ -902,7 +910,7 @@ spec:
                   repoTemplateCredentialSecretRefs:
                     description: |-
                       RepoTemplateCredentialSecretRefs registers scoped repository
-                      template credentials. Same shape + regex constraint as
+                      template credentials using the same server-side naming rules as
                       RepoCredentialSecretRefs.
                     items:
                       description: |-
@@ -969,6 +977,16 @@ spec:
                 x-kubernetes-validations:
                 - message: name is immutable
                   rule: self.name == oldSelf.name
+                - message: argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize
+                    must be at least 500 when bucket rate limiting is enabled
+                  rule: '!has(self.argocd) || !has(self.argocd.spec) || !has(self.argocd.spec.instanceSpec)
+                    || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting)
+                    || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting)
+                    || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.enabled)
+                    || self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.enabled
+                    != true || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize)
+                    || self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize
+                    >= 500'
               managementPolicies:
                 default:
                 - '*'
@@ -1056,10 +1074,11 @@ spec:
             - forProvider
             type: object
           status:
-            description: A InstanceStatus represents the observed state of a Instance.
+            description: An InstanceStatus represents the observed state of an Instance.
             properties:
               atProvider:
-                description: InstanceObservation are the observable fields of a Instance.
+                description: InstanceObservation contains the observable fields of
+                  an Instance.
                 properties:
                   argocd:
                     properties:
@@ -1718,7 +1737,7 @@ spec:
                     type: object
                   healthStatus:
                     description: |-
-                      ResourceStatusCode captures the Akuity API status code + message pair
+                      ResourceStatusCode captures the Akuity API status code and message pair
                       exposed on most observable resources.
                     properties:
                       code:
@@ -1739,7 +1758,7 @@ spec:
                     type: string
                   reconciliationStatus:
                     description: |-
-                      ResourceStatusCode captures the Akuity API status code + message pair
+                      ResourceStatusCode captures the Akuity API status code and message pair
                       exposed on most observable resources.
                     properties:
                       code:

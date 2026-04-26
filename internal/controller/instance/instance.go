@@ -45,6 +45,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
@@ -93,6 +94,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 	defer base.PropagateObservedGeneration(mg)
 
 	if meta.GetExternalName(mg) == "" {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+			return obs, err
+		}
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
@@ -204,6 +208,14 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		}
 	}
 
+	if !isUpToDate {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+			return obs, err
+		}
+	} else {
+		e.clearTerminalWrite(ctx, mg)
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: isUpToDate,
@@ -217,14 +229,19 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
+	key, err := instanceTerminalWriteKey(mg, sec)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
 	request, err := BuildApplyInstanceRequest(*mg, sec)
 	if err != nil {
 		return managed.ExternalCreation{}, errors.New(errTransformInstance)
 	}
 
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
-		return managed.ExternalCreation{}, reason.ClassifyApplyError(err)
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
+	e.ClearTerminalWrite(key)
 	mg.Status.AtProvider.SecretHash = sec.Hash()
 	meta.SetExternalName(mg, request.GetId())
 	return managed.ExternalCreation{}, nil
@@ -237,19 +254,25 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 	if err != nil {
 		return managed.ExternalUpdate{}, err
 	}
+	key, err := instanceTerminalWriteKey(mg, sec)
+	if err != nil {
+		return managed.ExternalUpdate{}, err
+	}
 	request, err := BuildApplyInstanceRequest(*mg, sec)
 	if err != nil {
 		return managed.ExternalUpdate{}, errors.New(errTransformInstance)
 	}
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
-		return managed.ExternalUpdate{}, reason.ClassifyApplyError(err)
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
+	e.ClearTerminalWrite(key)
 	mg.Status.AtProvider.SecretHash = sec.Hash()
 	return managed.ExternalUpdate{}, nil
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
+	e.ClearTerminalWriteResource(mg, v1alpha1.InstanceGroupVersionKind)
 
 	externalName := meta.GetExternalName(mg)
 	if externalName == "" {
@@ -260,6 +283,42 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 }
 
 func (e *external) Disconnect(_ context.Context) error { return nil }
+
+func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	sec, err := resolveInstanceSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	key, err := instanceTerminalWriteKey(mg, sec)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	return e.SuppressTerminalWrite(mg, key)
+}
+
+func instanceTerminalWriteKey(mg *v1alpha1.Instance, sec resolvedInstanceSecrets) (base.TerminalWriteKey, error) {
+	return base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, mg.Spec.ForProvider, sec.Hash())
+}
+
+func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.Instance) {
+	if !e.HasTerminalWriteResource(mg, v1alpha1.InstanceGroupVersionKind) {
+		return
+	}
+	sec, err := resolveInstanceSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	key, err := instanceTerminalWriteKey(mg, sec)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	e.ClearTerminalWrite(key)
+}
 
 func lateInitializeInstance(in *v1alpha1.InstanceParameters, instance *argocdv1.Instance, exportedInstance *argocdv1.ExportInstanceResponse) error {
 	in.ArgoCD.Spec.InstanceSpec.Subdomain = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.Subdomain, instance.GetSpec().GetSubdomain())
@@ -401,6 +460,8 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 			}
 			if arl.BucketRateLimiting == nil {
 				arl.BucketRateLimiting = aarl.BucketRateLimiting
+			} else {
+				normalizeBucketRateLimiting(arl.BucketRateLimiting, aarl.BucketRateLimiting)
 			}
 		}
 
@@ -468,6 +529,23 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 	for _, k := range ignoredArgocdCMKeys {
 		delete(managedInstance.ArgoCDConfigMap, k)
 		delete(actualInstance.ArgoCDConfigMap, k)
+	}
+}
+
+func normalizeBucketRateLimiting(desired, observed *crossplanetypes.BucketRateLimiting) {
+	if desired == nil || observed == nil {
+		return
+	}
+	if desired.Enabled == nil {
+		desired.Enabled = observed.Enabled
+	}
+	// The platform ignores bucketSize/bucketQps while bucket limiting is
+	// disabled and returns its default floor. When enabled=true but a scalar
+	// was omitted, presence-mode drift already treats that omission as no
+	// opinion, so only normalize the disabled shape here.
+	if !ptr.Deref(desired.Enabled, false) {
+		desired.BucketSize = observed.BucketSize
+		desired.BucketQps = observed.BucketQps
 	}
 }
 

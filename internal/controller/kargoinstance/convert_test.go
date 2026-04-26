@@ -22,12 +22,15 @@ import (
 	"testing"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	secretsv1 "github.com/akuity/api-client-go/pkg/api/gen/types/secrets/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -598,6 +601,108 @@ func TestApiToSpec_PropagatesNestedSpec(t *testing.T) {
 	params, err := apiToSpec(pb)
 	require.NoError(t, err)
 	assert.Equal(t, "shard-a", params.Kargo.KargoInstanceSpec.DefaultShardAgent)
+}
+
+func TestApiToSpec_PropagatesAllCurrentGeneratedNestedSpecFields(t *testing.T) {
+	kustomization, err := structpb.NewStruct(map[string]any{
+		"apiVersion": "kustomize.config.k8s.io/v1beta1",
+		"kind":       "Kustomization",
+	})
+	require.NoError(t, err)
+	pb := &kargov1.KargoInstance{
+		Name: "my-kargo",
+		Spec: &kargov1.KargoInstanceSpec{
+			BackendIpAllowListEnabled: true,
+			IpAllowList: []*kargov1.KargoIPAllowListEntry{
+				{Ip: "203.0.113.10", Description: "office"},
+			},
+			AgentCustomizationDefaults: &kargov1.KargoAgentCustomization{
+				AutoUpgradeDisabled: true,
+				Kustomization:       kustomization,
+			},
+			DefaultShardAgent:      "shard-a",
+			GlobalCredentialsNs:    []string{"creds"},
+			GlobalServiceAccountNs: []string{"service-accounts"},
+			AkuityIntelligence: &kargov1.AkuityIntelligence{
+				AiSupportEngineerEnabled: true,
+				Enabled:                  true,
+				AllowedUsernames:         []string{"alice"},
+				AllowedGroups:            []string{"admins"},
+				ModelVersion:             "gpt-4.1",
+			},
+			GcConfig: &kargov1.GarbageCollectorConfig{
+				MaxRetainedFreight:      20,
+				MaxRetainedPromotions:   30,
+				MinFreightDeletionAge:   40,
+				MinPromotionDeletionAge: 50,
+			},
+			PromoControllerEnabled: true,
+			Secrets: &secretsv1.SecretsManagementConfig{
+				Sources: []*secretsv1.ClusterSecretMapping{
+					{
+						Clusters: &secretsv1.ObjectSelector{
+							MatchLabels: map[string]string{"cluster": "prod"},
+						},
+						Secrets: &secretsv1.ObjectSelector{
+							MatchExpressions: []*secretsv1.LabelSelectorRequirement{
+								{
+									Key:      ptr.To("sync"),
+									Operator: ptr.To("Exists"),
+								},
+							},
+						},
+					},
+				},
+			},
+			ArgocdUi: &kargov1.KargoArgoCDUIConfig{IdpGroupsMapping: true},
+		},
+	}
+
+	params, err := apiToSpec(pb)
+	require.NoError(t, err)
+	spec := params.Kargo.KargoInstanceSpec
+
+	assert.Equal(t, ptr.To(true), spec.BackendIpAllowListEnabled)
+	assert.Equal(t, []*crossplanetypes.KargoIPAllowListEntry{
+		{Ip: "203.0.113.10", Description: "office"},
+	}, spec.IpAllowList)
+	require.NotNil(t, spec.AgentCustomizationDefaults)
+	assert.Equal(t, ptr.To(true), spec.AgentCustomizationDefaults.AutoUpgradeDisabled)
+	assert.Contains(t, spec.AgentCustomizationDefaults.Kustomization, "apiVersion: kustomize.config.k8s.io/v1beta1")
+	assert.Contains(t, spec.AgentCustomizationDefaults.Kustomization, "kind: Kustomization")
+	assert.Equal(t, "shard-a", spec.DefaultShardAgent)
+	assert.Equal(t, []string{"creds"}, spec.GlobalCredentialsNs)
+	assert.Equal(t, []string{"service-accounts"}, spec.GlobalServiceAccountNs)
+	assert.Equal(t, &crossplanetypes.AkuityIntelligence{
+		AiSupportEngineerEnabled: ptr.To(true),
+		Enabled:                  ptr.To(true),
+		AllowedUsernames:         []string{"alice"},
+		AllowedGroups:            []string{"admins"},
+		ModelVersion:             "gpt-4.1",
+	}, spec.AkuityIntelligence)
+	assert.Equal(t, &crossplanetypes.GarbageCollectorConfig{
+		MaxRetainedFreight:      20,
+		MaxRetainedPromotions:   30,
+		MinFreightDeletionAge:   40,
+		MinPromotionDeletionAge: 50,
+	}, spec.GcConfig)
+	assert.Equal(t, ptr.To(true), spec.PromoControllerEnabled)
+	assert.Equal(t, []*crossplanetypes.ClusterSecretMapping{
+		{
+			Clusters: &crossplanetypes.ObjectSelector{
+				MatchLabels: map[string]string{"cluster": "prod"},
+			},
+			Secrets: &crossplanetypes.ObjectSelector{
+				MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
+					{
+						Key:      ptr.To("sync"),
+						Operator: ptr.To("Exists"),
+					},
+				},
+			},
+		},
+	}, spec.Secrets.Sources)
+	assert.Equal(t, &crossplanetypes.KargoArgoCDUIConfig{IdpGroupsMapping: ptr.To(true)}, spec.ArgocdUi)
 }
 
 // TestApiToSpec_PopulatesOidcConfig verifies the OidcConfig bridge:
