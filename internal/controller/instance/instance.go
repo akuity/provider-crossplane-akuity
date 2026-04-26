@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/pkg/errors"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -235,7 +234,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 	}
 	request, err := BuildApplyInstanceRequest(*mg, sec)
 	if err != nil {
-		return managed.ExternalCreation{}, errors.New(errTransformInstance)
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformInstance, err)))
 	}
 
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
@@ -260,7 +259,7 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 	}
 	request, err := BuildApplyInstanceRequest(*mg, sec)
 	if err != nil {
-		return managed.ExternalUpdate{}, errors.New(errTransformInstance)
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformInstance, err)))
 	}
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
 		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
