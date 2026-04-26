@@ -417,12 +417,15 @@ func specToRepoServerDelegate(in *crossplanetypes.RepoServerDelegate) *akuitytyp
 	if in == nil {
 		return nil
 	}
-	return &akuitytypes.RepoServerDelegate{
+	out := &akuitytypes.RepoServerDelegate{
 		ControlPlane: in.ControlPlane,
-		ManagedCluster: &akuitytypes.ManagedCluster{
-			ClusterName: in.ManagedCluster.ClusterName,
-		},
 	}
+	if in.ManagedCluster != nil {
+		out.ManagedCluster = &akuitytypes.ManagedCluster{
+			ClusterName: in.ManagedCluster.ClusterName,
+		}
+	}
+	return out
 }
 
 func specToCrossplaneExtension(in *crossplanetypes.CrossplaneExtension) *akuitytypes.CrossplaneExtension {
@@ -440,23 +443,28 @@ func specToImageUpdaterDelegate(in *crossplanetypes.ImageUpdaterDelegate) *akuit
 	if in == nil {
 		return nil
 	}
-	return &akuitytypes.ImageUpdaterDelegate{
+	out := &akuitytypes.ImageUpdaterDelegate{
 		ControlPlane: in.ControlPlane,
-		ManagedCluster: &akuitytypes.ManagedCluster{
-			ClusterName: in.ManagedCluster.ClusterName,
-		},
 	}
+	if in.ManagedCluster != nil {
+		out.ManagedCluster = &akuitytypes.ManagedCluster{
+			ClusterName: in.ManagedCluster.ClusterName,
+		}
+	}
+	return out
 }
 
 func specToAppSetDelegate(in *crossplanetypes.AppSetDelegate) *akuitytypes.AppSetDelegate {
 	if in == nil {
 		return nil
 	}
-	return &akuitytypes.AppSetDelegate{
-		ManagedCluster: &akuitytypes.ManagedCluster{
+	out := &akuitytypes.AppSetDelegate{}
+	if in.ManagedCluster != nil {
+		out.ManagedCluster = &akuitytypes.ManagedCluster{
 			ClusterName: in.ManagedCluster.ClusterName,
-		},
+		}
 	}
+	return out
 }
 
 func specToAppsetPolicy(in *crossplanetypes.AppsetPolicy) *akuitytypes.AppsetPolicy {
