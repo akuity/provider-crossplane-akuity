@@ -422,10 +422,6 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 				&observed.ClusterSpec.Data.ArgocdNotificationsSettings,
 			)
 			normalizePtrField(
-				&desired.ClusterSpec.Data.PodInheritMetadata,
-				&observed.ClusterSpec.Data.PodInheritMetadata,
-			)
-			normalizePtrField(
 				&desired.ClusterSpec.Data.DatadogAnnotationsEnabled,
 				&observed.ClusterSpec.Data.DatadogAnnotationsEnabled,
 			)
@@ -433,6 +429,17 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 				&desired.ClusterSpec.Data.EksAddonEnabled,
 				&observed.ClusterSpec.Data.EksAddonEnabled,
 			)
+			// The gateway currently drops data.podInheritMetadata on
+			// ApplyInstance: even when the request carries the field,
+			// the persisted Cluster keeps the proto3 default and
+			// GetCluster echoes &false back. Without this mirror the
+			// comparator chases the user's pinned value forever and the
+			// controller re-applies on every poll. Copying observed onto
+			// desired matches what the kargoagent controller already
+			// does for the same gap; if the platform fix lands later,
+			// observed will start reflecting the user value and equality
+			// will hold without further CR churn.
+			desired.ClusterSpec.Data.PodInheritMetadata = observed.ClusterSpec.Data.PodInheritMetadata
 
 			// Kustomization is a YAML string round-trip. GetCluster may
 			// return "{}\n" while Export returns the canonical

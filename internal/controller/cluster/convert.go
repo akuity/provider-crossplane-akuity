@@ -218,6 +218,7 @@ func SpecToAPI(cluster v1alpha1.ClusterParameters) (akuitytypes.Cluster, error) 
 				AutoscalerConfig:                specToAutoscalerConfig(cluster.ClusterSpec.Data.AutoscalerConfig),
 				Project:                         cluster.ClusterSpec.Data.Project,
 				Compatibility:                   specToCompatibility(cluster.ClusterSpec.Data.Compatibility),
+				PodInheritMetadata:              cluster.ClusterSpec.Data.PodInheritMetadata,
 			},
 		},
 	}, nil
