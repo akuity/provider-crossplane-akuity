@@ -45,7 +45,7 @@ import (
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// provisioningWaitErr synthesizes the gRPC error shape the Akuity
 // gateway returns while a target resource is still being provisioned.
 // reason.IsProvisioningWait keys off codes.InvalidArgument + the
 // "still being provisioned" substring.
@@ -144,9 +144,9 @@ func mustCMStruct(t *testing.T, data map[string]string) *structpb.Struct {
 	return pb
 }
 
-// TestKargoConfigMapUpToDate_SubsetBehavior exercises the 7.A drift
-// check: desired ⊆ observed keeps ResourceUpToDate=true; any missing
-// or divergent key drops it to false so the next Apply can self-heal.
+// TestKargoConfigMapUpToDate_SubsetBehavior checks the additive
+// kargoConfigMap drift contract: desired keys must match observed
+// values, while extra server-side keys are ignored.
 func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	desired := map[string]string{"foo": "bar", "baz": "qux"}
 
@@ -158,7 +158,7 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, ok)
 
-	// Observed has extra key — still up to date under subset semantics.
+	// Observed has an extra key; still up to date under subset semantics.
 	exp = &kargov1.ExportKargoInstanceResponse{
 		KargoConfigmap: mustCMStruct(t, map[string]string{"foo": "bar", "baz": "qux", "extra": "x"}),
 	}
@@ -166,7 +166,7 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, ok, "extra server-side keys must not fire drift")
 
-	// Missing key — drift.
+	// Missing key.
 	exp = &kargov1.ExportKargoInstanceResponse{
 		KargoConfigmap: mustCMStruct(t, map[string]string{"foo": "bar"}),
 	}
@@ -175,7 +175,7 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	assert.False(t, ok, "missing desired key must fire drift")
 	assert.Equal(t, "bar", observed["foo"])
 
-	// Divergent value — drift.
+	// Divergent value.
 	exp = &kargov1.ExportKargoInstanceResponse{
 		KargoConfigmap: mustCMStruct(t, map[string]string{"foo": "wrong", "baz": "qux"}),
 	}
@@ -183,14 +183,13 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok, "divergent value must fire drift")
 
-	// Server returned no ConfigMap struct — treat as empty, all
-	// desired keys are missing → drift.
+	// No ConfigMap struct means observed is empty.
 	exp = &kargov1.ExportKargoInstanceResponse{}
 	ok, _, err = kargoConfigMapUpToDate(desired, exp)
 	require.NoError(t, err)
 	assert.False(t, ok, "absent gateway ConfigMap must fire drift")
 
-	// Empty desired — nothing to compare.
+	// Empty desired means nothing to compare.
 	ok, _, err = kargoConfigMapUpToDate(nil, exp)
 	require.NoError(t, err)
 	assert.True(t, ok)
@@ -321,9 +320,8 @@ func TestUpdate_ApplyErr(t *testing.T) {
 	assert.Contains(t, err.Error(), "boom")
 }
 
-// TestCreate_ApplyErr covers the Create error path — currently only
-// the happy path is tested; a regression here would silently accept
-// ApplyKargoInstance failures.
+// TestCreate_ApplyErr covers the Create error path so ApplyKargoInstance
+// failures are not silently accepted.
 func TestCreate_ApplyErr(t *testing.T) {
 	e, mc := newExt(t)
 	ki := newKI()
@@ -355,7 +353,7 @@ func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
 }
 
 // TestCreate_InvalidArgument_Terminal mirrors the Update assertion for
-// the Create path — a first-Apply rejection must not hot-loop either.
+// the Create path. A first-Apply rejection must not hot-loop either.
 func TestCreate_InvalidArgument_Terminal(t *testing.T) {
 	e, mc := newExt(t)
 	ki := newKI()
@@ -371,7 +369,7 @@ func TestCreate_InvalidArgument_Terminal(t *testing.T) {
 
 // TestUpdate_ProvisioningWait_NotTerminal locks in that the
 // "still being provisioned" InvalidArgument substring stays retryable
-// rather than being downgraded to Terminal — KargoInstance bootstrapping
+// rather than being downgraded to Terminal. KargoInstance bootstrapping
 // is transient.
 func TestUpdate_ProvisioningWait_NotTerminal(t *testing.T) {
 	e, mc := newExt(t)
@@ -392,7 +390,7 @@ func TestUpdate_ProvisioningWait_NotTerminal(t *testing.T) {
 // (/orgs/{org}/workspaces/{workspace_id}/kargo/instances/{id}/apply);
 // without resolution the empty path segment 404s and the reconciler
 // hot-loops. The fix calls ResolveWorkspace("") to discover the
-// organisation's default workspace, stamps the canonical ID on
+// organization's default workspace, stamps the canonical ID on
 // status.atProvider.workspace, and routes ApplyKargoInstance through
 // the resolved ID.
 func TestCreate_ResolvesDefaultWorkspace(t *testing.T) {
@@ -448,9 +446,9 @@ func TestCreate_ResolvesNamedWorkspace(t *testing.T) {
 	assert.Equal(t, "ws-platform-id", ki.Status.AtProvider.Workspace)
 }
 
-// TestUpdate_ReusesCachedWorkspace verifies the short-circuit — once
+// TestUpdate_ReusesCachedWorkspace verifies the short-circuit: once
 // status.atProvider.workspace carries a canonical ID, the apply path
-// must NOT re-resolve via the org gateway. Re-resolving on every
+// must not re-resolve via the org gateway. Re-resolving on every
 // reconcile would defeat the cache and re-introduce the ListWorkspaces
 // round-trip cost on the hot path.
 func TestUpdate_ReusesCachedWorkspace(t *testing.T) {
@@ -460,7 +458,7 @@ func TestUpdate_ReusesCachedWorkspace(t *testing.T) {
 	ki.Status.AtProvider.Workspace = "ws-existing-id"
 	ki.Spec.ForProvider.Workspace = ""
 
-	// No ResolveWorkspace expectation — gomock will fail the test if
+	// No ResolveWorkspace expectation; gomock will fail the test if
 	// the controller calls it.
 	var captured *kargov1.ApplyKargoInstanceRequest
 	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
@@ -482,7 +480,7 @@ func TestUpdate_ReusesCanonicalSpecWorkspace(t *testing.T) {
 	ki.Status.AtProvider.Workspace = "ws-existing-id"
 	ki.Spec.ForProvider.Workspace = "ws-existing-id"
 
-	// No ResolveWorkspace expectation — when spec already carries the
+	// No ResolveWorkspace expectation: when spec already carries the
 	// canonical workspace ID stamped in status, re-listing workspaces is
 	// unnecessary.
 	var captured *kargov1.ApplyKargoInstanceRequest
@@ -499,7 +497,7 @@ func TestUpdate_ReusesCanonicalSpecWorkspace(t *testing.T) {
 }
 
 // TestCreate_WorkspaceResolutionErr surfaces ListWorkspaces failures
-// without firing ApplyKargoInstance — sending Apply with an empty
+// without firing ApplyKargoInstance. Sending Apply with an empty
 // workspace_id is the bug we're trying to prevent.
 func TestCreate_WorkspaceResolutionErr(t *testing.T) {
 	e, mc := newExt(t)
@@ -509,7 +507,7 @@ func TestCreate_WorkspaceResolutionErr(t *testing.T) {
 
 	mc.EXPECT().ResolveWorkspace(gomock.Any(), "").
 		Return(nil, errors.New("list workspaces failed")).Times(1)
-	// No ApplyKargoInstance expectation — must not fire on resolution
+	// No ApplyKargoInstance expectation; must not fire on resolution
 	// failure.
 
 	_, err := e.Create(context.Background(), ki)
@@ -526,7 +524,7 @@ func TestCreate_MissingPinnedWorkspaceIsTerminal(t *testing.T) {
 
 	mc.EXPECT().ResolveWorkspace(gomock.Any(), "missing-workspace").
 		Return(nil, reason.AsNotFound(errors.New("workspace not found"))).Times(1)
-	// No ApplyKargoInstance expectation — a user-supplied bad workspace
+	// No ApplyKargoInstance expectation; a user-supplied bad workspace
 	// should stop as terminal configuration, not hot-loop Apply.
 
 	_, err := e.Create(context.Background(), ki)
@@ -580,7 +578,7 @@ func TestObserve_ProvisioningWait(t *testing.T) {
 }
 
 // TestObserve_GenericErrPropagates covers Get's non-transient error
-// branch — surface rather than swallow.
+// branch; surface rather than swallow.
 func TestObserve_GenericErrPropagates(t *testing.T) {
 	e, mc := newExt(t)
 	ki := newKI()

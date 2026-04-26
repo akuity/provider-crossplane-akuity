@@ -128,7 +128,7 @@ func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
 }
 
 // TestCreate_InvalidArgument_Terminal mirrors the Update assertion for
-// Create — a first-Apply rejection must not hot-loop either.
+// Create also classifies a first-Apply rejection as terminal.
 func TestCreate_InvalidArgument_Terminal(t *testing.T) {
 	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestCreate_InvalidArgument_Terminal(t *testing.T) {
 }
 
 // TestUpdate_ProvisioningWait_NotTerminal locks in that the
-// "still being provisioned" InvalidArgument variant stays retryable —
+// "still being provisioned" InvalidArgument variant stays retryable;
 // it's a transient bootstrap signal, not a bad-input signal.
 func TestUpdate_ProvisioningWait_NotTerminal(t *testing.T) {
 	applyInstanceRequest, err := BuildApplyInstanceRequest(fixtures.CrossplaneManagedInstance, resolvedInstanceSecrets{})

@@ -156,15 +156,10 @@ func parseObject(object runtime.Object) (applyObject, error) {
 }
 
 func (a ApplyClient) deleteObject(ctx context.Context, mapping *meta.RESTMapping, applyObject applyObject) error {
-	// Never delete a Namespace as part of a manifest-set strip. The
-	// agent-install manifests carry a top-level Namespace object (akuity
-	// for Cluster, kargo / akuity for KargoAgent) so Apply can create it
-	// when absent, but deleting it cascades every tenant resource inside
-	// — including sibling MRs' agent deployments when Cluster and
-	// KargoAgent land in the same ns. Customers who want the ns gone
-	// delete it manually; our teardown removes only the resources we
-	// installed, matching kubectl apply -f --prune=false semantics on
-	// the delete side.
+	// Never delete a Namespace as part of manifest teardown. Agent
+	// install manifests include a top-level Namespace so Apply can
+	// create it when absent, but deleting it cascades unrelated tenant
+	// resources and sibling agents in the same namespace.
 	if mapping.Resource.Resource == "namespaces" {
 		return nil
 	}
@@ -212,7 +207,7 @@ func objectRef(mapping *meta.RESTMapping, applyObject applyObject) string {
 
 func (a ApplyClient) applyObject(ctx context.Context, mapping *meta.RESTMapping, applyObject applyObject) error {
 	if isClusterScoped(mapping) {
-		// Don't risk overwriting a namespace if it already exists
+		// Do not overwrite an existing namespace.
 		if mapping.Resource.Resource == "namespaces" {
 			_, err := a.dynamicClient.Resource(mapping.Resource).Get(ctx, applyObject.name, v1.GetOptions{})
 			if err != nil {
@@ -224,7 +219,7 @@ func (a ApplyClient) applyObject(ctx context.Context, mapping *meta.RESTMapping,
 				return err
 			}
 
-			// Object already exists, just patch the namespace metadata.
+			// Namespace already exists; patch metadata only.
 			metadata := applyObject.unstructuredObj["metadata"]
 			patchBytes, err := json.Marshal(metadata)
 			if err != nil {
@@ -243,15 +238,10 @@ func (a ApplyClient) applyObject(ctx context.Context, mapping *meta.RESTMapping,
 	return err
 }
 
-// isClusterScoped reports whether the RESTMapping targets a cluster-scoped
-// resource. The previous allowlist (namespaces / clusterroles /
-// clusterrolebindings) routed every other cluster-scoped kind — notably
-// MutatingWebhookConfiguration / ValidatingWebhookConfiguration,
-// CustomResourceDefinition, and RBAC aggregations — through the
-// namespaced Apply path, producing "the server could not find the
-// requested resource" on the first Create and deadlocking agent install
-// under the finding #13 atomicity gap. Trust the server-provided REST
-// scope from discovery instead of maintaining a hand-rolled allowlist.
+// isClusterScoped reports whether the RESTMapping targets a
+// cluster-scoped resource. Trust discovery's REST scope instead of a
+// hand-maintained allowlist; several install-time resources are
+// cluster-scoped but not covered by the historical namespace/RBAC list.
 func isClusterScoped(mapping *meta.RESTMapping) bool {
 	return mapping.Scope != nil && mapping.Scope.Name() == meta.RESTScopeNameRoot
 }

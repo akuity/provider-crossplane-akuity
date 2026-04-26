@@ -139,9 +139,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 	// SecretHash is written by Create/Update after a successful Apply and
 	// drives rotation drift in the block below. instanceObservation is
 	// projected from the gateway response (which returns secret data
-	// masked/nil) and therefore carries no SecretHash — assigning the
+	// masked/nil) and therefore carries no SecretHash. Assigning the
 	// whole struct would clobber the controller-managed hash every poll
-	// and re-trigger Apply on every reconcile (§2.11 invariant 2/4).
+	// and re-trigger Apply on every reconcile.
 	// Preserve across the assignment.
 	preservedSecretHash := mg.Status.AtProvider.SecretHash
 	mg.Status.AtProvider = instanceObservation
@@ -182,13 +182,14 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 
 	// Declarative Argo CD child-resource drift: Application,
 	// ApplicationSet, AppProject manifests on
-	// spec.forProvider.resources are additive — desired ⊆ observed.
+	// spec.forProvider.resources are additive: every desired child must
+	// be present in observed state.
 	// The struct compare ignores the Resources slice (Export does not
 	// return them inline; they live on the Applications /
 	// ApplicationSets / AppProjects slices on the response). Walk the
 	// already-fetched Export response and report drift if any desired
 	// child is missing or not subset-matched on the gateway. Removing
-	// an entry from spec is intentionally NOT drift — operators must
+	// an entry from spec is intentionally not drift; operators must
 	// delete via the Akuity platform UI.
 	if isUpToDate && len(mg.Spec.ForProvider.Resources) > 0 {
 		ok, report, rerr := argocdResourcesUpToDate(mg.Spec.ForProvider.Resources, akuityExportedInstance)
@@ -335,8 +336,8 @@ type ResourceCustomization struct {
 	KnownTypeFields   string `yaml:"knownTypeFields,omitempty"`
 }
 
-// normalizeInstanceParameters synchronizes default values from the actual instance to the managed instance,
-// and normalize fields that have same values as the actual instance. This ensures consistency with API defaults.
+// normalizeInstanceParameters adopts API defaults and canonical forms
+// that should not be treated as user-visible drift.
 func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.InstanceParameters) { //nolint:gocyclo
 	if managedInstance == nil || actualInstance == nil {
 		return
@@ -347,12 +348,14 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 	actualInstance.Workspace = managedInstance.Workspace
 
 	if managedInstance.ArgoCD != nil {
-		// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
+		// The platform may default MultiClusterK8SDashboardEnabled
+		// even when the CR omits it.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
 		}
 
-		// only one of Fqdn and Subdomain should be set, so we sync them if both are set
+		// Only one of Fqdn and Subdomain should be set. If both are
+		// present, adopt the platform's canonical pair.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn != "" && managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain != "" {
 			managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain = actualInstance.ArgoCD.Spec.InstanceSpec.Subdomain
 			managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn = actualInstance.ArgoCD.Spec.InstanceSpec.Fqdn
@@ -361,13 +364,10 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		if managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig = actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
 		} else if actualInstance.ArgoCD != nil && actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig != nil {
-			// Partial-struct fill (§6 #6 / §6 #7 scalar lateInit gap):
-			// server forces CveScanConfig.RescanInterval to a non-empty
-			// string (>= 8h) when scanEnabled=true; if the CR populates
-			// CveScanConfig but omits RescanInterval, the empty-string
-			// zero-value produces a per-poll drift-flap against the
-			// server's stamped value. Inherit the observed scalar so
-			// provider-side compare stays quiescent.
+			// The server stamps CveScanConfig.RescanInterval when
+			// scanEnabled=true. If the CR set CveScanConfig but omitted
+			// RescanInterval, inherit the observed scalar so comparison
+			// does not flap on the server default.
 			mkv := managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
 			akv := actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
 			if mkv.CveScanConfig != nil && akv.CveScanConfig != nil {
@@ -379,7 +379,7 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 			}
 		}
 
-		// If Akuity Intelligence is enabled by default, sync the value
+		// The platform may default AkuityIntelligenceExtension.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension = actualInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension
 		}
@@ -389,9 +389,8 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		// BucketQps:50} + ItemRateLimiting{Enabled:true, FailureCooldown:10000,
 		// BaseDelay:1, MaxDelay:1000, BackoffFactor:"1.5"}). If the CR omits
 		// it entirely, inherit the server's defaults to avoid a per-poll
-		// drift-flap. If the CR populates it partially (e.g. only
-		// BucketRateLimiting), inherit the missing sibling sub-struct to
-		// avoid the same drift-flap (§6 #7 partial-struct variant).
+		// drift-flap. If the CR populates it partially, inherit the
+		// missing sibling sub-struct for the same reason.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting = actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
 		} else if actualInstance.ArgoCD != nil && actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting != nil {
@@ -408,18 +407,18 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		// IpAllowList is owned by a separate InstanceIpAllowList MR. When
 		// the Instance CR omits the field, inherit the server's current
 		// list so an IpAllowList MR writing to the same Instance doesn't
-		// cause a per-poll Instance Apply flap (1C.D9 coexist case).
+		// cause a per-poll Instance Apply flap.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.IpAllowList == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.IpAllowList = actualInstance.ArgoCD.Spec.InstanceSpec.IpAllowList
 		}
 
 		// ClusterCustomizationDefaults.Kustomization round-trips through
 		// the platform as a verbatim string. The server reliably echoes
-		// back a trailing "\n" on values that did not have one — even
+		// back a trailing "\n" on values that did not have one, even
 		// for non-YAML input that bypasses our empty-equivalent check.
-		// Without this normalization, "value" / "value\n" would fire
-		// ApplyInstance every poll while server-side Equals() short-
-		// circuits the actual write (the §2.1b "wasteful" diagnostic).
+		// Without this normalization, "value" and "value\n" would fire
+		// ApplyInstance every poll while server-side equality
+		// short-circuits the actual write.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults != nil &&
 			actualInstance.ArgoCD != nil &&
 			actualInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults != nil {
@@ -431,7 +430,8 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		}
 	}
 
-	// some configmap values have stable orders which may not be the same as user input
+	// Canonicalize ConfigMap values that the platform stores in a
+	// stable order that may differ from user input.
 	for k, v := range managedInstance.ArgoCDConfigMap {
 		if strings.Contains(k, "accounts.") {
 			value := ""
@@ -471,7 +471,8 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 	}
 }
 
-// some values are not able to be configured, and we ignore them if they are set
+// ignoredArgocdCMKeys are platform-owned argocd-cm keys that should
+// not participate in drift.
 var ignoredArgocdCMKeys = []string{
 	"cluster.inClusterEnabled",
 	"resource.respectRBAC",
@@ -485,7 +486,7 @@ var ignoredArgocdCMKeys = []string{
 // contributed by the shared DriftSpec baseline.
 //
 // SecretRef fields (ArgoCD / ArgoCDNotifications / ArgoCDImageUpdater /
-// ApplicationSet + the two repo-cred lists) are spec-only — the Akuity
+// ApplicationSet + the two repo-cred lists) are spec-only. The Akuity
 // Export endpoint returns the Secret data masked/nil, so comparing a
 // populated desired ref against an observed nil always flags drift and
 // an Apply fires every poll. These refs are write-only; the reconcile

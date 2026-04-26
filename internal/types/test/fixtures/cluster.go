@@ -142,7 +142,7 @@ patches:
 	}
 
 	// ExportedCluster is AkuityCluster in the structpb shape that
-	// ExportInstance returns inside its Clusters slice — used by
+	// ExportInstance returns inside its Clusters slice; used by
 	// Cluster controller tests to feed the Export-based drift path.
 	ExportedCluster = mustExportedClusterStruct(AkuityCluster)
 )

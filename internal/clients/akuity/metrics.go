@@ -1,14 +1,8 @@
-// Package akuity — test-tooling instrumentation.
+// Package akuity exposes test-tooling instrumentation.
 //
-// This file is present only on the test-tooling/api-counter sub-branch.
-// It exposes a Prometheus CounterVec incremented at every write-path
-// Akuity gateway call (Apply / Patch / Create / Update / Delete) so the
-// testing harness can diff /metrics windows and detect drift-flap
-// (repeated Apply hot loops) against the TESTING_PLAN.md loop-detect
-// invariants.
-//
-// Do NOT merge this file into refactor/v2-cutover — it is kept as a
-// reviewable artefact on its own sub-branch.
+// apiWriteCallsTotal is incremented at every write-path Akuity gateway
+// call so validation runs can diff /metrics windows and detect repeated
+// Apply loops.
 package akuity
 
 import (
@@ -21,9 +15,7 @@ import (
 //   - method:      gRPC method name on the gateway (e.g. "ApplyInstance",
 //     "PatchKargoInstance", "CreateKargoInstanceAgent").
 //   - resource_id: the canonical Akuity ID (or name, if that is what the
-//     caller passes in) the call targets. Unbounded in theory
-//     but in practice there are only a handful of IDs in a
-//     test run.
+//     caller passes in) the call targets.
 var apiWriteCallsTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "akuity_api_client_writes_total",

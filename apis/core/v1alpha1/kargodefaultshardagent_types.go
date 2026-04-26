@@ -47,8 +47,7 @@ type KargoDefaultShardAgentParameters struct {
 	// +optional
 	KargoInstanceRef *LocalReference `json:"kargoInstanceRef,omitempty"`
 
-	// AgentName is the name of the shard agent to promote as default.
-	// Required.
+	// AgentName is the shard agent name to promote as default. Required.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	AgentName string `json:"agentName"`

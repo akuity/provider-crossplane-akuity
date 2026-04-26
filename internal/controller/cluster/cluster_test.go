@@ -257,11 +257,11 @@ func TestUpdate_MaintenanceModeFlipCallsSetEndpoint(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestUpdate_MaintenanceModeUnsetSkipsSetEndpoint covers the
-// terraform-parity skip: when neither MaintenanceMode nor
-// MaintenanceModeExpiry is configured, Update must NOT call the
-// dedicated endpoint. Implicitly clearing a value the user didn't ask
-// to control would silently override out-of-band UI changes.
+// TestUpdate_MaintenanceModeUnsetSkipsSetEndpoint covers the skip:
+// when neither MaintenanceMode nor MaintenanceModeExpiry is configured,
+// Update must not call the dedicated endpoint. Implicitly clearing a
+// value the user didn't ask to control would silently override
+// out-of-band UI changes.
 func TestUpdate_MaintenanceModeUnsetSkipsSetEndpoint(t *testing.T) {
 	e, mc := newExt(t, nil)
 
@@ -270,7 +270,7 @@ func TestUpdate_MaintenanceModeUnsetSkipsSetEndpoint(t *testing.T) {
 	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = nil
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
-	// gomock.NewController fails on unexpected calls — no expectation
+	// gomock.NewController fails on unexpected calls; no expectation
 	// here doubles as an assertion that SetClusterMaintenanceMode is
 	// never invoked when the field is unset.
 
@@ -628,7 +628,7 @@ func observeFixtureWithAutoscaler(
 // principal Issue 2 symptom: user populates spec.data.autoscalerConfig,
 // the platform has not yet stamped it (Get echoes nil because Apply
 // hasn't propagated the value or the cluster size doesn't qualify).
-// The previous normalizePtrField path collapsed desired→nil and
+// The previous normalizePtrField path collapsed desired to nil and
 // reported up-to-date, silently dropping user intent. The fix routes
 // drift through the Get-based override so this case fires drift and
 // Apply runs.
@@ -648,7 +648,7 @@ func TestObserve_AutoscalerConfig_UserSetServerMissing(t *testing.T) {
 // TestObserve_AutoscalerConfig_DesiredNilServerStamped covers the
 // reverse direction: user leaves the field unset, the platform
 // stamps a default. The comparator must NOT fire drift on the
-// server-stamped default — Apply with desired=nil would zero out the
+// server-stamped default; Apply with desired=nil would zero out the
 // server's stamp.
 func TestObserve_AutoscalerConfig_DesiredNilServerStamped(t *testing.T) {
 	getAS := &argocdv1.AutoScalerConfig{

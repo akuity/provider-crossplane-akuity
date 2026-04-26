@@ -30,7 +30,7 @@ import (
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-// Configmap key names — exported so callers building Apply requests
+// ConfigMap key names are exported so callers building Apply requests
 // can reference the same identifiers that observation uses when
 // decoding the gateway response.
 const (
@@ -300,7 +300,7 @@ func InstanceArgoCDSpec(instanceSpec *argocdv1.InstanceSpec) (crossplanetypes.In
 }
 
 // IPAllowList decodes the allow-list entries, returning nil for an
-// empty list so callers can round-trip nil↔empty via EquateEmpty.
+// empty list so callers can round-trip nil and empty via EquateEmpty.
 func IPAllowList(ipAllowList []*argocdv1.IPAllowListEntry) []*crossplanetypes.IPAllowListEntry {
 	if len(ipAllowList) == 0 {
 		return nil

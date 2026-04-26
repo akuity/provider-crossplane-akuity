@@ -63,7 +63,7 @@ func SpecToAPI(p v1alpha1.KargoAgentParameters) (akuitytypes.KargoAgent, error) 
 // BuildApplyKargoInstanceRequest returns an ApplyKargoInstanceRequest
 // that narrow-merges only the Agents slice (with this one agent) into
 // the target KargoInstance. Sibling fields (Kargo envelope,
-// KargoConfigmap, Projects, Warehouses, Stages, RepoCredentials, …)
+// KargoConfigmap, Projects, Warehouses, Stages, RepoCredentials, etc.)
 // are left untouched by the server. OrganizationId is filled in by
 // the akuity client wrapper.
 func BuildApplyKargoInstanceRequest(kargoInstanceID string, p v1alpha1.KargoAgentParameters) (*kargov1.ApplyKargoInstanceRequest, error) {

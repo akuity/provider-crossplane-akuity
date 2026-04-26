@@ -113,11 +113,11 @@ type KargoAgentParameters struct {
 	RemoveAgentResourcesOnDestroy bool `json:"removeAgentResourcesOnDestroy,omitempty"`
 }
 
-// KargoAgentObservation are the observable fields of a KargoAgent.
+// KargoAgentObservation contains the observable fields of a KargoAgent.
 type KargoAgentObservation struct {
-	// ID assigned by the Akuity Platform.
+	// ID assigned by the Akuity platform.
 	ID string `json:"id,omitempty"`
-	// Name of the agent as reported by the Akuity Platform.
+	// Name of the agent as reported by the Akuity platform.
 	Name string `json:"name,omitempty"`
 	// Workspace is the Akuity workspace routing value carried from spec.
 	Workspace string `json:"workspace,omitempty"`

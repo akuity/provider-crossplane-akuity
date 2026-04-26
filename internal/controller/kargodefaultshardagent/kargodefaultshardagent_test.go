@@ -41,7 +41,7 @@ import (
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// provisioningWaitErr synthesizes the gRPC error shape the Akuity
 // gateway returns while a target resource is still being provisioned.
 // reason.IsProvisioningWait keys off codes.InvalidArgument + the
 // "still being provisioned" substring.
@@ -158,7 +158,7 @@ func TestObserve_Drift(t *testing.T) {
 		Id:   "ki-1",
 		Spec: &kargov1.KargoInstanceSpec{DefaultShardAgent: "shard-b-id"},
 	}, nil).Times(1)
-	// Desired agent resolves to "shard-a-id" — different from stored.
+	// Desired agent resolves to "shard-a-id", different from stored.
 	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-a").Return(&kargov1.KargoAgent{
 		Id:   "shard-a-id",
 		Name: "shard-a",
@@ -173,7 +173,7 @@ func TestCreate_PatchIsCalled(t *testing.T) {
 	e, mc := newExt(t, newKI())
 	dsa := newDSAByRef()
 
-	// Create resolves desired AgentName → ID before patching.
+	// Create resolves desired AgentName to ID before patching.
 	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "shard-a").Return(&kargov1.KargoAgent{
 		Id:   "shard-a-id",
 		Name: "shard-a",
@@ -189,9 +189,8 @@ func TestCreate_PatchIsCalled(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dsa.Name, meta.GetExternalName(dsa))
 
-	// Envelope shape matches terraform's autoSetDefaultShardAgent:
-	// {"spec": {"defaultShardAgent": "<agent-id>"}}. No
-	// "kargoInstanceSpec" wrapper.
+	// Envelope shape is {"spec": {"defaultShardAgent": "<agent-id>"}}.
+	// No "kargoInstanceSpec" wrapper.
 	require.NotNil(t, captured)
 	m := captured.AsMap()
 	spec := m["spec"].(map[string]any)
@@ -206,7 +205,7 @@ func TestDelete_ClearsDefault(t *testing.T) {
 	meta.SetExternalName(dsa, dsa.Name)
 
 	var captured *structpb.Struct
-	// Delete sends empty string — no GetKargoInstanceAgent call.
+	// Delete sends empty string; no GetKargoInstanceAgent call.
 	mc.EXPECT().PatchKargoInstance(gomock.Any(), "ki-1", gomock.Any()).DoAndReturn(func(_ context.Context, _ string, p *structpb.Struct) error {
 		captured = p
 		return nil
@@ -296,7 +295,7 @@ func TestObserve_ProvisioningWait(t *testing.T) {
 }
 
 // TestObserve_GenericErrPropagates covers the non-transient error
-// branch — surface rather than swallow.
+// branch; surface rather than swallow.
 func TestObserve_GenericErrPropagates(t *testing.T) {
 	e, mc := newExt(t, newKI())
 	dsa := newDSAByRef()

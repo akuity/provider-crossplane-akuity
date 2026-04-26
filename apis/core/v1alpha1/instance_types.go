@@ -27,16 +27,17 @@ import (
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-// InstanceParameters are the configurable fields of a Instance.
+// InstanceParameters are the configurable fields of an Instance.
 //
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type InstanceParameters struct {
-	// The name of the instance. Required.
+	// Name is the Akuity Argo CD instance name. Required.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// The attributes of the instance. Required.
+	// ArgoCD contains the instance configuration sent to the Akuity
+	// platform. Required.
 	ArgoCD *crossplanetypes.ArgoCD `json:"argocd"`
 
 	// Workspace is the Akuity workspace this Argo CD instance belongs to. The
@@ -48,33 +49,38 @@ type InstanceParameters struct {
 	// +optional
 	Workspace string `json:"workspace,omitempty"`
 
-	// Used to specify the options in the argocd-cm ConfigMap. Optional.
+	// ArgoCDConfigMap sets options in the argocd-cm ConfigMap.
 	// Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
 	// for required keys when using this option.
 	ArgoCDConfigMap map[string]string `json:"argocdConfigMap,omitempty"`
 
-	// Used to specify the options in the argocd-image-updater-config ConfigMap. Optional.
+	// ArgoCDImageUpdaterConfigMap sets options in the
+	// argocd-image-updater-config ConfigMap.
 	ArgoCDImageUpdaterConfigMap map[string]string `json:"argocdImageUpdaterConfigMap,omitempty"`
 
-	// Used to specify the options in the argocd-image-updater-ssh-config ConfigMap. Optional.
+	// ArgoCDImageUpdaterSSHConfigMap sets options in the
+	// argocd-image-updater-ssh-config ConfigMap.
 	ArgoCDImageUpdaterSSHConfigMap map[string]string `json:"argocdImageUpdaterSshConfigMap,omitempty"`
 
-	// Used to specify the options in the argocd-notifications-cm ConfigMap. Optional.
+	// ArgoCDNotificationsConfigMap sets options in the
+	// argocd-notifications-cm ConfigMap.
 	ArgoCDNotificationsConfigMap map[string]string `json:"argocdNotificationsConfigMap,omitempty"`
 
-	// Used to specify the options in the argocd-rbac-cm ConfigMap. Optional.
+	// ArgoCDRBACConfigMap sets options in the argocd-rbac-cm ConfigMap.
 	ArgoCDRBACConfigMap map[string]string `json:"argocdRbacConfigMap,omitempty"`
 
-	// Used to specify the options in the argocd-ssh-known-hosts-cm ConfigMap. Optional.
+	// ArgoCDSSHKnownHostsConfigMap sets options in the
+	// argocd-ssh-known-hosts-cm ConfigMap.
 	// Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
 	// for required entries when using this option.
 	ArgoCDSSHKnownHostsConfigMap map[string]string `json:"argocdSshKnownHostsConfigMap,omitempty"`
 
-	// Used to specify the options in the argocd-tls-certs-cm ConfigMap. Optional.
+	// ArgoCDTLSCertsConfigMap sets options in the
+	// argocd-tls-certs-cm ConfigMap.
 	ArgoCDTLSCertsConfigMap map[string]string `json:"argocdTlsCertsConfigMap,omitempty"`
 
-	// Used to specify config management plugins. The key of the map entry is the name of the
-	// plugin. The value is the definition of the Config Management Plugin (v2). Optional.
+	// ConfigManagementPlugins maps plugin names to Config Management
+	// Plugin v2 definitions.
 	ConfigManagementPlugins map[string]crossplanetypes.ConfigManagementPlugin `json:"configManagementPlugins,omitempty"`
 
 	// ArgoCDSecretRef references a namespaced Secret whose data is sent
@@ -129,7 +135,7 @@ type InstanceParameters struct {
 	RepoCredentialSecretRefs []NamedSecretReference `json:"repoCredentialSecretRefs,omitempty"`
 
 	// RepoTemplateCredentialSecretRefs registers scoped repository
-	// template credentials. Same shape + regex constraint as
+	// template credentials using the same server-side naming rules as
 	// RepoCredentialSecretRefs.
 	// +optional
 	// +kubebuilder:validation:MaxItems=128
@@ -144,7 +150,7 @@ type InstanceParameters struct {
 	Resources []runtime.RawExtension `json:"resources,omitempty"`
 }
 
-// InstanceObservation are the observable fields of a Instance.
+// InstanceObservation contains the observable fields of an Instance.
 type InstanceObservation struct {
 	ID                             string                                            `json:"id"`
 	Name                           string                                            `json:"name,omitempty"`
@@ -171,13 +177,13 @@ type InstanceObservation struct {
 	SecretHash string `json:"secretHash,omitempty"`
 }
 
-// A InstanceSpec defines the desired state of a Instance.
+// An InstanceSpec defines the desired state of an Instance.
 type InstanceSpec struct {
 	xpv1.ResourceSpec `json:",inline"`
 	ForProvider       InstanceParameters `json:"forProvider"`
 }
 
-// A InstanceStatus represents the observed state of a Instance.
+// An InstanceStatus represents the observed state of an Instance.
 type InstanceStatus struct {
 	xpv1.ResourceStatus `json:",inline"`
 	AtProvider          InstanceObservation `json:"atProvider,omitempty"`
@@ -185,7 +191,7 @@ type InstanceStatus struct {
 
 // +kubebuilder:object:root=true
 
-// A Instance is an Akuity ArgoCD Instance API type.
+// An Instance is an Akuity Argo CD instance.
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
 // +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
@@ -202,7 +208,7 @@ type Instance struct {
 
 // +kubebuilder:object:root=true
 
-// InstanceList contains a list of Instance
+// InstanceList contains a list of Instance objects.
 type InstanceList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

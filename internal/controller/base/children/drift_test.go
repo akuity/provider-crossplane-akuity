@@ -376,14 +376,14 @@ func TestCompare_NamespaceAmbiguityIsSafe(t *testing.T) {
 	require.NoError(t, err)
 
 	report := Compare(desired, observed)
-	assert.Len(t, report.Missing, 1, "two observed candidates → ambiguous → report missing (safe)")
+	assert.Len(t, report.Missing, 1, "two observed candidates are ambiguous, so report missing")
 }
 
 // TestMatchesSubset_ArrayAppendTrap is the H1 regression trap. We
-// deliberately pin the current strict-array behaviour (server-side
-// appended element → drift) so the day this assumption breaks — the
+// deliberately pin the current strict-array behavior (server-side
+// appended element means drift. If this assumption breaks, the
 // Akuity gateway starts injecting defaulted array members into a
-// supported declarative child — the test name points to the right
+// supported declarative child, and the test name points to the right
 // design decision in drift.go and gives reviewers a single place to
 // flip if per-kind keyed matching is the answer.
 //
@@ -423,7 +423,7 @@ func TestMatchesSubset_ArrayAppendTrap(t *testing.T) {
 
 	report := Compare(desired, observed)
 	assert.Len(t, report.Changed, 1,
-		"server-appended array element currently fires drift — if the gateway starts doing this, revisit matchesSubset's array rule and consider per-kind keyed matching")
+		"server-appended array element currently fires drift; if the gateway starts doing this, revisit matchesSubset's array rule and consider per-kind keyed matching")
 }
 
 // TestMatchesSubset_NestedMapDivergence asserts that divergent scalar

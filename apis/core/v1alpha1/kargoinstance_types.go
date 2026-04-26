@@ -28,15 +28,12 @@ import (
 )
 
 // KargoConfigMapAllowedKeys mirrors the JSON/proto field names on the
-// platform's KargoApiCM proto (akuity-platform/pkg/api/gen/kargo/v1/kargo.pb.go,
-// search for `type KargoApiCM struct`). The lowerCamel spellings are
-// canonical in platform exports and docs; snake_case proto names are
-// accepted for compatibility with protojson. Any key outside this set
-// causes ApplyKargoInstance on the platform to fail strict protojson
-// unmarshal because the receiver decodes the patched instance into
-// KargoApiCM with no DiscardUnknown. The CRD CEL rule on
+// platform's KargoApiCM proto. The lowerCamel spellings are canonical
+// in platform exports and docs; snake_case proto names are accepted for
+// compatibility with protojson. Any key outside this set would fail
+// ApplyKargoInstance's strict protojson unmarshal. The CRD CEL rule on
 // KargoInstanceParameters enforces the same set at admission so users
-// get an immediate error instead of a cryptic Apply retry storm.
+// get an immediate error.
 //
 // The Go list and CEL strings are hand-typed in three places: this
 // slice, the allowlist CEL, and the alias-conflict CEL. Updating one
@@ -58,7 +55,7 @@ var KargoConfigMapAllowedKeys = []string{
 //     dexConfigSecretRef so plaintext never lives on the managed
 //     resource spec.
 //   - kargoConfigMap keys are constrained to the platform's KargoApiCM
-//     proto field set (see kargoConfigMapAllowedKeys above). Any other
+//     proto field set (see KargoConfigMapAllowedKeys). Any other
 //     key would crash ApplyKargoInstance's strict protojson unmarshal
 //     server-side and hot-loop the reconciler on retries.
 //
@@ -75,7 +72,7 @@ var KargoConfigMapAllowedKeys = []string{
 // +kubebuilder:validation:XValidation:rule="!has(self.kargoConfigMap) || self.kargoConfigMap.all(k, k in ['adminAccountEnabled', 'adminAccountTokenTtl', 'admin_account_enabled', 'admin_account_token_ttl'])",message="kargoConfigMap accepts only these keys: adminAccountEnabled, adminAccountTokenTtl, admin_account_enabled, admin_account_token_ttl. Other keys are rejected before Apply."
 // +kubebuilder:validation:XValidation:rule="!has(self.kargoConfigMap) || !('adminAccountEnabled' in self.kargoConfigMap && 'admin_account_enabled' in self.kargoConfigMap) && !('adminAccountTokenTtl' in self.kargoConfigMap && 'admin_account_token_ttl' in self.kargoConfigMap)",message="kargoConfigMap must not set both lowerCamel and snake_case aliases for the same key"
 type KargoInstanceParameters struct {
-	// Name of the Kargo instance in the Akuity Platform. Required.
+	// Name is the Kargo instance name in the Akuity platform. Required.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
@@ -90,7 +87,8 @@ type KargoInstanceParameters struct {
 	// +optional
 	Workspace string `json:"workspace,omitempty"`
 
-	// Kargo describes the Kargo configuration. Required.
+	// Kargo contains the Kargo configuration sent to the Akuity platform.
+	// Required.
 	// +kubebuilder:validation:Required
 	Kargo crossplanetypes.KargoSpec `json:"kargo"`
 
@@ -110,8 +108,8 @@ type KargoInstanceParameters struct {
 
 	// KargoRepoCredentialSecretRefs registers repository credentials
 	// with the Kargo gateway. Each entry's SecretRef points at a
-	// namespaced Secret; the controller synthesises a
-	// labelled Kargo-shaped Secret (kargo.akuity.io/cred-type=<type>)
+	// namespaced Secret; the controller synthesizes a labeled
+	// Kargo-shaped Secret (kargo.akuity.io/cred-type=<type>)
 	// named after the effective slot, writes it into the effective
 	// Kargo project namespace, and forwards it to ApplyKargoInstance.
 	// If an entry omits Name, the controller uses SecretRef.Name as
@@ -120,9 +118,9 @@ type KargoInstanceParameters struct {
 	// the referenced Secret's kargo.akuity.io/cred-type label.
 	// Plaintext never lives on the managed resource spec.
 	//
-	// Drift: this field is write-only on the Kargo gateway — the
-	// Export response does not return repo_credentials — so rotation
-	// participates in drift via the SecretHash on
+	// Drift: this field is write-only on the Kargo gateway. Because
+	// Export does not return repo_credentials, rotation participates
+	// in drift via the SecretHash on
 	// status.atProvider. Removal from spec does NOT delete the
 	// Secret on the gateway; delete it through the Akuity platform
 	// UI or API if it should be removed.
@@ -140,11 +138,10 @@ type KargoInstanceParameters struct {
 	// Resources carries raw YAML manifests for declarative Kargo
 	// child resources (Projects, Warehouses, Stages,
 	// AnalysisTemplates, PromotionTasks, ClusterPromotionTasks).
-	// Repository-credential Secrets are NOT accepted here — the
-	// parent-level CEL rule rejects v1/Secret entries at admission
-	// time so inline credential data cannot land in etcd. Use
+	// Repository-credential Secrets are not accepted here. Use
 	// KargoRepoCredentialSecretRefs (typed refs) so plaintext stays
-	// out of the MR spec and rotation flows through SecretHash drift.
+	// out of the MR spec and rotation flows through SecretHash drift;
+	// the controller rejects inline v1/Secret entries during reconcile.
 	//
 	// The controller validates each entry's apiVersion/kind, groups
 	// them by kind, and sends them alongside the instance spec on
@@ -159,8 +156,8 @@ type KargoInstanceParameters struct {
 	// controller does not enable ApplyKargoInstance's
 	// PruneResourceTypes because out-of-band resources managed via
 	// the Akuity UI or other tooling would be deleted as collateral
-	// damage. To remove a resource, delete it via the Akuity
-	// platform UI or API. See PARITY_PLAN.md for the rationale.
+	// damage. To remove a resource, delete it via the Akuity platform
+	// UI or API.
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
@@ -170,7 +167,7 @@ type KargoInstanceParameters struct {
 // KargoInstanceObservation are the observable fields of a Kargo
 // instance.
 type KargoInstanceObservation struct {
-	// ID assigned by the Akuity Platform.
+	// ID assigned by the Akuity platform.
 	ID string `json:"id,omitempty"`
 	// Name of the instance.
 	Name string `json:"name,omitempty"`
@@ -200,15 +197,15 @@ type KargoInstanceObservation struct {
 	SecretHash string `json:"secretHash,omitempty"`
 
 	// Workspace is the canonical Akuity workspace ID this Kargo
-	// instance belongs to. The controller stamps it on the first
-	// reconcile after resolving the organisation's default workspace
-	// (when spec.forProvider.workspace is empty) so subsequent polls
-	// route ApplyKargoInstance / ExportKargoInstance / DeleteKargoInstance
-	// to the correct workspace-scoped HTTP path without a fresh
-	// ListWorkspaces round-trip. The HTTP routes 404 when the
-	// workspace_id template segment is empty, which previously hot-looped
-	// portal-server (~350 wasted writes / 12 minutes) on first-create
-	// for any KargoInstance that omitted spec.workspace.
+	// instance belongs to. When spec.forProvider.workspace is empty,
+	// the controller resolves and caches the organization's default
+	// workspace so ApplyKargoInstance, ExportKargoInstance, and
+	// DeleteKargoInstance route to the correct workspace-scoped HTTP
+	// path without another ListWorkspaces round-trip. The HTTP routes
+	// 404 when the workspace_id template segment is empty; before this
+	// cache, first-create for a KargoInstance that omitted
+	// spec.workspace hot-looped portal-server at roughly 350 wasted
+	// writes in 12 minutes.
 	Workspace string `json:"workspace,omitempty"`
 }
 

@@ -23,13 +23,13 @@ import xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 // a namespace, so the referent is looked up by global name across
 // the cluster.
 type LocalReference struct {
-	// Name of the referenced object. Required.
+	// Name is the referenced object's name. Required.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 }
 
-// ResourceStatusCode captures the Akuity API status code + message pair
+// ResourceStatusCode captures the Akuity API status code and message pair
 // exposed on most observable resources.
 type ResourceStatusCode struct {
 	// Code reported by the Akuity API.
@@ -68,7 +68,7 @@ func (r *NamedSecretReference) CredentialName() string {
 
 // KargoRepoCredentialSecretRef binds a Kargo repository-credential slot
 // to a kube Secret. Mirrors the ArgoCD NamedSecretReference
-// pattern — no plaintext on the MR spec — while allowing Kargo-specific
+// pattern - no plaintext on the MR spec - while allowing Kargo-specific
 // routing metadata to be set explicitly or derived from the source Secret.
 type KargoRepoCredentialSecretRef struct {
 	NamedSecretReference `json:",inline"`

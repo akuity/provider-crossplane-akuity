@@ -73,7 +73,7 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 	require.NotNil(t, out.KargoAgentSpec.Data.AutoUpgradeDisabled)
 	assert.True(t, *out.KargoAgentSpec.Data.AutoUpgradeDisabled)
 	// Kubeconfig / teardown fields are MR-local and must round-trip from
-	// desired — otherwise drift detection fires every poll.
+	// desired; otherwise drift detection fires every poll.
 	assert.Equal(t, "customer-kcfg", out.KubeConfigSecretRef.Name)
 	assert.Equal(t, "crossplane-system", out.KubeConfigSecretRef.Namespace)
 	assert.False(t, out.EnableInClusterKubeConfig)
@@ -138,7 +138,7 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 	assert.Equal(t, "observed", out.KargoAgentSpec.Description)
 	assert.Equal(t, crossplanetypes.KargoAgentSize("medium"), out.KargoAgentSpec.Data.Size)
 	// Kubeconfig / teardown fields are MR-local and must round-trip from
-	// desired — otherwise drift detection fires every poll.
+	// desired; otherwise drift detection fires every poll.
 	assert.Equal(t, "customer-kcfg", out.KubeConfigSecretRef.Name)
 	assert.Equal(t, "crossplane-system", out.KubeConfigSecretRef.Namespace)
 	assert.True(t, out.EnableInClusterKubeConfig)
@@ -146,7 +146,7 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 }
 
 // TestWireToSpec_EmptyLabelMapsBecomeNil exercises the nil-vs-empty
-// normalisation in wireToSpec: the Akuity wire carries an empty map,
+// normalization in wireToSpec: the Akuity wire carries an empty map,
 // the desired spec uses nil for "absent", so the comparison path needs
 // them collapsed to nil to avoid false drift.
 func TestWireToSpec_EmptyLabelMapsBecomeNil(t *testing.T) {
@@ -191,7 +191,7 @@ func TestBuildApplyKargoInstanceRequest_InjectsNamespaceAndLabels(t *testing.T) 
 }
 
 // TestBuildApplyKargoInstanceRequest_InvalidKustomizationErrors keeps
-// the validation guard on Kustomization — users pass raw YAML, and a
+// the validation guard on Kustomization. Users pass raw YAML, and a
 // malformed kustomization.yaml must fail at encode rather than be
 // silently forwarded to the gateway.
 func TestBuildApplyKargoInstanceRequest_InvalidKustomizationErrors(t *testing.T) {
@@ -213,7 +213,7 @@ func TestConvertAgentData_NilReturnsNil(t *testing.T) {
 }
 
 // TestConvertAgentData_PropagatesSize exercises the roundtrip from
-// proto → wire → spec for the most user-visible field (Size). The
+// proto-to-wire-to-spec for the most user-visible field (Size). The
 // exact string form varies with how the marshal bridge renders enums;
 // what matters here is that a non-zero enum on the proto produces a
 // non-empty Size on the spec (wire drift would silently zero it out).

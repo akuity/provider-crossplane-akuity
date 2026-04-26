@@ -127,8 +127,8 @@ func ResolveAllKeys(ctx context.Context, c client.Client, ref *xpv1.SecretRefere
 // ResolveNamed loads each referenced Secret and returns a map keyed by
 // the caller-provided Name field to the resolved key/value data. Empty
 // or nil refs yield a nil map to let callers skip setting the wire
-// field. Duplicate Names error out — they would silently clobber each
-// other in the proto map otherwise.
+// field. Duplicate Names error out because they would silently clobber
+// each other in the proto map otherwise.
 func ResolveNamed(ctx context.Context, c client.Client, refs []v1alpha1.NamedSecretReference) (map[string]ResolvedSecret, error) {
 	if len(refs) == 0 {
 		return nil, nil

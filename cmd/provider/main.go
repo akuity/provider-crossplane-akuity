@@ -52,9 +52,8 @@ func main() {
 	zl := zap.New(zap.UseDevMode(*debug))
 	log := logging.NewLogrLogger(zl.WithName("provider-crossplane-akuity"))
 	if *debug {
-		// The controller-runtime runs with a no-op logger by default. It is
-		// *very* verbose even at info level, so we only provide it a real
-		// logger when we're running in debug mode.
+		// controller-runtime is noisy even at info level, so wire its
+		// logger only when debug logging is requested.
 		ctrl.SetLogger(zl)
 	}
 
@@ -66,13 +65,10 @@ func main() {
 			SyncPeriod: syncInterval,
 		},
 
-		// controller-runtime uses both ConfigMaps and Leases for leader
-		// election by default. Leases expire after 15 seconds, with a
-		// 10 second renewal deadline. We've observed leader loss due to
-		// renewal deadlines being exceeded when under high load - i.e.
-		// hundreds of reconciles per second and ~200rps to the API
-		// server. Switching to Leases only and longer leases appears to
-		// alleviate this.
+		// controller-runtime defaults to ConfigMaps+Leases with short
+		// lease timings. Under high reconcile load, API-server pressure
+		// can exceed the renewal deadline; use Leases only with longer
+		// timings to avoid unnecessary leader loss.
 		LeaderElection:             *leaderElection,
 		LeaderElectionID:           "crossplane-leader-election-provider-crossplane-akuity",
 		LeaderElectionResourceLock: resourcelock.LeasesResourceLock,

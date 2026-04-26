@@ -16,9 +16,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Envtest coverage for the content-shape CEL rules — generic
+// Envtest coverage for the content-shape CEL rules: generic
 // repo-credential ref shape, dex secret mutual exclusion, cred-type
-// enum — plus a round-trip sanity check that
+// enum, plus a round-trip sanity check that
 // preserve-unknown-fields resources slices carry opaque manifests
 // through the apiserver unchanged. Reconcile-level rotation / drift
 // semantics and effective-name validation are covered by fake-kube
@@ -148,7 +148,7 @@ func TestInstance_RepoCredentialExplicitNamesMustMatchRegex(t *testing.T) {
 // TestInstance_ArgocdResourcesRoundTrip verifies that the
 // preserve-unknown-fields schema on spec.forProvider.resources carries
 // opaque manifests through the apiserver unchanged. Shape / kind
-// validation lives in the unit tests for splitArgocdResources — this
+// validation lives in the unit tests for splitArgocdResources; this
 // test asserts persistence only.
 func TestInstance_ArgocdResourcesRoundTrip(t *testing.T) {
 	ctx := context.Background()
@@ -187,7 +187,7 @@ func TestInstance_ArgocdResourcesRoundTrip(t *testing.T) {
 // forbids setting both spec.forProvider.kargo.oidcConfig.dexConfigSecret
 // (inline map) and dexConfigSecretRef simultaneously. The rule uses
 // size(...)==0 as the vacuous-inline escape hatch so an empty inline
-// map doesn't block ref-only callers; this test pins the behaviour.
+// map doesn't block ref-only callers; this test pins the behavior.
 func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 	ctx := context.Background()
 

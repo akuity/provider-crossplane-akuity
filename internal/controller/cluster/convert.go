@@ -39,7 +39,7 @@ import (
 // BuildApplyInstanceRequest returns an ApplyInstanceRequest that
 // narrow-merges only the Clusters slice (with this one cluster) into
 // the target Instance. Sibling fields (Argocd envelope, ArgocdConfigmap,
-// Applications, AppProjects, …) are left untouched by the server.
+// Applications, AppProjects, etc.) are left untouched by the server.
 // OrganizationId is filled in by the akuity client wrapper.
 func BuildApplyInstanceRequest(instanceID string, cluster v1alpha1.ClusterParameters) (*argocdv1.ApplyInstanceRequest, error) {
 	wire, err := SpecToAPI(cluster)
@@ -113,7 +113,7 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 				ArgocdNotificationsSettings:     apiToArgocdNotificationsSettings(cluster.GetData().GetArgocdNotificationsSettings()),
 				// MaintenanceMode + MaintenanceModeExpiry are server-owned
 				// for drift purposes: ApplyInstance does not propagate
-				// them — they ride a dedicated set-maintenance-mode RPC —
+				// them because they ride a dedicated set-maintenance-mode RPC,
 				// and ExportInstance therefore does not echo them either.
 				// GetCluster is the only response shape that carries the
 				// canonical values, so the drift comparator targets the
@@ -138,7 +138,7 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 // struct round-trips through the generated ClusterDataAPIToSpec
 // converter (same one used by the Apply path), giving drift detection
 // a canonical shape that matches what the Apply request sends.
-// InstanceID and MR-local fields are copied from managedCluster — the
+// InstanceID and MR-local fields are copied from managedCluster; the
 // Akuity API does not own them.
 func wireToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, wireCluster *akuitytypes.Cluster) v1alpha1.ClusterParameters {
 	if wireCluster == nil {

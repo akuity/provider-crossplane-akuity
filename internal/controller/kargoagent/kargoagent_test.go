@@ -43,7 +43,7 @@ import (
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// provisioningWaitErr synthesizes the gRPC error shape the Akuity
 // gateway returns while a target resource is still being provisioned.
 // reason.IsProvisioningWait keys off codes.InvalidArgument + the
 // "still being provisioned" substring.
@@ -99,7 +99,7 @@ func TestObserve_NotYetReconciled(t *testing.T) {
 		Name:                 "agt",
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_PROGRESSING},
 	}, nil).Times(1)
-	// Agent is still provisioning — not yet in Export's Agents slice.
+	// Agent is still provisioning and not yet in Export's Agents slice.
 	// Observe falls back to Get-derived drift, which surfaces the
 	// (empty Data vs desired small) diff.
 	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
@@ -197,7 +197,7 @@ func TestDelete_GenericErrPropagates(t *testing.T) {
 
 // TestUpdate_Happy exercises the Update path end-to-end: resolve
 // instance ID, translate spec, call ApplyKargoInstance with only the
-// Agents slice populated. No Get-before-Update — ApplyKargoInstance
+// Agents slice populated. No Get-before-Update: ApplyKargoInstance
 // keys by Name inside the wire struct, eliminating the round-trip.
 func TestUpdate_Happy(t *testing.T) {
 	e, mc := newExt(t)

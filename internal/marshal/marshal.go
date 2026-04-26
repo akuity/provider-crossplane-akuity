@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package marshal provides JSON ↔ map ↔ protobuf helpers used by the
-// provider's convert layer. Ported from the Akuity Terraform provider's
-// marshal package so the Crossplane converters can reuse the same
-// round-trip semantics (protojson camelCase keys, no unpopulated fields).
+// Package marshal provides JSON, map, and protobuf helpers used by the
+// provider's convert layer. The helpers preserve protojson camelCase
+// keys and omit unpopulated fields so gateway payloads round-trip with
+// the same shape as the source wire types.
 package marshal
 
 import (
@@ -74,7 +74,7 @@ func ProtoToMap(msg proto.Message) (map[string]any, error) {
 }
 
 // GoModelToProto populates the supplied protobuf message from a Go
-// model via JSON→protojson. Used by the Kargo controllers to bridge
+// model via JSON to protojson. Used by the Kargo controllers to bridge
 // hand-authored akuity wire types (JSON-tagged) into the protobuf
 // request types the gateway client expects.
 func GoModelToProto(obj any, target proto.Message) error {

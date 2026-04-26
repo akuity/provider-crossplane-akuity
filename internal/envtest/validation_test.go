@@ -20,7 +20,7 @@ limitations under the License.
 // immutability rules that every MR ships. These are the rules most
 // likely to regress on a schema regen (they live on hand-authored
 // ForProvider types) and most likely to be silently bypassed by a
-// client that skips the CRD — the apiserver is the only reliable gate,
+// client that skips the CRD. The apiserver is the only reliable gate,
 // so the tests run against a real kube-apiserver.
 
 package envtest_test
@@ -59,8 +59,8 @@ func minimalKargoSpec() crossplanetypes.KargoSpec {
 }
 
 // TestInstanceIpAllowList_ValidatesIDOrRefRequired covers the CEL rule
-// on InstanceIpAllowListParameters: exactly one of instanceId or
-// instanceRef must be present.
+// on InstanceIpAllowListParameters: instanceId or instanceRef must be
+// present.
 func TestInstanceIpAllowList_ValidatesIDOrRefRequired(t *testing.T) {
 	ctx := context.Background()
 
@@ -76,10 +76,10 @@ func TestInstanceIpAllowList_ValidatesIDOrRefRequired(t *testing.T) {
 	require.Error(t, err, "apiserver must reject InstanceIpAllowList missing id+ref")
 	assert.Contains(t, err.Error(), "instanceId or instanceRef must be set")
 
-	// The XOR is relaxed to "at least one" to tolerate v0.3.1-style
-	// stored state (lateInit stamped instanceId while instanceRef was
-	// user-supplied). Both-set is permitted; the controller prefers
-	// instanceRef when both are present.
+	// The rule allows both fields to preserve v0.3.1-style stored
+	// state: lateInitialize stamped instanceId while the user had
+	// supplied instanceRef. Both-set remains valid; the controller
+	// prefers instanceRef.
 	both := &v1alpha1.InstanceIpAllowList{
 		ObjectMeta: metav1.ObjectMeta{Name: "ipa-both"},
 		Spec: v1alpha1.InstanceIpAllowListSpec{
@@ -119,7 +119,7 @@ func TestInstanceIpAllowList_ValidatesIDOrRefRequired(t *testing.T) {
 }
 
 // TestKargoDefaultShardAgent_ValidatesIDOrRefRequired is the Kargo-side
-// mirror — same XOR rule on kargoInstanceId / kargoInstanceRef.
+// mirror of the ID-or-reference rule.
 func TestKargoDefaultShardAgent_ValidatesIDOrRefRequired(t *testing.T) {
 	ctx := context.Background()
 
@@ -133,7 +133,7 @@ func TestKargoDefaultShardAgent_ValidatesIDOrRefRequired(t *testing.T) {
 	require.Error(t, err, "apiserver must reject KargoDefaultShardAgent missing id+ref")
 	assert.Contains(t, err.Error(), "kargoInstanceId or kargoInstanceRef must be set")
 
-	// XOR relaxed to "at least one" mirrors the Cluster fix.
+	// Both-set is accepted for the same upgrade-compatibility reason.
 	both := &v1alpha1.KargoDefaultShardAgent{
 		ObjectMeta: metav1.ObjectMeta{Name: "dsa-both"},
 		Spec: v1alpha1.KargoDefaultShardAgentSpec{
@@ -144,7 +144,7 @@ func TestKargoDefaultShardAgent_ValidatesIDOrRefRequired(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, kube.Create(ctx, both), "both-set is permitted after XOR→at-least-one relaxation")
+	require.NoError(t, kube.Create(ctx, both), "both-set is permitted after relaxing XOR to at-least-one")
 	t.Cleanup(func() { _ = kube.Delete(ctx, both) })
 
 	withID := &v1alpha1.KargoDefaultShardAgent{
@@ -160,7 +160,7 @@ func TestKargoDefaultShardAgent_ValidatesIDOrRefRequired(t *testing.T) {
 	t.Cleanup(func() { _ = kube.Delete(ctx, withID) })
 }
 
-// TestCluster_ValidatesIDOrRefRequired covers the XOR on
+// TestCluster_ValidatesIDOrRefRequired covers the ID-or-reference rule on
 // ClusterParameters.
 func TestCluster_ValidatesIDOrRefRequired(t *testing.T) {
 	ctx := context.Background()
@@ -175,12 +175,12 @@ func TestCluster_ValidatesIDOrRefRequired(t *testing.T) {
 	require.Error(t, err, "apiserver must reject Cluster missing id+ref")
 	assert.Contains(t, err.Error(), "instanceId or instanceRef must be set")
 
-	// v0.3.1 lateInitialize stamps `instanceId` onto spec while the user
-	// supplied `instanceRef`, so stored legacy Clusters carry BOTH fields.
-	// The at-least-one rule permits that stored state to continue passing
-	// UPDATE validation; a strict XOR would reject every update, including
-	// status subresource updates, because CRD ratcheting cannot decompose
-	// the cross-field rule.
+	// Stored legacy Clusters may carry both fields from the v0.3.1
+	// lateInitialize path: instanceId was stamped while the user had
+	// supplied instanceRef. The at-least-one rule keeps those CRs valid
+	// for ordinary updates and status subresource updates; strict XOR
+	// would reject them because CRD ratcheting cannot decompose the
+	// cross-field rule.
 	both := &v1alpha1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster-both"},
 		Spec: v1alpha1.ClusterSpec{
@@ -204,7 +204,7 @@ func TestCluster_ValidatesIDOrRefRequired(t *testing.T) {
 	t.Cleanup(func() { _ = kube.Delete(ctx, withID) })
 }
 
-// TestKargoAgent_ValidatesIDOrRefRequired covers the XOR on
+// TestKargoAgent_ValidatesIDOrRefRequired covers the ID-or-reference rule on
 // KargoAgentParameters.
 func TestKargoAgent_ValidatesIDOrRefRequired(t *testing.T) {
 	ctx := context.Background()
@@ -230,7 +230,7 @@ func TestKargoAgent_ValidatesIDOrRefRequired(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, kube.Create(ctx, both), "both-set is permitted after XOR→at-least-one relaxation")
+	require.NoError(t, kube.Create(ctx, both), "both-set is permitted after relaxing XOR to at-least-one")
 	t.Cleanup(func() { _ = kube.Delete(ctx, both) })
 
 	withID := &v1alpha1.KargoAgent{
@@ -247,7 +247,7 @@ func TestKargoAgent_ValidatesIDOrRefRequired(t *testing.T) {
 }
 
 // TestInstance_NameImmutable covers the name-immutable rule on
-// InstanceParameters — Instance has no parent ref, so name immutability
+// InstanceParameters. Instance has no parent ref, so name immutability
 // is the only top-level CEL rule.
 func TestInstance_NameImmutable(t *testing.T) {
 	ctx := context.Background()

@@ -122,7 +122,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.InstanceIpAllowList
 	// Deletion fast-path: once the MR has a deletionTimestamp, Delete()
 	// sends a Patch with an empty list, which the server applies
 	// synchronously. On the next Observe the server-side list is
-	// already empty, which IS the post-delete state — signalling
+	// already empty, which is the post-delete state. Signaling
 	// ResourceExists=false here lets the managed reconciler drop the
 	// finalizer instead of re-entering Delete every poll. Without this
 	// the MR spec still carries the last user-desired list, so the
@@ -176,7 +176,7 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.InstanceIpAllowList)
 func (e *external) Disconnect(_ context.Context) error { return nil }
 
 // patch writes the desired ipAllowList to the Akuity Instance via the
-// narrow PatchInstance endpoint. No prior Get is needed — the server
+// narrow PatchInstance endpoint. No prior Get is needed; the server
 // merges into only the provided sub-tree.
 func (e *external) patch(ctx context.Context, mg *v1alpha1.InstanceIpAllowList, desired []*crossplanetypes.IPAllowListEntry) error {
 	instanceID, err := e.resolveInstanceID(ctx, mg)

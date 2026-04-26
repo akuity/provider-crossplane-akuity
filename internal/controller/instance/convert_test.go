@@ -46,7 +46,7 @@ func mustStruct(t *testing.T, obj map[string]interface{}) *structpb.Struct {
 // TestSplitArgocdResources_Routing locks in the (apiVersion, kind)
 // allowlist: Application / ApplicationSet / AppProject under
 // argoproj.io/v1alpha1. Each entry must land on the matching slice on
-// the Apply payload — without this the gateway never sees the user's
+// the Apply payload. Without this the gateway never sees the user's
 // declarative children and they silently disappear from the platform.
 func TestSplitArgocdResources_Routing(t *testing.T) {
 	in := []runtime.RawExtension{
@@ -71,11 +71,8 @@ func TestSplitArgocdResources_Routing(t *testing.T) {
 }
 
 // TestSplitArgocdResources_RejectsSecretsAsTerminal verifies inline
-// v1/Secret entries are rejected with terminal classification —
-// putting plaintext credential data on an MR spec is exactly what the
-// typed SecretRef fields exist to prevent. Terminal halts the
-// reconcile loop until the user fixes the spec rather than retrying
-// the bad input on every poll.
+// v1/Secret entries are rejected with terminal classification.
+// Plaintext credential data must use typed SecretRefs instead.
 func TestSplitArgocdResources_RejectsSecretsAsTerminal(t *testing.T) {
 	in := []runtime.RawExtension{
 		mustRawMap(t, map[string]interface{}{
@@ -157,9 +154,9 @@ func TestArgocdResourcesUpToDate_Subset(t *testing.T) {
 						"source": map[string]interface{}{
 							"repoURL":        "https://example.com/repo",
 							"targetRevision": "v1.0.0",
-							"path":           "manifests", // server-side default — extra is fine
+							"path":           "manifests", // server-side default; extra is fine
 						},
-						"project": "default", // server-side default — extra is fine
+						"project": "default", // server-side default; extra is fine
 					},
 				}),
 			},
@@ -202,7 +199,7 @@ func TestArgocdResourcesUpToDate_Subset(t *testing.T) {
 // TestArgocdResourcesUpToDate_AdditiveUnset captures the additive
 // rule: removing an entry from spec.forProvider.resources does NOT
 // trigger drift on the controller side. Operators must delete via the
-// Akuity platform UI to remove a resource — this guarantees we don't
+// Akuity platform UI to remove a resource; this guarantees we don't
 // reap children other tools or the platform UI co-manage.
 func TestArgocdResourcesUpToDate_AdditiveUnset(t *testing.T) {
 	// Desired is empty (user removed the entry) but the server still
@@ -217,10 +214,10 @@ func TestArgocdResourcesUpToDate_AdditiveUnset(t *testing.T) {
 	}
 	ok, _, err := argocdResourcesUpToDate(nil, exp)
 	require.NoError(t, err)
-	assert.True(t, ok, "additive semantics: removing an entry from spec is NOT drift")
+	assert.True(t, ok, "additive semantics: removing an entry from spec is not drift")
 }
 
-// TestObserve_ResourcesDrift exercises the full Observe → drift wiring:
+// TestObserve_ResourcesDrift exercises the full Observe-to-drift wiring:
 // when the user pins an Application that the Akuity gateway has not
 // reflected, Observe must report ResourceUpToDate=false so the
 // reconciler fires Update and Apply propagates the manifest.
@@ -260,7 +257,7 @@ func TestObserve_ResourcesDrift(t *testing.T) {
 
 // TestObserve_ResourcesEmptyRoundTrip locks the no-resources path:
 // an Instance with empty spec.forProvider.resources must Observe as
-// up-to-date when the rest of the spec matches Export — the
+// up-to-date when the rest of the spec matches Export. The
 // resources-aware drift hook must not fire for empty input.
 func TestObserve_ResourcesEmptyRoundTrip(t *testing.T) {
 	e, mc := newExt(t)

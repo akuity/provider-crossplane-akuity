@@ -253,8 +253,8 @@ func TestSplitKargoResources_Routing(t *testing.T) {
 	assert.Len(t, got.ClusterPromotionTasks, 1)
 }
 
-// TestSplitKargoResources_RejectsSecrets locks in the post-7.B' rule
-// that v1/Secret manifests are no longer accepted inside
+// TestSplitKargoResources_RejectsSecrets verifies that v1/Secret
+// manifests are not accepted inside
 // spec.forProvider.kargoResources. Repo-credential Secrets must go
 // through spec.forProvider.kargoRepoCredentialSecretRefs so plaintext
 // stays out of the MR spec and rotation participates in SecretHash
@@ -304,11 +304,11 @@ func TestSecretHashStatusRoundTrip(t *testing.T) {
 	assert.Empty(t, getSecretHash(mg))
 }
 
-// TestResolveKargoSecrets_ResolvesRepoCredentials exercises the 7.B'
-// typed ref path: the controller reads each ref's backing Secret, keeps
-// slot / project ns / cred type in the resolved struct, and participates
-// in the digest so rotation fires Observe drift even though the gateway
-// Export response has no repo_credentials field.
+// TestResolveKargoSecrets_ResolvesRepoCredentials exercises the typed
+// repo-credential ref path: the controller reads each backing Secret,
+// preserves slot/project namespace/credential type in the resolved
+// struct, and includes it in the digest even though Export does not
+// return repo_credentials.
 func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
@@ -505,7 +505,7 @@ func TestResolveKargoSecrets_RepoCredsRejectsInvalidEffectiveName(t *testing.T) 
 	assert.Contains(t, err.Error(), "must match")
 }
 
-// TestKargoRepoCredsToPB_ShapeAndLabels confirms the synthesised Secret
+// TestKargoRepoCredsToPB_ShapeAndLabels confirms the synthesized Secret
 // carries the Kargo cred-type label, lands in the declared project
 // namespace, and omits entries with empty data.
 func TestKargoRepoCredsToPB_ShapeAndLabels(t *testing.T) {
@@ -620,7 +620,7 @@ func TestApiToSpec_PopulatesOidcConfig(t *testing.T) {
 	assert.Equal(t, "https://example.com", params.Kargo.OidcConfig.IssuerURL)
 }
 
-// TestApiToSpec_NilInputDoesNotPanic covers defensive behaviour:
+// TestApiToSpec_NilInputDoesNotPanic covers defensive behavior:
 // Observe may be called with an empty response in degenerate cases,
 // and apiToSpec's protobuf getters all tolerate a nil receiver.
 func TestApiToSpec_NilInputDoesNotPanic(t *testing.T) {

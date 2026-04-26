@@ -723,7 +723,7 @@ func TestApplyInstance_WorkspaceLookupNotFoundIsTerminal(t *testing.T) {
 // TestApplyInstance_FillsOrganizationId guards the controller
 // contract: callers (InstanceIpAllowList) construct the request
 // without setting OrganizationId, relying on the client wrapper to
-// inject it from the ProviderConfig-bound organisation.
+// inject it from the ProviderConfig-bound organization.
 func TestApplyInstance_FillsOrganizationId(t *testing.T) {
 	mockGatewayClient := mock_akuity_client.NewMockArgoCDServiceGatewayClient(gomock.NewController(t))
 	callerRequest := &argocdv1.ApplyInstanceRequest{

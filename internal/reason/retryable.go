@@ -26,7 +26,7 @@ func IsRetryable(err error) bool {
 // IsProvisioningWait returns true when err signals that the target
 // Akuity resource is still being provisioned. Controllers use this to
 // mark the managed resource Unavailable in Observe without escalating
-// to ReconcileError — the gRPC error is a transient wait-state, not a
+// to ReconcileError; the gRPC error is a transient wait-state, not a
 // reconcile failure.
 func IsProvisioningWait(err error) bool {
 	if err == nil {

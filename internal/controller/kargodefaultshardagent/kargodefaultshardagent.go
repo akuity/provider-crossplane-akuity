@@ -118,8 +118,8 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 	if mg.Spec.ForProvider.AgentName != "" {
 		agent, rerr := e.Client.GetKargoInstanceAgent(ctx, kargoID, mg.Spec.ForProvider.AgentName)
 		if rerr != nil {
-			// Agent missing is ResourceExists=false for the PIN — go to
-			// Create once the agent turns up. Other errors surface.
+			// Missing agent means the pin cannot exist yet. Let Create
+			// retry once the agent appears; surface other errors.
 			if reason.IsNotFound(rerr) {
 				return managed.ExternalObservation{ResourceExists: false}, nil
 			}
@@ -138,10 +138,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 	// clears defaultShardAgent on the server (empty string). The next
 	// Observe sees observedID="" but desiredID is still the agent's
 	// opaque ID, so the compare below flips ResourceUpToDate=false and
-	// runtime dispatches Delete every poll — issuing one
-	// PatchKargoInstance per loop for as long as the finalizer
-	// lingers. Report ResourceExists=false once the server-side pin is
-	// already cleared so the managed reconciler drops the finalizer.
+	// runtime dispatches Delete every poll. Report ResourceExists=false
+	// once the server-side pin is already cleared so the managed
+	// reconciler drops the finalizer.
 	if meta.WasDeleted(mg) && observedID == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
@@ -174,7 +173,7 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.KargoDefaultShardAge
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgent) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
-	// Clearing the default is the API-neutral "no pinning" signal — we
+	// Clearing the default is the API-neutral "no pinning" signal; we
 	// intentionally do not delete the Kargo instance itself.
 	return managed.ExternalDelete{}, e.patch(ctx, mg, "")
 }
@@ -184,11 +183,10 @@ func (e *external) Disconnect(_ context.Context) error { return nil }
 // patch writes the desired defaultShardAgent via the narrow
 // PatchKargoInstance endpoint. The server merges into only the
 // provided sub-tree and stores the agent's opaque ID (not its name)
-// as the defaultShardAgent value; matching shape is
-// terraform/akp/resource_akp_kargoagent.go:815-833 (autoSetDefaultShardAgent).
+// as the defaultShardAgent value.
 // Empty string clears the pin.
 //
-// Envelope is `{"spec": {"defaultShardAgent": "<agent-id>"}}` — NOT
+// Envelope is `{"spec": {"defaultShardAgent": "<agent-id>"}}`, not
 // `{"spec": {"kargoInstanceSpec": {"defaultShardAgent": ...}}}`,
 // which is what an earlier iteration sent; the server's patch
 // unmarshaler rejected the extra "kargoInstanceSpec" envelope with
@@ -199,8 +197,8 @@ func (e *external) patch(ctx context.Context, mg *v1alpha1.KargoDefaultShardAgen
 		return err
 	}
 
-	// desiredAgentName == "" is the "clear pin" path (Delete) — skip
-	// name→ID resolution.
+	// desiredAgentName == "" is the "clear pin" path (Delete); skip
+	// name-to-ID resolution.
 	value := ""
 	if desiredAgentName != "" {
 		agent, rerr := e.Client.GetKargoInstanceAgent(ctx, kargoID, desiredAgentName)

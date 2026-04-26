@@ -43,11 +43,9 @@ type Client interface {
 	DeleteCluster(ctx context.Context, instanceID string, name string) error
 	// SetClusterMaintenanceMode targets the dedicated set-maintenance-mode
 	// gateway route. ApplyInstance does not propagate
-	// data.maintenanceMode / data.maintenanceModeExpiry — those fields
-	// have to flow through this separate RPC (terraform-provider-akp's
-	// resource_akp_cluster.go:syncClusterMaintenanceMode follows the
-	// same pattern). Pass expiry=nil when the maintenance mode has no
-	// time bound on the platform.
+	// data.maintenanceMode or data.maintenanceModeExpiry, so those
+	// fields flow through this separate RPC. Pass expiry=nil when
+	// maintenance mode has no time bound on the platform.
 	SetClusterMaintenanceMode(ctx context.Context, instanceID, clusterName string, mode bool, expiry *time.Time) error
 	GetInstance(ctx context.Context, name string) (*argocdv1.Instance, error)
 	// GetInstanceByID fetches an Instance by its canonical ID. Used by
@@ -63,7 +61,7 @@ type Client interface {
 	// ApplyInstance narrow-merges the populated fields into the target
 	// Instance; omitted fields are left untouched. Cluster/KargoAgent
 	// child resources are applied by populating only the corresponding
-	// Clusters/Agents slice on the request — build helpers live in the
+	// Clusters/Agents slice on the request; build helpers live in the
 	// owning controller's convert.go.
 	ApplyInstance(ctx context.Context, request *argocdv1.ApplyInstanceRequest) error
 	// PatchInstance merges the supplied structpb patch into the target
@@ -79,15 +77,14 @@ type Client interface {
 	GetKargoInstance(ctx context.Context, name string) (*kargov1.KargoInstance, error)
 	// GetKargoInstanceByID fetches a KargoInstance by its canonical ID.
 	// The Kargo GetKargoInstanceRequest only accepts a name; we emulate
-	// the ID-keyed lookup by listing and filtering server-side (matches
-	// how the Akuity Terraform provider resolves by ID).
+	// the ID-keyed lookup by listing and filtering server-side.
 	GetKargoInstanceByID(ctx context.Context, id string) (*kargov1.KargoInstance, error)
 	ExportKargoInstance(ctx context.Context, name, workspaceID string) (*kargov1.ExportKargoInstanceResponse, error)
 	// ApplyKargoInstance narrow-merges the populated fields into the
 	// target KargoInstance; omitted fields (Kargo envelope, Projects,
-	// Warehouses, Stages, RepoCredentials, …) are left untouched. Agent
+	// Warehouses, Stages, RepoCredentials, etc.) are left untouched. Agent
 	// child resources are applied by populating only the Agents slice
-	// — see KargoAgent controller's convert.go for the build helper.
+	// in the KargoAgent controller's convert.go build helper.
 	ApplyKargoInstance(ctx context.Context, request *kargov1.ApplyKargoInstanceRequest) error
 	// PatchKargoInstance merges the supplied structpb patch into the
 	// target KargoInstance's spec (keyed by ID). Used by narrow-patch
@@ -111,11 +108,10 @@ type Client interface {
 
 	// ResolveWorkspace resolves an Akuity workspace by ID or name and
 	// returns it. When name is empty the organization's default workspace is
-	// returned (the same fallback the terraform-provider-akp uses, see
-	// resource_akp_kargo.go:getWorkspace). Used by KargoInstance to
-	// avoid hot-looping ApplyKargoInstance against a workspace-scoped
-	// HTTP route with an empty workspace_id (the route templates the
-	// id straight into the path so empty produces a 404).
+	// returned. Used by KargoInstance to avoid hot-looping ApplyKargoInstance
+	// against a workspace-scoped HTTP route with an empty workspace_id
+	// (the route templates the id straight into the path so empty produces
+	// a 404).
 	ResolveWorkspace(ctx context.Context, name string) (*orgcv1.Workspace, error)
 }
 
@@ -386,7 +382,7 @@ func (c client) GetCluster(ctx context.Context, instanceID string, name string) 
 
 	if err != nil {
 		// The Akuity API does not distinguish NotFound from PermissionDenied
-		// when reading organisation-scoped clusters. See internal/reason/doc.go.
+		// when reading organization-scoped clusters. See internal/reason/doc.go.
 		if e, ok := status.FromError(err); ok {
 			if e.Code() == codes.NotFound || e.Code() == codes.PermissionDenied {
 				return nil, reason.AsNotFound(fmt.Errorf("could not get cluster %s from Akuity API: %w", name, err))
@@ -685,7 +681,7 @@ func (c client) checkClusterReconciled(ctx context.Context, instanceID string, c
 // Kargo-plane methods. All take an instance name (or ID) as the Akuity
 // API's canonical lookup key; controllers that drive them are expected
 // to carry IDs on the managed resource's AtProvider block to avoid
-// repeated name→ID resolutions.
+// repeated name-to-ID resolutions.
 // ----------------------------------------------------------------------
 
 func (c client) kargoRequired(op string) error {
@@ -722,8 +718,7 @@ func (c client) GetKargoInstanceByID(ctx context.Context, id string) (*kargov1.K
 	}
 	ctx = httpctx.SetAuthorizationHeader(ctx, c.credentials.Scheme(), c.credentials.Credential())
 	// GetKargoInstanceRequest only accepts a name. Emulate ID-keyed
-	// lookup via ListKargoInstances + client-side filter (same approach
-	// as akuityio/akuity-platform/terraform/akp).
+	// lookup via ListKargoInstances plus a client-side filter.
 	list, err := c.kargoGatewayClient.ListKargoInstances(ctx, &kargov1.ListKargoInstancesRequest{
 		OrganizationId: c.organizationID,
 	})
@@ -852,10 +847,8 @@ func (c client) DeleteKargoInstance(ctx context.Context, name string) error {
 // user-facing Kargo agent name, e.g. the CR's spec.forProvider.name).
 //
 // The server's GetKargoInstanceAgent endpoint keys by opaque agent ID
-// (models.KargoAgentWhere.ID.EQ(req.GetId())) with no name-lookup
-// branch, so we resolve name→ID via ListKargoInstanceAgents first and
-// then issue the Get by ID. The terraform-provider-akp resource does
-// the same (terraform/akp/resource_akp_kargoagent.go:250-278).
+// with no name-lookup branch, so resolve name to ID via
+// ListKargoInstanceAgents first and then issue the Get by ID.
 //
 // A NotFound from the resolve step surfaces as a NotFound from this
 // function; callers treat that as "external resource doesn't exist
@@ -941,13 +934,10 @@ func (c client) GetKargoInstanceAgentManifestsOnce(ctx context.Context, kargoIns
 }
 
 // GetKargoInstanceAgentManifests blocks until the agent reaches a
-// terminal reconciliation state (SUCCESSFUL/FAILED) then streams the
-// install manifests. Mirrors GetClusterManifests — the first Create
-// after ApplyKargoInstance races the gateway's manifest-renderer and a
-// non-retried one-shot deterministically hits codes.Unavailable on
-// orbstack-hosted portal-server. Terraform solves it with
-// waitKargoAgentReconStatus (resource_akp_kargoagent.go:609) before
-// GetKargoInstanceAgentManifests; this helper applies the same wait.
+// terminal reconciliation state (SUCCESSFUL/FAILED), then streams the
+// install manifests. This mirrors GetClusterManifests: the first Create
+// after ApplyKargoInstance can race the gateway's manifest renderer.
+// This helper waits before opening the manifest stream.
 func (c client) GetKargoInstanceAgentManifests(ctx context.Context, kargoInstanceID, agentName string) (string, error) {
 	if err := c.kargoRequired("GetKargoInstanceAgentManifests"); err != nil {
 		return "", err
@@ -1042,9 +1032,8 @@ func (c client) orgRequired(op string) error {
 // ResolveWorkspace implements Client.ResolveWorkspace.
 //
 // When name is empty the function selects the workspace flagged
-// IsDefault by the Akuity portal — this is the same fallback the
-// terraform-provider-akp uses (resource_akp_kargo.go:getWorkspace) and
-// is what the platform expects for single-workspace organisations.
+// IsDefault by the Akuity portal, which is what the platform expects
+// for single-workspace organizations.
 // When name is non-empty the function first matches workspace ID, then
 // workspace name. ID wins because gateway routes require the canonical ID.
 // The matching workspace is returned, with

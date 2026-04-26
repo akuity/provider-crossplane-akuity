@@ -22,7 +22,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
-// GetOutcome categorises a *Get* call's error into the branches every
+// GetOutcome categorizes a *Get* call's error into the branches every
 // Observe repeats. GetOK means the caller's remote object is usable;
 // any other outcome carries a pre-shaped ExternalObservation the caller
 // can return directly.

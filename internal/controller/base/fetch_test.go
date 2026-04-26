@@ -45,7 +45,7 @@ func TestClassifyGetError_NotFound(t *testing.T) {
 
 func TestClassifyGetError_ProvisioningWait(t *testing.T) {
 	// reason.IsProvisioningWait keys off codes.InvalidArgument + the
-	// "still being provisioned" substring — match that shape.
+	// "still being provisioned" substring; match that shape.
 	pw := status.Error(codes.InvalidArgument, "instance still being provisioned")
 	outcome, obs, err := base.ClassifyGetError(pw)
 	assert.Equal(t, base.GetProvisioning, outcome)

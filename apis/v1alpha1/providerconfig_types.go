@@ -27,16 +27,19 @@ import (
 
 // A ProviderConfigSpec defines the desired state of a ProviderConfig.
 type ProviderConfigSpec struct {
-	// Credentials required to authenticate to this provider.
+	// CredentialsSecretRef selects the Secret key used to authenticate
+	// to the Akuity API.
 	CredentialsSecretRef xpv1.SecretKeySelector `json:"credentialsSecretRef"`
 
-	// The ID of the Akuity organization the provided credentials are for.
+	// OrganizationID is the Akuity organization ID for these credentials.
 	OrganizationID string `json:"organizationId"`
 
-	// The URL of the Akuity Platform API. Defaults to https://akuity.cloud.
+	// ServerURL is the Akuity platform API URL. Defaults to
+	// https://akuity.cloud.
 	ServerURL string `json:"serverUrl,omitempty"`
 
-	// Whether or not to skip TLS verification when connecting to the Akuity Platform API. Defaults to false.
+	// SkipTLSVerify skips TLS certificate verification when connecting
+	// to the Akuity platform API. Defaults to false.
 	SkipTLSVerify bool `json:"skipTlsVerify,omitempty"`
 }
 
@@ -47,7 +50,7 @@ type ProviderConfigStatus struct {
 
 // +kubebuilder:object:root=true
 
-// A ProviderConfig configures a Akuity provider.
+// A ProviderConfig configures an Akuity provider.
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:printcolumn:name="SECRET-NAME",type="string",JSONPath=".spec.credentials.secretRef.name",priority=1

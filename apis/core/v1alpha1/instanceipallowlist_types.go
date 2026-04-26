@@ -27,7 +27,7 @@ import (
 )
 
 // InstanceIpAllowListParameters manage the ipAllowList field of an
-// ArgoCD instance. The underlying PatchInstance endpoint keys by ID;
+// Argo CD instance. The underlying PatchInstance endpoint keys by ID;
 // callers can supply the ID directly on InstanceID or point at an
 // Instance managed resource in the same namespace via InstanceRef, in
 // which case the controller resolves the ID from the Instance's
@@ -36,12 +36,12 @@ import (
 // +kubebuilder:validation:XValidation:rule="has(self.instanceId) || has(self.instanceRef)",message="instanceId or instanceRef must be set"
 // +kubebuilder:validation:XValidation:rule="(!has(oldSelf.instanceId) || (has(self.instanceId) && self.instanceId == oldSelf.instanceId)) && (!has(oldSelf.instanceRef) || (has(self.instanceRef) && self.instanceRef.name == oldSelf.instanceRef.name))",message="instanceId/instanceRef are immutable"
 type InstanceIpAllowListParameters struct {
-	// InstanceID references the target ArgoCD Instance by its opaque
+	// InstanceID references the target Argo CD Instance by its opaque
 	// Akuity ID. Mutually exclusive with InstanceRef.
 	// +optional
 	InstanceID string `json:"instanceId,omitempty"`
 
-	// InstanceRef references the target ArgoCD Instance by name in the
+	// InstanceRef references the target Argo CD Instance by name in the
 	// same namespace as this InstanceIpAllowList. The controller reads
 	// the referenced Instance's Status.AtProvider.ID to resolve the
 	// underlying Akuity ID. Mutually exclusive with InstanceID.
@@ -55,7 +55,7 @@ type InstanceIpAllowListParameters struct {
 }
 
 // InstanceIpAllowListObservation reflects the observed IP allow list
-// on the referenced ArgoCD Instance.
+// on the referenced Argo CD Instance.
 type InstanceIpAllowListObservation struct {
 	// AllowList is the set of IP/CIDR entries currently enforced on
 	// the instance.
@@ -84,7 +84,7 @@ type InstanceIpAllowListStatus struct {
 
 // +kubebuilder:object:root=true
 
-// An InstanceIpAllowList manages the IP allow list of an ArgoCD
+// An InstanceIpAllowList manages the IP allow list of an Argo CD
 // Instance.
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"

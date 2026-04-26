@@ -47,8 +47,7 @@ import (
 
 // argocdRepoSecretTypeLabel + the two const values below are the
 // labels Argo CD uses to distinguish repository credentials from
-// repo-credential templates. Matches terraform buildSecrets call sites
-// in resource_akp_instance.go.
+// repo-credential templates.
 const (
 	argocdRepoSecretTypeLabel        = "argocd.argoproj.io/secret-type"
 	argocdRepoSecretTypeRepository   = "repository"
@@ -74,7 +73,7 @@ type resolvedInstanceSecrets struct {
 // Hash combines the digests of every resolved Secret, including the
 // referenced Secret namespaces/names, so a move/rename with identical
 // content rotates the digest as well as a straight content rotation.
-// Empty when no refs were set on the spec — keeps Observe
+// Empty when no refs were set on the spec, keeping Observe's
 // short-circuit cheap.
 func (r resolvedInstanceSecrets) Hash() string {
 	h := map[string]string{
@@ -161,8 +160,8 @@ func instanceSecretToPB(name string, data map[string]string, labels map[string]s
 	return pb, nil
 }
 
-// namedInstanceSecretsToPB serialises each entry in a Named-ref map
-// into a labelled Kubernetes Secret. Entries are emitted in sorted
+// namedInstanceSecretsToPB serializes each entry in a Named-ref map
+// into a labeled Kubernetes Secret. Entries are emitted in sorted
 // name order so the Apply payload is byte-identical across reconciles
 // for the same input. Empty entries are skipped; empty input returns
 // nil.
@@ -708,7 +707,7 @@ const (
 // spec.forProvider.resources bundle, already marshalled into the
 // structpb.Struct shape the ApplyInstance proto expects on its
 // Applications / ApplicationSets / AppProjects slices. Mirrors the
-// kargoChildren shape on the KargoInstance controller — the wire shape
+// kargoChildren shape on the KargoInstance controller; the wire shape
 // is the only thing that differs.
 type argocdChildren struct {
 	Applications    []*structpb.Struct
@@ -723,10 +722,9 @@ type argocdChildren struct {
 // KargoInstance controller.
 //
 // Inline v1/Secret entries are rejected as a terminal error: storing
-// plaintext credential data on an MR spec is the very thing the typed
-// SecretRef fields exist to avoid. The terminal classification halts
-// the reconcile loop on the bad input rather than retrying it on
-// every poll while admission controllers complain.
+// plaintext credential data on an MR spec is what the typed SecretRef
+// fields exist to avoid. The terminal classification halts the reconcile
+// loop on the bad input.
 func splitArgocdResources(in []runtime.RawExtension) (argocdChildren, error) {
 	out := argocdChildren{}
 	if len(in) == 0 {
@@ -781,8 +779,9 @@ func routeArgocdResource(out *argocdChildren, i int, raw runtime.RawExtension) e
 // argocdResourcesUpToDate reports whether every declarative Argo CD
 // child listed in spec.forProvider.resources is present on the gateway
 // with an equivalent payload. Mirrors kargoResourcesUpToDate on the
-// KargoInstance controller: additive semantics, desired ⊆ observed.
-// Removing an entry from spec does NOT trigger server-side deletion —
+// KargoInstance controller: additive semantics, every desired child
+// must exist in observed state.
+// Removing an entry from spec does not trigger server-side deletion;
 // out-of-band resources managed via the Akuity UI must not be wiped
 // by a missing entry on the Crossplane side.
 func argocdResourcesUpToDate(desired []runtime.RawExtension, exp *argocdv1.ExportInstanceResponse) (bool, children.DriftReport, error) {
@@ -805,7 +804,7 @@ func argocdResourcesUpToDate(desired []runtime.RawExtension, exp *argocdv1.Expor
 		if err != nil {
 			// Defer the failure to the Apply path rather than failing
 			// the reconcile loop on a transient decode issue.
-			//nolint:nilerr // intentional swallow; see comment above
+			//nolint:nilerr // Defer transient decode failures to Apply.
 			return true, children.DriftReport{}, nil
 		}
 		for k, v := range idx {

@@ -8,7 +8,6 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
 
-// If current is the default value, we should return from.
 func TestLateInitialize_IsDefault(t *testing.T) {
 	currentStr := ""
 	fromStr := "default"
@@ -19,7 +18,6 @@ func TestLateInitialize_IsDefault(t *testing.T) {
 	assert.Equal(t, fromInt, pointer.LateInitialize(currentInt, fromInt))
 }
 
-// If current is not the default value, we should return current.
 func TestLateInitialize_IsNotDefault(t *testing.T) {
 	currentStr := "not-default"
 	fromStr := "default"
