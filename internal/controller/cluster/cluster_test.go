@@ -777,3 +777,69 @@ func TestObserve_PodInheritMetadata_DesiredTrueServerFalse(t *testing.T) {
 	assert.False(t, resp.ResourceUpToDate,
 		"user-pinned PodInheritMetadata=true with GetCluster=false must surface as drift")
 }
+
+// observeFixtureWithDatadogEksAddon mirrors the pattern for the
+// DatadogAnnotationsEnabled / EksAddonEnabled tri-state fields. Both
+// sit on ClusterData with the same Export-omits-vs-Get-echoes shape
+// gap as PodInheritMetadata; the Export wire form additionally surfaces
+// `&false` when the user is silent, so per-poll wasteful Apply fires
+// without a normalize entry to fold the user-silent side onto observed.
+func observeFixtureWithDatadogEksAddon(
+	t *testing.T,
+	getDatadog, getEksAddon *bool,
+	specDatadog, specEksAddon *bool,
+) (*external, *mock_akuity_client.MockClient, *v1alpha1.Cluster) {
+	t.Helper()
+	e, mc := newExt(t, nil)
+
+	mr := fixtures.CrossplaneManagedCluster.DeepCopy()
+	mr.ObjectMeta = metav1.ObjectMeta{
+		Annotations: map[string]string{
+			"crossplane.io/external-name": fixtures.ClusterName,
+		},
+	}
+	mr.Spec.ForProvider.ClusterSpec.Data.DatadogAnnotationsEnabled = specDatadog
+	mr.Spec.ForProvider.ClusterSpec.Data.EksAddonEnabled = specEksAddon
+
+	getCluster := proto.Clone(fixtures.ArgocdCluster).(*argocdv1.Cluster)
+	getData := getCluster.GetData()
+	if getData == nil {
+		getData = &argocdv1.ClusterData{}
+		getCluster.Data = getData
+	}
+	getData.DatadogAnnotationsEnabled = getDatadog
+	getData.EksAddonEnabled = getEksAddon
+
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(getCluster, nil).Times(1)
+	mc.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{fixtures.ExportedCluster}}, nil).Times(1)
+
+	return e, mc, mr
+}
+
+// TestObserve_DatadogEksAddon_DesiredNilServerStamped covers the
+// reported per-poll wasteful Apply: user is silent, the platform
+// stamps DatadogAnnotationsEnabled=&false / EksAddonEnabled=&false on
+// the wire (proto3 oneof), and without the Normalize entries the
+// comparator flapped drift on every reconcile.
+func TestObserve_DatadogEksAddon_DesiredNilServerStamped(t *testing.T) {
+	fa := false
+	e, _, mr := observeFixtureWithDatadogEksAddon(t, &fa, &fa, nil, nil)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.True(t, resp.ResourceUpToDate,
+		"server-stamped Datadog/EksAddon defaults with desired-nil must adopt observed, not flap drift")
+}
+
+// TestObserve_DatadogEksAddon_DesiredTrueServerFalse covers the
+// disagree case: user pinned true, the platform has the proto3 default.
+// Drift must fire so Apply runs.
+func TestObserve_DatadogEksAddon_DesiredTrueServerFalse(t *testing.T) {
+	tr, fa := true, false
+	e, _, mr := observeFixtureWithDatadogEksAddon(t, &fa, &fa, &tr, &tr)
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.False(t, resp.ResourceUpToDate,
+		"user-pinned Datadog/EksAddon=true with platform=false must surface as drift")
+}

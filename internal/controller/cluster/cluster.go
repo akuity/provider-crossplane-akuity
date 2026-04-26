@@ -181,6 +181,8 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	driftTarget.ClusterSpec.Data.Compatibility = actualCluster.ClusterSpec.Data.Compatibility
 	driftTarget.ClusterSpec.Data.ArgocdNotificationsSettings = actualCluster.ClusterSpec.Data.ArgocdNotificationsSettings
 	driftTarget.ClusterSpec.Data.PodInheritMetadata = actualCluster.ClusterSpec.Data.PodInheritMetadata
+	driftTarget.ClusterSpec.Data.DatadogAnnotationsEnabled = actualCluster.ClusterSpec.Data.DatadogAnnotationsEnabled
+	driftTarget.ClusterSpec.Data.EksAddonEnabled = actualCluster.ClusterSpec.Data.EksAddonEnabled
 
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
@@ -418,6 +420,18 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 			normalizePtrField(
 				&desired.ClusterSpec.Data.ArgocdNotificationsSettings,
 				&observed.ClusterSpec.Data.ArgocdNotificationsSettings,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.PodInheritMetadata,
+				&observed.ClusterSpec.Data.PodInheritMetadata,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.DatadogAnnotationsEnabled,
+				&observed.ClusterSpec.Data.DatadogAnnotationsEnabled,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.EksAddonEnabled,
+				&observed.ClusterSpec.Data.EksAddonEnabled,
 			)
 
 			// Kustomization is a YAML string round-trip. GetCluster may
