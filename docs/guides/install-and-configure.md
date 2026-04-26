@@ -1,0 +1,85 @@
+# Install and Configure
+
+This guide installs the provider, creates the Akuity API credentials Secret, and creates the `ProviderConfig` used by managed resources.
+
+## Prerequisites
+
+- A Kubernetes cluster with Crossplane installed.
+- `kubectl` access to the cluster.
+- An Akuity API key ID, API key secret, and organization ID.
+- Access to the provider package image in `us-docker.pkg.dev/akuity/crossplane/provider`.
+
+## Compatibility
+
+Before upgrading from v0.3.x: the v2 runtime does not support
+`publishConnectionDetailsTo` or `StoreConfig`. Migrate any manifests using
+ESS-style connection publishing before installing v2.0.0, or the controller
+will reject those resources at apply.
+
+Crossplane 1.19+ and 2.x are supported by the same artifact. `safe-start` is a
+Crossplane 2.x-only provider capability and no-ops on Crossplane 1.x.
+
+## Install The Provider
+
+Review [examples/provider/provider.yaml](../../examples/provider/provider.yaml), replace the provider package tag, and apply it:
+
+```shell
+kubectl apply -f examples/provider/provider.yaml
+kubectl get providers.pkg.crossplane.io
+kubectl describe providerrevisions.pkg.crossplane.io
+```
+
+The `Provider` object installs the CRDs and starts the controller runtime. The example also includes a `DeploymentRuntimeConfig` that enables `--debug`; remove it or remove the `runtimeConfigRef` for production defaults.
+
+## Create Credentials
+
+Create a JSON credentials file:
+
+```json
+{"apiKeyId":"MY_AKUITY_API_KEY_ID","apiKeySecret":"MY_AKUITY_API_KEY_SECRET"}
+```
+
+Create the Kubernetes Secret in the Crossplane namespace. Either edit
+[examples/provider/credentials-secret.yaml](../../examples/provider/credentials-secret.yaml)
+and apply it, or create the Secret from a local credentials file:
+
+```shell
+kubectl -n crossplane-system create secret generic akuity-provider-secret \
+  --from-file=credentials=./akuity-credentials.json
+```
+
+The Secret key must match `spec.credentialsSecretRef.key` in [examples/provider/config.yaml](../../examples/provider/config.yaml).
+
+## Configure The Provider
+
+Edit [examples/provider/config.yaml](../../examples/provider/config.yaml):
+
+- Set `spec.organizationId` to the Akuity organization ID.
+- Keep `spec.credentialsSecretRef` pointed at the credentials Secret.
+- Set `spec.serverUrl` only for non-default Akuity API endpoints.
+- Use `spec.skipTlsVerify` only for local or test environments.
+
+Apply the ProviderConfig:
+
+```shell
+kubectl apply -f examples/provider/config.yaml
+kubectl get providerconfig.akuity.crossplane.io akuity
+```
+
+## Create Managed Resources
+
+Start with a basic Argo CD instance:
+
+```shell
+kubectl apply -f examples/instance/basic.yaml
+kubectl get instances.core.akuity.crossplane.io
+kubectl describe instance.core.akuity.crossplane.io my-instance
+```
+
+Then attach resources that depend on the instance status, such as `Cluster` or `InstanceIpAllowList`, after the parent reports a populated `status.atProvider.id`.
+
+## Upgrade Or Remove
+
+Upgrade by changing `spec.package` on the `Provider` object to the target image tag. Crossplane creates a new `ProviderRevision` and activates it according to the package revision policy.
+
+Remove managed resources before removing the provider. Deleting the provider first removes the controllers and can leave external Akuity resources unmanaged.

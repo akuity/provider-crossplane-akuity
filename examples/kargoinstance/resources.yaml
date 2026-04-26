@@ -1,0 +1,43 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoInstance
+metadata:
+  name: my-kargo-with-resources
+spec:
+  forProvider:
+    name: my-kargo-with-resources
+    kargo:
+      version: "v1.8.1"
+      kargoInstanceSpec:
+        promoControllerEnabled: true
+    resources:
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: Project
+        metadata:
+          name: kargo-demo
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: Warehouse
+        metadata:
+          name: images
+          namespace: kargo-demo
+        spec:
+          subscriptions:
+            - image:
+                repoURL: public.ecr.aws/nginx/nginx
+                semverConstraint: ^1.28.0
+                discoveryLimit: 5
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: PromotionTask
+        metadata:
+          name: promote-image
+          namespace: kargo-demo
+        spec:
+          steps:
+            - uses: git-clone
+              config:
+                repoURL: https://github.com/my-org/platform-gitops
+                checkout:
+                  - branch: main
+                    path: ./repo
+  providerConfigRef:
+    name: akuity

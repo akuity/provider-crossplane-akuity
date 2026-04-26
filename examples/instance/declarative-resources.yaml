@@ -1,0 +1,45 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Instance
+metadata:
+  name: my-instance-with-resources
+spec:
+  forProvider:
+    name: my-instance-with-resources
+    argocd:
+      spec:
+        version: "v3.1.9-ak.67"
+        instanceSpec:
+          declarativeManagementEnabled: true
+    resources:
+      - apiVersion: argoproj.io/v1alpha1
+        kind: AppProject
+        metadata:
+          name: platform
+          namespace: argocd
+        spec:
+          sourceRepos:
+            - https://github.com/my-org/platform-gitops
+          destinations:
+            - namespace: "*"
+              server: https://kubernetes.default.svc
+      - apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: platform-apps
+          namespace: argocd
+        spec:
+          project: platform
+          source:
+            repoURL: https://github.com/my-org/platform-gitops
+            targetRevision: main
+            path: apps
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: default
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+  providerConfigRef:
+    name: akuity

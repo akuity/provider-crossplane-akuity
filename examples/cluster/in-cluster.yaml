@@ -1,0 +1,19 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Cluster
+metadata:
+  name: management-cluster
+spec:
+  forProvider:
+    instanceRef:
+      name: "my-instance"
+    name: "management-cluster"
+    namespace: "akuity"
+    enableInClusterKubeconfig: true
+    removeAgentResourcesOnDestroy: true
+    clusterSpec:
+      description: "Installs the Akuity agent into the same cluster that runs Crossplane."
+      data:
+        size: "small"
+  providerConfigRef:
+    name: akuity

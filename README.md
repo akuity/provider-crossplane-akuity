@@ -1,109 +1,81 @@
 # provider-akuity
 
 The `provider-akuity` repository is the Crossplane infrastructure provider for
-[Akuity Platform](https://akuity.io/akuity-platform/). The provider that is built from the source code
-in this repository can be installed into a Crossplane control plane and adds the 
-following new functionality:
+[Akuity Platform](https://akuity.io/akuity-platform/). It installs Kubernetes
+CRDs and controllers that let Crossplane manage Akuity resources from managed
+resource specs.
 
-* Custom Resource Definitions (CRDs) that model Akuity services(e.g, Argo CD instances and clusters)
-* Controllers to provision these resources in Akuity Cloud based on users 
-desired state captured in the CRDs they create
+## Documentation
 
-## Installation
+Start with [docs/index.md](./docs/index.md). The docs include provider setup,
+resource pages, and focused guides for secrets, ConfigMaps, Config Management
+Plugins, and declarative Kargo resources.
 
-### Prerequisites
+## Quick Start
 
-- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-- [Crossplane](https://docs.crossplane.io/latest/software/install/)
+Install Crossplane, replace `REPLACE_WITH_VERSION` in
+[examples/provider/provider.yaml](./examples/provider/provider.yaml), then
+install the provider:
 
-### Configure an API Key
-The Akuity Crossplane provider needs to be configured with Akuity API credentials. Please check how to create an API key on  [Akuity Platform API Key Documentation](https://docs.akuity.io/organizations/api-keys). 
-
-Once you have an API key and secret, create a JSON file with the following contents (replace the placeholders for API key 
-ID and secret with the credentials generated above):
-
-```
-{"apiKeyId": "MY_AKUITY_API_KEY_ID", "apiKeySecret": "MY_AKUITY_API_KEY_SECRET"}
-```
-
-Next, base64 encode the above content before pasting it in the Kubernetes `Secret` in [examples/provider/provider.yaml](./examples/provider/provider.yaml):
-
-```
-cat myfile.json | base64
-```
-
-Install the provider by applying the [examples/provider/provider.yaml](./examples/provider/provider.yaml) in your cluster:
-
-```
+```shell
 kubectl apply -f examples/provider/provider.yaml
+kubectl get providers.pkg.crossplane.io
 ```
 
-### Configure the Organization ID
-Once the provider is ready, update the `ProviderConfig` resource in [examples/provider/config.yaml](./examples/provider/config.yaml) with your
-Akuity organization ID. Your organization ID can be found by logging in to [https://akuity.cloud](https://akuity.cloud) and
-navigating to your organization page. The organization ID is displayed on the top right corner of the screen.
+Create the provider credentials Secret. Either edit and apply
+[examples/provider/credentials-secret.yaml](./examples/provider/credentials-secret.yaml),
+or create it from a local credentials file. The `credentials` key must contain
+JSON with `apiKeyId` and `apiKeySecret`:
 
-Once you have completed the steps above to replace the placeholders for API credentials, organization ID in
-[examples/provider/config.yaml](./examples/provider/config.yaml), you can configure the provider by applying the `ProviderConfig` resources to your cluster:
-
+```shell
+kubectl -n crossplane-system create secret generic akuity-provider-secret \
+  --from-file=credentials=./akuity-credentials.json
 ```
+
+Edit [examples/provider/config.yaml](./examples/provider/config.yaml) with your
+Akuity organization ID, then apply it:
+
+```shell
 kubectl apply -f examples/provider/config.yaml
 ```
 
-Now you can start managing Akuity instances and clusters using Crossplane.
+Create an Argo CD instance:
 
-### API surface: `core.akuity.crossplane.io/v1alpha1` (cluster-scoped)
+```shell
+kubectl apply -f examples/instance/basic.yaml
+kubectl get instances.core.akuity.crossplane.io
+```
 
-All managed resources are cluster-scoped and live in the
-`core.akuity.crossplane.io/v1alpha1` group. Existing `v1alpha1` manifests
-continue to work unchanged — the upgrade is additive.
+## Managed Resources
 
-- [Argo CD Instance](./examples/instance/basic.yaml)
-- [Cluster](./examples/cluster/basic.yaml)
-- [Argo CD Instance — detailed](./examples/instance/detailed.yaml)
-- [Cluster — detailed](./examples/cluster/detailed.yaml)
+All managed resources are cluster-scoped and live in
+`core.akuity.crossplane.io/v1alpha1`.
 
-v2.0.0 adds four new cluster-scoped MR types under the same group:
-`KargoInstance`, `KargoAgent`, `KargoDefaultShardAgent`,
-`InstanceIpAllowList`. See the CRD reference for their schemas.
+| Resource | Purpose | Examples |
+| --- | --- | --- |
+| `Instance` | Akuity Argo CD instance. | [examples/instance](./examples/instance) |
+| `Cluster` | Kubernetes cluster attached to an Argo CD instance. | [examples/cluster](./examples/cluster) |
+| `InstanceIpAllowList` | Standalone Argo CD instance IP allow list. | [examples/instanceipallowlist](./examples/instanceipallowlist) |
+| `KargoInstance` | Akuity Kargo instance. | [examples/kargoinstance](./examples/kargoinstance) |
+| `KargoAgent` | Kargo agent attached to a Kargo instance. | [examples/kargoagent](./examples/kargoagent) |
+| `KargoDefaultShardAgent` | Default shard agent binding for a Kargo instance. | [examples/kargodefaultshardagent](./examples/kargodefaultshardagent) |
 
-### Compatibility
+For the full CRD schema, use
+[doc.crds.dev/github.com/akuityio/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity).
 
-- **Crossplane core**: Crossplane 1.19+ and 2.x both supported out of
-  the same artifact. `spec.crossplane.version: ">=v1.19.0"` is
-  declared in `package/crossplane.yaml` so older 1.x cores will refuse
-  to install the provider instead of loading it against an untested
-  runtime. safe-start is a 2.x-only capability and no-ops on 1.x.
-- **Existing v1alpha1 manifests**: work unchanged.
-- **ESS (`publishConnectionDetailsTo`, `StoreConfig`)**: removed at the
-  runtime layer in v2.0.0. If you previously used these fields, migrate
-  to [external-secrets-operator](https://external-secrets.io),
-  `crossplane-contrib/provider-vault`, or `crossplane-contrib/provider-sops`
-  before upgrading.
+## Compatibility
 
-For all supported fields for Akuity resources, please check [https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity/).
-
-**Note** - Instance and KargoInstance secret payloads are managed through
-namespaced Kubernetes `Secret` references so plaintext stays out of managed
-resource specs. Akuity export APIs do not return secret values, so the provider
-uses a hash of the local source `Secret` as its drift signal and reapplies only
-when the provider-side desired source changes. Platform-side edits or deletions
-are not detected, and removing a ref from the managed resource stops applying
-that platform secret but does not delete it from Akuity. Empty referenced
-Secrets are treated as terminal configuration errors because the platform apply
-APIs treat omitted or empty secret payloads as "no opinion", not as remote
-delete/clear requests.
-Kargo repository credential refs may omit `projectNamespace` and `credType`;
-the provider then derives the project namespace from `secretRef.namespace` and
-the credential type from the source Secret's `kargo.akuity.io/cred-type` label.
-Missing or invalid derived values are surfaced as terminal reconcile errors
-rather than admission-time schema errors.
-
-**Note** - Instance and KargoInstance ConfigMap fields are additive and
-key-owned. The provider compares only keys present in the managed resource
-spec, ignores platform-added/default keys, and reapplies when a managed key
-differs. Removing a ConfigMap key from the spec stops managing that key; it does
-not delete or clear the key from Akuity.
+- Crossplane 1.19+ and 2.x are supported by the same artifact.
+- Existing `v1alpha1` manifests continue to work unchanged.
+- `spec.crossplane.version: ">=v1.19.0"` is declared in
+  [package/crossplane.yaml](./package/crossplane.yaml).
+- ESS runtime fields (`publishConnectionDetailsTo`, `StoreConfig`) are not
+  supported by the runtime-v2 provider. Use external secret tooling such as
+  external-secrets-operator, provider-vault, or provider-sops.
+- Before upgrading from v0.3.x: the v2 runtime does not support
+  `publishConnectionDetailsTo` or `StoreConfig`. Migrate any manifests using
+  ESS-style connection publishing before installing v2.0.0, or the controller
+  will reject those resources at apply.
 
 ## Local Development
 
