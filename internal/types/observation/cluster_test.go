@@ -76,6 +76,7 @@ func TestCluster(t *testing.T) {
 				AppReplication:      fixtures.ArgocdCluster.GetData().AppReplication,
 				TargetVersion:       fixtures.ArgocdCluster.GetData().GetTargetVersion(),
 				RedisTunneling:      fixtures.ArgocdCluster.GetData().RedisTunneling,
+				PodInheritMetadata:  fixtures.ArgocdCluster.GetData().PodInheritMetadata,
 			},
 		},
 	}

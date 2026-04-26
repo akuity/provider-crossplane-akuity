@@ -76,6 +76,7 @@ func Cluster(cluster *argocdv1.Cluster) (v1alpha1.ClusterObservation, error) {
 			AppReplication:      cluster.GetData().AppReplication,
 			TargetVersion:       cluster.GetData().GetTargetVersion(),
 			RedisTunneling:      cluster.GetData().RedisTunneling,
+			PodInheritMetadata:  cluster.GetData().PodInheritMetadata,
 		},
 	}
 	return obs, nil

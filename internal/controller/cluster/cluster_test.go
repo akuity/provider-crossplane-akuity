@@ -766,21 +766,17 @@ func TestObserve_PodInheritMetadata_DesiredNilServerStamped(t *testing.T) {
 		"server-stamped PodInheritMetadata with desired-nil must adopt observed, not flap drift")
 }
 
-// TestObserve_PodInheritMetadata_DesiredTrueServerFalse documents
-// the gateway-drops-on-Apply behaviour: even when the user pins true,
-// ApplyInstance silently drops data.podInheritMetadata, the platform
-// keeps the proto3 default, and GetCluster echoes &false back. The
-// comparator must NOT keep firing drift on a field the platform
-// refuses to persist; mirror observed onto desired (matching what the
-// kargoagent controller already does for the same shape) so the
-// reconcile loop stays quiet.
+// TestObserve_PodInheritMetadata_DesiredTrueServerFalse covers the
+// disagree case: user pinned true, the platform actually has false.
+// Drift must fire so Apply runs and the platform either persists the
+// value or returns the rejection.
 func TestObserve_PodInheritMetadata_DesiredTrueServerFalse(t *testing.T) {
 	tr, fa := true, false
 	e, _, mr := observeFixtureWithPodInheritMetadata(t, &fa, &tr)
 	resp, err := e.Observe(ctx, mr)
 	require.NoError(t, err)
-	assert.True(t, resp.ResourceUpToDate,
-		"PodInheritMetadata is gateway-dropped on Apply; comparator must mirror observed instead of flapping")
+	assert.False(t, resp.ResourceUpToDate,
+		"user-pinned PodInheritMetadata=true with GetCluster=false must surface as drift")
 }
 
 // observeFixtureWithDatadogEksAddon mirrors the pattern for the
