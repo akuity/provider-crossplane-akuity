@@ -714,13 +714,13 @@ func observeFixtureWithAutoscaler(
 }
 
 // TestObserve_AutoscalerConfig_UserSetServerMissing covers the
-// principal Issue 2 symptom: user populates spec.data.autoscalerConfig,
-// the platform has not yet stamped it (Get echoes nil because Apply
-// hasn't propagated the value or the cluster size doesn't qualify).
-// The previous normalizePtrField path collapsed desired to nil and
-// reported up-to-date, silently dropping user intent. The fix routes
-// drift through the Get-based override so this case fires drift and
-// Apply runs.
+// principal Issue 2 symptom on size=auto, where the platform actually
+// honors the user's autoscalerConfig: user populates the spec, the
+// platform has not yet stamped it (Get echoes nil because Apply hasn't
+// propagated the value yet). The previous normalizePtrField path
+// collapsed desired to nil and reported up-to-date, silently dropping
+// user intent. The fix routes drift through the Get-based override so
+// this case fires drift and Apply runs.
 func TestObserve_AutoscalerConfig_UserSetServerMissing(t *testing.T) {
 	specAS := &generated.AutoScalerConfig{
 		ApplicationController: &generated.AppControllerAutoScalingConfig{
@@ -728,10 +728,11 @@ func TestObserve_AutoscalerConfig_UserSetServerMissing(t *testing.T) {
 		},
 	}
 	e, _, mr := observeFixtureWithAutoscaler(t, nil, specAS)
+	mr.Spec.ForProvider.ClusterSpec.Data.Size = generated.ClusterSize("auto")
 	resp, err := e.Observe(ctx, mr)
 	require.NoError(t, err)
 	assert.False(t, resp.ResourceUpToDate,
-		"user-set AutoscalerConfig with server-side nil must surface as drift, not silent collapse")
+		"user-set AutoscalerConfig with server-side nil must surface as drift on auto-sized clusters, not silent collapse")
 }
 
 // TestObserve_AutoscalerConfig_DesiredNilServerStamped covers the
@@ -772,9 +773,9 @@ func TestObserve_AutoscalerConfig_BothPopulatedEqual(t *testing.T) {
 }
 
 // TestObserve_AutoscalerConfig_BothPopulatedDifferent covers the
-// disagree case: user pinned a different value than the platform.
-// Drift fires so Apply runs and the user's value wins (or the
-// platform rejects).
+// disagree case on size=auto where the platform persists user input:
+// user pinned a different value than the platform, drift fires so
+// Apply runs and the user's value wins (or the platform rejects).
 func TestObserve_AutoscalerConfig_BothPopulatedDifferent(t *testing.T) {
 	getAS := &argocdv1.AutoScalerConfig{
 		ApplicationController: &argocdv1.AppControllerAutoScalingConfig{
@@ -787,9 +788,36 @@ func TestObserve_AutoscalerConfig_BothPopulatedDifferent(t *testing.T) {
 		},
 	}
 	e, _, mr := observeFixtureWithAutoscaler(t, getAS, specAS)
+	mr.Spec.ForProvider.ClusterSpec.Data.Size = generated.ClusterSize("auto")
 	resp, err := e.Observe(ctx, mr)
 	require.NoError(t, err)
 	assert.False(t, resp.ResourceUpToDate)
+}
+
+// TestObserve_AutoscalerConfig_NonAutoSilentlyAdoptsObserved covers
+// the platform contract on small/medium/large clusters: the gateway
+// stamps size-based defaults regardless of user input on
+// data.autoscalerConfig, so any user-pinned value drift-flaps every
+// poll. driftSpec absorbs observed onto desired for non-auto sizes so
+// the user's value stops fighting the platform.
+func TestObserve_AutoscalerConfig_NonAutoSilentlyAdoptsObserved(t *testing.T) {
+	getAS := &argocdv1.AutoScalerConfig{
+		ApplicationController: &argocdv1.AppControllerAutoScalingConfig{
+			ResourceMinimum: &argocdv1.Resources{Mem: "0.50Gi", Cpu: "250m"},
+		},
+	}
+	specAS := &generated.AutoScalerConfig{
+		ApplicationController: &generated.AppControllerAutoScalingConfig{
+			ResourceMinimum: &generated.Resources{Mem: "256Mi", Cpu: "100m"},
+		},
+	}
+	e, _, mr := observeFixtureWithAutoscaler(t, getAS, specAS)
+	// fixture default size is "medium" (a non-auto size) — the absorb
+	// path keys on that.
+	resp, err := e.Observe(ctx, mr)
+	require.NoError(t, err)
+	assert.True(t, resp.ResourceUpToDate,
+		"non-auto sized clusters must adopt observed autoscalerConfig because the platform ignores user input there")
 }
 
 func TestKustomizationEquivalent_DefaultedScaffold(t *testing.T) {

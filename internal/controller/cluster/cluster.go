@@ -579,8 +579,26 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 			if kustomizationEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
 				desired.ClusterSpec.Data.Kustomization = observed.ClusterSpec.Data.Kustomization
 			}
+
+			// Platform's UpdateInstanceCluster only consults
+			// data.autoscalerConfig when the cluster size is "auto".
+			// For small/medium/large the gateway stamps size-based
+			// defaults regardless of what the user pinned, so any
+			// pinned autoscalerConfig drift-flaps every poll. Adopt
+			// observed when the size is non-auto so the user's value
+			// stops fighting the platform; the user's intent is still
+			// honored on auto-sized clusters where it actually round-
+			// trips.
+			if !sizeUsesUserAutoscaler(desired.ClusterSpec.Data.Size) {
+				desired.ClusterSpec.Data.AutoscalerConfig =
+					observed.ClusterSpec.Data.AutoscalerConfig
+			}
 		},
 	}
+}
+
+func sizeUsesUserAutoscaler(size generated.ClusterSize) bool {
+	return strings.EqualFold(string(size), "auto")
 }
 
 // normalizePtrField adopts the observed pointer value onto desired
