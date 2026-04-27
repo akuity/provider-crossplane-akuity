@@ -245,11 +245,18 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok, "divergent value must fire drift")
 
-	// No ConfigMap struct means observed is empty.
+	// No ConfigMap struct on the Export response: defer drift instead
+	// of reporting every desired key as missing. Some gateway builds
+	// omit kargo_configmap entirely on freshly-Applied instances and
+	// the prior "treat absent as cleared" behaviour fired
+	// ApplyKargoInstance every poll forever. Defer keeps the read-only
+	// path quiet; a real spec edit rotates the generation and the
+	// comparator runs again with whatever the gateway eventually
+	// returns.
 	exp = &kargov1.ExportKargoInstanceResponse{}
 	ok, _, err = kargoConfigMapUpToDate(desired, exp)
 	require.NoError(t, err)
-	assert.False(t, ok, "absent gateway ConfigMap must fire drift")
+	assert.True(t, ok, "absent gateway ConfigMap must defer drift to avoid hot-loop on partial Export")
 
 	// Empty desired means nothing to compare.
 	ok, _, err = kargoConfigMapUpToDate(nil, exp)
@@ -324,23 +331,25 @@ func TestObserve_RepoCredsHashOnlyNoPeriodicReapply(t *testing.T) {
 }
 
 func TestExtractKargoConfigMapData_ShapeGuards(t *testing.T) {
-	got, err := extractKargoConfigMapData(nil)
+	got, present, err := extractKargoConfigMapData(nil)
 	require.NoError(t, err)
 	assert.Nil(t, got)
+	assert.False(t, present, "nil pb must report not-present so callers can defer drift")
 
 	pb, err := structpb.NewStruct(map[string]interface{}{
 		"apiVersion": "v1", "kind": "ConfigMap",
 	})
 	require.NoError(t, err)
-	got, err = extractKargoConfigMapData(pb)
+	got, present, err = extractKargoConfigMapData(pb)
 	require.NoError(t, err)
-	assert.Nil(t, got, "struct without data key is treated as empty")
+	assert.Nil(t, got, "struct without data key is treated as not-present")
+	assert.False(t, present, "missing data sub-tree must report not-present")
 
 	pb, err = structpb.NewStruct(map[string]interface{}{
 		"data": "not-a-map",
 	})
 	require.NoError(t, err)
-	_, err = extractKargoConfigMapData(pb)
+	_, _, err = extractKargoConfigMapData(pb)
 	require.Error(t, err, "non-object data must surface an error so drift doesn't silently pass")
 }
 

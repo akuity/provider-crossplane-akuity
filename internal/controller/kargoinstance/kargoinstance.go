@@ -624,17 +624,25 @@ type kargoChildren struct {
 // Akuity UI or other tooling). A missing key or divergent value does
 // fire drift so the next Apply can self-heal.
 //
-// When the Export response contains no kargo_configmap struct, the
-// observed map is treated as empty, so any desired keys are reported
-// missing. Returns (ok, observed, err) so callers can log the observed
-// shape alongside desired.
+// When the Export response carries no kargo_configmap struct or omits
+// the data sub-tree, defer drift instead of reporting every desired
+// key as missing. Some gateway builds skip the field entirely on
+// freshly-Applied instances; subset comparison would otherwise treat
+// the absence as a clear and re-fire ApplyKargoInstance every poll
+// indefinitely. The next reconcile retries Export, and a real spec
+// edit rotates the generation so the comparator runs again with
+// whatever the gateway eventually returns. Returns (ok, observed,
+// err) so callers can log the observed shape alongside desired.
 func kargoConfigMapUpToDate(desired map[string]string, exp *kargov1.ExportKargoInstanceResponse) (bool, map[string]string, error) {
 	if len(desired) == 0 {
 		return true, nil, nil
 	}
-	observed, err := extractKargoConfigMapData(exp.GetKargoConfigmap())
+	observed, present, err := extractKargoConfigMapData(exp.GetKargoConfigmap())
 	if err != nil {
 		return false, nil, fmt.Errorf("kargoConfigMap: %w", err)
+	}
+	if !present {
+		return true, nil, nil
 	}
 	for k, v := range desired {
 		got, ok := observed[k]
@@ -646,21 +654,26 @@ func kargoConfigMapUpToDate(desired map[string]string, exp *kargov1.ExportKargoI
 }
 
 // extractKargoConfigMapData pulls the `data` map out of the wrapped
-// ConfigMap struct the gateway returns. Absent or non-object shapes are
-// treated as empty data rather than errors so a half-initialized
-// instance (no CM yet) still lets drift surface the missing keys.
-func extractKargoConfigMapData(pb *structpb.Struct) (map[string]string, error) {
+// ConfigMap struct the gateway returns. The second return value
+// (`present`) reports whether the gateway response actually carried a
+// kargo_configmap.data sub-tree; callers use it to distinguish "Export
+// did not surface the CM" (defer drift) from "Export carried a CM with
+// zero keys" (drift if desired has any key).
+func extractKargoConfigMapData(pb *structpb.Struct) (map[string]string, bool, error) {
 	if pb == nil {
-		return nil, nil
+		return nil, false, nil
 	}
 	m := pb.AsMap()
 	raw, ok := m["data"]
 	if !ok {
-		return nil, nil
+		return nil, false, nil
+	}
+	if raw == nil {
+		return map[string]string{}, true, nil
 	}
 	obj, ok := raw.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected kargo_configmap.data shape: %T", raw)
+		return nil, false, fmt.Errorf("unexpected kargo_configmap.data shape: %T", raw)
 	}
 	out := make(map[string]string, len(obj))
 	for k, v := range obj {
@@ -676,10 +689,10 @@ func extractKargoConfigMapData(pb *structpb.Struct) (map[string]string, error) {
 			// for a missing/unmanaged key.
 			out[k] = ""
 		default:
-			return nil, fmt.Errorf("kargo_configmap.data[%q]: want string, got %T", k, v)
+			return nil, false, fmt.Errorf("kargo_configmap.data[%q]: want string, got %T", k, v)
 		}
 	}
-	return out, nil
+	return out, true, nil
 }
 
 // kargoResourcesUpToDate reports whether every declarative Kargo
