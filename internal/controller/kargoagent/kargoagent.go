@@ -236,7 +236,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	// runtime backoff (~2s). HasTerminalWriteResource is a cheap map
 	// lookup so happy-path Observes pay nothing extra.
 	if e.HasTerminalWriteResource(mg, v1alpha1.KargoAgentGroupVersionKind) {
-		if obs, err, ok := e.suppressTerminalWrite(mg, terminalFP); ok {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg, terminalFP); ok {
 			return obs, err
 		}
 	}
@@ -296,11 +296,11 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	}
 
 	if !upToDate {
-		if obs, err, ok := e.suppressTerminalWrite(mg, terminalFP); ok {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg, terminalFP); ok {
 			return obs, err
 		}
 	} else {
-		e.clearTerminalWrite(mg, terminalFP)
+		e.clearTerminalWrite(ctx, mg, terminalFP)
 	}
 
 	return managed.ExternalObservation{
@@ -331,7 +331,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
 	if mg.Spec.ForProvider.Workspace == "" {
 		mg.Spec.ForProvider.Workspace = e.resolveWorkspaceFromParent(ctx, mg)
 	}
-	key, err := kargoAgentTerminalWriteKey(mg, mg.Spec.ForProvider)
+	key, err := e.kargoAgentTerminalWriteKey(ctx, mg, mg.Spec.ForProvider)
 	if err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 			// terminal-write key is keyed off ForProvider; a spec edit
 			// (the only way to fix a bad kubeconfig source) rotates the
 			// key and lets Create run again.
-			key, kerr := kargoAgentTerminalWriteKey(mg, mg.Spec.ForProvider)
+			key, kerr := e.kargoAgentTerminalWriteKey(ctx, mg, mg.Spec.ForProvider)
 			if kerr != nil {
 				return managed.ExternalCreation{}, err
 			}
@@ -497,26 +497,31 @@ func applyVerb(del bool) string {
 
 func (e *external) Disconnect(_ context.Context) error { return nil }
 
-func (e *external) suppressTerminalWrite(mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) (managed.ExternalObservation, error, bool) {
+func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) (managed.ExternalObservation, error, bool) {
 	if e.TerminalWrites == nil {
 		return managed.ExternalObservation{}, nil, false
 	}
-	key, err := kargoAgentTerminalWriteKey(mg, fp)
+	key, err := e.kargoAgentTerminalWriteKey(ctx, mg, fp)
 	if err != nil {
 		return e.SkipTerminalWriteGuard(err)
 	}
 	return e.SuppressTerminalWrite(mg, key)
 }
 
-func kargoAgentTerminalWriteKey(mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) (base.TerminalWriteKey, error) {
-	return base.NewTerminalWriteKey(mg, v1alpha1.KargoAgentGroupVersionKind, fp)
+func (e *external) kargoAgentTerminalWriteKey(ctx context.Context, mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) (base.TerminalWriteKey, error) {
+	req, err := BuildApplyKargoInstanceRequest(fp.KargoInstanceID, fp)
+	targetFP := kube.TargetFingerprint(ctx, e.Kube, targetKubeConfig(fp))
+	if err != nil {
+		return base.NewTerminalWriteKey(mg, v1alpha1.KargoAgentGroupVersionKind, "build-error", fp, targetFP, err.Error())
+	}
+	return base.NewTerminalWriteKey(mg, v1alpha1.KargoAgentGroupVersionKind, req, targetFP)
 }
 
-func (e *external) clearTerminalWrite(mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) {
+func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) {
 	if !e.HasTerminalWriteResource(mg, v1alpha1.KargoAgentGroupVersionKind) {
 		return
 	}
-	key, err := kargoAgentTerminalWriteKey(mg, fp)
+	key, err := e.kargoAgentTerminalWriteKey(ctx, mg, fp)
 	if err != nil {
 		e.LogTerminalWriteGuardSkipped(err)
 		return

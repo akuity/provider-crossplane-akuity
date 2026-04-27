@@ -81,7 +81,7 @@ func TestTerminalWriteGuardClearsWhenPayloadChanges(t *testing.T) {
 	assert.False(t, ok, "changed payload should clear the stale terminal record")
 }
 
-func TestTerminalWriteGuardClearsWhenGenerationChanges(t *testing.T) {
+func TestTerminalWriteGuardSuppressesWhenOnlyGenerationChanges(t *testing.T) {
 	guard := base.NewTerminalWriteGuard()
 	mg := terminalGuardInstance(1)
 	oldKey, err := base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, "payload")
@@ -93,11 +93,30 @@ func TestTerminalWriteGuardClearsWhenGenerationChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	_, _, ok := guard.Suppress(mg, newKey)
-	assert.False(t, ok)
+	assert.True(t, ok)
 
 	mg.SetGeneration(1)
 	_, _, ok = guard.Suppress(mg, oldKey)
-	assert.False(t, ok, "changed generation should clear the stale terminal record")
+	assert.True(t, ok, "same payload should remain suppressed across generation-only churn")
+}
+
+func TestTerminalWriteGuardFallsBackToNamespacedNameWhenUIDEmpty(t *testing.T) {
+	guard := base.NewTerminalWriteGuard()
+	mg := terminalGuardInstance(1)
+	mg.SetUID("")
+	mg.SetNamespace("default")
+	oldKey, err := base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, "payload")
+	require.NoError(t, err)
+	guard.Record(oldKey, reason.AsTerminal(errors.New("bad payload")))
+
+	next := terminalGuardInstance(1)
+	next.SetUID("")
+	next.SetNamespace("default")
+	newKey, err := base.NewTerminalWriteKey(next, v1alpha1.InstanceGroupVersionKind, "payload")
+	require.NoError(t, err)
+
+	_, _, ok := guard.Suppress(next, newKey)
+	assert.True(t, ok)
 }
 
 func TestTerminalWriteGuardClearsByResourceKey(t *testing.T) {

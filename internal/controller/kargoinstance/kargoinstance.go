@@ -472,53 +472,20 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	if err != nil {
 		return err
 	}
-	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec.Hash())
+	req, err := kargoInstanceApplyRequest(mg, workspaceID, sec)
 	if err != nil {
 		return err
 	}
-	secretPB, err := kubeSecretToPB(sec.Kargo.Data)
+	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec)
 	if err != nil {
 		return err
-	}
-	desiredCM := mg.Spec.ForProvider.KargoConfigMap
-	cmPB, err := buildKargoConfigMapPB(desiredCM)
-	if err != nil {
-		return err
-	}
-
-	kargoPB, err := specToPB(mg.Spec.ForProvider, sec.DexConfig.Data)
-	if err != nil {
-		return err
-	}
-	children, err := splitKargoResources(mg.Spec.ForProvider.Resources)
-	if err != nil {
-		return err
-	}
-	repoCredsPB, err := kargoRepoCredsToPB(sec.RepoCredentials)
-	if err != nil {
-		return err
-	}
-	req := &kargov1.ApplyKargoInstanceRequest{
-		IdType:                idv1.Type_NAME,
-		Id:                    mg.Spec.ForProvider.Name,
-		WorkspaceId:           workspaceID,
-		Kargo:                 kargoPB,
-		KargoConfigmap:        cmPB,
-		KargoSecret:           secretPB,
-		Projects:              children.Projects,
-		Warehouses:            children.Warehouses,
-		Stages:                children.Stages,
-		AnalysisTemplates:     children.AnalysisTemplates,
-		PromotionTasks:        children.PromotionTasks,
-		ClusterPromotionTasks: children.ClusterPromotionTasks,
-		RepoCredentials:       repoCredsPB,
 	}
 	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
 		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 	e.ClearTerminalWrite(key)
 	setSecretHash(mg, sec.Hash())
-	mg.Status.AtProvider.KargoConfigMapHash = hashKargoConfigMap(desiredCM)
+	mg.Status.AtProvider.KargoConfigMapHash = hashKargoConfigMap(mg.Spec.ForProvider.KargoConfigMap)
 	return nil
 }
 
@@ -534,7 +501,7 @@ func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.Kargo
 	if err != nil {
 		return e.SkipTerminalWriteGuard(err)
 	}
-	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec.Hash())
+	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec)
 	if err != nil {
 		return e.SkipTerminalWriteGuard(err)
 	}
@@ -567,15 +534,61 @@ func (e *external) recordTerminalObserve(ctx context.Context, mg *v1alpha1.Kargo
 	if serr != nil {
 		return
 	}
-	key, kerr := kargoInstanceTerminalWriteKey(mg, workspaceID, sec.Hash())
+	key, kerr := kargoInstanceTerminalWriteKey(mg, workspaceID, sec)
 	if kerr != nil {
 		return
 	}
 	_ = e.RecordTerminalWrite(key, classified)
 }
 
-func kargoInstanceTerminalWriteKey(mg *v1alpha1.KargoInstance, workspaceID, secretHash string) (base.TerminalWriteKey, error) {
-	return base.NewTerminalWriteKey(mg, v1alpha1.KargoInstanceGroupVersionKind, workspaceID, mg.Spec.ForProvider, secretHash)
+func kargoInstanceTerminalWriteKey(mg *v1alpha1.KargoInstance, workspaceID string, sec resolvedKargoSecrets) (base.TerminalWriteKey, error) {
+	req, err := kargoInstanceTerminalPayload(mg, workspaceID, sec)
+	if err != nil {
+		return base.NewTerminalWriteKey(mg, v1alpha1.KargoInstanceGroupVersionKind, "build-error", workspaceID, mg.Spec.ForProvider, sec.Hash(), err.Error())
+	}
+	return base.NewTerminalWriteKey(mg, v1alpha1.KargoInstanceGroupVersionKind, req, sec.Hash())
+}
+
+func kargoInstanceTerminalPayload(mg *v1alpha1.KargoInstance, workspaceID string, sec resolvedKargoSecrets) (*kargov1.ApplyKargoInstanceRequest, error) {
+	return kargoInstanceApplyRequest(mg, workspaceID, sec)
+}
+
+func kargoInstanceApplyRequest(mg *v1alpha1.KargoInstance, workspaceID string, sec resolvedKargoSecrets) (*kargov1.ApplyKargoInstanceRequest, error) {
+	secretPB, err := kubeSecretToPB(sec.Kargo.Data)
+	if err != nil {
+		return nil, err
+	}
+	cmPB, err := buildKargoConfigMapPB(mg.Spec.ForProvider.KargoConfigMap)
+	if err != nil {
+		return nil, err
+	}
+	kargoPB, err := specToPB(mg.Spec.ForProvider, sec.DexConfig.Data)
+	if err != nil {
+		return nil, err
+	}
+	children, err := splitKargoResources(mg.Spec.ForProvider.Resources)
+	if err != nil {
+		return nil, err
+	}
+	repoCredsPB, err := kargoRepoCredsToPB(sec.RepoCredentials)
+	if err != nil {
+		return nil, err
+	}
+	return &kargov1.ApplyKargoInstanceRequest{
+		IdType:                idv1.Type_NAME,
+		Id:                    mg.Spec.ForProvider.Name,
+		WorkspaceId:           workspaceID,
+		Kargo:                 kargoPB,
+		KargoConfigmap:        cmPB,
+		KargoSecret:           secretPB,
+		Projects:              children.Projects,
+		Warehouses:            children.Warehouses,
+		Stages:                children.Stages,
+		AnalysisTemplates:     children.AnalysisTemplates,
+		PromotionTasks:        children.PromotionTasks,
+		ClusterPromotionTasks: children.ClusterPromotionTasks,
+		RepoCredentials:       repoCredsPB,
+	}, nil
 }
 
 func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.KargoInstance) {
@@ -592,7 +605,7 @@ func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.KargoIns
 		e.LogTerminalWriteGuardSkipped(err)
 		return
 	}
-	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec.Hash())
+	key, err := kargoInstanceTerminalWriteKey(mg, workspaceID, sec)
 	if err != nil {
 		e.LogTerminalWriteGuardSkipped(err)
 		return

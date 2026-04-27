@@ -270,7 +270,14 @@ func (e *external) suppressTerminalWrite(mg *v1alpha1.KargoDefaultShardAgent, ka
 }
 
 func kargoDefaultShardAgentTerminalWriteKey(mg *v1alpha1.KargoDefaultShardAgent, kargoID, desiredID string) (base.TerminalWriteKey, error) {
-	return base.NewTerminalWriteKey(mg, v1alpha1.KargoDefaultShardAgentGroupVersionKind, kargoID, mg.Spec.ForProvider.AgentName, desiredID)
+	return base.NewTerminalWriteKey(mg, v1alpha1.KargoDefaultShardAgentGroupVersionKind, map[string]any{
+		"kargoID": kargoID,
+		"patch": map[string]any{
+			"spec": map[string]any{
+				"defaultShardAgent": desiredID,
+			},
+		},
+	})
 }
 
 func (e *external) clearTerminalWrite(mg *v1alpha1.KargoDefaultShardAgent, kargoID, desiredID string) {

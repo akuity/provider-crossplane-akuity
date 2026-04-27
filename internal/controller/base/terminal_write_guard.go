@@ -20,11 +20,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"hash"
 	"sync"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
@@ -38,17 +41,15 @@ type TerminalWriteKey struct {
 	UID         string
 	Namespace   string
 	Name        string
-	Generation  int64
 	Fingerprint string
 }
 
 // NewTerminalWriteKey creates a stable key for suppressing repeated
-// terminal writes until the resource generation or effective payload changes.
+// terminal writes until the effective payload changes.
 func NewTerminalWriteKey(mg resource.Managed, gvk schema.GroupVersionKind, parts ...any) (TerminalWriteKey, error) {
 	h := sha256.New()
-	enc := json.NewEncoder(h)
 	for _, part := range parts {
-		if err := enc.Encode(part); err != nil {
+		if err := writeTerminalFingerprintPart(h, part); err != nil {
 			return TerminalWriteKey{}, err
 		}
 	}
@@ -57,9 +58,28 @@ func NewTerminalWriteKey(mg resource.Managed, gvk schema.GroupVersionKind, parts
 		UID:         string(mg.GetUID()),
 		Namespace:   mg.GetNamespace(),
 		Name:        mg.GetName(),
-		Generation:  mg.GetGeneration(),
 		Fingerprint: hex.EncodeToString(h.Sum(nil)),
 	}, nil
+}
+
+func writeTerminalFingerprintPart(h hash.Hash, part any) error {
+	if _, err := fmt.Fprintf(h, "%T\n", part); err != nil {
+		return err
+	}
+	if msg, ok := part.(proto.Message); ok {
+		b, err := proto.MarshalOptions{Deterministic: true}.Marshal(msg)
+		if err != nil {
+			return err
+		}
+		_, _ = h.Write(b)
+		_, _ = h.Write([]byte{'\n'})
+		return nil
+	}
+	enc := json.NewEncoder(h)
+	if err := enc.Encode(part); err != nil {
+		return err
+	}
+	return nil
 }
 
 // NewTerminalWriteResourceKey identifies a resource without caring
@@ -131,14 +151,22 @@ func (g *TerminalWriteGuard) HasResource(key TerminalWriteKey) bool {
 // Suppress returns the cached terminal error for an identical write that
 // already failed. Returning the error from Observe prevents another write
 // while keeping Synced=False/ReconcileError visible to the user.
-// A changed generation or payload fingerprint clears stale records and
-// allows reconciliation to try again.
+// A changed payload fingerprint clears stale records and allows
+// reconciliation to try again.
 func (g *TerminalWriteGuard) Suppress(mg resource.Managed, key TerminalWriteKey) (managed.ExternalObservation, error, bool) {
 	if g == nil {
 		return managed.ExternalObservation{}, nil, false
 	}
 	g.mu.Lock()
-	err, ok := g.entries[key]
+	var err error
+	ok := false
+	for existing, existingErr := range g.entries {
+		if sameTerminalWritePayload(existing, key) {
+			err = existingErr
+			ok = true
+			break
+		}
+	}
 	if !ok {
 		g.deleteResourceLocked(key)
 		g.mu.Unlock()
@@ -165,4 +193,8 @@ func sameTerminalWriteResource(a, b TerminalWriteKey) bool {
 		return a.UID == b.UID
 	}
 	return a.Namespace == b.Namespace && a.Name == b.Name
+}
+
+func sameTerminalWritePayload(a, b TerminalWriteKey) bool {
+	return sameTerminalWriteResource(a, b) && a.Fingerprint == b.Fingerprint
 }

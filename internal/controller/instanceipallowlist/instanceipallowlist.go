@@ -226,22 +226,7 @@ func (e *external) patch(ctx context.Context, mg *v1alpha1.InstanceIpAllowList, 
 	if err != nil {
 		return err
 	}
-	key, err := instanceIPAllowListTerminalWriteKey(mg, instanceID, desired)
-	if err != nil {
-		return err
-	}
-
-	ipAllowList := make([]any, 0, len(desired))
-	for _, d := range desired {
-		if d == nil {
-			continue
-		}
-		entry := map[string]any{"ip": d.Ip}
-		if d.Description != "" {
-			entry["description"] = d.Description
-		}
-		ipAllowList = append(ipAllowList, entry)
-	}
+	ipAllowList := instanceIPAllowListPatchEntries(desired)
 
 	patch, err := structpb.NewStruct(map[string]any{
 		"spec": map[string]any{
@@ -250,6 +235,10 @@ func (e *external) patch(ctx context.Context, mg *v1alpha1.InstanceIpAllowList, 
 	})
 	if err != nil {
 		return fmt.Errorf("build ipAllowList patch: %w", err)
+	}
+	key, err := instanceIPAllowListTerminalWriteKey(mg, instanceID, desired)
+	if err != nil {
+		return err
 	}
 
 	if err := e.Client.PatchInstance(ctx, instanceID, patch); err != nil {
@@ -277,7 +266,29 @@ func (e *external) suppressTerminalWrite(mg *v1alpha1.InstanceIpAllowList, insta
 }
 
 func instanceIPAllowListTerminalWriteKey(mg *v1alpha1.InstanceIpAllowList, instanceID string, desired []*crossplanetypes.IPAllowListEntry) (base.TerminalWriteKey, error) {
-	return base.NewTerminalWriteKey(mg, v1alpha1.InstanceIpAllowListGroupVersionKind, instanceID, desired)
+	return base.NewTerminalWriteKey(mg, v1alpha1.InstanceIpAllowListGroupVersionKind, map[string]any{
+		"instanceID": instanceID,
+		"patch": map[string]any{
+			"spec": map[string]any{
+				"ipAllowList": instanceIPAllowListPatchEntries(desired),
+			},
+		},
+	})
+}
+
+func instanceIPAllowListPatchEntries(desired []*crossplanetypes.IPAllowListEntry) []any {
+	ipAllowList := make([]any, 0, len(desired))
+	for _, d := range desired {
+		if d == nil {
+			continue
+		}
+		entry := map[string]any{"ip": d.Ip}
+		if d.Description != "" {
+			entry["description"] = d.Description
+		}
+		ipAllowList = append(ipAllowList, entry)
+	}
+	return ipAllowList
 }
 
 func (e *external) clearTerminalWrite(mg *v1alpha1.InstanceIpAllowList, instanceID string) {

@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
 // ExternalClient carries the dependencies every external client
@@ -54,12 +55,27 @@ func (e ExternalClient) SuppressTerminalWrite(mg resource.Managed, key TerminalW
 	if e.TerminalWrites == nil {
 		return managed.ExternalObservation{}, nil, false
 	}
-	return e.TerminalWrites.Suppress(mg, key)
+	obs, err, ok := e.TerminalWrites.Suppress(mg, key)
+	if e.Logger != nil {
+		action := "miss"
+		if ok {
+			action = "suppress"
+		}
+		e.Logger.Debug("terminal write guard", "action", action, "gvk", key.GVK, "namespace", key.Namespace, "name", key.Name, "uidPresent", key.UID != "", "fingerprint", key.Fingerprint)
+	}
+	return obs, err, ok
 }
 
 func (e ExternalClient) RecordTerminalWrite(key TerminalWriteKey, err error) error {
 	if e.TerminalWrites != nil {
 		e.TerminalWrites.Record(key, err)
+	}
+	if e.Logger != nil && err != nil {
+		action := "ignore"
+		if reason.IsTerminal(err) {
+			action = "record"
+		}
+		e.Logger.Debug("terminal write guard", "action", action, "gvk", key.GVK, "namespace", key.Namespace, "name", key.Name, "uidPresent", key.UID != "", "fingerprint", key.Fingerprint)
 	}
 	return err
 }

@@ -106,7 +106,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	// kubeconfig secret) would otherwise loop GetCluster->NotFound->
 	// Create->reject at controller-runtime backoff (~2s).
 	if e.HasTerminalWriteResource(mg, v1alpha1.ClusterGroupVersionKind) {
-		if obs, err, ok := e.suppressTerminalWrite(mg); ok {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
 			return obs, err
 		}
 	}
@@ -206,11 +206,11 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	}
 
 	if !isUpToDate {
-		if obs, err, ok := e.suppressTerminalWrite(mg); ok {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
 			return obs, err
 		}
 	} else {
-		e.clearTerminalWrite(mg)
+		e.clearTerminalWrite(ctx, mg)
 	}
 
 	return managed.ExternalObservation{
@@ -237,7 +237,7 @@ func overlayClusterGetOnlyData(target *generated.ClusterData, actual generated.C
 func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalCreation, error) {
 	defer base.PropagateObservedGeneration(mg)
 
-	key, err := clusterTerminalWriteKey(mg)
+	key, err := e.clusterTerminalWriteKey(ctx, mg)
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
@@ -330,7 +330,7 @@ func (e *external) rollbackCreatedCluster(ctx context.Context, mg *v1alpha1.Clus
 func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalUpdate, error) {
 	defer base.PropagateObservedGeneration(mg)
 
-	key, err := clusterTerminalWriteKey(mg)
+	key, err := e.clusterTerminalWriteKey(ctx, mg)
 	if err != nil {
 		return managed.ExternalUpdate{}, err
 	}
@@ -444,26 +444,31 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 
 func (e *external) Disconnect(_ context.Context) error { return nil }
 
-func (e *external) suppressTerminalWrite(mg *v1alpha1.Cluster) (managed.ExternalObservation, error, bool) {
+func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalObservation, error, bool) {
 	if e.TerminalWrites == nil {
 		return managed.ExternalObservation{}, nil, false
 	}
-	key, err := clusterTerminalWriteKey(mg)
+	key, err := e.clusterTerminalWriteKey(ctx, mg)
 	if err != nil {
 		return e.SkipTerminalWriteGuard(err)
 	}
 	return e.SuppressTerminalWrite(mg, key)
 }
 
-func clusterTerminalWriteKey(mg *v1alpha1.Cluster) (base.TerminalWriteKey, error) {
-	return base.NewTerminalWriteKey(mg, v1alpha1.ClusterGroupVersionKind, mg.Spec.ForProvider)
+func (e *external) clusterTerminalWriteKey(ctx context.Context, mg *v1alpha1.Cluster) (base.TerminalWriteKey, error) {
+	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
+	targetFP := kube.TargetFingerprint(ctx, e.Kube, targetKubeConfig(*mg))
+	if err != nil {
+		return base.NewTerminalWriteKey(mg, v1alpha1.ClusterGroupVersionKind, "build-error", mg.Spec.ForProvider, targetFP, err.Error())
+	}
+	return base.NewTerminalWriteKey(mg, v1alpha1.ClusterGroupVersionKind, req, targetFP)
 }
 
-func (e *external) clearTerminalWrite(mg *v1alpha1.Cluster) {
+func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.Cluster) {
 	if !e.HasTerminalWriteResource(mg, v1alpha1.ClusterGroupVersionKind) {
 		return
 	}
-	key, err := clusterTerminalWriteKey(mg)
+	key, err := e.clusterTerminalWriteKey(ctx, mg)
 	if err != nil {
 		e.LogTerminalWriteGuardSkipped(err)
 		return

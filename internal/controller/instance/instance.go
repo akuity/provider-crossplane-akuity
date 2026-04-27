@@ -318,7 +318,11 @@ func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.Insta
 }
 
 func instanceTerminalWriteKey(mg *v1alpha1.Instance, sec resolvedInstanceSecrets) (base.TerminalWriteKey, error) {
-	return base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, mg.Spec.ForProvider, sec.Hash())
+	request, err := BuildApplyInstanceRequest(*mg, sec)
+	if err != nil {
+		return base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, "build-error", mg.Spec.ForProvider, sec.Hash(), err.Error())
+	}
+	return base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, request, sec.Hash())
 }
 
 func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.Instance) {

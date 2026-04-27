@@ -129,6 +129,38 @@ func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
 		"InvalidArgument from ApplyInstance must be reason.Terminal-classified, got %T %v", err, err)
 }
 
+func TestObserve_SuppressesTerminalUpdateAfterGenerationOnlyChange(t *testing.T) {
+	managedInstance := fixtures.CrossplaneManagedInstance
+	managedInstance.ObjectMeta = metav1.ObjectMeta{
+		Name:       fixtures.InstanceName,
+		Generation: 7,
+		Annotations: map[string]string{
+			"crossplane.io/external-name": fixtures.InstanceName,
+		},
+	}
+	applyInstanceRequest, err := BuildApplyInstanceRequest(managedInstance, resolvedInstanceSecrets{})
+	require.NoError(t, err)
+
+	e, mc := newExt(t)
+	e.TerminalWrites = base.NewTerminalWriteGuard()
+	mc.EXPECT().ApplyInstance(ctx, applyInstanceRequest).
+		Return(grpcstatus.Error(codes.InvalidArgument, "appset plugin name must start with 'plugin-'")).
+		Times(1)
+
+	_, err = e.Update(ctx, &managedInstance)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err))
+
+	managedInstance.SetGeneration(8)
+	mc.EXPECT().GetInstance(gomock.Any(), gomock.Any()).Times(0)
+	mc.EXPECT().ExportInstance(gomock.Any(), gomock.Any()).Times(0)
+
+	resp, err := e.Observe(ctx, &managedInstance)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err))
+	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, resp)
+}
+
 // TestCreate_InvalidArgument_Terminal mirrors the Update assertion for
 // Create also classifies a first-Apply rejection as terminal.
 func TestCreate_InvalidArgument_Terminal(t *testing.T) {
