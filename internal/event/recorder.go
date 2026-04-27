@@ -62,15 +62,27 @@ type eventRecorderAdapter struct {
 }
 
 func (a *eventRecorderAdapter) Event(obj runtime.Object, eventtype, reason, message string) {
-	a.inner.Eventf(obj, nil, eventtype, reason, "", "%s", message)
+	a.inner.Eventf(obj, nil, eventtype, eventReason(reason), eventAction, "%s", message)
 }
 
 func (a *eventRecorderAdapter) Eventf(obj runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
-	a.inner.Eventf(obj, nil, eventtype, reason, "", messageFmt, args...)
+	a.inner.Eventf(obj, nil, eventtype, eventReason(reason), eventAction, messageFmt, args...)
 }
 
 func (a *eventRecorderAdapter) AnnotatedEventf(obj runtime.Object, _ map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
-	a.inner.Eventf(obj, nil, eventtype, reason, "", messageFmt, args...)
+	a.inner.Eventf(obj, nil, eventtype, eventReason(reason), eventAction, messageFmt, args...)
+}
+
+const (
+	eventAction         = "Reconcile"
+	eventFallbackReason = "ProviderEvent"
+)
+
+func eventReason(reason string) string {
+	if reason == "" {
+		return eventFallbackReason
+	}
+	return reason
 }
 
 // Compile-time assertion that the adapter fully implements the legacy
