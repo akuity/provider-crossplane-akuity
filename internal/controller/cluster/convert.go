@@ -34,6 +34,7 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
@@ -187,6 +188,20 @@ func wireToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, wi
 func SpecToAPI(cluster v1alpha1.ClusterParameters) (akuitytypes.Cluster, error) {
 	if cluster.ClusterSpec.Data.Size == "" {
 		cluster.ClusterSpec.Data.Size = "small"
+	}
+
+	// Reject sizes outside the gateway's enum here so the failure is
+	// classified terminal upfront. The platform silently clamps unknown
+	// values back to a default while leaving the wire request as the
+	// user wrote it; without a comparator hook the reconciler then
+	// re-fires ApplyInstance every poll because desired never matches
+	// observed. The "custom" sentinel is accepted because the gateway
+	// treats it as "consult spec.data.autoscalerConfig" rather than an
+	// actual proto enum.
+	switch string(cluster.ClusterSpec.Data.Size) {
+	case "small", "medium", "large", "auto", "custom":
+	default:
+		return akuitytypes.Cluster{}, reason.AsTerminal(fmt.Errorf("spec.forProvider.clusterSpec.data.size %q is not one of small, medium, large, auto, custom", cluster.ClusterSpec.Data.Size))
 	}
 
 	kustomization, err := clusterKustomizationRaw(cluster.ClusterSpec.Data.Kustomization)

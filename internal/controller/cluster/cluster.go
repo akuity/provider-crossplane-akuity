@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -243,7 +242,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	}
 	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return managed.ExternalCreation{}, errors.Wrap(err, errTransformCluster)
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformCluster, err)))
 	}
 	if err := e.Client.ApplyInstance(ctx, req); err != nil {
 		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
@@ -288,7 +287,7 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	}
 	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return managed.ExternalUpdate{}, errors.Wrap(err, errTransformCluster)
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformCluster, err)))
 	}
 	if err := e.Client.ApplyInstance(ctx, req); err != nil {
 		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))

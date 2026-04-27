@@ -294,7 +294,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
 	}
 	req, err := BuildApplyKargoInstanceRequest(instanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return err
+		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
 		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))

@@ -26,6 +26,7 @@ import (
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
@@ -35,6 +36,18 @@ import (
 // ExportKargoInstance returns inside its Agents slice, giving
 // round-trip symmetry between read (Export) and write (Apply).
 func SpecToAPI(p v1alpha1.KargoAgentParameters) (akuitytypes.KargoAgent, error) {
+	// Reject sizes outside the gateway's enum here so the failure is
+	// classified terminal upfront. The platform silently clamps
+	// unknown values back to a default while leaving the wire request
+	// as the user wrote it; without this guard the reconciler re-fires
+	// ApplyKargoInstance every poll because desired never matches
+	// observed. An empty Size is allowed and resolves to the platform
+	// default at apply time.
+	switch string(p.KargoAgentSpec.Data.Size) {
+	case "", "small", "medium", "large", "auto":
+	default:
+		return akuitytypes.KargoAgent{}, reason.AsTerminal(fmt.Errorf("spec.forProvider.kargoAgentSpec.data.size %q is not one of small, medium, large, auto", p.KargoAgentSpec.Data.Size))
+	}
 	if err := crossplanetypes.ValidateKustomizationYAML(p.KargoAgentSpec.Data.Kustomization); err != nil {
 		return akuitytypes.KargoAgent{}, fmt.Errorf("spec.forProvider.kargoAgentSpec.data.kustomization: %w", err)
 	}
