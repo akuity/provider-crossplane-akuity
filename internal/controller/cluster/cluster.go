@@ -359,6 +359,11 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 // When neither field is configured (both *bool nil and *string nil) the
 // call is skipped, avoiding an implicit clear of a value the user did
 // not ask this resource to control.
+//
+// When the desired (mode, expiry) already matches the observation in
+// status.atProvider, skip the call as well. The dedicated RPC fires on
+// every Update otherwise and burns one wire round-trip per poll for any
+// cluster with maintenanceMode pinned in spec.
 func (e *external) syncMaintenanceMode(ctx context.Context, mg *v1alpha1.Cluster) error {
 	data := mg.Spec.ForProvider.ClusterSpec.Data
 	if data.MaintenanceMode == nil && data.MaintenanceModeExpiry == nil {
@@ -376,7 +381,37 @@ func (e *external) syncMaintenanceMode(ctx context.Context, mg *v1alpha1.Cluster
 		}
 		expiry = &t
 	}
+	if maintenanceModeAlreadyApplied(mg, mode, expiry) {
+		return nil
+	}
 	return e.Client.SetClusterMaintenanceMode(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name, mode, expiry)
+}
+
+// maintenanceModeAlreadyApplied returns true when the observed
+// status.atProvider already reflects (mode, expiry) so the dedicated RPC
+// does not need to fire again. atProvider.MaintenanceMode is populated
+// by Observe from the platform's GetCluster response, so this is the
+// authoritative comparison surface. Returns false on Create (atProvider
+// empty), so the initial sync still runs.
+func maintenanceModeAlreadyApplied(mg *v1alpha1.Cluster, mode bool, expiry *time.Time) bool {
+	observed := mg.Status.AtProvider.ClusterSpec.Data
+	if observed.MaintenanceMode == nil {
+		return false
+	}
+	if *observed.MaintenanceMode != mode {
+		return false
+	}
+	if expiry == nil {
+		return observed.MaintenanceModeExpiry == nil
+	}
+	if observed.MaintenanceModeExpiry == nil {
+		return false
+	}
+	observedTime, err := time.Parse(time.RFC3339, *observed.MaintenanceModeExpiry)
+	if err != nil {
+		return false
+	}
+	return observedTime.Equal(*expiry)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalDelete, error) {

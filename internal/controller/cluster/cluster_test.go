@@ -318,6 +318,50 @@ func TestUpdate_MaintenanceModeUnsetSkipsSetEndpoint(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestUpdate_MaintenanceModeAlreadyAppliedSkipsRPC locks the wasted-
+// write guard: once status.atProvider already reflects the desired
+// (mode, expiry), Update must not fire SetClusterMaintenanceMode again.
+// Without this guard, every Update reconcile burns one wire round-trip
+// even when nothing changed since the last successful sync.
+func TestUpdate_MaintenanceModeAlreadyAppliedSkipsRPC(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(false)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = nil
+	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(false)
+	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceModeExpiry = nil
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
+	// gomock.NewController fails on unexpected calls; no expectation
+	// here asserts SetClusterMaintenanceMode is not invoked when the
+	// observed state already matches the desired state.
+
+	_, err := e.Update(ctx, &managedCluster)
+	require.NoError(t, err)
+}
+
+// TestUpdate_MaintenanceModeExpiryDriftFiresRPC covers the case where
+// mode matches but the expiry diverges: Update must still fire the
+// dedicated RPC so the platform absorbs the new expiry.
+func TestUpdate_MaintenanceModeExpiryDriftFiresRPC(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To("2099-01-01T00:00:00Z")
+	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
+	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To("2098-01-01T00:00:00Z")
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
+	mc.EXPECT().
+		SetClusterMaintenanceMode(ctx, fixtures.InstanceID, fixtures.ClusterName, true, gomock.Any()).
+		Return(nil).Times(1)
+
+	_, err := e.Update(ctx, &managedCluster)
+	require.NoError(t, err)
+}
+
 // TestUpdate_MaintenanceModeBadExpiryFails locks the parse error in
 // place: a non-RFC3339 expiry string must surface as a reconcile error
 // rather than silently ignoring the user's input.
