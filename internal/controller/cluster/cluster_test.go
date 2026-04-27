@@ -155,6 +155,15 @@ func TestCreate_WithKubeConfig_GetClusterManifestsErr(t *testing.T) {
 	mc.EXPECT().GetClusterManifests(ctx, fixtures.InstanceID, fixtures.ClusterName).
 		Return("", errors.New("fake")).Times(1)
 
+	// Rollback path: removeAgentResourcesOnDestroy is true on the
+	// fixture, so rollback re-fetches manifests for the strip step
+	// (which fails again here, logged at info) and then deletes the
+	// platform row.
+	mc.EXPECT().GetClusterManifests(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return("", errors.New("fake")).Times(1)
+	mc.EXPECT().DeleteCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(nil).Times(1)
+
 	resp, err := e.Create(ctx, &managedCluster)
 	require.Error(t, err)
 	assert.Equal(t, managed.ExternalCreation{}, resp)
@@ -176,6 +185,14 @@ func TestCreate_WithKubeConfig_ApplyClusterManifestsErr(t *testing.T) {
 
 	mc.EXPECT().GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name).
 		Return("", nil).Times(1)
+
+	// Rollback path: applyClusterManifests on empty manifests fails;
+	// rollback re-fetches the (still-empty) manifests for the strip
+	// step and then deletes the platform row.
+	mc.EXPECT().GetClusterManifests(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name).
+		Return("", nil).Times(1)
+	mc.EXPECT().DeleteCluster(ctx, managedCluster.Spec.ForProvider.InstanceID, managedCluster.Spec.ForProvider.Name).
+		Return(nil).Times(1)
 
 	resp, err := e.Create(ctx, &managedCluster)
 	require.Error(t, err)

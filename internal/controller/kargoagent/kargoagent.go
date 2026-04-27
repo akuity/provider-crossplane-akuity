@@ -309,21 +309,53 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 		return managed.ExternalCreation{}, err
 	}
 
+	// ApplyKargoInstance has now stamped the agent row on the parent
+	// KargoInstance. Any failure between here and SetExternalName must
+	// roll that row back so a retried Create starts clean and a
+	// user-initiated kubectl delete (which short-circuits when the
+	// external-name annotation is empty) cannot orphan the platform
+	// row. Mirrors the cluster-side rollback pattern.
+	//
 	// One-time apply: when a kubeconfig source is configured, install
 	// the agent manifests on the managed cluster before setting the
-	// external-name. Mirrors Cluster.Create: a failure here leaves the
-	// external-name unset so the next reconcile retries via Create
-	// rather than observing a "ready" MR with a stale target cluster.
-	// Server-pushed agent upgrades require a spec change or recreate to
-	// re-land on the managed cluster.
+	// external-name. Server-pushed agent upgrades require a spec change
+	// or recreate to re-land on the managed cluster.
 	if target := targetKubeConfig(mg.Spec.ForProvider); target.HasKubeConfig() {
 		if err := e.installAgentManifests(ctx, mg, target, false); err != nil {
+			e.rollbackCreatedAgent(ctx, mg, target, "install-manifests")
 			return managed.ExternalCreation{}, err
 		}
 	}
 
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 	return managed.ExternalCreation{}, nil
+}
+
+// rollbackCreatedAgent removes the agent row from the parent
+// KargoInstance (and optionally strips partially-installed manifests)
+// when a Create-path step fails after ApplyKargoInstance landed. Errors
+// during rollback are logged at info level rather than returned: the
+// caller's original failure is the user-visible error and a rollback
+// failure must not mask it.
+func (e *external) rollbackCreatedAgent(ctx context.Context, mg *v1alpha1.KargoAgent, target kube.TargetKubeConfig, stage string) {
+	if mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy && target.HasKubeConfig() {
+		if err := e.installAgentManifests(ctx, mg, target, true); err != nil {
+			e.Logger.Info("rollback could not strip partially-installed kargo agent manifests",
+				"stage", stage,
+				"error", err,
+				"kargoInstanceID", mg.Spec.ForProvider.KargoInstanceID,
+				"agentName", mg.Spec.ForProvider.Name,
+			)
+		}
+	}
+	if err := e.Client.DeleteKargoInstanceAgent(ctx, mg.Spec.ForProvider.KargoInstanceID, mg.Spec.ForProvider.Name); err != nil {
+		e.Logger.Info("rollback after create failure left platform row stamped",
+			"stage", stage,
+			"error", err,
+			"kargoInstanceID", mg.Spec.ForProvider.KargoInstanceID,
+			"agentName", mg.Spec.ForProvider.Name,
+		)
+	}
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalUpdate, error) {

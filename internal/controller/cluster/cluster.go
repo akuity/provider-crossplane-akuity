@@ -248,7 +248,15 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 
+	// ApplyInstance has now stamped the platform row. Every subsequent
+	// failure path must roll the row back so a retried Create starts
+	// from a clean slate and a user-initiated kubectl delete (which
+	// short-circuits when the external-name annotation is empty) cannot
+	// orphan the platform row. Mirrors the cleanup pattern used by the
+	// reference Akuity client when applyInstance, reconciliation, or
+	// kubeconfig install fails on a fresh resource.
 	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
+		e.rollbackCreatedCluster(ctx, mg, "syncMaintenanceMode")
 		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 	e.ClearTerminalWrite(key)
@@ -261,6 +269,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		e.Logger.Debug("Retrieving cluster manifests....")
 		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
+			e.rollbackCreatedCluster(ctx, mg, "get-manifests")
 			return managed.ExternalCreation{}, fmt.Errorf("could not get cluster manifests to apply: %w", err)
 		}
 
@@ -270,12 +279,46 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		)
 		e.Logger.Debug(clusterManifests)
 		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, false); err != nil {
+			e.rollbackCreatedCluster(ctx, mg, "apply-manifests")
 			return managed.ExternalCreation{}, fmt.Errorf("could not apply cluster manifests: %w", err)
 		}
 	}
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 
 	return managed.ExternalCreation{}, nil
+}
+
+// rollbackCreatedCluster removes the just-stamped platform row (and
+// optionally the partially-installed manifests) when a Create-path step
+// fails after ApplyInstance succeeded. Errors during rollback are
+// logged at info level rather than returned: the caller's original
+// failure is the user-visible error, and a rollback failure should not
+// mask it. The platform row is already orphaned at that point, so the
+// info log gives operators the breadcrumb without a second error
+// surface.
+func (e *external) rollbackCreatedCluster(ctx context.Context, mg *v1alpha1.Cluster, stage string) {
+	if mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
+		(mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "") {
+		manifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
+		if err == nil {
+			if applyErr := e.applyClusterManifests(ctx, *mg, manifests, true); applyErr != nil {
+				e.Logger.Info("rollback could not strip partially-installed cluster manifests",
+					"stage", stage,
+					"error", applyErr,
+					"instanceID", mg.Spec.ForProvider.InstanceID,
+					"clusterName", mg.Spec.ForProvider.Name,
+				)
+			}
+		}
+	}
+	if err := e.Client.DeleteCluster(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name); err != nil {
+		e.Logger.Info("rollback after create failure left platform row stamped",
+			"stage", stage,
+			"error", err,
+			"instanceID", mg.Spec.ForProvider.InstanceID,
+			"clusterName", mg.Spec.ForProvider.Name,
+		)
+	}
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalUpdate, error) {
