@@ -74,6 +74,22 @@ import (
 // the CR leaves it empty. Same shape as ArgocdNamespace: inherit
 // observed when desired is empty so unset does not round-trip as
 // perpetual drift.
+//
+// MaintenanceMode and MaintenanceModeExpiry are not writable through the
+// Apply pipeline at all — the platform exposes a dedicated
+// SetAgentMaintenanceMode RPC and the Apply→Update path silently drops
+// these fields when persisting the agent row. Adopt observed
+// unconditionally so a user-pinned value does not drift-flap forever.
+//
+// On akuityManaged=true agents, the platform also clamps ArgocdNamespace
+// (cleared when remoteArgocd is set or akuityManaged is true) and
+// TargetVersion (a separate ManagedAgent reconciler force-rotates the
+// row to the latest supported agent patch on every cycle). User-pinned
+// non-empty values for these two fields drift-flap forever on managed
+// agents because the existing empty-only absorb does not catch them.
+// Adopt observed for these two whenever the agent is akuityManaged so
+// drift detection short-circuits, leaving the user's pinned values on
+// self-managed agents (where they actually round-trip) untouched.
 func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 	return base.DriftSpec[v1alpha1.KargoAgentParameters]{
 		Normalize: func(desired, observed *v1alpha1.KargoAgentParameters) {
@@ -111,6 +127,7 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 			}
 			desired.KargoAgentSpec.Data.AkuityManaged =
 				observed.KargoAgentSpec.Data.AkuityManaged
+			absorbServerClamps(desired, observed)
 			// Optional pointer fields inherit server defaults only when
 			// the user omitted them. If a user pins one and the gateway
 			// fails to echo/apply it, keep the drift visible instead of
@@ -125,6 +142,31 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 			)
 		},
 	}
+}
+
+// absorbServerClamps adopts observed for fields the platform either
+// silently drops on Apply or rotates out-of-band, so user-pinned values
+// stop fighting the platform.
+//
+//   - MaintenanceMode and MaintenanceModeExpiry: the Apply→Update pipeline
+//     never persists these — they route only through SetAgentMaintenanceMode.
+//   - ArgocdNamespace and TargetVersion (akuityManaged only): platform
+//     clears ArgocdNamespace on Update when akuityManaged is true, and a
+//     separate ManagedAgent reconciler force-rotates TargetVersion to the
+//     latest supported patch.
+func absorbServerClamps(desired, observed *v1alpha1.KargoAgentParameters) {
+	desired.KargoAgentSpec.Data.MaintenanceMode =
+		observed.KargoAgentSpec.Data.MaintenanceMode
+	desired.KargoAgentSpec.Data.MaintenanceModeExpiry =
+		observed.KargoAgentSpec.Data.MaintenanceModeExpiry
+	if observed.KargoAgentSpec.Data.AkuityManaged == nil ||
+		!*observed.KargoAgentSpec.Data.AkuityManaged {
+		return
+	}
+	desired.KargoAgentSpec.Data.ArgocdNamespace =
+		observed.KargoAgentSpec.Data.ArgocdNamespace
+	desired.KargoAgentSpec.Data.TargetVersion =
+		observed.KargoAgentSpec.Data.TargetVersion
 }
 
 func normalizePtrField[T any](desired, observed **T) {

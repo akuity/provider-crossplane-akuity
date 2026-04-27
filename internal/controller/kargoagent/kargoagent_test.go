@@ -413,6 +413,72 @@ func TestDriftSpec_PodInheritMetadataDesiredSetDoesNotAdoptObserved(t *testing.T
 		"user-pinned podInheritMetadata must not be overwritten by observed drift")
 }
 
+func TestDriftSpec_AbsorbsAkuityManagedClampedFields(t *testing.T) {
+	expiry := "2099-01-01T00:00:00Z"
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged:         boolPtr(true),
+				ArgocdNamespace:       "argocd2",
+				TargetVersion:         "0.5.87",
+				MaintenanceMode:       boolPtr(true),
+				MaintenanceModeExpiry: &expiry,
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged:         boolPtr(true),
+				ArgocdNamespace:       "",
+				TargetVersion:         "0.5.88",
+				MaintenanceMode:       boolPtr(false),
+				MaintenanceModeExpiry: nil,
+			},
+		},
+	}
+
+	driftSpec().Normalize(&desired, &observed)
+
+	assert.Empty(t, desired.KargoAgentSpec.Data.ArgocdNamespace,
+		"akuityManaged ArgocdNamespace must adopt observed because the platform clears it on Update")
+	assert.Equal(t, "0.5.88", desired.KargoAgentSpec.Data.TargetVersion,
+		"akuityManaged TargetVersion must adopt observed because the ManagedAgent reconciler force-rotates it")
+	require.NotNil(t, desired.KargoAgentSpec.Data.MaintenanceMode)
+	assert.False(t, *desired.KargoAgentSpec.Data.MaintenanceMode,
+		"MaintenanceMode must adopt observed because Apply does not route this field")
+	assert.Nil(t, desired.KargoAgentSpec.Data.MaintenanceModeExpiry,
+		"MaintenanceModeExpiry must adopt observed because Apply does not route this field")
+}
+
+func TestDriftSpec_SelfManagedKeepsArgocdNamespaceAndTargetVersion(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged:   boolPtr(false),
+				ArgocdNamespace: "argocd2",
+				TargetVersion:   "0.5.87",
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged:   boolPtr(false),
+				ArgocdNamespace: "argocd",
+				TargetVersion:   "0.5.88",
+			},
+		},
+	}
+
+	driftSpec().Normalize(&desired, &observed)
+
+	assert.Equal(t, "argocd2", desired.KargoAgentSpec.Data.ArgocdNamespace,
+		"self-managed ArgocdNamespace must keep user-pinned value")
+	assert.Equal(t, "0.5.87", desired.KargoAgentSpec.Data.TargetVersion,
+		"self-managed TargetVersion must keep user-pinned value")
+}
+
 func TestResolveWorkspaceFromParentUsesStatusFallback(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, v1alpha1.SchemeBuilder.AddToScheme(scheme))
