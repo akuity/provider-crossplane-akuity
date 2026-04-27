@@ -250,6 +250,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 			base.SetHealthCondition(mg, false)
 		case base.GetTerminal:
 			mg.SetConditions(xpv1.ReconcileError(err))
+			e.recordTerminalObserve(ctx, mg, err)
 		}
 		return obs, rerr
 	}
@@ -531,6 +532,39 @@ func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.Kargo
 		return e.SkipTerminalWriteGuard(err)
 	}
 	return e.SuppressTerminalWrite(mg, key)
+}
+
+// recordTerminalObserve mirrors the Apply path's RecordTerminalWrite for
+// the read side. Some platform invariants (admin account enabled with no
+// password hash, malformed kargoConfigMap) surface as gateway
+// InvalidArgument on GetKargoInstance / ExportKargoInstance instead of
+// on Apply, so the existing write-side guard never sees them. Recording
+// the same key from Observe lets the suppress check at the top of the
+// next reconcile short-circuit further gateway calls until a spec edit
+// rotates the key. resolve* failures fall back silently — without a
+// stable key the guard cannot suppress, and the caller has already
+// emitted ReconcileError for visibility.
+func (e *external) recordTerminalObserve(ctx context.Context, mg *v1alpha1.KargoInstance, err error) {
+	if e.TerminalWrites == nil {
+		return
+	}
+	classified := reason.ClassifyApplyError(err)
+	if !reason.IsTerminal(classified) {
+		return
+	}
+	workspaceID, werr := e.resolveWorkspaceID(ctx, mg)
+	if werr != nil {
+		return
+	}
+	sec, serr := resolveKargoSecrets(ctx, e.Kube, mg)
+	if serr != nil {
+		return
+	}
+	key, kerr := kargoInstanceTerminalWriteKey(mg, workspaceID, sec.Hash())
+	if kerr != nil {
+		return
+	}
+	_ = e.RecordTerminalWrite(key, classified)
 }
 
 func kargoInstanceTerminalWriteKey(mg *v1alpha1.KargoInstance, workspaceID, secretHash string) (base.TerminalWriteKey, error) {
