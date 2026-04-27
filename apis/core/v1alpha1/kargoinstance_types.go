@@ -45,6 +45,22 @@ var KargoConfigMapAllowedKeys = []string{
 	"admin_account_token_ttl",
 }
 
+// KargoSecretAllowedKeys is the set of kube Secret data keys the
+// controller forwards into the platform's KargoApiSecret proto. The
+// platform serializes the base instance with the default protojson
+// MarshalOptions (no UseProtoNames), so its on-the-wire form for the
+// strongly-typed proto field is the lowerCamel JSON name. The strict
+// jsonpatch + protojson Unmarshal rejects any other key; in particular,
+// sending the snake_case proto name on Apply would survive Create but
+// duplicate-conflict with the camelCase form on the next Update merge.
+// The controller maps every accepted spelling onto its lowerCamel
+// canonical form before forwarding so users can write either spelling
+// in their kube Secret.
+var KargoSecretAllowedKeys = map[string]string{
+	"adminAccountPasswordHash":    "adminAccountPasswordHash",
+	"admin_account_password_hash": "adminAccountPasswordHash",
+}
+
 // KargoInstanceParameters are the configurable fields of a Kargo
 // instance.
 //
@@ -98,10 +114,15 @@ type KargoInstanceParameters struct {
 	KargoConfigMap map[string]string `json:"kargoConfigMap,omitempty"`
 
 	// KargoSecretRef references a namespaced Secret whose data is sent
-	// verbatim as the kargo-secret payload (OIDC client secrets,
-	// webhook tokens, admin bootstrap). Removing this ref stops
-	// applying the platform-side Secret, but does not delete it from
-	// the Akuity platform.
+	// to the platform as the KargoApiSecret payload. The platform's
+	// KargoApiSecret proto is strongly typed — the only currently
+	// recognized key is admin_account_password_hash (proto name) /
+	// adminAccountPasswordHash (JSON name); see
+	// KargoSecretAllowedKeys. The controller normalizes every
+	// accepted spelling onto its canonical lowerCamel form before
+	// Apply and rejects any other key with a terminal classification.
+	// Removing this ref stops applying the platform-side Secret, but
+	// does not delete it from the Akuity platform.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="kargoSecretRef.name and kargoSecretRef.namespace are required"
 	KargoSecretRef *xpv1.SecretReference `json:"kargoSecretRef,omitempty"`

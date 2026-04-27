@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
@@ -65,7 +66,7 @@ func TestResolveKargoSecret_ReadsSecret(t *testing.T) {
 	require.NoError(t, corev1.AddToScheme(scheme))
 	sec := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "kargo-admin"},
-		Data:       map[string][]byte{"adminPassword": []byte("p@ss")},
+		Data:       map[string][]byte{"adminAccountPasswordHash": []byte("hashed")},
 	}
 	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
 
@@ -80,7 +81,80 @@ func TestResolveKargoSecret_ReadsSecret(t *testing.T) {
 	got, err := resolveKargoSecrets(context.Background(), kube, mg)
 	require.NoError(t, err)
 	assert.Equal(t, "kargo-admin", got.Kargo.Name)
-	assert.Equal(t, "p@ss", got.Kargo.Data["adminPassword"])
+	assert.Equal(t, "hashed", got.Kargo.Data["adminAccountPasswordHash"])
+}
+
+func TestResolveKargoSecret_NormalizesSnakeCaseProtoName(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "kargo-admin"},
+		Data:       map[string][]byte{"admin_account_password_hash": []byte("hashed")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+			},
+		},
+	}
+	got, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.NoError(t, err)
+	assert.Equal(t, "hashed", got.Kargo.Data["adminAccountPasswordHash"])
+	_, hasSnake := got.Kargo.Data["admin_account_password_hash"]
+	assert.False(t, hasSnake, "snake_case key must be remapped to lowerCamel before forwarding")
+}
+
+func TestResolveKargoSecret_RejectsUnknownKey(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "kargo-admin"},
+		Data:       map[string][]byte{"webhook.github.secret": []byte("token")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported kargoSecret key")
+	assert.True(t, reason.IsTerminal(err), "unknown kargoSecret key must classify terminally")
+}
+
+func TestResolveKargoSecret_RejectsConflictingAliases(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "kargo-admin"},
+		Data: map[string][]byte{
+			"adminAccountPasswordHash":    []byte("a"),
+			"admin_account_password_hash": []byte("b"),
+		},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicting aliases")
+	assert.True(t, reason.IsTerminal(err), "conflicting aliases must classify terminally")
 }
 
 func TestKubeSecretToPB_EmptyOmitted(t *testing.T) {

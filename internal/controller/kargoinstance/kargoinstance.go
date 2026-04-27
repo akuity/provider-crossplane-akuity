@@ -975,7 +975,11 @@ func resolveKargoSecrets(ctx context.Context, kube client.Client, mg *v1alpha1.K
 		if kerr != nil {
 			return out, secrets.AsTerminalIfConfig(fmt.Errorf("kargoSecretRef: %w", kerr))
 		}
-		out.Kargo = kargoResolvedSecret{Namespace: resolved.Namespace, Name: resolved.Name, Data: resolved.Data}
+		normalized, nerr := normalizeKargoSecretData(resolved.Data)
+		if nerr != nil {
+			return out, reason.AsTerminal(fmt.Errorf("kargoSecretRef: %w", nerr))
+		}
+		out.Kargo = kargoResolvedSecret{Namespace: resolved.Namespace, Name: resolved.Name, Data: normalized}
 	}
 	if dex, derr := resolveKargoDexSecret(ctx, kube, mg); derr != nil {
 		return out, secrets.AsTerminalIfConfig(derr)
@@ -1112,6 +1116,44 @@ func kargoRepoCredsToPB(creds []kargoResolvedRepoCred) ([]*structpb.Struct, erro
 		return nil, nil
 	}
 	return out, nil
+}
+
+// normalizeKargoSecretData maps every key in a kargoSecretRef payload
+// onto its canonical lowerCamel JSON name on the platform's
+// KargoApiSecret proto. The platform marshals the base instance with
+// default protojson options (camelCase JSON names) and then strict-
+// unmarshals the merged patch; sending the snake_case proto name on
+// Apply collides with the camelCase form on the next merge and
+// produces "duplicate field" errors. Unknown keys would also fail
+// strict unmarshal, so reject them up-front with a terminal error so
+// the user fixes their kube Secret instead of getting platform-side
+// drift-flap. Conflicting alias pairs (both spellings of the same
+// proto field) are also rejected.
+func normalizeKargoSecretData(data map[string]string) (map[string]string, error) {
+	if len(data) == 0 {
+		return data, nil
+	}
+	out := make(map[string]string, len(data))
+	for k, v := range data {
+		canonical, ok := v1alpha1.KargoSecretAllowedKeys[k]
+		if !ok {
+			return nil, fmt.Errorf("unsupported kargoSecret key %q: only %s are accepted", k, kargoSecretAllowedKeysMessage())
+		}
+		if existing, dup := out[canonical]; dup && existing != v {
+			return nil, fmt.Errorf("kargoSecret carries conflicting aliases for %q", canonical)
+		}
+		out[canonical] = v
+	}
+	return out, nil
+}
+
+func kargoSecretAllowedKeysMessage() string {
+	keys := make([]string, 0, len(v1alpha1.KargoSecretAllowedKeys))
+	for k := range v1alpha1.KargoSecretAllowedKeys {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ", ")
 }
 
 // kubeSecretToPB marshals a resolved secret map into the Kubernetes
