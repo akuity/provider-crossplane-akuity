@@ -20,6 +20,8 @@ package kargoinstance
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -265,8 +267,10 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	// masking rotation until the next Create/Update writes a new value.
 	prevSecretHash := mg.Status.AtProvider.SecretHash
 	prevWorkspace := mg.Status.AtProvider.Workspace
+	prevKargoConfigMapHash := mg.Status.AtProvider.KargoConfigMapHash
 	mg.Status.AtProvider = observation.KargoInstance(ki)
 	mg.Status.AtProvider.SecretHash = prevSecretHash
+	mg.Status.AtProvider.KargoConfigMapHash = prevKargoConfigMapHash
 	// GetKargoInstance echoes the canonical workspace ID; cache it on
 	// AtProvider so ExportKargoInstance, Apply, and Delete can route to
 	// the right workspace-scoped HTTP path without an extra
@@ -366,7 +370,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 			e.Logger.Debug("KargoInstance export unavailable; deferring child-drift check")
 		} else {
 			if len(mg.Spec.ForProvider.KargoConfigMap) > 0 {
-				ok, observed, cerr := kargoConfigMapUpToDate(mg.Spec.ForProvider.KargoConfigMap, exp)
+				ok, observed, cerr := kargoConfigMapUpToDate(mg.Spec.ForProvider.KargoConfigMap, exp, mg.Status.AtProvider.KargoConfigMapHash)
 				if cerr != nil {
 					mg.SetConditions(xpv1.ReconcileError(cerr))
 					return managed.ExternalObservation{}, cerr
@@ -506,6 +510,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	}
 	e.ClearTerminalWrite(key)
 	setSecretHash(mg, sec.Hash())
+	mg.Status.AtProvider.KargoConfigMapHash = hashKargoConfigMap(desiredCM)
 	return nil
 }
 
@@ -625,15 +630,17 @@ type kargoChildren struct {
 // fire drift so the next Apply can self-heal.
 //
 // When the Export response carries no kargo_configmap struct or omits
-// the data sub-tree, defer drift instead of reporting every desired
-// key as missing. Some gateway builds skip the field entirely on
-// freshly-Applied instances; subset comparison would otherwise treat
-// the absence as a clear and re-fire ApplyKargoInstance every poll
-// indefinitely. The next reconcile retries Export, and a real spec
-// edit rotates the generation so the comparator runs again with
-// whatever the gateway eventually returns. Returns (ok, observed,
-// err) so callers can log the observed shape alongside desired.
-func kargoConfigMapUpToDate(desired map[string]string, exp *kargov1.ExportKargoInstanceResponse) (bool, map[string]string, error) {
+// the data sub-tree, fall back to a hash comparison against the
+// last-applied state recorded on AtProvider. Some gateway builds skip
+// the field entirely on freshly-Applied instances; an unconditional
+// defer in that case would also absorb a real spec edit (adding a
+// key, mutating a value, removing a key) and silently strand it
+// off-platform. Hash equality means the desired CM has already been
+// Applied, so defer drift; hash mismatch means the spec moved since
+// the last Apply, so fire drift to push the new payload. Returns (ok,
+// observed, err) so callers can log the observed shape alongside
+// desired.
+func kargoConfigMapUpToDate(desired map[string]string, exp *kargov1.ExportKargoInstanceResponse, lastAppliedHash string) (bool, map[string]string, error) {
 	if len(desired) == 0 {
 		return true, nil, nil
 	}
@@ -642,7 +649,10 @@ func kargoConfigMapUpToDate(desired map[string]string, exp *kargov1.ExportKargoI
 		return false, nil, fmt.Errorf("kargoConfigMap: %w", err)
 	}
 	if !present {
-		return true, nil, nil
+		if hashKargoConfigMap(desired) == lastAppliedHash {
+			return true, nil, nil
+		}
+		return false, nil, nil
 	}
 	for k, v := range desired {
 		got, ok := observed[k]
@@ -651,6 +661,29 @@ func kargoConfigMapUpToDate(desired map[string]string, exp *kargov1.ExportKargoI
 		}
 	}
 	return true, observed, nil
+}
+
+// hashKargoConfigMap returns a stable SHA256 digest over the desired
+// kargoConfigMap, sorted by key so map ordering does not affect the
+// hash. An empty or nil map produces an empty string so first-Apply
+// (no hash recorded yet) and "no CM in spec" both compare equal.
+func hashKargoConfigMap(data map[string]string) string {
+	if len(data) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	h := sha256.New()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte{0x00})
+		h.Write([]byte(data[k]))
+		h.Write([]byte{0x01})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // extractKargoConfigMapData pulls the `data` map out of the wrapped

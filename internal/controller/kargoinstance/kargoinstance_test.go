@@ -211,12 +211,13 @@ func mustKargoStruct(t *testing.T, spec map[string]interface{}) *structpb.Struct
 // values, while extra server-side keys are ignored.
 func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	desired := map[string]string{"foo": "bar", "baz": "qux"}
+	desiredHash := hashKargoConfigMap(desired)
 
 	// Exact match.
 	exp := &kargov1.ExportKargoInstanceResponse{
 		KargoConfigmap: mustCMStruct(t, map[string]string{"foo": "bar", "baz": "qux"}),
 	}
-	ok, _, err := kargoConfigMapUpToDate(desired, exp)
+	ok, _, err := kargoConfigMapUpToDate(desired, exp, "")
 	require.NoError(t, err)
 	assert.True(t, ok)
 
@@ -224,7 +225,7 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	exp = &kargov1.ExportKargoInstanceResponse{
 		KargoConfigmap: mustCMStruct(t, map[string]string{"foo": "bar", "baz": "qux", "extra": "x"}),
 	}
-	ok, _, err = kargoConfigMapUpToDate(desired, exp)
+	ok, _, err = kargoConfigMapUpToDate(desired, exp, "")
 	require.NoError(t, err)
 	assert.True(t, ok, "extra server-side keys must not fire drift")
 
@@ -232,7 +233,7 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	exp = &kargov1.ExportKargoInstanceResponse{
 		KargoConfigmap: mustCMStruct(t, map[string]string{"foo": "bar"}),
 	}
-	ok, observed, err := kargoConfigMapUpToDate(desired, exp)
+	ok, observed, err := kargoConfigMapUpToDate(desired, exp, "")
 	require.NoError(t, err)
 	assert.False(t, ok, "missing desired key must fire drift")
 	assert.Equal(t, "bar", observed["foo"])
@@ -241,25 +242,35 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	exp = &kargov1.ExportKargoInstanceResponse{
 		KargoConfigmap: mustCMStruct(t, map[string]string{"foo": "wrong", "baz": "qux"}),
 	}
-	ok, _, err = kargoConfigMapUpToDate(desired, exp)
+	ok, _, err = kargoConfigMapUpToDate(desired, exp, "")
 	require.NoError(t, err)
 	assert.False(t, ok, "divergent value must fire drift")
 
-	// No ConfigMap struct on the Export response: defer drift instead
-	// of reporting every desired key as missing. Some gateway builds
-	// omit kargo_configmap entirely on freshly-Applied instances and
-	// the prior "treat absent as cleared" behaviour fired
-	// ApplyKargoInstance every poll forever. Defer keeps the read-only
-	// path quiet; a real spec edit rotates the generation and the
-	// comparator runs again with whatever the gateway eventually
-	// returns.
+	// No ConfigMap struct on the Export response, hash matches the
+	// last-applied state: defer drift. Some gateway builds omit
+	// kargo_configmap entirely on freshly-Applied instances; the hash
+	// fallback proves the desired CM has already been Applied so the
+	// reconcile path stays quiet across polls.
 	exp = &kargov1.ExportKargoInstanceResponse{}
-	ok, _, err = kargoConfigMapUpToDate(desired, exp)
+	ok, _, err = kargoConfigMapUpToDate(desired, exp, desiredHash)
 	require.NoError(t, err)
-	assert.True(t, ok, "absent gateway ConfigMap must defer drift to avoid hot-loop on partial Export")
+	assert.True(t, ok, "absent gateway ConfigMap with matching hash must defer drift")
+
+	// Same Export shape, but the hash does not match the last-applied
+	// state. The desired CM has changed since the last Apply, so drift
+	// must fire and the next reconcile re-Applies.
+	ok, _, err = kargoConfigMapUpToDate(desired, exp, "stale-hash")
+	require.NoError(t, err)
+	assert.False(t, ok, "absent gateway ConfigMap with stale hash must fire drift")
+
+	// Hash empty (first Observe before any Apply has recorded it):
+	// drift fires so the first Apply runs and seeds the hash.
+	ok, _, err = kargoConfigMapUpToDate(desired, exp, "")
+	require.NoError(t, err)
+	assert.False(t, ok, "absent gateway ConfigMap with no recorded hash must fire drift on first Observe")
 
 	// Empty desired means nothing to compare.
-	ok, _, err = kargoConfigMapUpToDate(nil, exp)
+	ok, _, err = kargoConfigMapUpToDate(nil, exp, "")
 	require.NoError(t, err)
 	assert.True(t, ok)
 }
@@ -365,7 +376,7 @@ func TestKargoConfigMapUpToDate_CanonicalizesBoolValues(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ok, observed, err := kargoConfigMapUpToDate(desired, &kargov1.ExportKargoInstanceResponse{KargoConfigmap: pb})
+	ok, observed, err := kargoConfigMapUpToDate(desired, &kargov1.ExportKargoInstanceResponse{KargoConfigmap: pb}, "")
 	require.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, "true", observed["adminAccountEnabled"])

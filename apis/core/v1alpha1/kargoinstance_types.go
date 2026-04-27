@@ -196,6 +196,17 @@ type KargoInstanceObservation struct {
 	// but does not persist arbitrary metadata.
 	SecretHash string `json:"secretHash,omitempty"`
 
+	// KargoConfigMapHash is the SHA256 of spec.forProvider.kargoConfigMap
+	// from the most recent successful Apply. Some gateway builds omit
+	// the kargo_configmap sub-tree from ExportKargoInstance even after
+	// Apply has accepted it, so a subset comparison cannot tell
+	// "Applied but not echoed" from "spec changed since last Apply".
+	// The hash bridges that gap: when the export omits the sub-tree,
+	// the comparator defers drift only when this hash matches the hash
+	// of the current desired CM. A spec edit that adds, mutates, or
+	// removes keys rotates the hash and re-fires Apply.
+	KargoConfigMapHash string `json:"kargoConfigMapHash,omitempty"`
+
 	// Workspace is the canonical Akuity workspace ID this Kargo
 	// instance belongs to. When spec.forProvider.workspace is empty,
 	// the controller resolves and caches the organization's default
