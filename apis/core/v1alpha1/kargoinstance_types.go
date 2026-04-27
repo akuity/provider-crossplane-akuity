@@ -113,10 +113,13 @@ type KargoInstanceParameters struct {
 	// named after the effective slot, writes it into the effective
 	// Kargo project namespace, and forwards it to ApplyKargoInstance.
 	// If an entry omits Name, the controller uses SecretRef.Name as
-	// the slot. If ProjectNamespace is omitted, the controller uses
-	// SecretRef.Namespace. If CredType is omitted, the controller uses
-	// the referenced Secret's kargo.akuity.io/cred-type label.
-	// Plaintext never lives on the managed resource spec.
+	// the slot. ProjectNamespace must be set explicitly because the
+	// platform lands the synthesized credential Secret in that
+	// namespace on its control plane and a wrong value produces an
+	// opaque Internal error during ApplyKargoInstance. If CredType is
+	// omitted, the controller uses the referenced Secret's
+	// kargo.akuity.io/cred-type label. Plaintext never lives on the
+	// managed resource spec.
 	//
 	// Drift: this field is write-only on the Kargo gateway. Because
 	// Export does not return repo_credentials, rotation participates

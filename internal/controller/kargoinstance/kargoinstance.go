@@ -1053,10 +1053,7 @@ func resolveKargoRepoCreds(ctx context.Context, kube client.Client, refs []v1alp
 }
 
 func effectiveKargoProjectNamespace(r *v1alpha1.KargoRepoCredentialSecretRef) string {
-	if r.ProjectNamespace != "" {
-		return r.ProjectNamespace
-	}
-	return r.SecretRef.Namespace
+	return r.ProjectNamespace
 }
 
 func effectiveKargoCredType(r *v1alpha1.KargoRepoCredentialSecretRef, labels map[string]string) string {

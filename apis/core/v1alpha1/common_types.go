@@ -74,14 +74,16 @@ type KargoRepoCredentialSecretRef struct {
 	NamedSecretReference `json:",inline"`
 
 	// ProjectNamespace is the Kargo project namespace the credential
-	// belongs to. Defaults to SecretRef.Namespace when omitted. Kargo
-	// enforces DNS-1123 naming on project namespaces; the Pattern here
-	// mirrors that.
-	// +optional
+	// belongs to. Required because Kargo lands the synthesized
+	// credential Secret in this namespace on the control plane and a
+	// missing namespace produces an opaque platform-side Internal
+	// error. Kargo enforces DNS-1123 naming on project namespaces;
+	// the Pattern here mirrors that.
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9][a-z0-9-]*$`
-	ProjectNamespace string `json:"projectNamespace,omitempty"`
+	ProjectNamespace string `json:"projectNamespace"`
 
 	// CredType selects the Kargo credential family. Stamped onto the
 	// Secret as the kargo.akuity.io/cred-type label before submission.

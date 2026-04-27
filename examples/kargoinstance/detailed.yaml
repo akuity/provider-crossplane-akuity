@@ -104,7 +104,7 @@ spec:
     # as a labelled Kargo-shaped Secret.
     # kargoRepoCredentialSecretRefs:
     #   - name: repo-github # optional; defaults to secretRef.name
-    #     projectNamespace: my-project # optional; defaults to secretRef.namespace
+    #     projectNamespace: my-project # required; the Kargo project namespace where the credential Secret is landed
     #     credType: git # optional; defaults to source Secret label
     #     secretRef:
     #       namespace: crossplane-system
