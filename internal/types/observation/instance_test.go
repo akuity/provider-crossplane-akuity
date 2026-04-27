@@ -315,6 +315,21 @@ func TestInstance(t *testing.T) {
 	}, result)
 }
 
+func TestInstance_RedactsMetricsIngressPasswordHash(t *testing.T) {
+	instance := &argocdv1.Instance{
+		Spec: &argocdv1.InstanceSpec{
+			MetricsIngressUsername:     ptr.To("metrics-user"),
+			MetricsIngressPasswordHash: ptr.To("metrics-hash"),
+		},
+	}
+
+	result, err := observation.Instance(instance, &argocdv1.ExportInstanceResponse{})
+	require.NoError(t, err)
+
+	assert.Equal(t, ptr.To("metrics-user"), result.ArgoCD.Spec.InstanceSpec.MetricsIngressUsername)
+	assert.Nil(t, result.ArgoCD.Spec.InstanceSpec.MetricsIngressPasswordHash)
+}
+
 func TestCommand(t *testing.T) {
 	argocdCommand := &argocdtypes.Command{
 		Command: []string{"echo"},

@@ -59,6 +59,10 @@ func Instance(instance *argocdv1.Instance, exportedInstance *argocdv1.ExportInst
 	if err != nil {
 		return v1alpha1.InstanceObservation{}, err
 	}
+	// The metrics ingress password hash is sensitive credential material.
+	// Keep it available to InstanceSpec for internal drift comparison, but
+	// never mirror it into status.atProvider.
+	argocd.Spec.InstanceSpec.MetricsIngressPasswordHash = nil
 
 	argocdConfigMap, err := ConfigMapData(ArgocdCMKey, exportedInstance.GetArgocdConfigmap())
 	if err != nil {
