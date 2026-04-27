@@ -234,7 +234,7 @@ func TestSplitKargoResources_Routing(t *testing.T) {
 			"metadata": map[string]interface{}{"name": "dev"},
 		}),
 		mustRawMap(t, map[string]interface{}{
-			"apiVersion": "kargo.akuity.io/v1alpha1", "kind": "AnalysisTemplate",
+			"apiVersion": "argoproj.io/v1alpha1", "kind": "AnalysisTemplate",
 			"metadata": map[string]interface{}{"name": "canary"},
 		}),
 		mustRawMap(t, map[string]interface{}{

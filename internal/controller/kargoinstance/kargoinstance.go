@@ -76,9 +76,15 @@ const (
 	kargoKindProject             = "Project"
 	kargoKindWarehouse           = "Warehouse"
 	kargoKindStage               = "Stage"
-	kargoKindAnalysisTemplate    = "AnalysisTemplate"
 	kargoKindPromotionTask       = "PromotionTask"
 	kargoKindClusterPromotionTsk = "ClusterPromotionTask"
+
+	// AnalysisTemplate is owned by Argo Rollouts, not Kargo, so the
+	// gateway expects the argoproj.io group. Apply requests using the
+	// kargo.akuity.io group are rejected with InvalidArgument by the
+	// platform validator.
+	argoprojAPIVersion        = "argoproj.io/v1alpha1"
+	kargoKindAnalysisTemplate = "AnalysisTemplate"
 
 	coreAPIVersion = "v1"
 	coreKindSecret = "Secret"
@@ -846,7 +852,7 @@ func splitKargoResources(in []runtime.RawExtension) (kargoChildren, error) {
 			out.Warehouses = append(out.Warehouses, pb)
 		case apiVersion == kargoAPIVersion && kind == kargoKindStage:
 			out.Stages = append(out.Stages, pb)
-		case apiVersion == kargoAPIVersion && kind == kargoKindAnalysisTemplate:
+		case apiVersion == argoprojAPIVersion && kind == kargoKindAnalysisTemplate:
 			out.AnalysisTemplates = append(out.AnalysisTemplates, pb)
 		case apiVersion == kargoAPIVersion && kind == kargoKindPromotionTask:
 			out.PromotionTasks = append(out.PromotionTasks, pb)
