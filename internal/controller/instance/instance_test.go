@@ -243,6 +243,41 @@ func TestObserve_EmptyExternalName_SuppressesTerminalWrite(t *testing.T) {
 	assert.Equal(t, xpv1.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
 }
 
+// TestObserve_ExternalNameSet_SuppressesTerminalWriteBeforeGet covers
+// the path where Crossplane's NameAsExternalName initializer has
+// stamped the external-name annotation before the first reconcile.
+// The terminal-write guard must short-circuit the Observe before any
+// gateway round-trip, otherwise a Create that fails terminally on bad
+// input loops Get->NotFound->Create on controller-runtime's exp-
+// backoff. Asserts that GetInstance is NOT called when a matching
+// terminal entry is cached.
+func TestObserve_ExternalNameSet_SuppressesTerminalWriteBeforeGet(t *testing.T) {
+	e, mc := newExt(t)
+	e.TerminalWrites = base.NewTerminalWriteGuard()
+
+	managedInstance := fixtures.CrossplaneManagedInstance
+	managedInstance.ObjectMeta = metav1.ObjectMeta{
+		Name:       "bad-instance",
+		Generation: 3,
+		Annotations: map[string]string{
+			"crossplane.io/external-name": "bad-instance",
+		},
+	}
+	key, err := instanceTerminalWriteKey(&managedInstance, resolvedInstanceSecrets{})
+	require.NoError(t, err)
+	e.TerminalWrites.Record(key, reason.AsTerminal(errors.New("bad payload")))
+
+	mc.EXPECT().GetInstance(gomock.Any(), gomock.Any()).Times(0)
+	mc.EXPECT().ExportInstance(gomock.Any(), gomock.Any()).Times(0)
+
+	resp, err := e.Observe(ctx, &managedInstance)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err))
+	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, resp)
+	require.Len(t, managedInstance.Status.Conditions, 1)
+	assert.Equal(t, xpv1.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
+}
+
 func TestDriftSpec_ArgocdConfigMapComparesOnlyUserKeys(t *testing.T) {
 	presence := base.FieldPresence{
 		Object:  true,

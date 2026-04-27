@@ -99,10 +99,19 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	}
 	mg.Spec.ForProvider.InstanceID = instanceID
 
-	if meta.GetExternalName(mg) == "" {
+	// Short-circuit on a cached terminal write before any gateway round-
+	// trip. With the NameAsExternalName initializer the external-name
+	// is stamped before the first Create, so a Create that fails
+	// terminally (instance ID not found, malformed Kustomization, bad
+	// kubeconfig secret) would otherwise loop GetCluster->NotFound->
+	// Create->reject at controller-runtime backoff (~2s).
+	if e.HasTerminalWriteResource(mg, v1alpha1.ClusterGroupVersionKind) {
 		if obs, err, ok := e.suppressTerminalWrite(mg); ok {
 			return obs, err
 		}
+	}
+
+	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 

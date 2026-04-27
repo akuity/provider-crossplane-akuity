@@ -185,10 +185,20 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		terminalFP.Workspace = e.resolveWorkspaceFromParent(ctx, mg)
 	}
 
-	if meta.GetExternalName(mg) == "" {
+	// Short-circuit on a cached terminal write before any gateway
+	// round-trip. With Crossplane's NameAsExternalName initializer the
+	// external-name is stamped before the first Create runs, so a bad-
+	// input rejection on Create would otherwise loop
+	// GetKargoInstanceAgent->NotFound->Create->reject at controller-
+	// runtime backoff (~2s). HasTerminalWriteResource is a cheap map
+	// lookup so happy-path Observes pay nothing extra.
+	if e.HasTerminalWriteResource(mg, v1alpha1.KargoAgentGroupVersionKind) {
 		if obs, err, ok := e.suppressTerminalWrite(mg, terminalFP); ok {
 			return obs, err
 		}
+	}
+
+	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 

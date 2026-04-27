@@ -91,16 +91,23 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoDefaultShardAg
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
-	if meta.GetExternalName(mg) == "" {
-		if e.TerminalWrites != nil {
-			desiredID, derr := e.resolveDesiredAgentID(ctx, kargoID, mg.Spec.ForProvider.AgentName)
-			if derr != nil {
-				return managed.ExternalObservation{ResourceExists: false}, nil
-			}
+	// Short-circuit on a cached terminal write before any gateway round-
+	// trip. With NameAsExternalName the external-name is stamped before
+	// Create runs, so a Patch that fails terminally on bad input would
+	// otherwise loop GetKargoInstanceByID->Patch reject at controller-
+	// runtime backoff (~2s). Resolving the desired agent ID up front
+	// keys the guard on the same payload Create/Update use; an unresolved
+	// agent is left to fall through so the existing missing-agent retry
+	// path stays intact.
+	if e.HasTerminalWriteResource(mg, v1alpha1.KargoDefaultShardAgentGroupVersionKind) {
+		desiredID, derr := e.resolveDesiredAgentID(ctx, kargoID, mg.Spec.ForProvider.AgentName)
+		if derr == nil {
 			if obs, err, ok := e.suppressTerminalWrite(mg, kargoID, desiredID); ok {
 				return obs, err
 			}
 		}
+	}
+	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 

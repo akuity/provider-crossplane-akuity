@@ -221,10 +221,20 @@ type external struct {
 //nolint:gocyclo // Observe coordinates struct cmp + 2 export-based drift checks + secret hash; the linear branching is the simplest readable form.
 func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (managed.ExternalObservation, error) {
 	defer base.PropagateObservedGeneration(mg)
-	if meta.GetExternalName(mg) == "" {
+	// Short-circuit on a cached terminal write before any gateway round-
+	// trip. Crossplane's NameAsExternalName initializer stamps external-
+	// name early, so a Create that fails terminally on bad input
+	// (workspace not found, invalid spec field, malformed Kustomization)
+	// would otherwise loop GetKargoInstance->NotFound->Create->reject at
+	// controller-runtime backoff (~2s). HasTerminalWriteResource is a
+	// cheap map lookup so happy-path Observes only pay the secret resolve
+	// when an entry exists.
+	if e.HasTerminalWriteResource(mg, v1alpha1.KargoInstanceGroupVersionKind) {
 		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
 			return obs, err
 		}
+	}
+	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 

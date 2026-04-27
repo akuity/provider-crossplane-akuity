@@ -92,10 +92,28 @@ type external struct {
 func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalObservation, error) { //nolint:gocyclo
 	defer base.PropagateObservedGeneration(mg)
 
-	if meta.GetExternalName(mg) == "" {
+	// Short-circuit on a cached terminal write before any gateway
+	// round-trip. Without this, Crossplane's NameAsExternalName initializer
+	// stamps the external-name annotation up front, so a Create that fails
+	// terminally on bad input (e.g. inline v1/Secret in resources[],
+	// missing referenced Secret, malformed Kustomization) leaves Observe
+	// in the GetInstance branch on every subsequent reconcile: Get returns
+	// NotFound, ResourceExists=false, the reconciler fires Create again,
+	// BuildApplyInstanceRequest re-rejects, and controller-runtime
+	// backoff requeues at ~2s. The terminal-write guard already records
+	// the failure but the prior empty-external-name suppress site never
+	// fires under the default initializer. Consult the guard up front;
+	// the key carries generation and payload fingerprint, so a spec edit
+	// or Secret rotation rotates the key and the next reconcile proceeds
+	// normally. HasTerminalWriteResource is a cheap map lookup so happy-
+	// path Observes only pay the secret resolve when an entry exists.
+	if e.HasTerminalWriteResource(mg, v1alpha1.InstanceGroupVersionKind) {
 		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
 			return obs, err
 		}
+	}
+
+	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
