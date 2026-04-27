@@ -475,6 +475,8 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 			aarl := actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
 			if arl.ItemRateLimiting == nil {
 				arl.ItemRateLimiting = aarl.ItemRateLimiting
+			} else {
+				normalizeItemRateLimiting(arl.ItemRateLimiting, aarl.ItemRateLimiting)
 			}
 			if arl.BucketRateLimiting == nil {
 				arl.BucketRateLimiting = aarl.BucketRateLimiting
@@ -564,6 +566,29 @@ func normalizeBucketRateLimiting(desired, observed *crossplanetypes.BucketRateLi
 	if !ptr.Deref(desired.Enabled, false) {
 		desired.BucketSize = observed.BucketSize
 		desired.BucketQps = observed.BucketQps
+	}
+}
+
+// normalizeItemRateLimiting mirrors the bucket pattern for the item
+// rate-limiting sub-tree. The platform's read path only echoes user-pinned
+// scalars when the user also set Enabled=true; when Enabled is omitted or
+// false the gateway returns its default scalars (FailureCooldown=10000ms,
+// BaseDelay=1ms, MaxDelay=1000ms, BackoffFactor=1.5) regardless of what was
+// persisted on Update. Without this absorb a CR pinning Enabled=false with
+// non-default scalars drift-flaps every poll because desired=user values vs
+// observed=platform defaults.
+func normalizeItemRateLimiting(desired, observed *crossplanetypes.ItemRateLimiting) {
+	if desired == nil || observed == nil {
+		return
+	}
+	if desired.Enabled == nil {
+		desired.Enabled = observed.Enabled
+	}
+	if !ptr.Deref(desired.Enabled, false) {
+		desired.FailureCooldown = observed.FailureCooldown
+		desired.BaseDelay = observed.BaseDelay
+		desired.MaxDelay = observed.MaxDelay
+		desired.BackoffFactorString = observed.BackoffFactorString
 	}
 }
 

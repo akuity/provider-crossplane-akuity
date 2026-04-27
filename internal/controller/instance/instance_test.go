@@ -415,6 +415,98 @@ func TestNormalizeInstanceParameters_EnabledBucketRateLimitingKeepsUserScalars(t
 	assert.Equal(t, uint32(50), bucket.BucketQps)
 }
 
+func TestNormalizeInstanceParameters_DisabledItemRateLimitingAdoptsServerScalars(t *testing.T) {
+	desired := v1alpha1.InstanceParameters{
+		ArgoCD: &crossplanetypes.ArgoCD{
+			Spec: crossplanetypes.ArgoCDSpec{
+				InstanceSpec: crossplanetypes.InstanceSpec{
+					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
+						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
+							Enabled:             ptr.To(false),
+							FailureCooldown:     30,
+							BaseDelay:           2,
+							MaxDelay:            60,
+							BackoffFactorString: "2.0",
+						},
+					},
+				},
+			},
+		},
+	}
+	observed := v1alpha1.InstanceParameters{
+		ArgoCD: &crossplanetypes.ArgoCD{
+			Spec: crossplanetypes.ArgoCDSpec{
+				InstanceSpec: crossplanetypes.InstanceSpec{
+					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
+						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
+							Enabled:             ptr.To(false),
+							FailureCooldown:     10000,
+							BaseDelay:           1,
+							MaxDelay:            1000,
+							BackoffFactorString: "1.5",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	normalizeInstanceParameters(&desired, &observed)
+
+	item := desired.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting.ItemRateLimiting
+	require.NotNil(t, item.Enabled)
+	assert.False(t, *item.Enabled)
+	assert.Equal(t, uint32(10000), item.FailureCooldown)
+	assert.Equal(t, uint32(1), item.BaseDelay)
+	assert.Equal(t, uint32(1000), item.MaxDelay)
+	assert.Equal(t, "1.5", item.BackoffFactorString)
+}
+
+func TestNormalizeInstanceParameters_EnabledItemRateLimitingKeepsUserScalars(t *testing.T) {
+	desired := v1alpha1.InstanceParameters{
+		ArgoCD: &crossplanetypes.ArgoCD{
+			Spec: crossplanetypes.ArgoCDSpec{
+				InstanceSpec: crossplanetypes.InstanceSpec{
+					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
+						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
+							Enabled:             ptr.To(true),
+							FailureCooldown:     30,
+							BaseDelay:           2,
+							MaxDelay:            60,
+							BackoffFactorString: "2.0",
+						},
+					},
+				},
+			},
+		},
+	}
+	observed := v1alpha1.InstanceParameters{
+		ArgoCD: &crossplanetypes.ArgoCD{
+			Spec: crossplanetypes.ArgoCDSpec{
+				InstanceSpec: crossplanetypes.InstanceSpec{
+					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
+						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
+							Enabled:             ptr.To(true),
+							FailureCooldown:     30,
+							BaseDelay:           2,
+							MaxDelay:            60,
+							BackoffFactorString: "2.0",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	normalizeInstanceParameters(&desired, &observed)
+
+	item := desired.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting.ItemRateLimiting
+	assert.Equal(t, uint32(30), item.FailureCooldown)
+	assert.Equal(t, uint32(2), item.BaseDelay)
+	assert.Equal(t, uint32(60), item.MaxDelay)
+	assert.Equal(t, "2.0", item.BackoffFactorString)
+}
+
 func TestObserve_GetInstanceNotFoundErr(t *testing.T) {
 	e, mc := newExt(t)
 
