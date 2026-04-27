@@ -396,6 +396,59 @@ func TestObserve_AvailableEndToEnd(t *testing.T) {
 	assert.True(t, obs.ResourceExists)
 }
 
+// TestSpecToConfigManagementPluginsPB_OptionalSubTrees locks in the
+// nil-guard contract on the optional pointer fields of PluginSpec.
+// PluginSpec.Discover and PluginSpec.Parameters are *Discover and
+// *Parameters in the CRD, so a user CR may legally omit either. The
+// previous implementation dereferenced both unconditionally and
+// panicked at convert time; controller-runtime caught the panic but
+// Crossplane stamped crossplane.io/external-create-pending and the
+// resource got stuck in "cannot determine creation result" until the
+// user mutated the spec. Cover three shapes (no Discover, no
+// Parameters, neither) plus the populated shape so the convert path
+// never panics on legal input.
+func TestSpecToConfigManagementPluginsPB_OptionalSubTrees(t *testing.T) {
+	plugins := map[string]crossplanetypes.ConfigManagementPlugin{
+		"only-version": {
+			Enabled: true,
+			Image:   "img:1",
+			Spec:    crossplanetypes.PluginSpec{Version: "v1"},
+		},
+		"with-discover": {
+			Enabled: true,
+			Image:   "img:1",
+			Spec: crossplanetypes.PluginSpec{
+				Version:  "v1",
+				Discover: &crossplanetypes.Discover{FileName: "Pluginfile"},
+			},
+		},
+		"with-parameters": {
+			Enabled: true,
+			Image:   "img:1",
+			Spec: crossplanetypes.PluginSpec{
+				Version: "v1",
+				Parameters: &crossplanetypes.Parameters{
+					Static: []*crossplanetypes.ParameterAnnouncement{{Name: "p"}},
+				},
+			},
+		},
+		"with-both": {
+			Enabled: true,
+			Image:   "img:1",
+			Spec: crossplanetypes.PluginSpec{
+				Version:  "v1",
+				Discover: &crossplanetypes.Discover{FileName: "Pluginfile"},
+				Parameters: &crossplanetypes.Parameters{
+					Static: []*crossplanetypes.ParameterAnnouncement{{Name: "p"}},
+				},
+			},
+		},
+	}
+	out, err := specToConfigManagementPluginsPB(plugins)
+	require.NoError(t, err)
+	require.Len(t, out, 4)
+}
+
 // Used to keep imports from being declared-and-not-used when a
 // reviewer trims tests in the future.
 var (

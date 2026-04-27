@@ -533,19 +533,42 @@ func specToConfigManagementPluginsPB(plugins map[string]crossplanetypes.ConfigMa
 	out := make([]*structpb.Struct, 0)
 
 	for name, plugin := range plugins {
-		static := make([]*argocdtypes.ParameterAnnouncement, 0)
-		for _, pm := range plugin.Spec.Parameters.Static {
-			static = append(static, &argocdtypes.ParameterAnnouncement{
-				Name:           pm.Name,
-				Title:          pm.Title,
-				Tooltip:        pm.Tooltip,
-				Required:       ptr.To(pm.Required),
-				ItemType:       pm.ItemType,
-				CollectionType: pm.CollectionType,
-				String_:        pm.String_,
-				Array:          pm.Array,
-				Map:            pm.Map,
-			})
+		// PluginSpec.Discover and PluginSpec.Parameters are pointer
+		// fields the CRD declares as optional. A user CR that omits
+		// either (e.g. configManagementPlugins.<name>.spec with only
+		// version + generate) was previously panic-prone here because
+		// the conversion derefs both pointers unconditionally; the
+		// recovered crash left the MR stuck under
+		// crossplane.io/external-create-pending until the spec was
+		// edited and the annotation cleared. Build each sub-tree only
+		// when the user supplied it.
+		var discover *argocdtypes.Discover
+		if d := plugin.Spec.Discover; d != nil {
+			discover = &argocdtypes.Discover{
+				Find:     (*argocdtypes.Find)(d.Find),
+				FileName: d.FileName,
+			}
+		}
+		var parameters *argocdtypes.Parameters
+		if p := plugin.Spec.Parameters; p != nil {
+			static := make([]*argocdtypes.ParameterAnnouncement, 0, len(p.Static))
+			for _, pm := range p.Static {
+				static = append(static, &argocdtypes.ParameterAnnouncement{
+					Name:           pm.Name,
+					Title:          pm.Title,
+					Tooltip:        pm.Tooltip,
+					Required:       ptr.To(pm.Required),
+					ItemType:       pm.ItemType,
+					CollectionType: pm.CollectionType,
+					String_:        pm.String_,
+					Array:          pm.Array,
+					Map:            pm.Map,
+				})
+			}
+			parameters = &argocdtypes.Parameters{
+				Static:  static,
+				Dynamic: (*argocdtypes.Dynamic)(p.Dynamic),
+			}
 		}
 
 		cmp := argocdtypes.ConfigManagementPlugin{
@@ -561,17 +584,11 @@ func specToConfigManagementPluginsPB(plugins map[string]crossplanetypes.ConfigMa
 				},
 			},
 			Spec: argocdtypes.PluginSpec{
-				Version:  plugin.Spec.Version,
-				Init:     (*argocdtypes.Command)(plugin.Spec.Init),
-				Generate: (*argocdtypes.Command)(plugin.Spec.Generate),
-				Discover: &argocdtypes.Discover{
-					Find:     (*argocdtypes.Find)(plugin.Spec.Discover.Find),
-					FileName: plugin.Spec.Discover.FileName,
-				},
-				Parameters: &argocdtypes.Parameters{
-					Static:  static,
-					Dynamic: (*argocdtypes.Dynamic)(plugin.Spec.Parameters.Dynamic),
-				},
+				Version:          plugin.Spec.Version,
+				Init:             (*argocdtypes.Command)(plugin.Spec.Init),
+				Generate:         (*argocdtypes.Command)(plugin.Spec.Generate),
+				Discover:         discover,
+				Parameters:       parameters,
 				PreserveFileMode: ptr.To(plugin.Spec.PreserveFileMode),
 			},
 		}
