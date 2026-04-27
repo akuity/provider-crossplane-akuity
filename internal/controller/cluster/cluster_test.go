@@ -103,6 +103,15 @@ func newExt(t *testing.T, kube *fake.ClientBuilder) (*external, *mock_akuity_cli
 	}}, mc
 }
 
+func exportedClusterWithDescription(t *testing.T, description string) *structpb.Struct {
+	t.Helper()
+	out := proto.Clone(fixtures.ExportedCluster).(*structpb.Struct)
+	spec := out.GetFields()["spec"].GetStructValue()
+	require.NotNil(t, spec)
+	spec.Fields["description"] = structpb.NewStringValue(description)
+	return out
+}
+
 func TestCreate_NoKubeConfig(t *testing.T) {
 	e, mc := newExt(t, nil)
 
@@ -570,6 +579,55 @@ func TestObserve_ClusterUpToDate(t *testing.T) {
 		Return(fixtures.ArgocdCluster, nil).Times(1)
 	mc.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
 		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{fixtures.ExportedCluster}}, nil).Times(1)
+
+	resp, err := e.Observe(ctx, &managedCluster)
+	require.NoError(t, err)
+	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, resp)
+}
+
+func TestObserve_ExportedClusterSpecPropagatesToAtProvider(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.ObjectMeta = metav1.ObjectMeta{
+		Annotations: map[string]string{
+			"crossplane.io/external-name": fixtures.ClusterName,
+		},
+	}
+	managedCluster.Spec.ForProvider.ClusterSpec.Description = "from-export"
+
+	getCluster := proto.Clone(fixtures.ArgocdCluster).(*argocdv1.Cluster)
+	getCluster.Description = "from-get"
+	exportedCluster := exportedClusterWithDescription(t, "from-export")
+
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(getCluster, nil).Times(1)
+	mc.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(&argocdv1.ExportInstanceResponse{Clusters: []*structpb.Struct{exportedCluster}}, nil).Times(1)
+
+	resp, err := e.Observe(ctx, &managedCluster)
+	require.NoError(t, err)
+	assert.True(t, resp.ResourceUpToDate)
+	assert.Equal(t, "from-export", managedCluster.Status.AtProvider.ClusterSpec.Description)
+	// Intentionally probes the deprecated flat-field mirror to assert it
+	// still sources from GetCluster after the ClusterSpec switch to Export.
+	assert.Equal(t, "from-get", managedCluster.Status.AtProvider.Description) //nolint:staticcheck // covers backwards-compat flat field
+}
+
+func TestObserve_ExportFailureFallsBackToGet(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.ObjectMeta = metav1.ObjectMeta{
+		Annotations: map[string]string{
+			"crossplane.io/external-name": fixtures.ClusterName,
+		},
+	}
+
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(fixtures.ArgocdCluster, nil).Times(1)
+	mc.EXPECT().ExportInstanceByID(ctx, fixtures.InstanceID).
+		Return(nil, errors.New("export down")).Times(1)
 
 	resp, err := e.Observe(ctx, &managedCluster)
 	require.NoError(t, err)

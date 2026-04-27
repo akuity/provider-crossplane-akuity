@@ -249,6 +249,48 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		return managed.ExternalObservation{}, err
 	}
 
+	// Preserve controller-authored AtProvider fields across the refresh.
+	// apiToObservation rebuilds the struct from gateway data, which has
+	// no SecretHash; without this carry-over every Observe would zero it,
+	// masking rotation until the next Create/Update writes a new value.
+	prevSecretHash := mg.Status.AtProvider.SecretHash
+	prevWorkspace := mg.Status.AtProvider.Workspace
+	mg.Status.AtProvider = observation.KargoInstance(ki)
+	mg.Status.AtProvider.SecretHash = prevSecretHash
+	// GetKargoInstance echoes the canonical workspace ID; cache it on
+	// AtProvider so ExportKargoInstance, Apply, and Delete can route to
+	// the right workspace-scoped HTTP path without an extra
+	// ListWorkspaces round-trip. Carry the prior
+	// stamped value forward when the gateway response omits it.
+	if ws := ki.GetWorkspaceId(); ws != "" {
+		mg.Status.AtProvider.Workspace = ws
+	} else {
+		mg.Status.AtProvider.Workspace = prevWorkspace
+	}
+	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
+
+	var exp *kargov1.ExportKargoInstanceResponse
+	if ki.GetId() != "" {
+		// ExportKargoInstance returns the same Kargo object shape that
+		// ApplyKargoInstance accepts. Use it as the primary observed
+		// config source for struct drift and AtProvider.Kargo. If the
+		// export endpoint is transiently unavailable, fall back to Get so
+		// observation still progresses and the next poll retries Export.
+		exp, err = e.Client.ExportKargoInstance(ctx, ki.GetId(), mg.Status.AtProvider.Workspace)
+		if err != nil {
+			e.Logger.Debug("KargoInstance export failed; falling back to GetKargoInstance for primary drift", "err", err)
+		} else {
+			exportActual, found, xerr := exportToSpec(ki, exp)
+			if xerr != nil {
+				mg.SetConditions(xpv1.ReconcileError(xerr))
+				return managed.ExternalObservation{}, xerr
+			}
+			if found {
+				actual = exportActual
+			}
+		}
+	}
+
 	// KargoSecretRef is spec-only (the gateway doesn't round-trip
 	// it); carry it forward so the struct comparison doesn't flag it
 	// as drift. The SecretHash in AtProvider catches rotation.
@@ -266,8 +308,8 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	// DexConfigSecretRef lives nested under spec.oidcConfig and is
 	// spec-only; carry it forward so the struct comparison doesn't
 	// flag it as drift. Inline spec.oidcConfig.dexConfigSecret values
-	// DO round-trip through apiToSpec, so they stay under the control
-	// of the comparator.
+	// DO round-trip through ExportKargoInstance, so they stay under the
+	// control of the comparator.
 	if desired := mg.Spec.ForProvider.Kargo.OidcConfig; desired != nil && desired.DexConfigSecretRef != nil {
 		if actual.Kargo.OidcConfig == nil {
 			actual.Kargo.OidcConfig = &crossplanetypes.KargoOidcConfig{}
@@ -275,33 +317,15 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		actual.Kargo.OidcConfig.DexConfigSecretRef = desired.DexConfigSecretRef
 	}
 
-	// Preserve controller-authored AtProvider fields across the refresh.
-	// apiToObservation rebuilds the struct from gateway data, which has
-	// no SecretHash; without this carry-over every Observe would zero it,
-	// masking rotation until the next Create/Update writes a new value.
-	prevSecretHash := mg.Status.AtProvider.SecretHash
-	prevWorkspace := mg.Status.AtProvider.Workspace
-	mg.Status.AtProvider = observation.KargoInstance(ki)
-	// Mirror the observed Kargo sub-tree onto AtProvider so
-	// compositions and dashboards can read the effective server-side
-	// spec without a separate Export call. This is intentionally
+	// Mirror the primary observed Kargo sub-tree onto AtProvider
+	// (Export when available, Get fallback) so compositions and
+	// dashboards can read the effective server-side spec. This stays
 	// controller-side: the observation projector cannot build
-	// AtProvider.Kargo without reusing apiToSpec, which bridges
-	// structpb, wire types, and the Crossplane spec shape. Moving that
-	// transform into observation would create a circular import.
+	// AtProvider.Kargo without reusing apiToSpec/exportToSpec, which
+	// bridges structpb, wire types, and the Crossplane spec shape.
+	// Moving that transform into observation would create a circular
+	// import.
 	mg.Status.AtProvider.Kargo = actual.Kargo
-	mg.Status.AtProvider.SecretHash = prevSecretHash
-	// GetKargoInstance echoes the canonical workspace ID; cache it on
-	// AtProvider so ExportKargoInstance, Apply, and Delete can route to
-	// the right workspace-scoped HTTP path without an extra
-	// ListWorkspaces round-trip. Carry the prior
-	// stamped value forward when the gateway response omits it.
-	if ws := ki.GetWorkspaceId(); ws != "" {
-		mg.Status.AtProvider.Workspace = ws
-	} else {
-		mg.Status.AtProvider.Workspace = prevWorkspace
-	}
-	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
 
 	// Struct-level comparison of the primary spec shape. Resources,
 	// KargoConfigMap, and KargoRepoCredentialSecretRefs are checked
@@ -325,22 +349,11 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	needsExport := len(mg.Spec.ForProvider.KargoConfigMap) > 0 ||
 		len(mg.Spec.ForProvider.Resources) > 0
 	if upToDate && needsExport {
-		// ExportKargoInstanceRequest.Id expects the canonical instance
-		// ID, not the external name. Unlike ExportInstance for Argo CD
-		// and GetKargoInstance, this proto has no IdType discriminator.
-		// The server treats the argument as the opaque instance ID.
-		// Passing meta.GetExternalName makes every Export fail with
-		// PermissionDenied. Because failed Export on an otherwise healthy
-		// instance is deferred with upToDate=true, that turns kargoConfigMap
-		// and kargoResources drift checks into silent no-ops after Create.
-		// GetKargoInstance has already populated the canonical ID on the
-		// response.
-		exp, err := e.Client.ExportKargoInstance(ctx, ki.GetId(), mg.Status.AtProvider.Workspace)
-		if err != nil {
+		if exp == nil {
 			// A failed Export on an otherwise-healthy instance is
 			// recoverable; leaving upToDate=true lets the next poll
 			// retry rather than stampede Apply on a transient error.
-			e.Logger.Debug("KargoInstance export failed; deferring child-drift check", "err", err)
+			e.Logger.Debug("KargoInstance export unavailable; deferring child-drift check")
 		} else {
 			if len(mg.Spec.ForProvider.KargoConfigMap) > 0 {
 				ok, observed, cerr := kargoConfigMapUpToDate(mg.Spec.ForProvider.KargoConfigMap, exp)

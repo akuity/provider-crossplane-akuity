@@ -46,6 +46,7 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
+	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
@@ -154,6 +155,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	if !found {
 		driftTarget = actualCluster
 	}
+	statusClusterSpec := driftTarget.ClusterSpec
 
 	// MaintenanceMode and MaintenanceModeExpiry use the dedicated
 	// set-maintenance-mode RPC, not ApplyInstance. ExportInstance echoes
@@ -176,20 +178,16 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	} else {
 		driftTarget.ClusterSpec.Data.MaintenanceModeExpiry = nil
 	}
+	statusClusterSpec.Data.MaintenanceMode = actualCluster.ClusterSpec.Data.MaintenanceMode
+	statusClusterSpec.Data.MaintenanceModeExpiry = actualCluster.ClusterSpec.Data.MaintenanceModeExpiry
 
 	// These pointer fields are server-stamped and echoed by GetCluster
 	// but not ExportInstance. Use GetCluster values for comparison so
 	// late-initialized defaults settle while user-pinned values still
 	// surface as drift when the platform has not applied them.
-	driftTarget.ClusterSpec.Data.MultiClusterK8SDashboardEnabled = actualCluster.ClusterSpec.Data.MultiClusterK8SDashboardEnabled
-	driftTarget.ClusterSpec.Data.AutoscalerConfig = actualCluster.ClusterSpec.Data.AutoscalerConfig
-	driftTarget.ClusterSpec.Data.Compatibility = actualCluster.ClusterSpec.Data.Compatibility
-	driftTarget.ClusterSpec.Data.ArgocdNotificationsSettings = actualCluster.ClusterSpec.Data.ArgocdNotificationsSettings
-	driftTarget.ClusterSpec.Data.DirectClusterSpec = actualCluster.ClusterSpec.Data.DirectClusterSpec
-	driftTarget.ClusterSpec.Data.ServerSideDiffEnabled = actualCluster.ClusterSpec.Data.ServerSideDiffEnabled
-	driftTarget.ClusterSpec.Data.PodInheritMetadata = actualCluster.ClusterSpec.Data.PodInheritMetadata
-	driftTarget.ClusterSpec.Data.DatadogAnnotationsEnabled = actualCluster.ClusterSpec.Data.DatadogAnnotationsEnabled
-	driftTarget.ClusterSpec.Data.EksAddonEnabled = actualCluster.ClusterSpec.Data.EksAddonEnabled
+	overlayClusterGetOnlyData(&driftTarget.ClusterSpec.Data, actualCluster.ClusterSpec.Data)
+	overlayClusterGetOnlyData(&statusClusterSpec.Data, actualCluster.ClusterSpec.Data)
+	mg.Status.AtProvider.ClusterSpec = statusClusterSpec
 
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
@@ -210,6 +208,21 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 		ResourceExists:   true,
 		ResourceUpToDate: isUpToDate,
 	}, nil
+}
+
+func overlayClusterGetOnlyData(target *generated.ClusterData, actual generated.ClusterData) {
+	if target == nil {
+		return
+	}
+	target.MultiClusterK8SDashboardEnabled = actual.MultiClusterK8SDashboardEnabled
+	target.AutoscalerConfig = actual.AutoscalerConfig
+	target.Compatibility = actual.Compatibility
+	target.ArgocdNotificationsSettings = actual.ArgocdNotificationsSettings
+	target.DirectClusterSpec = actual.DirectClusterSpec
+	target.ServerSideDiffEnabled = actual.ServerSideDiffEnabled
+	target.PodInheritMetadata = actual.PodInheritMetadata
+	target.DatadogAnnotationsEnabled = actual.DatadogAnnotationsEnabled
+	target.EksAddonEnabled = actual.EksAddonEnabled
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalCreation, error) {
@@ -384,11 +397,14 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 // `found` flag is false when Export succeeds but the named cluster is
 // absent from the response (e.g. server mid-provisioning or a
 // concurrent sibling deletion); caller falls back to GetCluster-based
-// drift in that case. Errors are transient Export failures only.
+// drift in that case. Transport failures are logged and treated as not
+// found so observation can fall back to Get; errors are decode/schema
+// failures in the Export payload.
 func (e *external) exportedClusterSpec(ctx context.Context, instanceID, clusterName string, desired v1alpha1.ClusterParameters) (v1alpha1.ClusterParameters, bool, error) {
 	exp, err := e.Client.ExportInstanceByID(ctx, instanceID)
 	if err != nil {
-		return v1alpha1.ClusterParameters{}, false, err
+		e.Logger.Debug("ExportInstanceByID failed; falling back to GetCluster for drift", "err", err)
+		return v1alpha1.ClusterParameters{}, false, nil
 	}
 	for _, entry := range exp.GetClusters() {
 		if entry == nil {

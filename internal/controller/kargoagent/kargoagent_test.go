@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -70,6 +71,20 @@ func newExt(t *testing.T) (*external, *mockclient.MockClient) {
 	t.Helper()
 	mc := mockclient.NewMockClient(gomock.NewController(t))
 	return &external{ExternalClient: base.ExternalClient{Client: mc, Logger: logging.NewNopLogger()}}, mc
+}
+
+func mustKargoAgentStruct(t *testing.T, data map[string]interface{}) *structpb.Struct {
+	t.Helper()
+	pb, err := structpb.NewStruct(map[string]interface{}{
+		"apiVersion": "kargo.akuity.io/v1alpha1",
+		"kind":       "KargoAgent",
+		"metadata":   map[string]interface{}{"name": "agt"},
+		"spec": map[string]interface{}{
+			"data": data,
+		},
+	})
+	require.NoError(t, err)
+	return pb
 }
 
 func TestObserve_NoExternalName(t *testing.T) {
@@ -154,6 +169,100 @@ func TestObserve_PodInheritMetadataPropagatesToAtProvider(t *testing.T) {
 	assert.True(t, obs.ResourceExists)
 	require.NotNil(t, a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
 	assert.True(t, *a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
+}
+
+func TestObserve_ExportedSpecPropagatesToAtProvider(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.KargoAgentSpec.Data.PodInheritMetadata = boolPtr(true)
+	a.Spec.ForProvider.KargoAgentSpec.Data.AutoscalerConfig = &crossplanetypes.KargoAutoscalerConfig{
+		KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
+			ResourceMinimum: &crossplanetypes.KargoResources{Cpu: "100m", Mem: "256Mi"},
+			ResourceMaximum: &crossplanetypes.KargoResources{Cpu: "1", Mem: "1Gi"},
+		},
+	}
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:   "ag-1",
+		Name: "agt",
+		Data: &kargov1.KargoAgentData{
+			PodInheritMetadata: boolPtr(true),
+		},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(&kargov1.ExportKargoInstanceResponse{
+			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]interface{}{
+				"size":               "small",
+				"podInheritMetadata": true,
+				"autoscalerConfig": map[string]interface{}{
+					"kargoController": map[string]interface{}{
+						"resourceMinimum": map[string]interface{}{"cpu": "100m", "mem": "256Mi"},
+						"resourceMaximum": map[string]interface{}{"cpu": "1", "mem": "1Gi"},
+					},
+				},
+			})},
+		}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+	require.NotNil(t, a.Status.AtProvider.KargoAgentSpec.Data.AutoscalerConfig)
+	assert.Equal(t, a.Spec.ForProvider.KargoAgentSpec.Data.AutoscalerConfig,
+		a.Status.AtProvider.KargoAgentSpec.Data.AutoscalerConfig)
+}
+
+func TestObserve_ExportFailureFallsBackToGet(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.KargoAgentSpec.Data = crossplanetypes.KargoAgentData{}
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:                   "ag-1",
+		Name:                 "agt",
+		Data:                 &kargov1.KargoAgentData{},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(nil, errors.New("export down")).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+}
+
+func TestObserve_PodInheritMetadataDesiredTrueExportFalseDrifts(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.KargoAgentSpec.Data.PodInheritMetadata = boolPtr(true)
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:   "ag-1",
+		Name: "agt",
+		Data: &kargov1.KargoAgentData{
+			PodInheritMetadata: boolPtr(false),
+		},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(&kargov1.ExportKargoInstanceResponse{
+			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]interface{}{
+				"size":               "small",
+				"podInheritMetadata": false,
+			})},
+		}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.False(t, obs.ResourceUpToDate)
+	require.NotNil(t, a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
+	assert.False(t, *a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
 }
 
 func TestCreate_Apply(t *testing.T) {

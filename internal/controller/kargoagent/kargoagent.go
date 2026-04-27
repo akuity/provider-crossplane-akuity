@@ -208,11 +208,6 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 
 	actual := apiToSpec(mg.Spec.ForProvider, agent)
 	mg.Status.AtProvider = observation.KargoAgent(agent)
-	// Mirror the observed agent sub-tree onto AtProvider so
-	// compositions and dashboards can read the effective server-side
-	// shape without a separate Export call. Parity with
-	// KargoInstance.AtProvider.Kargo.
-	mg.Status.AtProvider.KargoAgentSpec = actual.KargoAgentSpec
 	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
 
 	// Drift compares against the ExportKargoInstance round-trippable
@@ -226,11 +221,20 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	// pending. Returning ResourceUpToDate=false during provisioning
 	// caused a hot-loop of ApplyKargoInstance calls on the Akuity API.
 	driftTarget := actual
+	statusSpec := actual.KargoAgentSpec
 	if exportAgent, found, xerr := e.exportedAgentSpec(ctx, mg, instanceID); xerr != nil {
-		e.Logger.Debug("ExportKargoInstance failed; falling back to GetKargoInstanceAgent for drift", "err", xerr)
+		mg.SetConditions(xpv1.ReconcileError(xerr))
+		return managed.ExternalObservation{}, xerr
 	} else if found {
 		driftTarget = exportAgent
+		statusSpec = exportAgent.KargoAgentSpec
 	}
+	// Mirror the exported agent sub-tree onto AtProvider when
+	// available so compositions and dashboards see the same wire shape
+	// that ApplyKargoInstance round-trips. Get remains the fallback
+	// while Export is unavailable or the agent is absent during
+	// provisioning.
+	mg.Status.AtProvider.KargoAgentSpec = statusSpec
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
 	upToDate, err := base.EvaluateDrift(ctx, spec, &desired, &driftTarget, e.Logger, "KargoAgent")
@@ -429,8 +433,9 @@ func (e *external) clearTerminalWrite(mg *v1alpha1.KargoAgent, fp v1alpha1.Kargo
 // mg.Spec.ForProvider.Name built from ExportKargoInstance's response.
 // `found` is false when Export succeeds but the agent is absent from
 // the Agents slice (e.g. server lag mid-provisioning); caller falls
-// back to Get-based drift in that case. Errors are transient Export
-// failures.
+// back to Get-based drift in that case. Transport failures are logged
+// and treated as not found so observation can fall back to Get; errors
+// are decode/schema failures in the Export payload.
 func (e *external) exportedAgentSpec(ctx context.Context, mg *v1alpha1.KargoAgent, instanceID string) (v1alpha1.KargoAgentParameters, bool, error) {
 	// ExportKargoInstance is workspace-scoped at the HTTP gateway; an
 	// empty workspace 404s on multi-workspace orgs. Resolve the same
@@ -444,7 +449,8 @@ func (e *external) exportedAgentSpec(ctx context.Context, mg *v1alpha1.KargoAgen
 	}
 	exp, err := e.Client.ExportKargoInstance(ctx, instanceID, workspace)
 	if err != nil {
-		return v1alpha1.KargoAgentParameters{}, false, err
+		e.Logger.Debug("ExportKargoInstance failed; falling back to GetKargoInstanceAgent for drift", "err", err)
+		return v1alpha1.KargoAgentParameters{}, false, nil
 	}
 	agentName := mg.Spec.ForProvider.Name
 	for _, entry := range exp.GetAgents() {

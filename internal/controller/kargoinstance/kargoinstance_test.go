@@ -103,11 +103,61 @@ func TestObserve_Available(t *testing.T) {
 		Version:      "v1.0.0",
 		HealthStatus: &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "id-1", "ws-cached").
+		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
 
 	obs, err := e.Observe(context.Background(), ki)
 	require.NoError(t, err)
 	assert.True(t, obs.ResourceExists)
 	assert.Equal(t, "id-1", ki.Status.AtProvider.ID)
+}
+
+func TestObserve_ExportedKargoPropagatesToAtProvider(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	ki.Spec.ForProvider.Kargo.Description = "from-export"
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().GetKargoInstance(gomock.Any(), "ki").Return(&kargov1.KargoInstance{
+		Id:           "id-1",
+		Name:         "ki",
+		Description:  "from-get",
+		Version:      "v1.0.0",
+		HealthStatus: &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "id-1", "ws-cached").
+		Return(&kargov1.ExportKargoInstanceResponse{
+			Kargo: mustKargoStruct(t, map[string]interface{}{
+				"description": "from-export",
+				"version":     "v1.0.0",
+			}),
+		}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), ki)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceUpToDate)
+	assert.Equal(t, "from-export", ki.Status.AtProvider.Kargo.Description)
+}
+
+func TestObserve_ExportFailureFallsBackToGet(t *testing.T) {
+	e, mc := newExt(t)
+	ki := newKI()
+	ki.Spec.ForProvider.Kargo.Description = "from-get"
+	meta.SetExternalName(ki, "ki")
+	mc.EXPECT().GetKargoInstance(gomock.Any(), "ki").Return(&kargov1.KargoInstance{
+		Id:           "id-1",
+		Name:         "ki",
+		Description:  "from-get",
+		Version:      "v1.0.0",
+		HealthStatus: &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "id-1", "ws-cached").
+		Return(nil, errors.New("export down")).Times(1)
+
+	obs, err := e.Observe(context.Background(), ki)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+	assert.Equal(t, "from-get", ki.Status.AtProvider.Kargo.Description)
 }
 
 func TestCreate_Apply(t *testing.T) {
@@ -139,6 +189,18 @@ func mustCMStruct(t *testing.T, data map[string]string) *structpb.Struct {
 		"kind":       "ConfigMap",
 		"metadata":   map[string]interface{}{"name": "kargo-cm"},
 		"data":       cmData,
+	})
+	require.NoError(t, err)
+	return pb
+}
+
+func mustKargoStruct(t *testing.T, spec map[string]interface{}) *structpb.Struct {
+	t.Helper()
+	pb, err := structpb.NewStruct(map[string]interface{}{
+		"apiVersion": "kargo.akuity.io/v1alpha1",
+		"kind":       "Kargo",
+		"metadata":   map[string]interface{}{"name": "ki"},
+		"spec":       spec,
 	})
 	require.NoError(t, err)
 	return pb
@@ -207,6 +269,8 @@ func TestObserve_EmptyKargoConfigMapIsNoOpinion(t *testing.T) {
 		Version:      "v1.0.0",
 		HealthStatus: &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}, nil)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "id-1", "ws-cached").
+		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
 
 	obs, err := e.Observe(context.Background(), ki)
 	require.NoError(t, err)
@@ -251,6 +315,8 @@ func TestObserve_RepoCredsHashOnlyNoPeriodicReapply(t *testing.T) {
 		Id: "id-1", Name: "ki", Version: "v1.0.0",
 		HealthStatus: &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}, nil)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "id-1", "ws-cached").
+		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
 
 	obs, err := e.Observe(context.Background(), ki)
 	require.NoError(t, err)

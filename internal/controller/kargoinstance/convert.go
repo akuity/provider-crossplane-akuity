@@ -17,6 +17,7 @@ limitations under the License.
 package kargoinstance
 
 import (
+	"encoding/json"
 	"fmt"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
@@ -62,4 +63,30 @@ func apiToSpec(ki *kargov1.KargoInstance) (v1alpha1.KargoInstanceParameters, err
 		}
 	}
 	return params, nil
+}
+
+// exportToSpec rebuilds the primary Kargo spec from ExportKargoInstance's
+// round-trippable Kargo payload. GetKargoInstance is still used for
+// observation-only fields such as ID, workspace, health, and reconciliation,
+// but Export is the canonical shape for config drift and AtProvider.Kargo.
+func exportToSpec(ki *kargov1.KargoInstance, exp *kargov1.ExportKargoInstanceResponse) (v1alpha1.KargoInstanceParameters, bool, error) {
+	if exp == nil || exp.GetKargo() == nil {
+		return v1alpha1.KargoInstanceParameters{}, false, nil
+	}
+
+	raw, err := exp.GetKargo().MarshalJSON()
+	if err != nil {
+		return v1alpha1.KargoInstanceParameters{}, false, fmt.Errorf("encode exported kargo: %w", err)
+	}
+
+	wire := &akuitytypes.Kargo{}
+	if err := json.Unmarshal(raw, wire); err != nil {
+		return v1alpha1.KargoInstanceParameters{}, false, fmt.Errorf("decode exported kargo: %w", err)
+	}
+
+	params := v1alpha1.KargoInstanceParameters{Name: ki.GetName()}
+	if s := crossplanetypes.KargoSpecAPIToSpec(&wire.Spec); s != nil {
+		params.Kargo = *s
+	}
+	return params, true, nil
 }
