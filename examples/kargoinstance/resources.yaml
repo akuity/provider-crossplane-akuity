@@ -7,6 +7,7 @@ spec:
   forProvider:
     name: my-kargo-with-resources
     kargo:
+      description: "My Kargo instance with declarative resources."
       version: "v1.8.1"
       kargoInstanceSpec:
         promoControllerEnabled: true

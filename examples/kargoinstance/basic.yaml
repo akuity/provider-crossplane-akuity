@@ -7,6 +7,7 @@ spec:
   forProvider:
     name: my-kargo
     kargo:
+      description: "My Kargo instance."
       version: "v1.8.1"
   providerConfigRef:
     name: akuity
