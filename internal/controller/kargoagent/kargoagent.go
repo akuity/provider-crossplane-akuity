@@ -323,7 +323,17 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 	if target := targetKubeConfig(mg.Spec.ForProvider); target.HasKubeConfig() {
 		if err := e.installAgentManifests(ctx, mg, target, false); err != nil {
 			e.rollbackCreatedAgent(ctx, mg, target, "install-manifests")
-			return managed.ExternalCreation{}, err
+			// Classify install failure as terminal so the next Observe
+			// short-circuits via the suppress site instead of
+			// hot-looping ApplyKargoInstance + rollback every poll. The
+			// terminal-write key is keyed off ForProvider; a spec edit
+			// (the only way to fix a bad kubeconfig source) rotates the
+			// key and lets Create run again.
+			key, kerr := kargoAgentTerminalWriteKey(mg, mg.Spec.ForProvider)
+			if kerr != nil {
+				return managed.ExternalCreation{}, err
+			}
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.AsTerminal(err))
 		}
 	}
 

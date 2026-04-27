@@ -264,13 +264,18 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	// One-time apply: manifests are installed on the managed cluster at
 	// Create only. Update intentionally does not re-apply them.
 	// Server-pushed agent upgrades require a spec change or recreate to
-	// land on the managed cluster.
+	// land on the managed cluster. A failure here also records a
+	// terminal write so the next Observe short-circuits via the
+	// suppress site rather than hot-looping ApplyInstance + rollback
+	// every poll. The terminal-write key is keyed off ForProvider, so a
+	// spec edit (the only way the user can fix a bad kubeconfig source)
+	// rotates the key and lets Create run again.
 	if mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
 		e.Logger.Debug("Retrieving cluster manifests....")
 		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
 			e.rollbackCreatedCluster(ctx, mg, "get-manifests")
-			return managed.ExternalCreation{}, fmt.Errorf("could not get cluster manifests to apply: %w", err)
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.AsTerminal(fmt.Errorf("could not get cluster manifests to apply: %w", err)))
 		}
 
 		e.Logger.Debug("Applying cluster manifests",
@@ -280,7 +285,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		e.Logger.Debug(clusterManifests)
 		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, false); err != nil {
 			e.rollbackCreatedCluster(ctx, mg, "apply-manifests")
-			return managed.ExternalCreation{}, fmt.Errorf("could not apply cluster manifests: %w", err)
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.AsTerminal(fmt.Errorf("could not apply cluster manifests: %w", err)))
 		}
 	}
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
