@@ -6,7 +6,7 @@ metadata:
 spec:
   forProvider:
     # The instance ID can be hardcoded or resolved via an Instance MR
-    # in the same namespace.
+    # in the same Crossplane cluster.
     # instanceId: "my-instance-id"
     instanceRef:
       name: "my-instance"

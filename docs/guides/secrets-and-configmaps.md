@@ -25,6 +25,8 @@ See [Install and Configure](install-and-configure.md) for the full setup.
 
 Secret payloads are write-only from the Akuity export API. The provider stores a hash in `status.atProvider.secretHash` so local Secret changes trigger an update. Removing a Secret reference stops applying that platform-side Secret, but does not delete it from Akuity.
 
+Missing or empty referenced Secrets fail before the provider writes to Akuity. A later Secret edit rotates the hash and triggers one apply on the next reconcile.
+
 ## Kargo Instance Secrets
 
 `KargoInstance` supports:
@@ -33,7 +35,16 @@ Secret payloads are write-only from the Akuity export API. The provider stores a
 - `kargo.oidcConfig.dexConfigSecretRef` for Dex/OIDC secret values.
 - `kargoRepoCredentialSecretRefs` for Kargo repository credentials.
 
-Repository credential entries can set `name`, `projectNamespace`, and `credType`. When omitted, `name` defaults to `secretRef.name`, `projectNamespace` defaults to `secretRef.namespace`, and `credType` is read from the source Secret label `kargo.akuity.io/cred-type`.
+`kargoSecretRef` accepts only these keys:
+
+- `adminAccountPasswordHash`
+- `admin_account_password_hash`
+
+The controller normalizes the snake_case spelling to `adminAccountPasswordHash` before sending it to Akuity. Unknown keys and conflicting aliases are rejected. If `kargoConfigMap.adminAccountEnabled` is set to `"true"`, provide the admin password hash through `kargoSecretRef` or ensure it already exists in Akuity.
+
+Repository credential entries can set `name`, `projectNamespace`, and `credType`. When omitted, `name` defaults to `secretRef.name`, and `credType` is read from the source Secret label `kargo.akuity.io/cred-type`.
+
+`projectNamespace` is required. It is the destination Kargo project namespace where the synthesized credential Secret is landed on the Akuity control plane; it does not default to the Kubernetes namespace of the source Secret.
 
 Valid Kargo credential types are `git`, `helm`, `generic`, and `image`.
 

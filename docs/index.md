@@ -6,6 +6,7 @@
 
 - [Install and configure the provider](guides/install-and-configure.md)
 - [Secret and ConfigMap handling](guides/secrets-and-configmaps.md)
+- [Lifecycle and reconciliation behavior](guides/lifecycle-and-reconciliation.md)
 - [Managing Argo CD Config Management Plugins](guides/managing-cmps.md)
 - [Managing declarative Kargo resources](guides/managing-kargo-resources.md)
 - [Full CRD reference on doc.crds.dev](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity)
@@ -25,5 +26,12 @@
 ## Crossplane Notes
 
 All managed resources in `core.akuity.crossplane.io/v1alpha1` are cluster-scoped. Their `providerConfigRef.name` normally points to the cluster-scoped `ProviderConfig` named `akuity`.
+
+Use the [Lifecycle and Reconciliation](guides/lifecycle-and-reconciliation.md) guide for:
+
+- Observe-only resources with Crossplane `managementPolicies`.
+- `deletionPolicy: Orphan`.
+- Additive child resources and ConfigMap keys.
+- Create-time agent manifest installs.
 
 The examples under `examples/` are Kubernetes manifests. Crossplane packages can include examples from this directory when building the provider package with the Crossplane CLI examples root.

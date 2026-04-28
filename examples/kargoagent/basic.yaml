@@ -6,7 +6,7 @@ metadata:
 spec:
   forProvider:
     # The Kargo instance ID can be hardcoded or resolved via a
-    # KargoInstance MR in the same namespace.
+    # KargoInstance MR in the same Crossplane cluster.
     # kargoInstanceId: "my-kargo-instance-id"
     kargoInstanceRef:
       name: "my-kargo"

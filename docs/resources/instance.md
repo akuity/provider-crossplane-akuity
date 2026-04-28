@@ -14,7 +14,7 @@ spec:
     name: my-instance
     argocd:
       spec:
-        version: "v3.1.9-ak.67"
+        version: "v3.3.8-ak.87"
   providerConfigRef:
     name: akuity
 ```
@@ -36,7 +36,7 @@ spec:
 
 `resources` accepts `argoproj.io/v1alpha1` resources of kind `Application`, `ApplicationSet`, and `AppProject`. Inline `v1/Secret` entries are rejected; use typed Secret refs instead.
 
-Child resources are additive. Removing a child from the Crossplane spec stops managing that child, but does not delete it from Akuity.
+Child resources are additive. Removing a child from the Crossplane spec stops managing that child, but does not delete it from Akuity. If a namespaced child omits `metadata.namespace`, matching succeeds only when exactly one observed child has the same apiVersion, kind, and name.
 
 ## Examples
 

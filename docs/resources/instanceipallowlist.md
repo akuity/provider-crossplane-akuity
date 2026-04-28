@@ -30,7 +30,9 @@ spec:
 | `spec.forProvider.instanceId` | Direct Akuity instance ID. Use instead of `instanceRef`. |
 | `spec.forProvider.allowList` | IP address or CIDR entries to enforce. |
 
-`instanceId` and `instanceRef` are immutable. The controller caches the resolved instance ID in status so delete can clear the remote allow list even if the parent `Instance` resource has already been removed.
+`instanceId` and `instanceRef` are immutable. Set one in new manifests. Existing both-set resources are accepted for upgrade compatibility and the controller resolves the reference first.
+
+The controller caches the resolved instance ID in status so delete can clear the remote allow list even if the parent `Instance` resource has already been removed.
 
 ## Examples
 

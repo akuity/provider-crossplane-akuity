@@ -26,7 +26,9 @@ spec:
 | `spec.forProvider.kargoInstanceId` | Direct Akuity Kargo instance ID. Use instead of `kargoInstanceRef`. |
 | `spec.forProvider.agentName` | Name of the agent to use as the default shard agent. |
 
-`kargoInstanceId` and `kargoInstanceRef` are immutable. The controller caches the resolved Kargo instance ID in status so delete can clear the remote default shard setting even if the parent has already been removed.
+`kargoInstanceId` and `kargoInstanceRef` are immutable. Set one in new manifests. Existing both-set resources are accepted for upgrade compatibility and the controller resolves the reference first.
+
+The controller caches the resolved Kargo instance ID in status so delete can clear the remote default shard setting even if the parent has already been removed.
 
 ## Examples
 

@@ -8,6 +8,6 @@ spec:
     name: my-kargo
     kargo:
       description: "My Kargo instance."
-      version: "v1.8.1"
+      version: "v1.10.1-ak.0"
   providerConfigRef:
     name: akuity

@@ -1024,11 +1024,11 @@ func resolveKargoDexSecret(ctx context.Context, kube client.Client, mg *v1alpha1
 }
 
 // resolveKargoRepoCreds resolves each typed repo-credential ref in
-// spec order. ProjectNamespace defaults to SecretRef.Namespace and
-// CredType defaults to the source Secret's kargo.akuity.io/cred-type
-// label. Duplicate (effective projectNamespace, effective name) pairs
-// are rejected at reconcile time, so in-cluster drift of already-
-// admitted objects still gets caught.
+// spec order. ProjectNamespace is required and CredType defaults to
+// the source Secret's kargo.akuity.io/cred-type label. Duplicate
+// (effective projectNamespace, effective name) pairs are rejected at
+// reconcile time, so in-cluster drift of already-admitted objects still
+// gets caught.
 func resolveKargoRepoCreds(ctx context.Context, kube client.Client, refs []v1alpha1.KargoRepoCredentialSecretRef) ([]kargoResolvedRepoCred, error) {
 	out := make([]kargoResolvedRepoCred, 0, len(refs))
 	seen := map[string]struct{}{}

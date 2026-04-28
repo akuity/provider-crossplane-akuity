@@ -9,7 +9,7 @@ resource specs.
 
 Start with [docs/index.md](./docs/index.md). The docs include provider setup,
 resource pages, and focused guides for secrets, ConfigMaps, Config Management
-Plugins, and declarative Kargo resources.
+Plugins, declarative resources, and reconciliation behavior.
 
 ## Quick Start
 
@@ -65,8 +65,10 @@ For the full CRD schema, use
 
 ## Compatibility
 
-- Crossplane 1.19+ and 2.x are supported by the same artifact.
+- Crossplane 1.19.x and 2.x are supported by the same artifact.
 - Existing `v1alpha1` manifests continue to work unchanged.
+- All managed resources opt in to Crossplane `managementPolicies`; `Observe`
+  and `deletionPolicy: Orphan` are supported lifecycle controls.
 - `spec.crossplane.version: ">=v1.19.0"` is declared in
   [package/crossplane.yaml](./package/crossplane.yaml).
 - ESS runtime fields (`publishConnectionDetailsTo`, `StoreConfig`) are not
@@ -76,6 +78,9 @@ For the full CRD schema, use
   `publishConnectionDetailsTo` or `StoreConfig`. Migrate any manifests using
   ESS-style connection publishing before installing v2.0.0, or the controller
   will reject those resources at apply.
+- Cluster and Kargo agent Kubernetes install manifests are applied during
+  create when a kubeconfig source is configured. Updates do not reapply those
+  generated manifests to the target cluster.
 
 ## Local Development
 

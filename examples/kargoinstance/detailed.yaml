@@ -3,18 +3,17 @@
 # kind: Secret
 # metadata:
 #   name: my-kargo-secret
-#   namespace: default
+#   namespace: crossplane-system
 # type: Opaque
 # stringData:
-#   # Keys forwarded verbatim as the kargo-secret payload (OIDC client
-#   # secrets, webhook tokens, admin bootstrap).
-#   oidc-client-secret: REPLACE_ME
+#   # Accepted kargo-secret key for admin account bootstrap.
+#   adminAccountPasswordHash: REPLACE_ME_WITH_BCRYPT_HASH
 # ---
 # apiVersion: v1
 # kind: Secret
 # metadata:
 #   name: my-kargo-dex
-#   namespace: default
+#   namespace: crossplane-system
 # type: Opaque
 # stringData:
 #   # Resolved at reconcile time and forwarded as the gateway
@@ -25,14 +24,14 @@
 # kind: Secret
 # metadata:
 #   name: repo-github
-#   namespace: default
+#   namespace: crossplane-system
 #   labels:
 #     # Optional when the ref sets credType explicitly.
 #     kargo.akuity.io/cred-type: git
 # type: Opaque
 # stringData:
-#   # Kargo repo credential slot — see kargoRepoCredentialSecretRefs
-#   # below. The controller synthesises a labelled Kargo-shaped Secret
+#   # Kargo repo credential slot - see kargoRepoCredentialSecretRefs
+#   # below. The controller synthesizes a labeled Kargo-shaped Secret
 #   # (kargo.akuity.io/cred-type=<type>) from these keys.
 #   url: https://github.com/my-org/my-repo
 #   username: git
@@ -47,9 +46,10 @@ spec:
     name: my-kargo
     kargo:
       description: "My Kargo instance used for my project."
-      version: "v1.8.1"
+      version: "v1.10.1-ak.0"
       fqdn: "kargo.example.com"
-      subdomain: "my-kargo"
+      # Use either fqdn or subdomain, not both.
+      # subdomain: "my-kargo"
       kargoInstanceSpec:
         backendIpAllowListEnabled: true
         ipAllowList:
@@ -91,17 +91,20 @@ spec:
           - "groups"
     kargoConfigMap:
       # Keys are forwarded to the kargo-cm ConfigMap.
-      adminAccountEnabled: "true"
+      # Set to "true" only when kargoSecretRef supplies
+      # adminAccountPasswordHash or the hash already exists in Akuity.
+      adminAccountEnabled: "false"
       adminAccountTokenTtl: "24h"
-    # kargoSecretRef references a Secret whose keys become the
-    # kargo-secret payload (OIDC client secrets, webhook tokens).
+    # kargoSecretRef references a Secret whose accepted keys become the
+    # kargo-secret payload. Currently supported keys are
+    # adminAccountPasswordHash and admin_account_password_hash.
     # kargoSecretRef:
     #   namespace: crossplane-system
     #   name: my-kargo-secret
     # kargoRepoCredentialSecretRefs registers repository credentials
     # with Kargo. Each entry's SecretRef points at a namespaced Secret;
     # the controller projects it into the effective project namespace
-    # as a labelled Kargo-shaped Secret.
+    # as a labeled Kargo-shaped Secret.
     # kargoRepoCredentialSecretRefs:
     #   - name: repo-github # optional; defaults to secretRef.name
     #     projectNamespace: my-project # required; the Kargo project namespace where the credential Secret is landed

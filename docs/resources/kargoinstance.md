@@ -13,7 +13,8 @@ spec:
   forProvider:
     name: my-kargo
     kargo:
-      version: "v1.8.1"
+      description: "My Kargo instance."
+      version: "v1.10.1-ak.0"
   providerConfigRef:
     name: akuity
 ```
@@ -37,7 +38,15 @@ spec:
 
 ## Declarative Resources
 
-`resources` supports Kargo `Project`, `Warehouse`, `Stage`, `AnalysisTemplate`, `PromotionTask`, and `ClusterPromotionTask` resources. See [Managing Declarative Kargo Resources](../guides/managing-kargo-resources.md).
+`resources` supports Kargo `Project`, `Warehouse`, `Stage`, `PromotionTask`, and `ClusterPromotionTask` resources with `kargo.akuity.io/v1alpha1`, plus `AnalysisTemplate` with `argoproj.io/v1alpha1`. Inline `v1/Secret` entries are rejected. See [Managing Declarative Kargo Resources](../guides/managing-kargo-resources.md).
+
+## Secrets And ConfigMaps
+
+`kargoSecretRef` accepts only `adminAccountPasswordHash` or `admin_account_password_hash`; the controller normalizes the value to the lowerCamel JSON field before apply. Use this Secret ref for the admin account password hash when `kargoConfigMap.adminAccountEnabled` is `"true"`.
+
+`kargoRepoCredentialSecretRefs[].projectNamespace` is required and identifies the destination Kargo project namespace. It does not default to the source Kubernetes Secret namespace.
+
+`kargoConfigMap` accepts only `adminAccountEnabled`, `adminAccountTokenTtl`, `admin_account_enabled`, and `admin_account_token_ttl`. Do not set both spellings for the same key.
 
 ## Examples
 

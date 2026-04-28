@@ -15,7 +15,8 @@ spec:
       data:
         akuityManaged: false
         size: "medium"
-        targetVersion: "v1.8.1"
+        # Kargo agent version. Do not use a leading "v" here.
+        targetVersion: "0.5.88"
         autoUpgradeDisabled: true
         argocdNamespace: "argocd"
         selfManagedArgocdUrl: "https://argocd.example.com"

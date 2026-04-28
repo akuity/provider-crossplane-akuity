@@ -14,9 +14,6 @@ spec:
     kargoInstanceRef:
       name: my-kargo
     name: my-kargo-agent
-    kargoAgentSpec:
-      data:
-        size: small
   providerConfigRef:
     name: akuity
 ```
@@ -35,7 +32,17 @@ spec:
 | `spec.forProvider.enableInClusterKubeconfig` | Use provider pod in-cluster config to install manifests. |
 | `spec.forProvider.removeAgentResourcesOnDestroy` | Remove installed agent manifests during delete. |
 
-`kargoInstanceId` and `kargoInstanceRef` are immutable. `kargoAgentSpec.data.akuityManaged` is immutable after create because the Akuity API ignores updates to that field.
+`kargoInstanceId` and `kargoInstanceRef` are immutable. Set one in new manifests. Existing both-set resources are accepted for upgrade compatibility and the controller resolves the reference first.
+
+`kubeconfigSecretRef` and `enableInClusterKubeconfig` are mutually exclusive. When either is set, generated agent manifests are applied during create. Updates to the `KargoAgent` managed resource do not reapply generated manifests to the target cluster.
+
+`kargoAgentSpec.data.akuityManaged` is immutable after create because the Akuity API ignores updates to that field.
+
+## Akuity-Managed And Self-Hosted Agents
+
+For Akuity-managed agents, set `akuityManaged: true` and `remoteArgocd` to the remote Argo CD instance ID. Do not set self-hosted customization fields such as `size`, `targetVersion`, `kustomization`, `argocdNamespace`, `selfManagedArgocdUrl`, `allowedJobSa`, or `autoscalerConfig`; the platform owns or rejects those fields for Akuity-managed agents.
+
+For self-hosted agents, set `akuityManaged: false`, provide the self-managed Argo CD connection details, and use agent versions such as `0.5.88` without a leading `v`. Autoscaler bounds are intended for `size: auto`.
 
 ## Examples
 

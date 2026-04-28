@@ -18,6 +18,8 @@ spec:
       description: "Cluster with explicitly configured agent resources."
       data:
         size: "custom"
+        # Custom sizing is platform-specific. Use size: "auto" when
+        # you need autoscalerConfig updates to be continuously reconciled.
         autoUpgradeDisabled: false
         autoscalerConfig:
           applicationController:

@@ -16,8 +16,17 @@ Before upgrading from v0.3.x: the v2 runtime does not support
 ESS-style connection publishing before installing v2.0.0, or the controller
 will reject those resources at apply.
 
-Crossplane 1.19+ and 2.x are supported by the same artifact. `safe-start` is a
-Crossplane 2.x-only provider capability and no-ops on Crossplane 1.x.
+Crossplane 1.19.x and 2.x are supported by the same artifact. `safe-start` is
+a Crossplane 2.x-only provider capability and no-ops on Crossplane 1.x.
+
+The examples pin versions used during validation. Before applying them to a
+production organization, choose Argo CD, Kargo, and agent versions supported by
+your Akuity Platform environment.
+
+All provider managed resources opt in to Crossplane `managementPolicies`. Use
+`managementPolicies: ["Observe"]` for observe-only adoption and
+`deletionPolicy: Orphan` when the Akuity resource should survive managed
+resource deletion.
 
 ## Install The Provider
 
@@ -77,6 +86,12 @@ kubectl describe instance.core.akuity.crossplane.io my-instance
 ```
 
 Then attach resources that depend on the instance status, such as `Cluster` or `InstanceIpAllowList`, after the parent reports a populated `status.atProvider.id`.
+
+For resources that install agents into a target Kubernetes cluster, configure
+only one kubeconfig source: `kubeconfigSecretRef` or
+`enableInClusterKubeconfig`. Generated agent manifests are applied during
+create, not during later updates. See
+[Lifecycle and Reconciliation](lifecycle-and-reconciliation.md).
 
 ## Upgrade Or Remove
 

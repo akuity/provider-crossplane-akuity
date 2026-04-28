@@ -31,11 +31,17 @@ spec:
 | `spec.forProvider.enableInClusterKubeconfig` | Use the provider pod in-cluster config to install the agent. |
 | `spec.forProvider.removeAgentResourcesOnDestroy` | Remove agent manifests when deleting the cluster. |
 
-`instanceId` and `instanceRef` are immutable. Set one. If both exist from an older stored resource, the controller resolves `instanceRef` first.
+`instanceId` and `instanceRef` are immutable. Set one in new manifests. If both exist from an older stored resource, the controller resolves `instanceRef` first.
+
+`kubeconfigSecretRef` and `enableInClusterKubeconfig` are mutually exclusive. When either is set, generated agent manifests are applied during create. Updates to the `Cluster` managed resource do not reapply generated manifests to the target cluster.
 
 ## Agent Sizing
 
-Use `clusterSpec.data.size: small`, `medium`, `large`, `custom`, or `auto` according to the target platform behavior. For `auto`, set `autoscalerConfig` and keep `autoUpgradeDisabled: false`.
+Use `clusterSpec.data.size: small`, `medium`, `large`, `custom`, or `auto` according to the target platform behavior.
+
+For `auto`, set `autoscalerConfig` and keep `autoUpgradeDisabled: false`. This is the size mode where the provider continuously reconciles user-provided autoscaler bounds.
+
+For `small`, `medium`, and `large`, the platform stamps size-profile autoscaler defaults. If `autoscalerConfig` is present for those sizes, the provider treats the platform-observed values as authoritative to avoid drift.
 
 ## Examples
 

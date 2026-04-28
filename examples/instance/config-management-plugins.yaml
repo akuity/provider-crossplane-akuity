@@ -8,7 +8,7 @@ spec:
     name: my-instance-with-cmps
     argocd:
       spec:
-        version: "v3.1.9-ak.67"
+        version: "v3.3.8-ak.87"
         instanceSpec:
           declarativeManagementEnabled: true
           applicationSetExtension:

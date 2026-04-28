@@ -8,6 +8,6 @@ spec:
     name: my-instance
     argocd:
       spec:
-        version: "v3.1.9-ak.67"
+        version: "v3.3.8-ak.87"
   providerConfigRef:
     name: akuity
