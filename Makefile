@@ -175,14 +175,25 @@ akuity-publish.gar:
 		-f _output/xpkg/linux_amd64/provider-crossplane-akuity-$(VERSION).xpkg \
 		us-docker.pkg.dev/akuity/crossplane/provider:$(VERSION)
 
-# Mirror the GAR-published xpkg to the Upbound Marketplace so the digest stays
-# identical across both registries. Requires `crane` on PATH and prior login to
-# xpkg.upbound.io. The --allow-nondistributable-artifacts flag is required
-# because xpkg layers use foreign-layer media types.
+# Mirror the GAR-published xpkg to the Upbound Marketplace via a pull-then-push
+# round-trip. `crane copy` cannot be used directly because xpkg.upbound.io's
+# token service rejects cross-registry blob-mount scopes that reference a
+# foreign GAR repository path. Pulling to a local OCI layout first decouples
+# the GAR pull auth from the Upbound push auth so neither registry is asked
+# for a token that names a repo it does not own. The OCI layout preserves the
+# multi-arch index. Requires `crane` on PATH and prior `docker login` to both
+# us-docker.pkg.dev and xpkg.upbound.io.
 akuity-publish.marketplace:
-	crane copy \
+	@set -euo pipefail; \
+	tmpdir="$$(mktemp -d)"; \
+	trap 'rm -rf "$$tmpdir"' EXIT; \
+	crane pull --format=oci \
+		--allow-nondistributable-artifacts \
 		us-docker.pkg.dev/akuity/crossplane/provider:$(VERSION) \
-		xpkg.upbound.io/akuity/provider-crossplane-akuity:$(VERSION) \
-		--allow-nondistributable-artifacts
+		"$$tmpdir/xpkg"; \
+	crane push \
+		--allow-nondistributable-artifacts \
+		"$$tmpdir/xpkg" \
+		xpkg.upbound.io/akuity/provider-crossplane-akuity:$(VERSION)
 
 .PHONY: crossplane.help help-special
