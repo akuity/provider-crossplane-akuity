@@ -169,7 +169,7 @@ crossplane.help:
 help-special: crossplane.help
 
 akuity-publish:
-	kubectl crossplane push provider -f _output/xpkg/linux_arm64/provider-crossplane-akuity-$(VERSION).xpkg \
+	crossplane xpkg push -f _output/xpkg/linux_arm64/provider-crossplane-akuity-$(VERSION).xpkg \
 		-f _output/xpkg/linux_amd64/provider-crossplane-akuity-$(VERSION).xpkg \
 		us-docker.pkg.dev/akuity/crossplane/provider:$(VERSION)
 

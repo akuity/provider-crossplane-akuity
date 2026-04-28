@@ -74,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -sL https://raw.githubusercontent.com/crossplane/crossplane/v2.2.0/install.sh | XP_VERSION=v2.2.0 sh
-          sudo mv kubectl-crossplane /usr/local/bin
+          sudo mv crossplane /usr/local/bin
           make akuity-publish
         env:
           VERSION: ${{ github.ref_name }}
