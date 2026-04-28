@@ -30,6 +30,16 @@ jobs:
           username: ${{ secrets.ARTIFACT_REGISTRY_USERNAME }}
           password: ${{ secrets.ARTIFACT_REGISTRY_PASSWORD }}
 
+      - name: Login to Upbound Marketplace
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: xpkg.upbound.io
+          username: ${{ secrets.XPKG_MARKETPLACE_ACCESS_ID }}
+          password: ${{ secrets.XPKG_MARKETPLACE_TOKEN }}
+
+      - name: Install Crane
+        uses: imjasonh/setup-crane@6da1ae018866400525525ce74ff892880c099987 # v0.5
+
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
