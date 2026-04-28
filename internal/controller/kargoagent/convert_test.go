@@ -96,6 +96,18 @@ func TestApiToSpec_NilDataDoesNotPanic(t *testing.T) {
 	assert.Equal(t, crossplanetypes.KargoAgentSize(""), out.KargoAgentSpec.Data.Size)
 }
 
+func TestApiToSpec_PreservesAkuityManagedFalse(t *testing.T) {
+	agent := &kargov1.KargoAgent{
+		Id:   "ag-1",
+		Name: "agt",
+		Data: &kargov1.KargoAgentData{AkuityManaged: false},
+	}
+
+	out := apiToSpec(v1alpha1.KargoAgentParameters{}, agent)
+	require.NotNil(t, out.KargoAgentSpec.Data.AkuityManaged)
+	assert.False(t, *out.KargoAgentSpec.Data.AkuityManaged)
+}
+
 // TestWireToSpec_NilReturnsZero covers the explicit nil guard so
 // Observe never feeds a nil wire into drift detection.
 func TestWireToSpec_NilReturnsZero(t *testing.T) {
@@ -146,6 +158,24 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 	assert.Equal(t, "crossplane-system", out.KubeConfigSecretRef.Namespace)
 	assert.True(t, out.EnableInClusterKubeConfig)
 	assert.True(t, out.RemoveAgentResourcesOnDestroy)
+}
+
+func TestWireToSpec_PreservesDesiredAkuityManagedFalseWhenWireOmitsIt(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged: boolPtr(false),
+			},
+		},
+	}
+	wire := &akuitytypes.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "agt"},
+		Spec:       akuitytypes.KargoAgentSpec{Data: akuitytypes.KargoAgentData{}},
+	}
+
+	out := wireToSpec(desired, wire)
+	require.NotNil(t, out.KargoAgentSpec.Data.AkuityManaged)
+	assert.False(t, *out.KargoAgentSpec.Data.AkuityManaged)
 }
 
 // TestWireToSpec_EmptyLabelMapsBecomeNil exercises the nil-vs-empty

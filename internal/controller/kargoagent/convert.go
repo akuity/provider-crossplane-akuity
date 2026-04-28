@@ -23,6 +23,7 @@ import (
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
@@ -125,6 +126,9 @@ func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent)
 	if d := convertAgentData(data); d != nil {
 		out.KargoAgentSpec.Data = *d
 	}
+	if data != nil && out.KargoAgentSpec.Data.AkuityManaged == nil {
+		out.KargoAgentSpec.Data.AkuityManaged = ptr.To(data.GetAkuityManaged())
+	}
 	return out
 }
 
@@ -155,6 +159,11 @@ func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAg
 	out.KargoAgentSpec.Description = wire.Spec.Description
 	if d := crossplanetypes.KargoAgentDataAPIToSpec(&wire.Spec.Data); d != nil {
 		out.KargoAgentSpec.Data = *d
+	}
+	if out.KargoAgentSpec.Data.AkuityManaged == nil &&
+		desired.KargoAgentSpec.Data.AkuityManaged != nil &&
+		!*desired.KargoAgentSpec.Data.AkuityManaged {
+		out.KargoAgentSpec.Data.AkuityManaged = ptr.To(false)
 	}
 	if len(out.Labels) == 0 {
 		out.Labels = nil
