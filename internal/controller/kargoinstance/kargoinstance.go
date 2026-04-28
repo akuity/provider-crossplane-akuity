@@ -276,9 +276,11 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	prevSecretHash := mg.Status.AtProvider.SecretHash
 	prevWorkspace := mg.Status.AtProvider.Workspace
 	prevKargoConfigMapHash := mg.Status.AtProvider.KargoConfigMapHash
+	prevKargoResourcesHash := mg.Status.AtProvider.KargoResourcesHash
 	mg.Status.AtProvider = observation.KargoInstance(ki)
 	mg.Status.AtProvider.SecretHash = prevSecretHash
 	mg.Status.AtProvider.KargoConfigMapHash = prevKargoConfigMapHash
+	mg.Status.AtProvider.KargoResourcesHash = prevKargoResourcesHash
 	// GetKargoInstance echoes the canonical workspace ID; cache it on
 	// AtProvider so ExportKargoInstance, Apply, and Delete can route to
 	// the right workspace-scoped HTTP path without an extra
@@ -390,7 +392,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 				}
 			}
 			if upToDate && len(mg.Spec.ForProvider.Resources) > 0 {
-				ok, report, rerr := kargoResourcesUpToDate(mg.Spec.ForProvider.Resources, exp)
+				ok, report, rerr := kargoResourcesUpToDate(mg.Spec.ForProvider.Resources, exp, mg.Status.AtProvider.KargoResourcesHash)
 				if rerr != nil {
 					mg.SetConditions(xpv1.ReconcileError(rerr))
 					return managed.ExternalObservation{}, rerr
@@ -472,6 +474,10 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	if err != nil {
 		return err
 	}
+	resourcesHash, err := hashKargoResources(mg.Spec.ForProvider.Resources)
+	if err != nil {
+		return err
+	}
 	req, err := kargoInstanceApplyRequest(mg, workspaceID, sec)
 	if err != nil {
 		return err
@@ -486,6 +492,7 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoInstance) error 
 	e.ClearTerminalWrite(key)
 	setSecretHash(mg, sec.Hash())
 	mg.Status.AtProvider.KargoConfigMapHash = hashKargoConfigMap(mg.Spec.ForProvider.KargoConfigMap)
+	mg.Status.AtProvider.KargoResourcesHash = resourcesHash
 	return nil
 }
 
@@ -740,6 +747,47 @@ func hashKargoConfigMap(data map[string]string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// hashKargoResources returns a stable SHA256 digest over the desired
+// declarative resource bundle after the same identity parsing and
+// server-field stripping used by the drift comparator. Resource order
+// in spec is ignored; identity and canonical JSON content determine
+// the digest.
+func hashKargoResources(raw []runtime.RawExtension) (string, error) {
+	if len(raw) == 0 {
+		return "", nil
+	}
+	idx, err := children.Index(raw)
+	if err != nil {
+		return "", fmt.Errorf("resources: %w", err)
+	}
+	return hashKargoResourceIndex(idx)
+}
+
+func hashKargoResourceIndex(idx map[children.Identity]map[string]interface{}) (string, error) {
+	if len(idx) == 0 {
+		return "", nil
+	}
+	keys := make([]children.Identity, 0, len(idx))
+	for k := range idx {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i].String() < keys[j].String()
+	})
+	h := sha256.New()
+	for _, k := range keys {
+		payload, err := json.Marshal(idx[k])
+		if err != nil {
+			return "", fmt.Errorf("resources: %s: %w", k.String(), err)
+		}
+		h.Write([]byte(k.String()))
+		h.Write([]byte{0x00})
+		h.Write(payload)
+		h.Write([]byte{0x01})
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 // extractKargoConfigMapData pulls the `data` map out of the wrapped
 // ConfigMap struct the gateway returns. The second return value
 // (`present`) reports whether the gateway response actually carried a
@@ -789,7 +837,7 @@ func extractKargoConfigMapData(pb *structpb.Struct) (map[string]string, bool, er
 // observed state.
 // Removal from spec does not trigger server-side deletion; operators
 // must use the Akuity platform UI or API for that.
-func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportKargoInstanceResponse) (bool, children.DriftReport, error) {
+func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportKargoInstanceResponse, lastAppliedHash string) (bool, children.DriftReport, error) {
 	if len(desired) == 0 {
 		return true, children.DriftReport{}, nil
 	}
@@ -831,7 +879,101 @@ func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportK
 		}
 	}
 	report := children.Compare(desiredIdx, observedAll)
+	if !report.Empty() {
+		desiredHash, err := hashKargoResourceIndex(desiredIdx)
+		if err != nil {
+			return false, children.DriftReport{}, err
+		}
+		if desiredHash == lastAppliedHash &&
+			kargoProjectDescriptionOnlyDrift(desiredIdx, observedAll, report) {
+			return true, children.DriftReport{}, nil
+		}
+	}
 	return report.Empty(), report, nil
+}
+
+func kargoProjectDescriptionOnlyDrift(desired, observed map[children.Identity]map[string]interface{}, report children.DriftReport) bool {
+	if len(report.Missing) > 0 || len(report.Changed) == 0 {
+		return false
+	}
+	trimmed := make(map[children.Identity]map[string]interface{}, len(desired))
+	for k, v := range desired {
+		trimmed[k] = v
+	}
+	for _, id := range report.Changed {
+		if id.APIVersion != kargoAPIVersion || id.Kind != kargoKindProject {
+			return false
+		}
+		obs, ok := observedResource(observed, id)
+		if !ok || hasJSONPath(obs, "spec", "description") {
+			return false
+		}
+		trimmed[id] = withoutProjectDescription(desired[id])
+	}
+	return children.Compare(trimmed, observed).Empty()
+}
+
+func observedResource(observed map[children.Identity]map[string]interface{}, id children.Identity) (map[string]interface{}, bool) {
+	if obs, ok := observed[id]; ok {
+		return obs, true
+	}
+	if id.Namespace != "" {
+		return nil, false
+	}
+	var match map[string]interface{}
+	found := 0
+	for k, v := range observed {
+		if k.APIVersion == id.APIVersion && k.Kind == id.Kind && k.Name == id.Name {
+			match = v
+			found++
+			if found > 1 {
+				return nil, false
+			}
+		}
+	}
+	return match, found == 1
+}
+
+func withoutProjectDescription(in map[string]interface{}) map[string]interface{} {
+	out, _ := cloneJSONValue(in).(map[string]interface{})
+	if spec, ok := out["spec"].(map[string]interface{}); ok {
+		delete(spec, "description")
+	}
+	return out
+}
+
+func hasJSONPath(in map[string]interface{}, path ...string) bool {
+	var cur interface{} = in
+	for _, p := range path {
+		obj, ok := cur.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		cur, ok = obj[p]
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneJSONValue(in interface{}) interface{} {
+	switch v := in.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(v))
+		for k, child := range v {
+			out[k] = cloneJSONValue(child)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(v))
+		for i := range v {
+			out[i] = cloneJSONValue(v[i])
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 // splitKargoResources validates each spec.forProvider.resources

@@ -20,9 +20,6 @@ limitations under the License.
 package event
 
 import (
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/events"
-	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	xpevent "github.com/crossplane/crossplane-runtime/v2/pkg/event"
@@ -34,57 +31,13 @@ import (
 // upstream event package alongside.
 type Recorder = xpevent.Recorder
 
-// NewRecorder returns a crossplane-runtime event.Recorder backed by
-// controller-runtime's non-deprecated manager.GetEventRecorder. It
-// bridges between the two event APIs so controller Setup functions can
-// avoid the SA1019 deprecation on manager.GetEventRecorderFor:
-//
-//   - mgr.GetEventRecorder(name) returns events.EventRecorder, the new
-//     k8s.io/client-go events API.
-//   - xpevent.NewAPIRecorder upstream in crossplane-runtime still takes
-//     the legacy k8s.io/client-go/tools/record.EventRecorder.
-//
-// The eventRecorderAdapter below satisfies the legacy interface by
-// re-dispatching every call to the new Eventf signature. Drop this
-// shim once crossplane-runtime migrates its event package to the new
-// events API.
+// NewRecorder returns a crossplane-runtime event.Recorder backed by the
+// legacy core/v1 Event sink. controller-runtime's non-deprecated
+// GetEventRecorder uses events.k8s.io/v1, but meta.pkg.crossplane.io/v1
+// Provider packages cannot request those RBAC verbs. Crossplane's
+// generated provider RBAC does include core/v1 Events, so keep this path
+// until the package metadata format can grant events.k8s.io permissions.
 func NewRecorder(mgr ctrl.Manager, name string) xpevent.Recorder {
-	return xpevent.NewAPIRecorder(&eventRecorderAdapter{inner: mgr.GetEventRecorder(name)})
+	recorder := mgr.GetEventRecorderFor(name) //nolint:staticcheck
+	return xpevent.NewAPIRecorder(recorder)
 }
-
-// eventRecorderAdapter lets an events.EventRecorder (new API) stand in
-// for a record.EventRecorder (legacy API). Annotations supplied to
-// AnnotatedEventf are dropped because the new API does not carry them;
-// crossplane-runtime's APIRecorder uses annotations only for optional
-// WithAnnotations enrichment, which this codebase never calls.
-type eventRecorderAdapter struct {
-	inner events.EventRecorder
-}
-
-func (a *eventRecorderAdapter) Event(obj runtime.Object, eventtype, reason, message string) {
-	a.inner.Eventf(obj, nil, eventtype, eventReason(reason), eventAction, "%s", message)
-}
-
-func (a *eventRecorderAdapter) Eventf(obj runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
-	a.inner.Eventf(obj, nil, eventtype, eventReason(reason), eventAction, messageFmt, args...)
-}
-
-func (a *eventRecorderAdapter) AnnotatedEventf(obj runtime.Object, _ map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
-	a.inner.Eventf(obj, nil, eventtype, eventReason(reason), eventAction, messageFmt, args...)
-}
-
-const (
-	eventAction         = "Reconcile"
-	eventFallbackReason = "ProviderEvent"
-)
-
-func eventReason(reason string) string {
-	if reason == "" {
-		return eventFallbackReason
-	}
-	return reason
-}
-
-// Compile-time assertion that the adapter fully implements the legacy
-// interface the crossplane-runtime event package depends on.
-var _ record.EventRecorder = (*eventRecorderAdapter)(nil)

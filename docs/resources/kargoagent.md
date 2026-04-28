@@ -40,7 +40,7 @@ spec:
 
 ## Akuity-Managed And Self-Hosted Agents
 
-For Akuity-managed agents, set `akuityManaged: true` and `remoteArgocd` to the remote Argo CD instance ID. Do not set self-hosted customization fields such as `size`, `targetVersion`, `kustomization`, `argocdNamespace`, `selfManagedArgocdUrl`, `allowedJobSa`, or `autoscalerConfig`; the platform owns or rejects those fields for Akuity-managed agents.
+For Akuity-managed agents, set `akuityManaged: true` and `remoteArgocd` to the resolved Akuity Argo CD instance ID from `Instance.status.atProvider.id`, not the Crossplane `Instance` managed resource name. Do not set self-hosted customization fields such as `size`, `targetVersion`, `kustomization`, `argocdNamespace`, `selfManagedArgocdUrl`, `allowedJobSa`, or `autoscalerConfig`; the platform owns or rejects those fields for Akuity-managed agents.
 
 For self-hosted agents, set `akuityManaged: false`, provide the self-managed Argo CD connection details, and use agent versions such as `0.5.88` without a leading `v`. Autoscaler bounds are intended for `size: auto`.
 

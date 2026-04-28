@@ -18,6 +18,7 @@ spec:
       description: "Akuity-managed Kargo agent connected to an Akuity Argo CD instance."
       data:
         akuityManaged: true
-        remoteArgocd: "my-argocd-instance-id"
+        # Use the resolved Akuity Argo CD instance ID, not the Crossplane Instance MR name.
+        remoteArgocd: "abcd1234efgh5678"
   providerConfigRef:
     name: akuity
