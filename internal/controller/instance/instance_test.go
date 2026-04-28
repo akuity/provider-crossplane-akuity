@@ -130,7 +130,7 @@ func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
 }
 
 func TestObserve_SuppressesTerminalUpdateAfterGenerationOnlyChange(t *testing.T) {
-	managedInstance := fixtures.CrossplaneManagedInstance
+	managedInstance := *fixtures.CrossplaneManagedInstance.DeepCopy()
 	managedInstance.ObjectMeta = metav1.ObjectMeta{
 		Name:       fixtures.InstanceName,
 		Generation: 7,
@@ -138,6 +138,7 @@ func TestObserve_SuppressesTerminalUpdateAfterGenerationOnlyChange(t *testing.T)
 			"crossplane.io/external-name": fixtures.InstanceName,
 		},
 	}
+	managedInstance.Spec.ForProvider.ArgoCD.Spec.Description = "bad-description"
 	applyInstanceRequest, err := BuildApplyInstanceRequest(managedInstance, resolvedInstanceSecrets{})
 	require.NoError(t, err)
 
@@ -152,10 +153,50 @@ func TestObserve_SuppressesTerminalUpdateAfterGenerationOnlyChange(t *testing.T)
 	assert.True(t, reason.IsTerminal(err))
 
 	managedInstance.SetGeneration(8)
-	mc.EXPECT().GetInstance(gomock.Any(), gomock.Any()).Times(0)
-	mc.EXPECT().ExportInstance(gomock.Any(), gomock.Any()).Times(0)
+	mc.EXPECT().GetInstance(ctx, fixtures.InstanceName).
+		Return(fixtures.AkuityInstance, nil).Times(1)
+	mc.EXPECT().ExportInstance(ctx, fixtures.InstanceName).
+		Return(&argocdv1.ExportInstanceResponse{}, nil).Times(1)
 
 	resp, err := e.Observe(ctx, &managedInstance)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err))
+	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, resp)
+}
+
+func TestObserve_SuppressesTerminalUpdateAfterLateInitialize(t *testing.T) {
+	preLateInit := *fixtures.CrossplaneManagedInstance.DeepCopy()
+	preLateInit.ObjectMeta = metav1.ObjectMeta{
+		Name:       fixtures.InstanceName,
+		Generation: 7,
+		Annotations: map[string]string{
+			"crossplane.io/external-name": fixtures.InstanceName,
+		},
+	}
+	preLateInit.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.Subdomain = ""
+	preLateInit.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.DeclarativeManagementEnabled = nil
+	preLateInit.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.AppsetPolicy = nil
+	preLateInit.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults = nil
+	preLateInit.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.AppsetPlugins = []*crossplanetypes.AppsetPlugins{{
+		Name:    "bad-name-no-prefix",
+		BaseUrl: "https://example.com",
+	}}
+
+	postLateInit := *preLateInit.DeepCopy()
+	require.NoError(t, lateInitializeInstance(&postLateInit.Spec.ForProvider, fixtures.AkuityInstance, &argocdv1.ExportInstanceResponse{}))
+	key, err := instanceTerminalWriteKey(&postLateInit, resolvedInstanceSecrets{})
+	require.NoError(t, err)
+
+	e, mc := newExt(t)
+	e.TerminalWrites = base.NewTerminalWriteGuard()
+	e.TerminalWrites.Record(key, reason.AsTerminal(errors.New("appset plugin name must start with 'plugin-'")))
+
+	mc.EXPECT().GetInstance(ctx, fixtures.InstanceName).
+		Return(fixtures.AkuityInstance, nil).Times(1)
+	mc.EXPECT().ExportInstance(ctx, fixtures.InstanceName).
+		Return(&argocdv1.ExportInstanceResponse{}, nil).Times(1)
+
+	resp, err := e.Observe(ctx, &preLateInit)
 	require.Error(t, err)
 	assert.True(t, reason.IsTerminal(err))
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, resp)
@@ -275,15 +316,13 @@ func TestObserve_EmptyExternalName_SuppressesTerminalWrite(t *testing.T) {
 	assert.Equal(t, xpv1.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
 }
 
-// TestObserve_ExternalNameSet_SuppressesTerminalWriteBeforeGet covers
-// the path where Crossplane's NameAsExternalName initializer has
-// stamped the external-name annotation before the first reconcile.
-// The terminal-write guard must short-circuit the Observe before any
-// gateway round-trip, otherwise a Create that fails terminally on bad
-// input loops Get->NotFound->Create on controller-runtime's exp-
-// backoff. Asserts that GetInstance is NOT called when a matching
-// terminal entry is cached.
-func TestObserve_ExternalNameSet_SuppressesTerminalWriteBeforeGet(t *testing.T) {
+// TestObserve_ExternalNameSet_SuppressesTerminalWriteAfterNotFound
+// covers the path where Crossplane's NameAsExternalName initializer has
+// stamped the external-name annotation before the first reconcile. A
+// terminal Create failure leaves no platform row; Observe may confirm
+// NotFound, but must then suppress instead of returning ResourceExists=false
+// and letting Create hot-loop the same bad Apply payload.
+func TestObserve_ExternalNameSet_SuppressesTerminalWriteAfterNotFound(t *testing.T) {
 	e, mc := newExt(t)
 	e.TerminalWrites = base.NewTerminalWriteGuard()
 
@@ -299,7 +338,8 @@ func TestObserve_ExternalNameSet_SuppressesTerminalWriteBeforeGet(t *testing.T) 
 	require.NoError(t, err)
 	e.TerminalWrites.Record(key, reason.AsTerminal(errors.New("bad payload")))
 
-	mc.EXPECT().GetInstance(gomock.Any(), gomock.Any()).Times(0)
+	mc.EXPECT().GetInstance(ctx, "bad-instance").
+		Return(nil, reason.AsNotFound(errors.New("not found"))).Times(1)
 	mc.EXPECT().ExportInstance(gomock.Any(), gomock.Any()).Times(0)
 
 	resp, err := e.Observe(ctx, &managedInstance)
