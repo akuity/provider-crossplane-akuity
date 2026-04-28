@@ -206,6 +206,13 @@ func mustKargoStruct(t *testing.T, spec map[string]interface{}) *structpb.Struct
 	return pb
 }
 
+func mustChildStruct(t *testing.T, obj map[string]interface{}) *structpb.Struct {
+	t.Helper()
+	pb, err := structpb.NewStruct(obj)
+	require.NoError(t, err)
+	return pb
+}
+
 // TestKargoConfigMapUpToDate_SubsetBehavior checks the additive
 // kargoConfigMap drift contract: desired keys must match observed
 // values, while extra server-side keys are ignored.
@@ -273,6 +280,98 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 	ok, _, err = kargoConfigMapUpToDate(nil, exp, "")
 	require.NoError(t, err)
 	assert.True(t, ok)
+}
+
+func TestKargoResourcesUpToDate_ProjectDescriptionExportGapUsesHash(t *testing.T) {
+	desired := []runtime.RawExtension{
+		mustRawMap(t, map[string]interface{}{
+			"apiVersion": "kargo.akuity.io/v1alpha1",
+			"kind":       "Project",
+			"metadata":   map[string]interface{}{"name": "smoke-proj"},
+			"spec":       map[string]interface{}{"description": "smoke"},
+		}),
+		mustRawMap(t, map[string]interface{}{
+			"apiVersion": "kargo.akuity.io/v1alpha1",
+			"kind":       "Warehouse",
+			"metadata":   map[string]interface{}{"name": "smoke-wh"},
+			"spec": map[string]interface{}{
+				"subscriptions": []interface{}{
+					map[string]interface{}{"image": map[string]interface{}{"repoURL": "ghcr.io/acme/app"}},
+				},
+			},
+		}),
+	}
+	lastAppliedHash, err := hashKargoResources(desired)
+	require.NoError(t, err)
+
+	exp := &kargov1.ExportKargoInstanceResponse{
+		Projects: []*structpb.Struct{
+			mustChildStruct(t, map[string]interface{}{
+				"apiVersion": "kargo.akuity.io/v1alpha1",
+				"kind":       "Project",
+				"metadata":   map[string]interface{}{"name": "smoke-proj"},
+			}),
+		},
+		Warehouses: []*structpb.Struct{
+			mustChildStruct(t, map[string]interface{}{
+				"apiVersion": "kargo.akuity.io/v1alpha1",
+				"kind":       "Warehouse",
+				"metadata":   map[string]interface{}{"name": "smoke-wh"},
+				"spec": map[string]interface{}{
+					"subscriptions": []interface{}{
+						map[string]interface{}{"image": map[string]interface{}{"repoURL": "ghcr.io/acme/app"}},
+					},
+				},
+			}),
+		},
+	}
+
+	ok, report, err := kargoResourcesUpToDate(desired, exp, lastAppliedHash)
+	require.NoError(t, err)
+	assert.True(t, ok, "last-applied Project description export gap should not drift")
+	assert.True(t, report.Empty())
+
+	ok, report, err = kargoResourcesUpToDate(desired, exp, "")
+	require.NoError(t, err)
+	assert.False(t, ok, "without a matching last-applied hash the Project description must still fire Apply")
+	assert.Len(t, report.Changed, 1)
+
+	ok, report, err = kargoResourcesUpToDate(desired, exp, "deadbeef")
+	require.NoError(t, err)
+	assert.False(t, ok, "stale last-applied hash must not suppress a Project description diff")
+	assert.Len(t, report.Changed, 1)
+}
+
+func TestKargoResourcesUpToDate_ProjectDescriptionHashDoesNotMaskOtherDrift(t *testing.T) {
+	desired := []runtime.RawExtension{
+		mustRawMap(t, map[string]interface{}{
+			"apiVersion": "kargo.akuity.io/v1alpha1",
+			"kind":       "Project",
+			"metadata":   map[string]interface{}{"name": "smoke-proj"},
+			"spec": map[string]interface{}{
+				"description": "smoke",
+				"promotionPolicies": []interface{}{
+					map[string]interface{}{"stage": "prod"},
+				},
+			},
+		}),
+	}
+	lastAppliedHash, err := hashKargoResources(desired)
+	require.NoError(t, err)
+	exp := &kargov1.ExportKargoInstanceResponse{
+		Projects: []*structpb.Struct{
+			mustChildStruct(t, map[string]interface{}{
+				"apiVersion": "kargo.akuity.io/v1alpha1",
+				"kind":       "Project",
+				"metadata":   map[string]interface{}{"name": "smoke-proj"},
+			}),
+		},
+	}
+
+	ok, report, err := kargoResourcesUpToDate(desired, exp, lastAppliedHash)
+	require.NoError(t, err)
+	assert.False(t, ok, "hash suppression is limited to Project.spec.description")
+	assert.Len(t, report.Changed, 1)
 }
 
 func TestObserve_EmptyKargoConfigMapIsNoOpinion(t *testing.T) {

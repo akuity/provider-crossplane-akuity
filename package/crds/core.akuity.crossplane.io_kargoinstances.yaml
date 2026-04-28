@@ -1007,6 +1007,15 @@ spec:
                       of the current desired CM. A spec edit that adds, mutates, or
                       removes keys rotates the hash and re-fires Apply.
                     type: string
+                  kargoResourcesHash:
+                    description: |-
+                      KargoResourcesHash is the SHA256 of spec.forProvider.resources from
+                      the most recent successful Apply. Some gateway exports omit selected
+                      fields from declarative child resources after accepting them. The hash
+                      lets the controller suppress those known projection gaps only when the
+                      current desired resources are exactly the last payload that was applied;
+                      a user edit changes the hash and re-fires Apply.
+                    type: string
                   name:
                     description: Name of the instance.
                     type: string

@@ -231,6 +231,14 @@ type KargoInstanceObservation struct {
 	// removes keys rotates the hash and re-fires Apply.
 	KargoConfigMapHash string `json:"kargoConfigMapHash,omitempty"`
 
+	// KargoResourcesHash is the SHA256 of spec.forProvider.resources from
+	// the most recent successful Apply. Some gateway exports omit selected
+	// fields from declarative child resources after accepting them. The hash
+	// lets the controller suppress those known projection gaps only when the
+	// current desired resources are exactly the last payload that was applied;
+	// a user edit changes the hash and re-fires Apply.
+	KargoResourcesHash string `json:"kargoResourcesHash,omitempty"`
+
 	// Workspace is the canonical Akuity workspace ID this Kargo
 	// instance belongs to. When spec.forProvider.workspace is empty,
 	// the controller resolves and caches the organization's default

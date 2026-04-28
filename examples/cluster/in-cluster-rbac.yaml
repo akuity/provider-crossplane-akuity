@@ -128,7 +128,7 @@ rules:
     verbs:
       - bind
       - escalate
-  # events.k8s.io/v1 recorder API used by controller-runtime.
+  # Modern Event resources used by some applied agent RBAC/manifests.
   - apiGroups:
       - events.k8s.io
     resources:
