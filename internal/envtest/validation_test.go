@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Envtest coverage for the parent-reference XOR rule and the top-level
+// Envtest coverage for the parent-reference ID-or-ref rule and the top-level
 // immutability rules that every MR ships. These are the rules most
 // likely to regress on a schema regen (they live on hand-authored
 // ForProvider types) and most likely to be silently bypassed by a

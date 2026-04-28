@@ -213,13 +213,14 @@ spec:
                     type: boolean
                   instanceId:
                     description: |-
-                      InstanceID is the Akuity Argo CD instance ID this cluster belongs to.
-                      Mutually exclusive with InstanceRef.
+                      InstanceID is the Akuity Argo CD instance ID this cluster belongs
+                      to. At least one of InstanceID or InstanceRef must be set; when
+                      both are present, InstanceID is used.
                     type: string
                   instanceRef:
                     description: |-
-                      InstanceRef references the Akuity Argo CD instance this cluster belongs to.
-                      Mutually exclusive with InstanceID.
+                      InstanceRef references the Akuity Argo CD instance this cluster
+                      belongs to. At least one of InstanceID or InstanceRef must be set.
                     properties:
                       name:
                         description: Name is the referenced object's name. Required.

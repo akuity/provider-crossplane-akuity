@@ -100,14 +100,16 @@ spec:
                   instanceId:
                     description: |-
                       InstanceID references the target Argo CD Instance by its opaque
-                      Akuity ID. Mutually exclusive with InstanceRef.
+                      Akuity ID. At least one of InstanceID or InstanceRef must be set;
+                      when both are present, InstanceID is used.
                     type: string
                   instanceRef:
                     description: |-
                       InstanceRef references the target Argo CD Instance by name in the
                       same namespace as this InstanceIpAllowList. The controller reads
                       the referenced Instance's Status.AtProvider.ID to resolve the
-                      underlying Akuity ID. Mutually exclusive with InstanceID.
+                      underlying Akuity ID. At least one of InstanceID or InstanceRef
+                      must be set.
                     properties:
                       name:
                         description: Name is the referenced object's name. Required.

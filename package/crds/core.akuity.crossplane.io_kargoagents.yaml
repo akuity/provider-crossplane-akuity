@@ -168,13 +168,15 @@ spec:
                     type: object
                   kargoInstanceId:
                     description: |-
-                      KargoInstanceID references the owning Kargo instance by ID.
-                      Either KargoInstanceID or KargoInstanceRef must be set.
+                      KargoInstanceID references the owning Kargo instance by ID. At
+                      least one of KargoInstanceID or KargoInstanceRef must be set;
+                      when both are present, KargoInstanceID is used.
                     type: string
                   kargoInstanceRef:
                     description: |-
                       KargoInstanceRef references the owning Kargo instance by name in
-                      the same namespace as this KargoAgent.
+                      the same namespace as this KargoAgent. At least one of
+                      KargoInstanceID or KargoInstanceRef must be set.
                     properties:
                       name:
                         description: Name is the referenced object's name. Required.

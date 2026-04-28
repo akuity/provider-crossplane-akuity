@@ -35,15 +35,17 @@ import (
 // +kubebuilder:validation:XValidation:rule="(!has(oldSelf.kargoInstanceId) || (has(self.kargoInstanceId) && self.kargoInstanceId == oldSelf.kargoInstanceId)) && (!has(oldSelf.kargoInstanceRef) || (has(self.kargoInstanceRef) && self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name))",message="kargoInstanceId/kargoInstanceRef are immutable"
 type KargoDefaultShardAgentParameters struct {
 	// KargoInstanceID references the owning Kargo instance by its
-	// opaque Akuity ID. Mutually exclusive with KargoInstanceRef.
+	// opaque Akuity ID. At least one of KargoInstanceID or
+	// KargoInstanceRef must be set; when both are present,
+	// KargoInstanceID is used.
 	// +optional
 	KargoInstanceID string `json:"kargoInstanceId,omitempty"`
 
 	// KargoInstanceRef references the owning Kargo instance by name
 	// in the same namespace as this KargoDefaultShardAgent. The
 	// controller reads the referenced KargoInstance's
-	// Status.AtProvider.ID to resolve the underlying Akuity ID.
-	// Mutually exclusive with KargoInstanceID.
+	// Status.AtProvider.ID to resolve the underlying Akuity ID. At
+	// least one of KargoInstanceID or KargoInstanceRef must be set.
 	// +optional
 	KargoInstanceRef *LocalReference `json:"kargoInstanceRef,omitempty"`
 

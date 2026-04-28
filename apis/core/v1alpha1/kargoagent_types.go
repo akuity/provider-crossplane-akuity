@@ -48,13 +48,15 @@ import (
 // absent in the apiserver's stored state.
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.kargoAgentSpec) || !has(oldSelf.kargoAgentSpec.data) || !has(oldSelf.kargoAgentSpec.data.akuityManaged) || (has(self.kargoAgentSpec) && has(self.kargoAgentSpec.data) && has(self.kargoAgentSpec.data.akuityManaged) && self.kargoAgentSpec.data.akuityManaged == oldSelf.kargoAgentSpec.data.akuityManaged)",message="akuityManaged is immutable after create: the platform ignores updates to this field"
 type KargoAgentParameters struct {
-	// KargoInstanceID references the owning Kargo instance by ID.
-	// Either KargoInstanceID or KargoInstanceRef must be set.
+	// KargoInstanceID references the owning Kargo instance by ID. At
+	// least one of KargoInstanceID or KargoInstanceRef must be set;
+	// when both are present, KargoInstanceID is used.
 	// +optional
 	KargoInstanceID string `json:"kargoInstanceId,omitempty"`
 
 	// KargoInstanceRef references the owning Kargo instance by name in
-	// the same namespace as this KargoAgent.
+	// the same namespace as this KargoAgent. At least one of
+	// KargoInstanceID or KargoInstanceRef must be set.
 	// +optional
 	KargoInstanceRef *LocalReference `json:"kargoInstanceRef,omitempty"`
 

@@ -44,12 +44,13 @@ import (
 // +kubebuilder:validation:XValidation:rule="(!has(oldSelf.instanceId) || (has(self.instanceId) && self.instanceId == oldSelf.instanceId)) && (!has(oldSelf.instanceRef) || (has(self.instanceRef) && self.instanceRef.name == oldSelf.instanceRef.name))",message="instanceId/instanceRef are immutable"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type ClusterParameters struct {
-	// InstanceID is the Akuity Argo CD instance ID this cluster belongs to.
-	// Mutually exclusive with InstanceRef.
+	// InstanceID is the Akuity Argo CD instance ID this cluster belongs
+	// to. At least one of InstanceID or InstanceRef must be set; when
+	// both are present, InstanceID is used.
 	// +optional
 	InstanceID string `json:"instanceId,omitempty"`
-	// InstanceRef references the Akuity Argo CD instance this cluster belongs to.
-	// Mutually exclusive with InstanceID.
+	// InstanceRef references the Akuity Argo CD instance this cluster
+	// belongs to. At least one of InstanceID or InstanceRef must be set.
 	// +optional
 	InstanceRef *LocalReference `json:"instanceRef,omitempty"`
 	// Name is the Akuity cluster name. Required.

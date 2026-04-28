@@ -93,7 +93,9 @@ spec:
                   kargoInstanceId:
                     description: |-
                       KargoInstanceID references the owning Kargo instance by its
-                      opaque Akuity ID. Mutually exclusive with KargoInstanceRef.
+                      opaque Akuity ID. At least one of KargoInstanceID or
+                      KargoInstanceRef must be set; when both are present,
+                      KargoInstanceID is used.
                     type: string
                   kargoInstanceRef:
                     description: |-
@@ -101,7 +103,7 @@ spec:
                       in the same namespace as this KargoDefaultShardAgent. The
                       controller reads the referenced KargoInstance's
                       Status.AtProvider.ID to resolve the underlying Akuity ID.
-                      Mutually exclusive with KargoInstanceID.
+                      At least one of KargoInstanceID or KargoInstanceRef must be set.
                     properties:
                       name:
                         description: Name is the referenced object's name. Required.

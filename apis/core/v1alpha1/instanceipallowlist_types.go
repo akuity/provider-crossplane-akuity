@@ -37,14 +37,16 @@ import (
 // +kubebuilder:validation:XValidation:rule="(!has(oldSelf.instanceId) || (has(self.instanceId) && self.instanceId == oldSelf.instanceId)) && (!has(oldSelf.instanceRef) || (has(self.instanceRef) && self.instanceRef.name == oldSelf.instanceRef.name))",message="instanceId/instanceRef are immutable"
 type InstanceIpAllowListParameters struct {
 	// InstanceID references the target Argo CD Instance by its opaque
-	// Akuity ID. Mutually exclusive with InstanceRef.
+	// Akuity ID. At least one of InstanceID or InstanceRef must be set;
+	// when both are present, InstanceID is used.
 	// +optional
 	InstanceID string `json:"instanceId,omitempty"`
 
 	// InstanceRef references the target Argo CD Instance by name in the
 	// same namespace as this InstanceIpAllowList. The controller reads
 	// the referenced Instance's Status.AtProvider.ID to resolve the
-	// underlying Akuity ID. Mutually exclusive with InstanceID.
+	// underlying Akuity ID. At least one of InstanceID or InstanceRef
+	// must be set.
 	// +optional
 	InstanceRef *LocalReference `json:"instanceRef,omitempty"`
 
