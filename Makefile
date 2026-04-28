@@ -168,9 +168,21 @@ crossplane.help:
 
 help-special: crossplane.help
 
-akuity-publish:
+akuity-publish: akuity-publish.gar akuity-publish.marketplace
+
+akuity-publish.gar:
 	crossplane xpkg push -f _output/xpkg/linux_arm64/provider-crossplane-akuity-$(VERSION).xpkg \
 		-f _output/xpkg/linux_amd64/provider-crossplane-akuity-$(VERSION).xpkg \
 		us-docker.pkg.dev/akuity/crossplane/provider:$(VERSION)
+
+# Mirror the GAR-published xpkg to the Upbound Marketplace so the digest stays
+# identical across both registries. Requires `crane` on PATH and prior login to
+# xpkg.upbound.io. The --allow-nondistributable-artifacts flag is required
+# because xpkg layers use foreign-layer media types.
+akuity-publish.marketplace:
+	crane copy \
+		us-docker.pkg.dev/akuity/crossplane/provider:$(VERSION) \
+		xpkg.upbound.io/akuity/provider-crossplane-akuity:$(VERSION) \
+		--allow-nondistributable-artifacts
 
 .PHONY: crossplane.help help-special
