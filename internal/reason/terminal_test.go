@@ -60,3 +60,23 @@ func TestClassifyApplyError_AlreadyTerminalIsIdempotent(t *testing.T) {
 	got := reason.ClassifyApplyError(tw)
 	assert.True(t, reason.IsTerminal(got))
 }
+
+func TestClassifyManifestInstallError_NotReconciledStaysRetryable(t *testing.T) {
+	got := reason.ClassifyManifestInstallError(reason.AsNotReconciled(errors.New("cluster has not yet been reconciled")))
+	require.Error(t, got)
+	assert.False(t, reason.IsTerminal(got))
+	assert.True(t, reason.IsRetryable(got))
+}
+
+func TestClassifyManifestInstallError_FailedPreconditionStaysRetryable(t *testing.T) {
+	got := reason.ClassifyManifestInstallError(status.Error(codes.FailedPrecondition, "cluster has not yet been reconciled"))
+	require.Error(t, got)
+	assert.False(t, reason.IsTerminal(got))
+	assert.True(t, reason.IsRetryable(got))
+}
+
+func TestClassifyManifestInstallError_OtherwiseTerminal(t *testing.T) {
+	got := reason.ClassifyManifestInstallError(errors.New("bad kubeconfig"))
+	require.Error(t, got)
+	assert.True(t, reason.IsTerminal(got))
+}

@@ -169,6 +169,28 @@ func TestCreate_WithKubeConfig_GetClusterManifestsErr(t *testing.T) {
 	assert.Equal(t, managed.ExternalCreation{}, resp)
 }
 
+func TestCreate_WithKubeConfig_GetClusterManifestsNotReconciledRetryable(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{}
+	managedCluster.Spec.ForProvider.RemoveAgentResourcesOnDestroy = false
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
+		Return(nil).Times(1)
+	mc.EXPECT().GetClusterManifests(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return("", reason.AsNotReconciled(errors.New("cluster has not yet been reconciled"))).Times(1)
+	mc.EXPECT().DeleteCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(nil).Times(1)
+
+	resp, err := e.Create(ctx, &managedCluster)
+	require.Error(t, err)
+	assert.True(t, reason.IsRetryable(err))
+	assert.False(t, reason.IsTerminal(err))
+	assert.Equal(t, managed.ExternalCreation{}, resp)
+}
+
 func TestCreate_WithKubeConfig_ApplyClusterManifestsErr(t *testing.T) {
 	e, mc := newExt(t, nil)
 

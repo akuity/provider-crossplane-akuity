@@ -157,6 +157,12 @@ func (g *TerminalWriteGuard) Suppress(mg resource.Managed, key TerminalWriteKey)
 	if g == nil {
 		return managed.ExternalObservation{}, nil, false
 	}
+	if mg.GetDeletionTimestamp() != nil {
+		g.mu.Lock()
+		g.deleteResourceLocked(key)
+		g.mu.Unlock()
+		return managed.ExternalObservation{}, nil, false
+	}
 	g.mu.Lock()
 	var err error
 	ok := false

@@ -283,6 +283,22 @@ func TestCreate_Apply(t *testing.T) {
 	require.Len(t, capturedReq.GetAgents(), 1, "narrow-merge: only Agents populated, sibling fields left for KargoInstance MR")
 }
 
+func TestCreate_ManifestFetchFailedPreconditionRetryable(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.EnableInClusterKubeConfig = true
+
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	mc.EXPECT().GetKargoInstanceAgentManifests(gomock.Any(), "ki-1", "agt").
+		Return("", status.Error(codes.FailedPrecondition, "kargo agent has not yet been reconciled")).Times(1)
+	mc.EXPECT().DeleteKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(nil).Times(1)
+
+	_, err := e.Create(context.Background(), a)
+	require.Error(t, err)
+	assert.True(t, reason.IsRetryable(err))
+	assert.False(t, reason.IsTerminal(err))
+}
+
 func TestDelete_CallsDelete(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()

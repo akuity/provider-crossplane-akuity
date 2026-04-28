@@ -69,11 +69,12 @@ func main() {
 		// lease timings. Under high reconcile load, API-server pressure
 		// can exceed the renewal deadline; use Leases only with longer
 		// timings to avoid unnecessary leader loss.
-		LeaderElection:             *leaderElection,
-		LeaderElectionID:           "crossplane-leader-election-provider-crossplane-akuity",
-		LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
-		LeaseDuration:              func() *time.Duration { d := 60 * time.Second; return &d }(),
-		RenewDeadline:              func() *time.Duration { d := 50 * time.Second; return &d }(),
+		LeaderElection:                *leaderElection,
+		LeaderElectionID:              "crossplane-leader-election-provider-crossplane-akuity",
+		LeaderElectionResourceLock:    resourcelock.LeasesResourceLock,
+		LeaderElectionReleaseOnCancel: true,
+		LeaseDuration:                 func() *time.Duration { d := 60 * time.Second; return &d }(),
+		RenewDeadline:                 func() *time.Duration { d := 50 * time.Second; return &d }(),
 	})
 	kingpin.FatalIfError(err, "Cannot create controller manager")
 	kingpin.FatalIfError(apis.AddToScheme(mgr.GetScheme()), "Cannot add Akuity APIs to scheme")

@@ -2,6 +2,7 @@ package reason
 
 import (
 	"errors"
+	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -64,4 +65,31 @@ func ClassifyApplyError(err error) error {
 		return AsTerminal(err)
 	}
 	return err
+}
+
+// ClassifyManifestInstallError tags one-shot agent manifest install
+// failures. Manifest fetches can race the platform reconciler immediately
+// after Apply* creates the row; those wait states must retry instead of
+// being cached as terminal writes. Other non-retryable failures are still
+// terminal because a repeated Create would keep stamping and rolling back
+// the same external row.
+func ClassifyManifestInstallError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if IsTerminal(err) || IsRetryable(err) {
+		return err
+	}
+	if IsNotReconciled(err) || isManifestReconciliationWait(err) {
+		return AsRetryable(err)
+	}
+	return AsTerminal(err)
+}
+
+func isManifestReconciliationWait(err error) bool {
+	s, ok := status.FromError(err)
+	if ok && s.Code() == codes.FailedPrecondition {
+		return true
+	}
+	return strings.Contains(err.Error(), "has not yet been reconciled")
 }

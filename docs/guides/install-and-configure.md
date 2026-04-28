@@ -93,6 +93,23 @@ only one kubeconfig source: `kubeconfigSecretRef` or
 create, not during later updates. See
 [Lifecycle and Reconciliation](lifecycle-and-reconciliation.md).
 
+When using `enableInClusterKubeconfig: true`, the provider pod's own
+ServiceAccount must be able to apply the generated agent manifests. Use a
+customer-managed ServiceAccount bound out-of-band and point the provider
+runtime at it with `deploymentTemplate.spec.template.spec.serviceAccountName`.
+This avoids binding permissions to Crossplane's generated, revision-specific
+provider ServiceAccount names during upgrades. See
+[In-cluster agent install RBAC](../../examples/cluster/in-cluster-rbac.yaml)
+for the required ServiceAccount, ClusterRole, ClusterRoleBinding, and
+`DeploymentRuntimeConfig` pattern. Reference that runtime config from the
+Provider with `spec.runtimeConfigRef.name: akuity-in-cluster`. Without this
+RBAC, `Cluster` create fails with Kubernetes `Forbidden` errors and the
+managed resource remains `Synced=False`.
+
+This guidance applies only to `enableInClusterKubeconfig: true`; with
+`kubeconfigSecretRef`, equivalent permissions are needed on the identity inside
+the referenced kubeconfig.
+
 ## Upgrade Or Remove
 
 Upgrade by changing `spec.package` on the `Provider` object to the target image tag. Crossplane creates a new `ProviderRevision` and activates it according to the package revision policy.

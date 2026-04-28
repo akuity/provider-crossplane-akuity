@@ -376,7 +376,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 			if kerr != nil {
 				return managed.ExternalCreation{}, err
 			}
-			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.AsTerminal(err))
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyManifestInstallError(err))
 		}
 	}
 

@@ -276,7 +276,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
 			e.rollbackCreatedCluster(ctx, mg, "get-manifests")
-			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.AsTerminal(fmt.Errorf("could not get cluster manifests to apply: %w", err)))
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyManifestInstallError(fmt.Errorf("could not get cluster manifests to apply: %w", err)))
 		}
 
 		e.Logger.Debug("Applying cluster manifests",
@@ -286,7 +286,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		e.Logger.Debug(clusterManifests)
 		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, false); err != nil {
 			e.rollbackCreatedCluster(ctx, mg, "apply-manifests")
-			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.AsTerminal(fmt.Errorf("could not apply cluster manifests: %w", err)))
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyManifestInstallError(fmt.Errorf("could not apply cluster manifests: %w", err)))
 		}
 	}
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)

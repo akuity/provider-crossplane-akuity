@@ -132,6 +132,25 @@ func TestTerminalWriteGuardClearsByResourceKey(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestTerminalWriteGuardDoesNotSuppressDeletingResource(t *testing.T) {
+	guard := base.NewTerminalWriteGuard()
+	mg := terminalGuardInstance(1)
+	key, err := base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, "payload")
+	require.NoError(t, err)
+	guard.Record(key, reason.AsTerminal(errors.New("bad payload")))
+
+	now := metav1.Now()
+	mg.SetDeletionTimestamp(&now)
+
+	obs, err, ok := guard.Suppress(mg, key)
+	assert.False(t, ok)
+	require.NoError(t, err)
+	assert.Equal(t, managed.ExternalObservation{}, obs)
+
+	_, _, ok = guard.Suppress(terminalGuardInstance(1), key)
+	assert.False(t, ok, "deletion bypass should clear the cached terminal write")
+}
+
 func terminalGuardInstance(generation int64) *v1alpha1.Instance {
 	return &v1alpha1.Instance{
 		ObjectMeta: metav1.ObjectMeta{
