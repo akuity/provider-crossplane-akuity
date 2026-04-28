@@ -80,11 +80,16 @@ jobs:
           BUILD_ARGS: "--load"
           VERSION: ${{ github.ref_name }}
 
-      - name: Publish Artifacts
+      - name: Publish to Google Artifact Registry
         run: |
           set -euo pipefail
           curl -sL https://raw.githubusercontent.com/crossplane/crossplane/v2.2.0/install.sh | XP_VERSION=v2.2.0 sh
           sudo mv crossplane /usr/local/bin
-          make akuity-publish
+          make akuity-publish.gar
+        env:
+          VERSION: ${{ github.ref_name }}
+
+      - name: Mirror to Upbound Marketplace
+        run: make akuity-publish.marketplace
         env:
           VERSION: ${{ github.ref_name }}
