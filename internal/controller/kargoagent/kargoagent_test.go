@@ -32,7 +32,10 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mockclient "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
@@ -41,7 +44,7 @@ import (
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// provisioningWaitErr synthesizes the gRPC error shape the Akuity
 // gateway returns while a target resource is still being provisioned.
 // reason.IsProvisioningWait keys off codes.InvalidArgument + the
 // "still being provisioned" substring.
@@ -68,6 +71,20 @@ func newExt(t *testing.T) (*external, *mockclient.MockClient) {
 	t.Helper()
 	mc := mockclient.NewMockClient(gomock.NewController(t))
 	return &external{ExternalClient: base.ExternalClient{Client: mc, Logger: logging.NewNopLogger()}}, mc
+}
+
+func mustKargoAgentStruct(t *testing.T, data map[string]interface{}) *structpb.Struct {
+	t.Helper()
+	pb, err := structpb.NewStruct(map[string]interface{}{
+		"apiVersion": "kargo.akuity.io/v1alpha1",
+		"kind":       "KargoAgent",
+		"metadata":   map[string]interface{}{"name": "agt"},
+		"spec": map[string]interface{}{
+			"data": data,
+		},
+	})
+	require.NoError(t, err)
+	return pb
 }
 
 func TestObserve_NoExternalName(t *testing.T) {
@@ -97,7 +114,7 @@ func TestObserve_NotYetReconciled(t *testing.T) {
 		Name:                 "agt",
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_PROGRESSING},
 	}, nil).Times(1)
-	// Agent is still provisioning — not yet in Export's Agents slice.
+	// Agent is still provisioning and not yet in Export's Agents slice.
 	// Observe falls back to Get-derived drift, which surfaces the
 	// (empty Data vs desired small) diff.
 	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
@@ -131,6 +148,123 @@ func TestObserve_Reconciled(t *testing.T) {
 	assert.Nil(t, obs.ConnectionDetails)
 }
 
+func TestObserve_PodInheritMetadataPropagatesToAtProvider(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:   "ag-1",
+		Name: "agt",
+		Data: &kargov1.KargoAgentData{
+			PodInheritMetadata: boolPtr(true),
+		},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	require.NotNil(t, a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
+	assert.True(t, *a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
+}
+
+func TestObserve_ExportedSpecPropagatesToAtProvider(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.KargoAgentSpec.Data.PodInheritMetadata = boolPtr(true)
+	a.Spec.ForProvider.KargoAgentSpec.Data.AutoscalerConfig = &crossplanetypes.KargoAutoscalerConfig{
+		KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
+			ResourceMinimum: &crossplanetypes.KargoResources{Cpu: "100m", Mem: "256Mi"},
+			ResourceMaximum: &crossplanetypes.KargoResources{Cpu: "1", Mem: "1Gi"},
+		},
+	}
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:   "ag-1",
+		Name: "agt",
+		Data: &kargov1.KargoAgentData{
+			PodInheritMetadata: boolPtr(true),
+		},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(&kargov1.ExportKargoInstanceResponse{
+			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]interface{}{
+				"size":               "small",
+				"podInheritMetadata": true,
+				"autoscalerConfig": map[string]interface{}{
+					"kargoController": map[string]interface{}{
+						"resourceMinimum": map[string]interface{}{"cpu": "100m", "mem": "256Mi"},
+						"resourceMaximum": map[string]interface{}{"cpu": "1", "mem": "1Gi"},
+					},
+				},
+			})},
+		}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+	require.NotNil(t, a.Status.AtProvider.KargoAgentSpec.Data.AutoscalerConfig)
+	assert.Equal(t, a.Spec.ForProvider.KargoAgentSpec.Data.AutoscalerConfig,
+		a.Status.AtProvider.KargoAgentSpec.Data.AutoscalerConfig)
+}
+
+func TestObserve_ExportFailureFallsBackToGet(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.KargoAgentSpec.Data = crossplanetypes.KargoAgentData{}
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:                   "ag-1",
+		Name:                 "agt",
+		Data:                 &kargov1.KargoAgentData{},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(nil, errors.New("export down")).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+}
+
+func TestObserve_PodInheritMetadataDesiredTrueExportFalseDrifts(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.KargoAgentSpec.Data.PodInheritMetadata = boolPtr(true)
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:   "ag-1",
+		Name: "agt",
+		Data: &kargov1.KargoAgentData{
+			PodInheritMetadata: boolPtr(false),
+		},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(&kargov1.ExportKargoInstanceResponse{
+			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]interface{}{
+				"size":               "small",
+				"podInheritMetadata": false,
+			})},
+		}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.False(t, obs.ResourceUpToDate)
+	require.NotNil(t, a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
+	assert.False(t, *a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
+}
+
 func TestCreate_Apply(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
@@ -147,6 +281,22 @@ func TestCreate_Apply(t *testing.T) {
 	require.NotNil(t, capturedReq)
 	assert.Equal(t, "ki-1", capturedReq.GetId())
 	require.Len(t, capturedReq.GetAgents(), 1, "narrow-merge: only Agents populated, sibling fields left for KargoInstance MR")
+}
+
+func TestCreate_ManifestFetchFailedPreconditionRetryable(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.EnableInClusterKubeConfig = true
+
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	mc.EXPECT().GetKargoInstanceAgentManifests(gomock.Any(), "ki-1", "agt").
+		Return("", status.Error(codes.FailedPrecondition, "kargo agent has not yet been reconciled")).Times(1)
+	mc.EXPECT().DeleteKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(nil).Times(1)
+
+	_, err := e.Create(context.Background(), a)
+	require.Error(t, err)
+	assert.True(t, reason.IsRetryable(err))
+	assert.False(t, reason.IsTerminal(err))
 }
 
 func TestDelete_CallsDelete(t *testing.T) {
@@ -195,7 +345,7 @@ func TestDelete_GenericErrPropagates(t *testing.T) {
 
 // TestUpdate_Happy exercises the Update path end-to-end: resolve
 // instance ID, translate spec, call ApplyKargoInstance with only the
-// Agents slice populated. No Get-before-Update — ApplyKargoInstance
+// Agents slice populated. No Get-before-Update: ApplyKargoInstance
 // keys by Name inside the wire struct, eliminating the round-trip.
 func TestUpdate_Happy(t *testing.T) {
 	e, mc := newExt(t)
@@ -226,6 +376,142 @@ func TestUpdate_ApplyErr(t *testing.T) {
 	_, err := e.Update(context.Background(), a)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(status.Error(codes.InvalidArgument, "invalid kargo agent config")).Times(1)
+	_, err := e.Update(context.Background(), a)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from ApplyKargoInstance must be reason.Terminal-classified, got %T %v", err, err)
+}
+
+func TestDriftSpec_PodInheritMetadataDesiredNilAdoptsObserved(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				PodInheritMetadata: boolPtr(true),
+			},
+		},
+	}
+
+	driftSpec().Normalize(&desired, &observed)
+
+	require.NotNil(t, desired.KargoAgentSpec.Data.PodInheritMetadata)
+	assert.True(t, *desired.KargoAgentSpec.Data.PodInheritMetadata)
+}
+
+func TestDriftSpec_PodInheritMetadataDesiredSetDoesNotAdoptObserved(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				PodInheritMetadata: boolPtr(true),
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				PodInheritMetadata: boolPtr(false),
+			},
+		},
+	}
+
+	driftSpec().Normalize(&desired, &observed)
+
+	require.NotNil(t, desired.KargoAgentSpec.Data.PodInheritMetadata)
+	assert.True(t, *desired.KargoAgentSpec.Data.PodInheritMetadata,
+		"user-pinned podInheritMetadata must not be overwritten by observed drift")
+}
+
+func TestDriftSpec_AbsorbsAkuityManagedClampedFields(t *testing.T) {
+	expiry := "2099-01-01T00:00:00Z"
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged:         boolPtr(true),
+				ArgocdNamespace:       "argocd2",
+				TargetVersion:         "0.5.87",
+				MaintenanceMode:       boolPtr(true),
+				MaintenanceModeExpiry: &expiry,
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged:         boolPtr(true),
+				ArgocdNamespace:       "",
+				TargetVersion:         "0.5.88",
+				MaintenanceMode:       boolPtr(false),
+				MaintenanceModeExpiry: nil,
+			},
+		},
+	}
+
+	driftSpec().Normalize(&desired, &observed)
+
+	assert.Empty(t, desired.KargoAgentSpec.Data.ArgocdNamespace,
+		"akuityManaged ArgocdNamespace must adopt observed because the platform clears it on Update")
+	assert.Equal(t, "0.5.88", desired.KargoAgentSpec.Data.TargetVersion,
+		"akuityManaged TargetVersion must adopt observed because the ManagedAgent reconciler force-rotates it")
+	require.NotNil(t, desired.KargoAgentSpec.Data.MaintenanceMode)
+	assert.False(t, *desired.KargoAgentSpec.Data.MaintenanceMode,
+		"MaintenanceMode must adopt observed because Apply does not route this field")
+	assert.Nil(t, desired.KargoAgentSpec.Data.MaintenanceModeExpiry,
+		"MaintenanceModeExpiry must adopt observed because Apply does not route this field")
+}
+
+func TestDriftSpec_SelfManagedKeepsArgocdNamespaceAndTargetVersion(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged:   boolPtr(false),
+				ArgocdNamespace: "argocd2",
+				TargetVersion:   "0.5.87",
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AkuityManaged:   boolPtr(false),
+				ArgocdNamespace: "argocd",
+				TargetVersion:   "0.5.88",
+			},
+		},
+	}
+
+	driftSpec().Normalize(&desired, &observed)
+
+	assert.Equal(t, "argocd2", desired.KargoAgentSpec.Data.ArgocdNamespace,
+		"self-managed ArgocdNamespace must keep user-pinned value")
+	assert.Equal(t, "0.5.87", desired.KargoAgentSpec.Data.TargetVersion,
+		"self-managed TargetVersion must keep user-pinned value")
+}
+
+func TestResolveWorkspaceFromParentUsesStatusFallback(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.SchemeBuilder.AddToScheme(scheme))
+	parent := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-ref", Namespace: "ns"},
+	}
+	parent.Status.AtProvider.Workspace = "ws-cached-id"
+	e := &external{ExternalClient: base.ExternalClient{
+		Kube:   fake.NewClientBuilder().WithScheme(scheme).WithObjects(parent).Build(),
+		Logger: logging.NewNopLogger(),
+	}}
+	a := newAgent()
+	a.Spec.ForProvider.KargoInstanceID = ""
+	a.Spec.ForProvider.KargoInstanceRef = &v1alpha1.LocalReference{Name: "ki-ref"}
+
+	got := e.resolveWorkspaceFromParent(context.Background(), a)
+	assert.Equal(t, "ws-cached-id", got)
 }
 
 // TestObserve_ProvisioningWait covers the short-circuit: the Kargo

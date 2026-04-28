@@ -24,7 +24,7 @@ import (
 
 // EvaluateDrift runs spec.UpToDate(ctx, desired, observed) and logs a
 // spec.Diff to Debug when drift is present. Caller owns the DeepCopy
-// of desired/observed before calling — Normalize may mutate, so shared
+// of desired/observed before calling. Normalize may mutate, so shared
 // slice/map backing must not leak back into mg. The resource label is
 // included on the debug log so operators filtering by controller can
 // spot drift without cross-referencing the log context.

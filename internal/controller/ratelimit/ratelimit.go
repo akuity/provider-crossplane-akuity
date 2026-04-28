@@ -1,5 +1,5 @@
 // Package ratelimit builds the workqueue rate limiter used by every Akuity
-// controller. It combines two behaviours:
+// controller. It combines two behaviors:
 //
 //  1. A global token bucket that caps the total rate of reconciles across all
 //     controllers in the provider process. This is the back-pressure against
@@ -20,7 +20,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 )
 
-// Default rates. Conservative — expected to be tuned against staging load.
+// Default rates. Conservative values, expected to be tuned against staging load.
 const (
 	DefaultRPS        = 10
 	DefaultBurstRatio = 10 // burst = rps * BurstRatio

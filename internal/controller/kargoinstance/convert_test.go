@@ -22,15 +22,19 @@ import (
 	"testing"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	secretsv1 "github.com/akuity/api-client-go/pkg/api/gen/types/secrets/v1"
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
@@ -62,7 +66,7 @@ func TestResolveKargoSecret_ReadsSecret(t *testing.T) {
 	require.NoError(t, corev1.AddToScheme(scheme))
 	sec := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "kargo-admin"},
-		Data:       map[string][]byte{"adminPassword": []byte("p@ss")},
+		Data:       map[string][]byte{"adminAccountPasswordHash": []byte("hashed")},
 	}
 	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
 
@@ -70,14 +74,87 @@ func TestResolveKargoSecret_ReadsSecret(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
-				KargoSecretRef: &xpv1.LocalSecretReference{Name: "kargo-admin"},
+				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
 			},
 		},
 	}
 	got, err := resolveKargoSecrets(context.Background(), kube, mg)
 	require.NoError(t, err)
 	assert.Equal(t, "kargo-admin", got.Kargo.Name)
-	assert.Equal(t, "p@ss", got.Kargo.Data["adminPassword"])
+	assert.Equal(t, "hashed", got.Kargo.Data["adminAccountPasswordHash"])
+}
+
+func TestResolveKargoSecret_NormalizesSnakeCaseProtoName(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "kargo-admin"},
+		Data:       map[string][]byte{"admin_account_password_hash": []byte("hashed")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+			},
+		},
+	}
+	got, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.NoError(t, err)
+	assert.Equal(t, "hashed", got.Kargo.Data["adminAccountPasswordHash"])
+	_, hasSnake := got.Kargo.Data["admin_account_password_hash"]
+	assert.False(t, hasSnake, "snake_case key must be remapped to lowerCamel before forwarding")
+}
+
+func TestResolveKargoSecret_RejectsUnknownKey(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "kargo-admin"},
+		Data:       map[string][]byte{"webhook.github.secret": []byte("token")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported kargoSecret key")
+	assert.True(t, reason.IsTerminal(err), "unknown kargoSecret key must classify terminally")
+}
+
+func TestResolveKargoSecret_RejectsConflictingAliases(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "kargo-admin"},
+		Data: map[string][]byte{
+			"adminAccountPasswordHash":    []byte("a"),
+			"admin_account_password_hash": []byte("b"),
+		},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicting aliases")
+	assert.True(t, reason.IsTerminal(err), "conflicting aliases must classify terminally")
 }
 
 func TestKubeSecretToPB_EmptyOmitted(t *testing.T) {
@@ -100,7 +177,7 @@ func TestKubeSecretToPB_Populated(t *testing.T) {
 }
 
 func TestBuildKargoConfigMapPB_Populated(t *testing.T) {
-	pb, err := buildKargoConfigMapPB(map[string]string{"a": "b"}, false)
+	pb, err := buildKargoConfigMapPB(map[string]string{"a": "b"})
 	require.NoError(t, err)
 	require.NotNil(t, pb)
 	m := pb.AsMap()
@@ -110,43 +187,14 @@ func TestBuildKargoConfigMapPB_Populated(t *testing.T) {
 	assert.Equal(t, "b", data["a"])
 }
 
-// TestBuildKargoConfigMapPB_TombstoneSendsEmptyStruct covers B1:
-// an empty desired + tombstoneOnEmpty=true must serialise an empty
-// ConfigMap (not nil), otherwise the gateway has no way to
-// understand "clear previously-applied keys" on Apply.
-func TestBuildKargoConfigMapPB_TombstoneSendsEmptyStruct(t *testing.T) {
-	pb, err := buildKargoConfigMapPB(nil, true)
+func TestBuildKargoConfigMapPB_EmptyOmitted(t *testing.T) {
+	pb, err := buildKargoConfigMapPB(nil)
 	require.NoError(t, err)
-	require.NotNil(t, pb, "tombstone must send an empty ConfigMap, not nil")
-	m := pb.AsMap()
-	md, _ := m["metadata"].(map[string]interface{})
-	assert.Equal(t, kargoCMKey, md["name"])
-	data, _ := m["data"].(map[string]interface{})
-	assert.Empty(t, data, "tombstone data map must be empty")
+	assert.Nil(t, pb, "empty desired means no currently managed ConfigMap keys")
 
-	// Empty + not tombstone still returns nil (field never applied).
-	pb, err = buildKargoConfigMapPB(nil, false)
+	pb, err = buildKargoConfigMapPB(map[string]string{})
 	require.NoError(t, err)
-	assert.Nil(t, pb, "never-applied empty map must yield nil so the gateway leaves the CM alone")
-}
-
-// TestHashKargoConfigMap_EmptyIsEmpty makes the never-applied signal
-// unambiguous: empty input = empty digest, so comparing against the
-// stored hash reliably distinguishes "never applied" from "applied
-// and cleared" (stored hash non-empty → tombstone needed).
-func TestHashKargoConfigMap_EmptyIsEmpty(t *testing.T) {
-	assert.Empty(t, hashConfigMap(nil))
-	assert.Empty(t, hashConfigMap(map[string]string{}))
-	assert.NotEmpty(t, hashConfigMap(map[string]string{"k": "v"}))
-}
-
-// TestHashKargoConfigMap_DetectsKeyRemoval is the core regression
-// guard for B1: removing a key from the desired map must produce a
-// different digest so Observe can trigger re-Apply.
-func TestHashKargoConfigMap_DetectsKeyRemoval(t *testing.T) {
-	a := hashConfigMap(map[string]string{"foo": "bar", "baz": "qux"})
-	b := hashConfigMap(map[string]string{"foo": "bar"})
-	assert.NotEqual(t, a, b, "removing a key must rotate the digest")
+	assert.Nil(t, pb)
 }
 
 func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
@@ -167,7 +215,7 @@ func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				Kargo: crossplanetypes.KargoSpec{
 					OidcConfig: &crossplanetypes.KargoOidcConfig{
-						DexConfigSecretRef: &corev1.LocalObjectReference{Name: "dex-creds"},
+						DexConfigSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "dex-creds"},
 					},
 				},
 			},
@@ -187,8 +235,8 @@ func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
 // the Instance-side equivalent for the rationale.
 func TestResolvedKargoSecrets_HashChangesOnRefRename(t *testing.T) {
 	data := map[string]string{"k": "v"}
-	a := resolvedKargoSecrets{Kargo: kargoResolvedSecret{Name: "old", Data: data}}
-	b := resolvedKargoSecrets{Kargo: kargoResolvedSecret{Name: "new", Data: data}}
+	a := resolvedKargoSecrets{Kargo: kargoResolvedSecret{Namespace: "team-a", Name: "old", Data: data}}
+	b := resolvedKargoSecrets{Kargo: kargoResolvedSecret{Namespace: "team-a", Name: "new", Data: data}}
 	assert.NotEqual(t, a.Hash(), b.Hash())
 }
 
@@ -199,7 +247,7 @@ func TestSpecToPB_InjectsResolvedDex(t *testing.T) {
 			Version: "v1.4.0",
 			OidcConfig: &crossplanetypes.KargoOidcConfig{
 				ClientID:           "app",
-				DexConfigSecretRef: &corev1.LocalObjectReference{Name: "dex-creds"},
+				DexConfigSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "dex-creds"},
 			},
 		},
 	}
@@ -260,7 +308,7 @@ func TestSplitKargoResources_Routing(t *testing.T) {
 			"metadata": map[string]interface{}{"name": "dev"},
 		}),
 		mustRawMap(t, map[string]interface{}{
-			"apiVersion": "kargo.akuity.io/v1alpha1", "kind": "AnalysisTemplate",
+			"apiVersion": "argoproj.io/v1alpha1", "kind": "AnalysisTemplate",
 			"metadata": map[string]interface{}{"name": "canary"},
 		}),
 		mustRawMap(t, map[string]interface{}{
@@ -282,8 +330,8 @@ func TestSplitKargoResources_Routing(t *testing.T) {
 	assert.Len(t, got.ClusterPromotionTasks, 1)
 }
 
-// TestSplitKargoResources_RejectsSecrets locks in the post-7.B' rule
-// that v1/Secret manifests are no longer accepted inside
+// TestSplitKargoResources_RejectsSecrets verifies that v1/Secret
+// manifests are not accepted inside
 // spec.forProvider.kargoResources. Repo-credential Secrets must go
 // through spec.forProvider.kargoRepoCredentialSecretRefs so plaintext
 // stays out of the MR spec and rotation participates in SecretHash
@@ -333,16 +381,20 @@ func TestSecretHashStatusRoundTrip(t *testing.T) {
 	assert.Empty(t, getSecretHash(mg))
 }
 
-// TestResolveKargoSecrets_ResolvesRepoCredentials exercises the 7.B'
-// typed ref path: the controller reads each ref's backing Secret, keeps
-// slot / project ns / cred type in the resolved struct, and participates
-// in the digest so rotation fires Observe drift even though the gateway
-// Export response has no repo_credentials field.
+// TestResolveKargoSecrets_ResolvesRepoCredentials exercises the typed
+// repo-credential ref path: the controller reads each backing Secret,
+// preserves slot/project namespace/credential type in the resolved
+// struct, and includes it in the digest even though Export does not
+// return repo_credentials.
 func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
 	sec := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "repo-github-k8s"},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "team-a",
+			Name:      "repo-github",
+			Labels:    map[string]string{kargoCredTypeLabel: "helm"},
+		},
 		Data: map[string][]byte{
 			"repoURL":  []byte("https://github.com/acme/platform.git"),
 			"username": []byte("bot"),
@@ -355,10 +407,11 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
-					Name:             "repo-github",
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "repo-github"},
+					},
 					ProjectNamespace: "platform",
 					CredType:         "git",
-					SecretRef:        xpv1.LocalSecretReference{Name: "repo-github-k8s"},
 				}},
 			},
 		},
@@ -369,20 +422,79 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 	rc := got.RepoCredentials[0]
 	assert.Equal(t, "repo-github", rc.Slot)
 	assert.Equal(t, "platform", rc.ProjectNamespace)
-	assert.Equal(t, "git", rc.CredType)
-	assert.Equal(t, "repo-github-k8s", rc.SecretName)
+	assert.Equal(t, "git", rc.CredType, "explicit credType must override source Secret label")
+	assert.Equal(t, "team-a", rc.SecretNamespace)
+	assert.Equal(t, "repo-github", rc.SecretName)
 	assert.Equal(t, "ghp-xyz", rc.Data["password"])
 	assert.NotEmpty(t, got.Hash(), "repo-cred resolution must contribute to the digest")
 }
 
-// TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot guards against
-// a CEL bypass (e.g. admission race) for (projectNamespace, name)
-// uniqueness: the controller runs the check again at reconcile time.
-func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
+func TestResolveKargoSecrets_RepoCredsDerivesCredTypeFromLabel(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
 	sec := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "s"},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "platform",
+			Name:      "repo-github",
+			Labels:    map[string]string{kargoCredTypeLabel: "git"},
+		},
+		Data: map[string][]byte{"password": []byte("ghp-xyz")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+					ProjectNamespace: "platform",
+				}},
+			},
+		},
+	}
+	got, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.NoError(t, err)
+	require.Len(t, got.RepoCredentials, 1)
+	assert.Equal(t, "platform", got.RepoCredentials[0].ProjectNamespace)
+	assert.Equal(t, "git", got.RepoCredentials[0].CredType)
+}
+
+func TestResolveKargoSecrets_RepoCredsRejectsMissingProjectNamespace(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "platform",
+			Name:      "repo-github",
+			Labels:    map[string]string{kargoCredTypeLabel: "git"},
+		},
+		Data: map[string][]byte{"password": []byte("ghp-xyz")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+				}},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "projectNamespace")
+}
+
+func TestResolveKargoSecrets_RepoCredsRejectsMissingDerivedCredType(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "platform", Name: "repo-github"},
 		Data:       map[string][]byte{"password": []byte("x")},
 	}
 	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
@@ -390,9 +502,85 @@ func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+					ProjectNamespace: "platform",
+				}},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "credType")
+}
+
+func TestResolveKargoSecrets_RepoCredsRejectsInvalidDerivedCredType(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "platform",
+			Name:      "repo-github",
+			Labels:    map[string]string{kargoCredTypeLabel: "oci"},
+		},
+		Data: map[string][]byte{"password": []byte("x")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+					ProjectNamespace: "platform",
+				}},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "credType")
+}
+
+// TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot guards against
+// a CEL bypass (e.g. admission race) for (effective project namespace,
+// effective name) uniqueness: the controller runs the check again at
+// reconcile time.
+func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "s", Labels: map[string]string{kargoCredTypeLabel: "git"}},
+		Data:       map[string][]byte{"password": []byte("x")},
+	}
+	repo := sec.DeepCopy()
+	repo.Name = "repo-github"
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec, repo).Build()
+	// The first ref uses explicit Name + explicit projectNamespace;
+	// the second derives the slot from the source Secret name. Both
+	// collapse to team-a/repo-github.
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{
-					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "s"}},
-					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "s"}},
+					{
+						NamedSecretReference: v1alpha1.NamedSecretReference{
+							Name:      "repo-github",
+							SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "s"},
+						},
+						ProjectNamespace: "team-a",
+					},
+					{
+						NamedSecretReference: v1alpha1.NamedSecretReference{
+							SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "repo-github"},
+						},
+						ProjectNamespace: "team-a",
+					},
 				},
 			},
 		},
@@ -402,13 +590,40 @@ func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 	assert.Contains(t, err.Error(), "duplicate")
 }
 
-// TestKargoRepoCredsToPB_ShapeAndLabels confirms the synthesised Secret
+func TestResolveKargoSecrets_RepoCredsRejectsInvalidEffectiveName(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a", Name: "Bad_Name"},
+		Data:       map[string][]byte{"password": []byte("x")},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sec).Build()
+	mg := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "Bad_Name"},
+					},
+					ProjectNamespace: "platform",
+					CredType:         "git",
+				}},
+			},
+		},
+	}
+	_, err := resolveKargoSecrets(context.Background(), kube, mg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must match")
+}
+
+// TestKargoRepoCredsToPB_ShapeAndLabels confirms the synthesized Secret
 // carries the Kargo cred-type label, lands in the declared project
 // namespace, and omits entries with empty data.
 func TestKargoRepoCredsToPB_ShapeAndLabels(t *testing.T) {
 	pbs, err := kargoRepoCredsToPB([]kargoResolvedRepoCred{
-		{Slot: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretName: "s", Data: map[string]string{"password": "p"}},
-		{Slot: "repo-empty", ProjectNamespace: "platform", CredType: "helm", SecretName: "e", Data: map[string]string{}},
+		{Slot: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretNamespace: "team-a", SecretName: "s", Data: map[string]string{"password": "p"}},
+		{Slot: "repo-empty", ProjectNamespace: "platform", CredType: "helm", SecretNamespace: "team-a", SecretName: "e", Data: map[string]string{}},
 	})
 	require.NoError(t, err)
 	require.Len(t, pbs, 1, "entries with empty data are dropped")
@@ -427,7 +642,7 @@ func TestKargoRepoCredsToPB_ShapeAndLabels(t *testing.T) {
 // axis that should fire drift: slot rename, cred-type change, backing
 // Secret name change, and payload change.
 func TestKargoRepoCreds_HashChangesOnIdentityRotation(t *testing.T) {
-	base := kargoResolvedRepoCred{Slot: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretName: "s1", Data: map[string]string{"k": "v"}}
+	base := kargoResolvedRepoCred{Slot: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretNamespace: "team-a", SecretName: "s1", Data: map[string]string{"k": "v"}}
 	h := func(c kargoResolvedRepoCred) string {
 		return resolvedKargoSecrets{RepoCredentials: []kargoResolvedRepoCred{c}}.Hash()
 	}
@@ -444,6 +659,10 @@ func TestKargoRepoCreds_HashChangesOnIdentityRotation(t *testing.T) {
 	secRename := base
 	secRename.SecretName = "s2"
 	assert.NotEqual(t, original, h(secRename), "backing Secret rename must rotate hash")
+
+	secMove := base
+	secMove.SecretNamespace = "team-b"
+	assert.NotEqual(t, original, h(secMove), "backing Secret namespace change must rotate hash")
 
 	payload := base
 	payload.Data = map[string]string{"k": "v2"}
@@ -493,6 +712,108 @@ func TestApiToSpec_PropagatesNestedSpec(t *testing.T) {
 	assert.Equal(t, "shard-a", params.Kargo.KargoInstanceSpec.DefaultShardAgent)
 }
 
+func TestApiToSpec_PropagatesAllCurrentGeneratedNestedSpecFields(t *testing.T) {
+	kustomization, err := structpb.NewStruct(map[string]any{
+		"apiVersion": "kustomize.config.k8s.io/v1beta1",
+		"kind":       "Kustomization",
+	})
+	require.NoError(t, err)
+	pb := &kargov1.KargoInstance{
+		Name: "my-kargo",
+		Spec: &kargov1.KargoInstanceSpec{
+			BackendIpAllowListEnabled: true,
+			IpAllowList: []*kargov1.KargoIPAllowListEntry{
+				{Ip: "203.0.113.10", Description: "office"},
+			},
+			AgentCustomizationDefaults: &kargov1.KargoAgentCustomization{
+				AutoUpgradeDisabled: true,
+				Kustomization:       kustomization,
+			},
+			DefaultShardAgent:      "shard-a",
+			GlobalCredentialsNs:    []string{"creds"},
+			GlobalServiceAccountNs: []string{"service-accounts"},
+			AkuityIntelligence: &kargov1.AkuityIntelligence{
+				AiSupportEngineerEnabled: true,
+				Enabled:                  true,
+				AllowedUsernames:         []string{"alice"},
+				AllowedGroups:            []string{"admins"},
+				ModelVersion:             "gpt-4.1",
+			},
+			GcConfig: &kargov1.GarbageCollectorConfig{
+				MaxRetainedFreight:      20,
+				MaxRetainedPromotions:   30,
+				MinFreightDeletionAge:   40,
+				MinPromotionDeletionAge: 50,
+			},
+			PromoControllerEnabled: true,
+			Secrets: &secretsv1.SecretsManagementConfig{
+				Sources: []*secretsv1.ClusterSecretMapping{
+					{
+						Clusters: &secretsv1.ObjectSelector{
+							MatchLabels: map[string]string{"cluster": "prod"},
+						},
+						Secrets: &secretsv1.ObjectSelector{
+							MatchExpressions: []*secretsv1.LabelSelectorRequirement{
+								{
+									Key:      ptr.To("sync"),
+									Operator: ptr.To("Exists"),
+								},
+							},
+						},
+					},
+				},
+			},
+			ArgocdUi: &kargov1.KargoArgoCDUIConfig{IdpGroupsMapping: true},
+		},
+	}
+
+	params, err := apiToSpec(pb)
+	require.NoError(t, err)
+	spec := params.Kargo.KargoInstanceSpec
+
+	assert.Equal(t, ptr.To(true), spec.BackendIpAllowListEnabled)
+	assert.Equal(t, []*crossplanetypes.KargoIPAllowListEntry{
+		{Ip: "203.0.113.10", Description: "office"},
+	}, spec.IpAllowList)
+	require.NotNil(t, spec.AgentCustomizationDefaults)
+	assert.Equal(t, ptr.To(true), spec.AgentCustomizationDefaults.AutoUpgradeDisabled)
+	assert.Contains(t, spec.AgentCustomizationDefaults.Kustomization, "apiVersion: kustomize.config.k8s.io/v1beta1")
+	assert.Contains(t, spec.AgentCustomizationDefaults.Kustomization, "kind: Kustomization")
+	assert.Equal(t, "shard-a", spec.DefaultShardAgent)
+	assert.Equal(t, []string{"creds"}, spec.GlobalCredentialsNs)
+	assert.Equal(t, []string{"service-accounts"}, spec.GlobalServiceAccountNs)
+	assert.Equal(t, &crossplanetypes.AkuityIntelligence{
+		AiSupportEngineerEnabled: ptr.To(true),
+		Enabled:                  ptr.To(true),
+		AllowedUsernames:         []string{"alice"},
+		AllowedGroups:            []string{"admins"},
+		ModelVersion:             "gpt-4.1",
+	}, spec.AkuityIntelligence)
+	assert.Equal(t, &crossplanetypes.GarbageCollectorConfig{
+		MaxRetainedFreight:      20,
+		MaxRetainedPromotions:   30,
+		MinFreightDeletionAge:   40,
+		MinPromotionDeletionAge: 50,
+	}, spec.GcConfig)
+	assert.Equal(t, ptr.To(true), spec.PromoControllerEnabled)
+	assert.Equal(t, []*crossplanetypes.ClusterSecretMapping{
+		{
+			Clusters: &crossplanetypes.ObjectSelector{
+				MatchLabels: map[string]string{"cluster": "prod"},
+			},
+			Secrets: &crossplanetypes.ObjectSelector{
+				MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
+					{
+						Key:      ptr.To("sync"),
+						Operator: ptr.To("Exists"),
+					},
+				},
+			},
+		},
+	}, spec.Secrets.Sources)
+	assert.Equal(t, &crossplanetypes.KargoArgoCDUIConfig{IdpGroupsMapping: ptr.To(true)}, spec.ArgocdUi)
+}
+
 // TestApiToSpec_PopulatesOidcConfig verifies the OidcConfig bridge:
 // the CRD marks DexConfigSecretRef as mutually-exclusive with the
 // inline DexConfigSecret, so Observe must hand back whichever shape
@@ -513,7 +834,7 @@ func TestApiToSpec_PopulatesOidcConfig(t *testing.T) {
 	assert.Equal(t, "https://example.com", params.Kargo.OidcConfig.IssuerURL)
 }
 
-// TestApiToSpec_NilInputDoesNotPanic covers defensive behaviour:
+// TestApiToSpec_NilInputDoesNotPanic covers defensive behavior:
 // Observe may be called with an empty response in degenerate cases,
 // and apiToSpec's protobuf getters all tolerate a nil receiver.
 func TestApiToSpec_NilInputDoesNotPanic(t *testing.T) {

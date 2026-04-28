@@ -1,4 +1,4 @@
-// Package roundtrip_test locks the current converter behaviour as JSON
+// Package roundtrip_test locks the current converter behavior as JSON
 // golden snapshots. The snapshots in ./testdata/ must round-trip
 // bit-identical across future codegen-emitter swaps. Refresh the
 // snapshots with `-update`.
@@ -27,7 +27,7 @@ var update = flag.Bool("update", false, "rewrite testdata golden files")
 const testdataDir = "testdata"
 
 // TestCluster_CrossplaneToAkuityGolden snapshots the output of the
-// Cluster controller's spec→API converter for fixtures.CrossplaneCluster.
+// Cluster controller's spec-to-API converter for fixtures.CrossplaneCluster.
 // The codegen path must reproduce this snapshot byte-identical.
 func TestCluster_CrossplaneToAkuityGolden(t *testing.T) {
 	got, err := cluster.SpecToAPI(fixtures.CrossplaneCluster)
@@ -36,8 +36,8 @@ func TestCluster_CrossplaneToAkuityGolden(t *testing.T) {
 }
 
 // TestCluster_AkuityToCrossplaneGolden snapshots the output of the
-// Cluster controller's API→spec converter. The converter takes a spec
-// it can late-initialise into, so feeding it fixtures.CrossplaneCluster
+// Cluster controller's API-to-spec converter. The converter takes a spec
+// it can late-initialize into, so feeding it fixtures.CrossplaneCluster
 // is the intended call pattern in the production controller.
 func TestCluster_AkuityToCrossplaneGolden(t *testing.T) {
 	got, err := cluster.APIToSpec(
@@ -81,7 +81,7 @@ func assertGolden(t *testing.T, name string, v any) {
 		return
 	}
 	want, err := os.ReadFile(path)
-	require.NoError(t, err, "missing golden %s — run `go test ./internal/types/test/roundtrip -update`", path)
+	require.NoError(t, err, "missing golden %s; run `go test ./internal/types/test/roundtrip -update`", path)
 	if diff := cmp.Diff(string(want), string(got),
 		cmpopts.EquateEmpty(),
 		protocmp.Transform(),

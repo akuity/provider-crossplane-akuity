@@ -24,7 +24,7 @@ import (
 
 // KargoAgent projects the Kargo-plane agent response into the
 // KargoAgent AtProvider block. Workspace intentionally stays empty
-// here — the controller owns it locally and carries it via the
+// here because the controller owns it locally and carries it via the
 // desired spec.
 func KargoAgent(agent *kargov1.KargoAgent) v1alpha1.KargoAgentObservation {
 	if agent == nil {

@@ -28,67 +28,55 @@ import (
 
 // ClusterParameters are the configurable fields of a Cluster.
 //
-// v0.3.1 lateInitialize stamps `instanceId` onto spec while the user
-// supplied `instanceRef`, so stored legacy Clusters carry BOTH fields.
-// A strict XOR rule would reject every UPDATE (including status
-// subresource) on those stored CRs because k8s CRD validation
-// ratcheting cannot decompose a cross-field rule. Relax to "at least
-// one must be set"; the controller resolves `instanceRef` first and
-// falls back to `instanceId`, so both-set state is well-defined.
+// Stored legacy Clusters may carry both instanceId and instanceRef.
+// A strict XOR rule would reject updates to those CRs because CRD
+// validation ratcheting cannot decompose a cross-field rule. The rule
+// therefore requires at least one value; the controller resolves
+// instanceRef first and falls back to instanceId, so both-set state is
+// well-defined.
 //
-// The immutability rule uses `has()` guards on both sides — k8s CEL
-// raises "no such key" when reading an omitempty string that is absent
-// from the JSON payload (observed on k8s 1.31 under k3s), so
-// `self.instanceId == oldSelf.instanceId` explodes on fresh-state
-// Clusters the this-PR controller stamps `instanceId` onto after
-// resolving `instanceRef`. Guarded form: allow a first-time stamp of
-// `instanceId` when `oldSelf` had none; once stamped, the value must
-// match on every subsequent UPDATE. Same pattern for `instanceRef`.
+// The immutability rule uses has() guards because k8s CEL raises "no
+// such key" when reading an absent omitempty string. This allows the
+// controller's first-time instanceId stamp after resolving instanceRef,
+// then requires stable values on subsequent updates.
 //
 // +kubebuilder:validation:XValidation:rule="has(self.instanceId) || has(self.instanceRef)",message="instanceId or instanceRef must be set"
 // +kubebuilder:validation:XValidation:rule="(!has(oldSelf.instanceId) || (has(self.instanceId) && self.instanceId == oldSelf.instanceId)) && (!has(oldSelf.instanceRef) || (has(self.instanceRef) && self.instanceRef.name == oldSelf.instanceRef.name))",message="instanceId/instanceRef are immutable"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
 type ClusterParameters struct {
-	// The ID of the Akuity ArgoCD instance the cluster belongs to.
-	// Mutually exclusive with InstanceRef.
+	// InstanceID is the Akuity Argo CD instance ID this cluster belongs
+	// to. At least one of InstanceID or InstanceRef must be set; when
+	// both are present, InstanceID is used.
 	// +optional
 	InstanceID string `json:"instanceId,omitempty"`
-	// The reference to the Akuity ArgoCD instance the cluster belongs to.
-	// Mutually exclusive with InstanceID.
+	// InstanceRef references the Akuity Argo CD instance this cluster
+	// belongs to. At least one of InstanceID or InstanceRef must be set.
 	// +optional
 	InstanceRef *LocalReference `json:"instanceRef,omitempty"`
-	// The name of the cluster. Required.
+	// Name is the Akuity cluster name. Required.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
-	// The Kubernetes namespace the Akuity agent should be installed in. Optional.
+	// Namespace is where the Akuity agent is installed.
 	Namespace string `json:"namespace,omitempty"`
-	// Attributes of the cluster. Optional.
+	// ClusterSpec contains the cluster configuration sent to the Akuity platform.
 	ClusterSpec crossplanetypes.ClusterSpec `json:"clusterSpec,omitempty"`
-	// Annotations to apply to the cluster custom resource. Optional.
+	// Annotations applied to the cluster custom resource.
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// Labels to apply to the cluster custom resource. Optional.
+	// Labels applied to the cluster custom resource.
 	Labels map[string]string `json:"labels,omitempty"`
-	// A reference to a Kubernetes secret containing a KubeConfig that can be used to connect
-	// to the cluster to apply the agent manifests. Optional.
-	KubeConfigSecretRef SecretRef `json:"kubeconfigSecretRef,omitempty"`
-	// Rather than specifying a reference to a KubeConfig to use to connect to the cluster,
-	// we can enable incluster config if the managed cluster is the same cluster the
-	// Crossplane is running in. Optional.
+	// KubeConfigSecretRef references a Secret containing a kubeconfig
+	// used to apply agent manifests to the managed cluster.
+	KubeConfigSecretRef xpv1.SecretReference `json:"kubeconfigSecretRef,omitempty"`
+	// EnableInClusterKubeConfig uses the provider pod's in-cluster
+	// configuration when the managed cluster is the provider cluster.
 	EnableInClusterKubeConfig bool `json:"enableInClusterKubeconfig,omitempty"`
-	// Whether or not to remove the Akuity agent Kubernetes resources from the managed cluster
-	// when destroying the cluster. Optional. Defaults to true.
+	// RemoveAgentResourcesOnDestroy removes Akuity agent Kubernetes
+	// resources from the managed cluster during deletion. Defaults to true.
 	RemoveAgentResourcesOnDestroy bool `json:"removeAgentResourcesOnDestroy,omitempty"`
 }
 
-type SecretRef struct {
-	// The name of the Kubernetes secret being referenced. Required.
-	Name string `json:"name"`
-	// The namespace of the Kubernetes secret being referenced. Required.
-	Namespace string `json:"namespace"`
-}
-
-// ClusterObservation are the observable fields of a Cluster.
+// ClusterObservation contains the observable fields of a Cluster.
 type ClusterObservation struct {
 	// The ID of the cluster.
 	ID string `json:"id"`
@@ -103,7 +91,7 @@ type ClusterObservation struct {
 	Description string `json:"description,omitempty"`
 	// The Kubernetes namespace the Akuity agent is installed in.
 	Namespace string `json:"namespace,omitempty"`
-	// Whether or not the Akuity agent is namespace-scoped.
+	// Whether the Akuity agent is namespace-scoped.
 	//
 	// Deprecated: read via ClusterSpec.NamespaceScoped. See
 	// Description for the deprecation rationale.
@@ -112,11 +100,11 @@ type ClusterObservation struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	// Annotations applied to the cluster.
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// Whether or not the agent should be autoupgraded when a new version is available.
+	// Whether agent auto-upgrade is disabled when a new version is available.
 	//
 	// Deprecated: read via ClusterSpec.Data.AutoUpgradeDisabled.
 	AutoUpgradeDisabled bool `json:"autoUpgradeDisabled,omitempty"`
-	// Whether or not state replication to the managed cluster is enabled.
+	// Whether state replication to the managed cluster is enabled.
 	// When enabled, the managed cluster retains core ArgoCD functionality even
 	// when unable to connect to the Akuity Platform.
 	//
@@ -126,8 +114,8 @@ type ClusterObservation struct {
 	//
 	// Deprecated: read via ClusterSpec.Data.TargetVersion.
 	TargetVersion string `json:"targetVersion,omitempty"`
-	// Whether or not the agent should connect to Redis over a web-socket tunnel
-	/// in order to support running the agent behind a HTTPS proxy.
+	// Whether the agent connects to Redis over a websocket tunnel to
+	// support running behind an HTTPS proxy.
 	//
 	// Deprecated: read via ClusterSpec.Data.RedisTunneling.
 	RedisTunneling bool `json:"redisTunneling,omitempty"`
@@ -181,7 +169,7 @@ type ClusterStatus struct {
 
 // +kubebuilder:object:root=true
 
-// A Cluster is an example API type.
+// A Cluster is an Akuity Argo CD cluster registration.
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
 // +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
@@ -198,7 +186,7 @@ type Cluster struct {
 
 // +kubebuilder:object:root=true
 
-// ClusterList contains a list of Cluster
+// ClusterList contains a list of Cluster objects.
 type ClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

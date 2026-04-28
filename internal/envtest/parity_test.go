@@ -16,14 +16,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Envtest coverage for the content-shape CEL rules — repo-credential
-// name regexes, dex secret mutual exclusion, kargo repo-cred uniqueness,
-// cred-type enum — plus a round-trip sanity check that
+// Envtest coverage for the content-shape CEL rules: generic
+// repo-credential ref shape, dex secret mutual exclusion, cred-type
+// enum, plus a round-trip sanity check that
 // preserve-unknown-fields resources slices carry opaque manifests
 // through the apiserver unchanged. Reconcile-level rotation / drift
-// semantics are covered by fake-kube unit tests in the controller
-// packages; envtest locks in the apiserver-enforced pieces that unit
-// tests can't observe.
+// semantics and effective-name validation are covered by fake-kube
+// unit tests in the controller packages; envtest locks in the
+// apiserver-enforced pieces that unit tests can't observe.
 
 package envtest_test
 
@@ -36,7 +36,6 @@ import (
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,30 +53,29 @@ func mustRawExt(t *testing.T, obj map[string]interface{}) runtime.RawExtension {
 
 func strPtr(s string) *string { return &s }
 
-// TestInstance_RepoCredentialNamesMustMatchRegex exercises the CEL rule
-// on both spec.forProvider.repoCredentialSecretRefs and
-// repoTemplateCredentialSecretRefs: each Name is the gateway-facing
-// slot, which must match ^repo-[a-z0-9][a-z0-9-]*$. A mistyped Name is
-// a silent footgun at the API layer, so the CRD rejects it at
-// admission.
-func TestInstance_RepoCredentialNamesMustMatchRegex(t *testing.T) {
+// TestInstance_RepoCredentialExplicitNamesMustMatchRegex exercises the
+// CEL rule on explicit repo credential names. Omitted names still fall
+// back to secretRef.name and are validated by the controller because
+// upstream SecretReference.Name is not bounded tightly enough for a
+// fallback CEL rule.
+func TestInstance_RepoCredentialExplicitNamesMustMatchRegex(t *testing.T) {
 	ctx := context.Background()
 
-	badSlot := &v1alpha1.Instance{
+	badRepo := &v1alpha1.Instance{
 		ObjectMeta: metav1.ObjectMeta{Name: "inst-bad-repo-name"},
 		Spec: v1alpha1.InstanceSpec{
 			ForProvider: v1alpha1.InstanceParameters{
 				Name:   "inst-bad-repo-name",
 				ArgoCD: minimalArgoCD(),
-				RepoCredentialSecretRefs: []v1alpha1.NamedLocalSecretReference{{
-					Name:      "github-prod", // missing repo- prefix
-					SecretRef: xpv1.LocalSecretReference{Name: "gh-prod"},
+				RepoCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
+					Name:      "github-prod",
+					SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "gh-prod"},
 				}},
 			},
 		},
 	}
-	err := kube.Create(ctx, badSlot)
-	require.Error(t, err, "apiserver must reject repoCredentialSecretRefs entry without repo- prefix")
+	err := kube.Create(ctx, badRepo)
+	require.Error(t, err, "explicit repoCredentialSecretRefs name without repo- prefix must be rejected")
 	assert.Contains(t, err.Error(), "repo-")
 
 	badTmpl := &v1alpha1.Instance{
@@ -86,16 +84,46 @@ func TestInstance_RepoCredentialNamesMustMatchRegex(t *testing.T) {
 			ForProvider: v1alpha1.InstanceParameters{
 				Name:   "inst-bad-repo-tmpl",
 				ArgoCD: minimalArgoCD(),
-				RepoTemplateCredentialSecretRefs: []v1alpha1.NamedLocalSecretReference{{
+				RepoTemplateCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
 					Name:      "tmpl",
-					SecretRef: xpv1.LocalSecretReference{Name: "tmpl"},
+					SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "tmpl"},
 				}},
 			},
 		},
 	}
 	err = kube.Create(ctx, badTmpl)
-	require.Error(t, err, "apiserver must reject repoTemplateCredentialSecretRefs entry without repo- prefix")
+	require.Error(t, err, "explicit repoTemplateCredentialSecretRefs name without repo- prefix must be rejected")
 	assert.Contains(t, err.Error(), "repo-")
+
+	for i, tc := range []struct {
+		reason string
+		name   string
+	}{
+		{reason: "uppercase", name: "repo-Foo"},
+		{reason: "prefix only", name: "repo-"},
+		{reason: "double dash after prefix", name: "repo--foo"},
+		{reason: "unicode", name: "repo-héllo"},
+		{reason: "trailing space", name: "repo- "},
+	} {
+		t.Run(tc.reason, func(t *testing.T) {
+			inst := &v1alpha1.Instance{
+				ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("inst-bad-repo-pattern-%d", i)},
+				Spec: v1alpha1.InstanceSpec{
+					ForProvider: v1alpha1.InstanceParameters{
+						Name:   fmt.Sprintf("inst-bad-repo-pattern-%d", i),
+						ArgoCD: minimalArgoCD(),
+						RepoCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
+							Name:      tc.name,
+							SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "gh-prod"},
+						}},
+					},
+				},
+			}
+			err := kube.Create(ctx, inst)
+			require.Errorf(t, err, "explicit repoCredentialSecretRefs name %q must be rejected", tc.name)
+			assert.Contains(t, err.Error(), "repo-")
+		})
+	}
 
 	good := &v1alpha1.Instance{
 		ObjectMeta: metav1.ObjectMeta{Name: "inst-good-repo-name"},
@@ -103,64 +131,24 @@ func TestInstance_RepoCredentialNamesMustMatchRegex(t *testing.T) {
 			ForProvider: v1alpha1.InstanceParameters{
 				Name:   "inst-good-repo-name",
 				ArgoCD: minimalArgoCD(),
-				RepoCredentialSecretRefs: []v1alpha1.NamedLocalSecretReference{{
+				RepoCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
 					Name:      "repo-github-prod",
-					SecretRef: xpv1.LocalSecretReference{Name: "gh-prod"},
+					SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "gh-prod"},
 				}},
-				RepoTemplateCredentialSecretRefs: []v1alpha1.NamedLocalSecretReference{{
-					Name:      "repo-templates",
-					SecretRef: xpv1.LocalSecretReference{Name: "tmpl"},
+				RepoTemplateCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
+					SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "repo-templates"},
 				}},
 			},
 		},
 	}
-	require.NoError(t, kube.Create(ctx, good), "repo- prefixed names must satisfy CEL")
+	require.NoError(t, kube.Create(ctx, good), "repo- prefixed explicit and fallback names must satisfy admission")
 	t.Cleanup(func() { _ = kube.Delete(ctx, good) })
-}
-
-// TestInstance_RepoCredentialNameRegexRejectsBypasses covers bypasses a
-// bare startsWith("repo-") rule would accept: whitespace, uppercase,
-// prefix alone, leading dash, unicode. The regex
-// ^repo-[a-z0-9][a-z0-9-]*$ must reject each at admission so malformed
-// gateway slot names never hit Apply.
-func TestInstance_RepoCredentialNameRegexRejectsBypasses(t *testing.T) {
-	ctx := context.Background()
-	cases := []struct {
-		desc string
-		name string
-	}{
-		{"trailing space", "repo- "},
-		{"uppercase", "repo-Foo"},
-		{"prefix only", "repo-"},
-		{"starts with dash", "repo--foo"},
-		{"unicode", "repo-héllo"},
-	}
-	for i, tc := range cases {
-		tc, i := tc, i
-		t.Run(tc.desc, func(t *testing.T) {
-			inst := &v1alpha1.Instance{
-				ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("inst-regex-%d", i)},
-				Spec: v1alpha1.InstanceSpec{
-					ForProvider: v1alpha1.InstanceParameters{
-						Name:   fmt.Sprintf("inst-regex-%d", i),
-						ArgoCD: minimalArgoCD(),
-						RepoCredentialSecretRefs: []v1alpha1.NamedLocalSecretReference{{
-							Name:      tc.name,
-							SecretRef: xpv1.LocalSecretReference{Name: "x"},
-						}},
-					},
-				},
-			}
-			err := kube.Create(ctx, inst)
-			require.Error(t, err, "regex must reject %q", tc.name)
-		})
-	}
 }
 
 // TestInstance_ArgocdResourcesRoundTrip verifies that the
 // preserve-unknown-fields schema on spec.forProvider.resources carries
 // opaque manifests through the apiserver unchanged. Shape / kind
-// validation lives in the unit tests for splitArgocdResources — this
+// validation lives in the unit tests for splitArgocdResources; this
 // test asserts persistence only.
 func TestInstance_ArgocdResourcesRoundTrip(t *testing.T) {
 	ctx := context.Background()
@@ -199,7 +187,7 @@ func TestInstance_ArgocdResourcesRoundTrip(t *testing.T) {
 // forbids setting both spec.forProvider.kargo.oidcConfig.dexConfigSecret
 // (inline map) and dexConfigSecretRef simultaneously. The rule uses
 // size(...)==0 as the vacuous-inline escape hatch so an empty inline
-// map doesn't block ref-only callers; this test pins the behaviour.
+// map doesn't block ref-only callers; this test pins the behavior.
 func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 	ctx := context.Background()
 
@@ -215,7 +203,7 @@ func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 						DexConfigSecret: map[string]crossplanetypes.Value{
 							"client-secret": {Value: strPtr("inline-secret")},
 						},
-						DexConfigSecretRef: &corev1.LocalObjectReference{Name: "dex-creds"},
+						DexConfigSecretRef: &xpv1.SecretReference{Namespace: "akuity", Name: "dex-creds"},
 					},
 				},
 			},
@@ -234,7 +222,7 @@ func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 					Description: "envtest",
 					Version:     "v1.4.0",
 					OidcConfig: &crossplanetypes.KargoOidcConfig{
-						DexConfigSecretRef: &corev1.LocalObjectReference{Name: "dex-creds"},
+						DexConfigSecretRef: &xpv1.SecretReference{Namespace: "akuity", Name: "dex-creds"},
 					},
 				},
 			},
@@ -300,9 +288,12 @@ func TestKargoInstance_KargoResourcesRoundTrip(t *testing.T) {
 }
 
 // TestKargoInstance_RepoCredentialSecretRefs covers the typed
-// repo-credential ref field: CredType enum, DNS-1123 Name +
-// ProjectNamespace, and uniqueness CEL across (projectNamespace, name)
-// pairs. Keeps plaintext-free repo-cred declaration admission-friendly.
+// repo-credential ref field: required project namespace, optional
+// cred type, CredType enum when specified, and admission-safe shape
+// validation. Effective-name validation for omitted Name values and
+// duplicate (effective project namespace, effective name) pairs runs
+// in the controller because upstream SecretReference does not bound
+// name length tightly enough for the equivalent CEL rule.
 func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 	ctx := context.Background()
 
@@ -313,16 +304,54 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 				Name:  "ki-repocreds-ok",
 				Kargo: minimalKargoSpec(),
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
-					Name:             "repo-github",
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "repo-github"},
+					},
 					ProjectNamespace: "platform",
 					CredType:         "git",
-					SecretRef:        xpv1.LocalSecretReference{Name: "k8s-secret"},
 				}},
 			},
 		},
 	}
 	require.NoError(t, kube.Create(ctx, good), "well-formed ref must be accepted")
 	t.Cleanup(func() { _ = kube.Delete(ctx, good) })
+
+	derivedCredType := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-repocreds-derived"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:  "ki-repocreds-derived",
+				Kargo: minimalKargoSpec(),
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+					ProjectNamespace: "platform",
+				}},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, derivedCredType), "credType may be derived at reconcile time")
+	t.Cleanup(func() { _ = kube.Delete(ctx, derivedCredType) })
+
+	missingProjectNs := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-repocreds-missing-projectns"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:  "ki-repocreds-missing-projectns",
+				Kargo: minimalKargoSpec(),
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+					},
+					CredType: "git",
+				}},
+			},
+		},
+	}
+	err := kube.Create(ctx, missingProjectNs)
+	require.Error(t, err, "projectNamespace must be set explicitly")
+	assert.Contains(t, err.Error(), "projectNamespace")
 
 	badType := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "ki-repocreds-badtype"},
@@ -331,17 +360,40 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 				Name:  "ki-repocreds-badtype",
 				Kargo: minimalKargoSpec(),
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
-					Name:             "repo-github",
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						Name:      "repo-github",
+						SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "k8s-secret"},
+					},
 					ProjectNamespace: "platform",
 					CredType:         "oci", // not in enum
-					SecretRef:        xpv1.LocalSecretReference{Name: "k8s-secret"},
 				}},
 			},
 		},
 	}
-	err := kube.Create(ctx, badType)
+	err = kube.Create(ctx, badType)
 	require.Error(t, err, "CredType outside enum must be rejected")
 	assert.Contains(t, err.Error(), "credType")
+
+	badName := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-repocreds-badname"},
+		Spec: v1alpha1.KargoInstanceSpec{
+			ForProvider: v1alpha1.KargoInstanceParameters{
+				Name:  "ki-repocreds-badname",
+				Kargo: minimalKargoSpec(),
+				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
+					NamedSecretReference: v1alpha1.NamedSecretReference{
+						Name:      "Bad_Name",
+						SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "k8s-secret"},
+					},
+					ProjectNamespace: "platform",
+					CredType:         "git",
+				}},
+			},
+		},
+	}
+	err = kube.Create(ctx, badName)
+	require.Error(t, err, "explicit Kargo repo credential name outside DNS pattern must be rejected")
+	assert.Contains(t, err.Error(), "kargoRepoCredentialSecretRefs")
 
 	dup := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "ki-repocreds-dup"},
@@ -350,13 +402,25 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 				Name:  "ki-repocreds-dup",
 				Kargo: minimalKargoSpec(),
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{
-					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "a"}},
-					{Name: "repo-github", ProjectNamespace: "platform", CredType: "git", SecretRef: xpv1.LocalSecretReference{Name: "b"}},
+					{
+						NamedSecretReference: v1alpha1.NamedSecretReference{
+							Name:      "repo-github",
+							SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "a"},
+						},
+						ProjectNamespace: "platform",
+						CredType:         "git",
+					},
+					{
+						NamedSecretReference: v1alpha1.NamedSecretReference{
+							SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "repo-github"},
+						},
+						ProjectNamespace: "platform",
+						CredType:         "git",
+					},
 				},
 			},
 		},
 	}
-	err = kube.Create(ctx, dup)
-	require.Error(t, err, "duplicate (projectNamespace, name) pair must be rejected by CEL")
-	assert.Contains(t, err.Error(), "unique")
+	require.NoError(t, kube.Create(ctx, dup), "admission accepts fallback-name duplicates; controller terminal validation rejects them")
+	t.Cleanup(func() { _ = kube.Delete(ctx, dup) })
 }

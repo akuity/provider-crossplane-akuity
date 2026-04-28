@@ -1,0 +1,23 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoAgent
+metadata:
+  name: my-kargo-agent-managed
+spec:
+  forProvider:
+    kargoInstanceRef:
+      name: "my-kargo"
+    name: "my-kargo-agent-managed"
+    namespace: "kargo"
+    workspace: "my-project"
+    labels:
+      app: "kargo"
+    annotations:
+      owner: "crossplane"
+    kargoAgentSpec:
+      description: "Akuity-managed Kargo agent connected to an Akuity Argo CD instance."
+      data:
+        akuityManaged: true
+        remoteArgocd: "my-argocd-instance-id"
+  providerConfigRef:
+    name: akuity

@@ -1,0 +1,36 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Cluster
+metadata:
+  name: my-cluster-auto
+spec:
+  forProvider:
+    instanceRef:
+      name: "my-instance"
+    name: "my-cluster-auto"
+    namespace: "akuity"
+    clusterSpec:
+      description: "Cluster with automatically sized Argo CD agent components."
+      data:
+        size: "auto"
+        # Auto sizing requires agent auto-upgrade to stay enabled.
+        autoUpgradeDisabled: false
+        autoscalerConfig:
+          applicationController:
+            resourceMinimum:
+              cpu: "250m"
+              mem: "1Gi"
+            resourceMaximum:
+              cpu: "3"
+              mem: "2Gi"
+          repoServer:
+            replicaMinimum: 1
+            replicaMaximum: 3
+            resourceMinimum:
+              cpu: "250m"
+              mem: "256Mi"
+            resourceMaximum:
+              cpu: "3"
+              mem: "2Gi"
+  providerConfigRef:
+    name: akuity

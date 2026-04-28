@@ -18,12 +18,14 @@ package instance
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,10 +34,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
-
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	argocdtypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/argocd/v1alpha1"
@@ -45,20 +47,12 @@ import (
 
 // argocdRepoSecretTypeLabel + the two const values below are the
 // labels Argo CD uses to distinguish repository credentials from
-// repo-credential templates. Matches terraform buildSecrets call sites
-// in resource_akp_instance.go.
+// repo-credential templates.
 const (
 	argocdRepoSecretTypeLabel        = "argocd.argoproj.io/secret-type"
 	argocdRepoSecretTypeRepository   = "repository"
 	argocdRepoSecretTypeRepoTemplate = "repo-creds"
 )
-
-// resolvedInstanceSecret holds one resolved singleton Secret reference
-// (ref name + data) used by the four scalar refs on InstanceParameters.
-type resolvedInstanceSecret struct {
-	Name string
-	Data map[string]string
-}
 
 // resolvedInstanceSecrets is the full resolution of every Secret
 // referenced by InstanceParameters: four singletons (argocd / argocd-
@@ -68,26 +62,27 @@ type resolvedInstanceSecret struct {
 // BuildApplyInstanceRequest so the Apply payload carries the actual
 // Secret contents, not just references.
 type resolvedInstanceSecrets struct {
-	Argocd            resolvedInstanceSecret
-	Notifications     resolvedInstanceSecret
-	ImageUpdater      resolvedInstanceSecret
-	ApplicationSet    resolvedInstanceSecret
-	RepoCreds         map[string]map[string]string
-	RepoTemplateCreds map[string]map[string]string
+	Argocd            secrets.ResolvedSecret
+	Notifications     secrets.ResolvedSecret
+	ImageUpdater      secrets.ResolvedSecret
+	ApplicationSet    secrets.ResolvedSecret
+	RepoCreds         map[string]secrets.ResolvedSecret
+	RepoTemplateCreds map[string]secrets.ResolvedSecret
 }
 
 // Hash combines the digests of every resolved Secret, including the
-// referenced Secret names, so a rename-with-identical-content rotates
-// the digest as well as a straight content rotation. Empty when no
-// refs were set on the spec — keeps Observe short-circuit cheap.
+// referenced Secret namespaces/names, so a move/rename with identical
+// content rotates the digest as well as a straight content rotation.
+// Empty when no refs were set on the spec, keeping Observe's
+// short-circuit cheap.
 func (r resolvedInstanceSecrets) Hash() string {
 	h := map[string]string{
-		"argocd":            hashOneInstanceSecret(r.Argocd),
-		"notifications":     hashOneInstanceSecret(r.Notifications),
-		"imageUpdater":      hashOneInstanceSecret(r.ImageUpdater),
-		"applicationSet":    hashOneInstanceSecret(r.ApplicationSet),
-		"repoCreds":         secrets.HashNamed(r.RepoCreds),
-		"repoTemplateCreds": secrets.HashNamed(r.RepoTemplateCreds),
+		"argocd":            r.Argocd.Hash(),
+		"notifications":     r.Notifications.Hash(),
+		"imageUpdater":      r.ImageUpdater.Hash(),
+		"applicationSet":    r.ApplicationSet.Hash(),
+		"repoCreds":         secrets.HashNamedResolved(r.RepoCreds),
+		"repoTemplateCreds": secrets.HashNamedResolved(r.RepoTemplateCreds),
 	}
 	for _, v := range h {
 		if v != "" {
@@ -97,28 +92,16 @@ func (r resolvedInstanceSecrets) Hash() string {
 	return ""
 }
 
-func hashOneInstanceSecret(s resolvedInstanceSecret) string {
-	if s.Name == "" && len(s.Data) == 0 {
-		return ""
-	}
-	return secrets.Hash(map[string]string{
-		"__ref__":  s.Name,
-		"__data__": secrets.Hash(s.Data),
-	})
-}
-
 // resolveInstanceSecrets loads every Secret referenced by the Instance
-// spec from the namespace the MR lives in. Missing Secrets surface as
-// a wrapped secrets.ErrMissingSecret so the controller can treat them
-// as terminal configuration errors per §2.11 invariant 7.
+// spec. Missing or empty Secrets surface as wrapped sentinel errors so
+// the controller can treat them as configuration errors.
 func resolveInstanceSecrets(ctx context.Context, kube client.Client, mg *v1alpha1.Instance) (resolvedInstanceSecrets, error) {
-	ns := mg.GetNamespace()
-	fp := mg.Spec.ForProvider
 	out := resolvedInstanceSecrets{}
+	fp := mg.Spec.ForProvider
 
 	singletons := []struct {
-		ref   *xpv1.LocalSecretReference
-		out   *resolvedInstanceSecret
+		ref   *xpv1.SecretReference
+		out   *secrets.ResolvedSecret
 		label string
 	}{
 		{fp.ArgoCDSecretRef, &out.Argocd, "argocdSecretRef"},
@@ -127,27 +110,24 @@ func resolveInstanceSecrets(ctx context.Context, kube client.Client, mg *v1alpha
 		{fp.ApplicationSetSecretRef, &out.ApplicationSet, "applicationSetSecretRef"},
 	}
 	for _, s := range singletons {
-		data, err := secrets.ResolveAllKeys(ctx, kube, ns, s.ref)
+		resolved, err := secrets.Resolve(ctx, kube, s.ref)
 		if err != nil {
-			return out, fmt.Errorf("%s: %w", s.label, err)
+			return out, secrets.AsTerminalIfConfig(fmt.Errorf("%s: %w", s.label, err))
 		}
-		if s.ref != nil {
-			s.out.Name = s.ref.Name
-		}
-		s.out.Data = data
+		*s.out = resolved
 	}
 
 	if refs := fp.RepoCredentialSecretRefs; len(refs) > 0 {
-		d, err := secrets.ResolveNamed(ctx, kube, ns, refs)
+		d, err := secrets.ResolveNamed(ctx, kube, refs)
 		if err != nil {
-			return out, fmt.Errorf("repoCredentialSecretRefs: %w", err)
+			return out, secrets.AsTerminalIfConfig(fmt.Errorf("repoCredentialSecretRefs: %w", err))
 		}
 		out.RepoCreds = d
 	}
 	if refs := fp.RepoTemplateCredentialSecretRefs; len(refs) > 0 {
-		d, err := secrets.ResolveNamed(ctx, kube, ns, refs)
+		d, err := secrets.ResolveNamed(ctx, kube, refs)
 		if err != nil {
-			return out, fmt.Errorf("repoTemplateCredentialSecretRefs: %w", err)
+			return out, secrets.AsTerminalIfConfig(fmt.Errorf("repoTemplateCredentialSecretRefs: %w", err))
 		}
 		out.RepoTemplateCreds = d
 	}
@@ -180,12 +160,12 @@ func instanceSecretToPB(name string, data map[string]string, labels map[string]s
 	return pb, nil
 }
 
-// namedInstanceSecretsToPB serialises each entry in a Named-ref map
-// into a labelled Kubernetes Secret. Entries are emitted in sorted
+// namedInstanceSecretsToPB serializes each entry in a Named-ref map
+// into a labeled Kubernetes Secret. Entries are emitted in sorted
 // name order so the Apply payload is byte-identical across reconciles
 // for the same input. Empty entries are skipped; empty input returns
 // nil.
-func namedInstanceSecretsToPB(named map[string]map[string]string, label string) ([]*structpb.Struct, error) {
+func namedInstanceSecretsToPB(named map[string]secrets.ResolvedSecret, label string) ([]*structpb.Struct, error) {
 	if len(named) == 0 {
 		return nil, nil
 	}
@@ -196,7 +176,7 @@ func namedInstanceSecretsToPB(named map[string]map[string]string, label string) 
 	sort.Strings(names)
 	out := make([]*structpb.Struct, 0, len(named))
 	for _, n := range names {
-		pb, err := instanceSecretToPB(n, named[n], map[string]string{argocdRepoSecretTypeLabel: label})
+		pb, err := instanceSecretToPB(n, named[n].Data, map[string]string{argocdRepoSecretTypeLabel: label})
 		if err != nil {
 			return nil, fmt.Errorf("%s %q: %w", label, n, err)
 		}
@@ -291,9 +271,15 @@ func BuildApplyInstanceRequest(instance v1alpha1.Instance, sec resolvedInstanceS
 		return nil, err
 	}
 
+	argocdChildren, err := splitArgocdResources(instance.Spec.ForProvider.Resources)
+	if err != nil {
+		return nil, err
+	}
+
 	return &argocdv1.ApplyInstanceRequest{
 		IdType:                        idv1.Type_NAME,
 		Id:                            instance.Spec.ForProvider.Name,
+		WorkspaceId:                   instance.Spec.ForProvider.Workspace,
 		Argocd:                        argocdPB,
 		ArgocdConfigmap:               argocdConfigMapPB,
 		ArgocdRbacConfigmap:           argocdRbacConfigMapPB,
@@ -309,6 +295,9 @@ func BuildApplyInstanceRequest(instance v1alpha1.Instance, sec resolvedInstanceS
 		ApplicationSetSecret:          applicationSetSecretPB,
 		RepoCredentialSecrets:         repoCredsPB,
 		RepoTemplateCredentialSecrets: repoTemplateCredsPB,
+		Applications:                  argocdChildren.Applications,
+		ApplicationSets:               argocdChildren.ApplicationSets,
+		AppProjects:                   argocdChildren.AppProjects,
 	}, nil
 }
 
@@ -379,9 +368,15 @@ func SpecToInstanceSpec(instanceSpec crossplanetypes.InstanceSpec) (akuitytypes.
 		AppInAnyNamespaceConfig:         specToAppInAnyNamespaceConfig(instanceSpec.AppInAnyNamespaceConfig),
 		Basepath:                        instanceSpec.Basepath,
 		AppsetProgressiveSyncsEnabled:   instanceSpec.AppsetProgressiveSyncsEnabled,
+		Secrets:                         crossplanetypes.SecretsManagementConfigSpecToAPI(instanceSpec.Secrets),
 		AppsetPlugins:                   specToAppsetPlugins(instanceSpec.AppsetPlugins),
 		ApplicationSetExtension:         specToApplicationSetExtension(instanceSpec.ApplicationSetExtension),
 		AppReconciliationsRateLimiting:  appReconciliationsRateLimiting,
+		MetricsIngressUsername:          instanceSpec.MetricsIngressUsername,
+		MetricsIngressPasswordHash:      instanceSpec.MetricsIngressPasswordHash,
+		PrivilegedNotificationCluster:   instanceSpec.PrivilegedNotificationCluster,
+		ClusterAddonsExtension:          crossplanetypes.ClusterAddonsExtensionSpecToAPI(instanceSpec.ClusterAddonsExtension),
+		ManifestGeneration:              crossplanetypes.ManifestGenerationSpecToAPI(instanceSpec.ManifestGeneration),
 	}, nil
 }
 
@@ -416,10 +411,11 @@ func specToClusterCustomization(in *crossplanetypes.ClusterCustomization) (*akui
 		return nil, fmt.Errorf("could not unmarshal cluster Kustomization from YAML to runtime raw extension: %w", err)
 	}
 	return &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: in.AutoUpgradeDisabled,
-		Kustomization:       kustomization,
-		AppReplication:      in.AppReplication,
-		RedisTunneling:      in.RedisTunneling,
+		AutoUpgradeDisabled:   in.AutoUpgradeDisabled,
+		Kustomization:         kustomization,
+		AppReplication:        in.AppReplication,
+		RedisTunneling:        in.RedisTunneling,
+		ServerSideDiffEnabled: in.ServerSideDiffEnabled,
 	}, nil
 }
 
@@ -427,12 +423,15 @@ func specToRepoServerDelegate(in *crossplanetypes.RepoServerDelegate) *akuitytyp
 	if in == nil {
 		return nil
 	}
-	return &akuitytypes.RepoServerDelegate{
+	out := &akuitytypes.RepoServerDelegate{
 		ControlPlane: in.ControlPlane,
-		ManagedCluster: &akuitytypes.ManagedCluster{
-			ClusterName: in.ManagedCluster.ClusterName,
-		},
 	}
+	if in.ManagedCluster != nil {
+		out.ManagedCluster = &akuitytypes.ManagedCluster{
+			ClusterName: in.ManagedCluster.ClusterName,
+		}
+	}
+	return out
 }
 
 func specToCrossplaneExtension(in *crossplanetypes.CrossplaneExtension) *akuitytypes.CrossplaneExtension {
@@ -450,23 +449,28 @@ func specToImageUpdaterDelegate(in *crossplanetypes.ImageUpdaterDelegate) *akuit
 	if in == nil {
 		return nil
 	}
-	return &akuitytypes.ImageUpdaterDelegate{
+	out := &akuitytypes.ImageUpdaterDelegate{
 		ControlPlane: in.ControlPlane,
-		ManagedCluster: &akuitytypes.ManagedCluster{
-			ClusterName: in.ManagedCluster.ClusterName,
-		},
 	}
+	if in.ManagedCluster != nil {
+		out.ManagedCluster = &akuitytypes.ManagedCluster{
+			ClusterName: in.ManagedCluster.ClusterName,
+		}
+	}
+	return out
 }
 
 func specToAppSetDelegate(in *crossplanetypes.AppSetDelegate) *akuitytypes.AppSetDelegate {
 	if in == nil {
 		return nil
 	}
-	return &akuitytypes.AppSetDelegate{
-		ManagedCluster: &akuitytypes.ManagedCluster{
+	out := &akuitytypes.AppSetDelegate{}
+	if in.ManagedCluster != nil {
+		out.ManagedCluster = &akuitytypes.ManagedCluster{
 			ClusterName: in.ManagedCluster.ClusterName,
-		},
+		}
 	}
+	return out
 }
 
 func specToAppsetPolicy(in *crossplanetypes.AppsetPolicy) *akuitytypes.AppsetPolicy {
@@ -529,19 +533,42 @@ func specToConfigManagementPluginsPB(plugins map[string]crossplanetypes.ConfigMa
 	out := make([]*structpb.Struct, 0)
 
 	for name, plugin := range plugins {
-		static := make([]*argocdtypes.ParameterAnnouncement, 0)
-		for _, pm := range plugin.Spec.Parameters.Static {
-			static = append(static, &argocdtypes.ParameterAnnouncement{
-				Name:           pm.Name,
-				Title:          pm.Title,
-				Tooltip:        pm.Tooltip,
-				Required:       ptr.To(pm.Required),
-				ItemType:       pm.ItemType,
-				CollectionType: pm.CollectionType,
-				String_:        pm.String_,
-				Array:          pm.Array,
-				Map:            pm.Map,
-			})
+		// PluginSpec.Discover and PluginSpec.Parameters are pointer
+		// fields the CRD declares as optional. A user CR that omits
+		// either (e.g. configManagementPlugins.<name>.spec with only
+		// version + generate) was previously panic-prone here because
+		// the conversion derefs both pointers unconditionally; the
+		// recovered crash left the MR stuck under
+		// crossplane.io/external-create-pending until the spec was
+		// edited and the annotation cleared. Build each sub-tree only
+		// when the user supplied it.
+		var discover *argocdtypes.Discover
+		if d := plugin.Spec.Discover; d != nil {
+			discover = &argocdtypes.Discover{
+				Find:     (*argocdtypes.Find)(d.Find),
+				FileName: d.FileName,
+			}
+		}
+		var parameters *argocdtypes.Parameters
+		if p := plugin.Spec.Parameters; p != nil {
+			static := make([]*argocdtypes.ParameterAnnouncement, 0, len(p.Static))
+			for _, pm := range p.Static {
+				static = append(static, &argocdtypes.ParameterAnnouncement{
+					Name:           pm.Name,
+					Title:          pm.Title,
+					Tooltip:        pm.Tooltip,
+					Required:       ptr.To(pm.Required),
+					ItemType:       pm.ItemType,
+					CollectionType: pm.CollectionType,
+					String_:        pm.String_,
+					Array:          pm.Array,
+					Map:            pm.Map,
+				})
+			}
+			parameters = &argocdtypes.Parameters{
+				Static:  static,
+				Dynamic: (*argocdtypes.Dynamic)(p.Dynamic),
+			}
 		}
 
 		cmp := argocdtypes.ConfigManagementPlugin{
@@ -557,17 +584,11 @@ func specToConfigManagementPluginsPB(plugins map[string]crossplanetypes.ConfigMa
 				},
 			},
 			Spec: argocdtypes.PluginSpec{
-				Version:  plugin.Spec.Version,
-				Init:     (*argocdtypes.Command)(plugin.Spec.Init),
-				Generate: (*argocdtypes.Command)(plugin.Spec.Generate),
-				Discover: &argocdtypes.Discover{
-					Find:     (*argocdtypes.Find)(plugin.Spec.Discover.Find),
-					FileName: plugin.Spec.Discover.FileName,
-				},
-				Parameters: &argocdtypes.Parameters{
-					Static:  static,
-					Dynamic: (*argocdtypes.Dynamic)(plugin.Spec.Parameters.Dynamic),
-				},
+				Version:          plugin.Spec.Version,
+				Init:             (*argocdtypes.Command)(plugin.Spec.Init),
+				Generate:         (*argocdtypes.Command)(plugin.Spec.Generate),
+				Discover:         discover,
+				Parameters:       parameters,
 				PreserveFileMode: ptr.To(plugin.Spec.PreserveFileMode),
 			},
 		}
@@ -691,4 +712,129 @@ func specToAppReconciliationsRateLimiting(in *crossplanetypes.AppReconciliations
 	}
 
 	return rl, nil
+}
+
+// Declarative Argo CD child-resource contract. Each entry in
+// spec.forProvider.resources must carry one of these
+// (apiVersion, kind) pairs; anything else is rejected at reconcile
+// entry. Matches the kinds the Akuity gateway's ApplyInstance proto
+// accepts on its Applications / ApplicationSets / AppProjects slices.
+const (
+	argocdAPIVersion           = "argoproj.io/v1alpha1"
+	argocdKindApplication      = "Application"
+	argocdKindApplicationSet   = "ApplicationSet"
+	argocdKindAppProject       = "AppProject"
+	errSecretInArgocdResources = "resources[%d]: v1/Secret entries are not accepted; use spec.forProvider.argocdSecretRef or spec.forProvider.repoCredentialSecretRefs"
+)
+
+// argocdChildren is the per-kind breakdown of the user's
+// spec.forProvider.resources bundle, already marshalled into the
+// structpb.Struct shape the ApplyInstance proto expects on its
+// Applications / ApplicationSets / AppProjects slices. Mirrors the
+// kargoChildren shape on the KargoInstance controller; the wire shape
+// is the only thing that differs.
+type argocdChildren struct {
+	Applications    []*structpb.Struct
+	ApplicationSets []*structpb.Struct
+	AppProjects     []*structpb.Struct
+}
+
+// splitArgocdResources validates each spec.forProvider.resources
+// entry and routes it into argocdChildren by (apiVersion, kind).
+// Empty input yields a zero struct and no error so callers can
+// compose without pre-checks. Mirrors splitKargoResources on the
+// KargoInstance controller.
+//
+// Inline v1/Secret entries are rejected as a terminal error: storing
+// plaintext credential data on an MR spec is what the typed SecretRef
+// fields exist to avoid. The terminal classification halts the reconcile
+// loop on the bad input.
+func splitArgocdResources(in []runtime.RawExtension) (argocdChildren, error) {
+	out := argocdChildren{}
+	if len(in) == 0 {
+		return out, nil
+	}
+	for i, raw := range in {
+		if err := routeArgocdResource(&out, i, raw); err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
+// routeArgocdResource decodes a single resources[i] entry, runs the
+// allowlist + Secret-rejection checks, and appends the encoded
+// structpb onto the matching kind slice. Split out from
+// splitArgocdResources so the per-entry validation pipeline stays
+// readable without inflating the parent's cyclomatic complexity.
+func routeArgocdResource(out *argocdChildren, i int, raw runtime.RawExtension) error {
+	if len(raw.Raw) == 0 {
+		return fmt.Errorf("resources[%d]: empty payload", i)
+	}
+	obj := map[string]interface{}{}
+	if err := json.Unmarshal(raw.Raw, &obj); err != nil {
+		return fmt.Errorf("resources[%d]: invalid JSON: %w", i, err)
+	}
+	apiVersion, _ := obj["apiVersion"].(string)
+	kind, _ := obj["kind"].(string)
+	if apiVersion == "v1" && kind == "Secret" {
+		return reason.AsTerminal(fmt.Errorf(errSecretInArgocdResources, i))
+	}
+	pb, err := structpb.NewStruct(obj)
+	if err != nil {
+		return fmt.Errorf("resources[%d]: structpb encode: %w", i, err)
+	}
+	if apiVersion != argocdAPIVersion {
+		return fmt.Errorf("resources[%d]: unsupported %s/%s", i, apiVersion, kind)
+	}
+	switch kind {
+	case argocdKindApplication:
+		out.Applications = append(out.Applications, pb)
+	case argocdKindApplicationSet:
+		out.ApplicationSets = append(out.ApplicationSets, pb)
+	case argocdKindAppProject:
+		out.AppProjects = append(out.AppProjects, pb)
+	default:
+		return fmt.Errorf("resources[%d]: unsupported %s/%s", i, apiVersion, kind)
+	}
+	return nil
+}
+
+// argocdResourcesUpToDate reports whether every declarative Argo CD
+// child listed in spec.forProvider.resources is present on the gateway
+// with an equivalent payload. Mirrors kargoResourcesUpToDate on the
+// KargoInstance controller: additive semantics, every desired child
+// must exist in observed state.
+// Removing an entry from spec does not trigger server-side deletion;
+// out-of-band resources managed via the Akuity UI must not be wiped
+// by a missing entry on the Crossplane side.
+func argocdResourcesUpToDate(desired []runtime.RawExtension, exp *argocdv1.ExportInstanceResponse) (bool, children.DriftReport, error) {
+	if len(desired) == 0 {
+		return true, children.DriftReport{}, nil
+	}
+	desiredIdx, err := children.Index(desired)
+	if err != nil {
+		return false, children.DriftReport{}, fmt.Errorf("resources: %w", err)
+	}
+	observedAll := make(map[children.Identity]map[string]interface{})
+	groups := [][]*structpb.Struct{
+		exp.GetApplications(),
+		exp.GetApplicationSets(),
+		exp.GetAppProjects(),
+	}
+	for _, group := range groups {
+		group := group
+		idx, err := children.IndexStructs(group)
+		if err != nil {
+			// Defer the failure to the Apply path rather than failing
+			// the reconcile loop on a transient decode issue.
+			//nolint:nilerr // Defer transient decode failures to Apply.
+			return true, children.DriftReport{}, nil
+		}
+		for k, v := range idx {
+			observedAll[k] = v
+		}
+	}
+	report := children.Compare(desiredIdx, observedAll)
+	return report.Empty(), report, nil
 }

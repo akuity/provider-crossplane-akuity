@@ -38,10 +38,11 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mockclient "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-// provisioningWaitErr synthesises the gRPC error shape the Akuity
+// provisioningWaitErr synthesizes the gRPC error shape the Akuity
 // gateway returns while a target resource is still being provisioned.
 // reason.IsProvisioningWait keys off codes.InvalidArgument + the
 // "still being provisioned" substring.
@@ -74,7 +75,7 @@ func newAllowListByRef() *v1alpha1.InstanceIpAllowList {
 }
 
 // newAllowListByID builds an MR that supplies the Akuity instance ID
-// directly — the controller must not need the kube client at all.
+// directly. The controller must not need the kube client at all.
 func newAllowListByID() *v1alpha1.InstanceIpAllowList {
 	return &v1alpha1.InstanceIpAllowList{
 		ObjectMeta: metav1.ObjectMeta{Name: "allow", Namespace: "ns"},
@@ -175,7 +176,7 @@ func TestObserve_DriftDetected(t *testing.T) {
 // TestObserve_EmptyAllowListNoDrift locks the reviewer's nil-vs-empty
 // fix: user writes `allowList: []` and the API reports nothing, so the
 // desired spec is an empty slice and pbEntriesToSpec returns nil. The
-// drift comparison must resolve equal — plain reflect.DeepEqual would
+// drift comparison must resolve equal; plain reflect.DeepEqual would
 // flag this as perpetual drift.
 func TestObserve_EmptyAllowListNoDrift(t *testing.T) {
 	e, mc := newExt(t, newInst())
@@ -198,7 +199,7 @@ func TestCreate_PatchInstanceIsCalled(t *testing.T) {
 	al := newAllowListByRef()
 
 	// Capture the patch struct so we can assert the narrow sub-tree
-	// shape: { spec: { ipAllowList: [{ip, description}] } } — nothing else.
+	// shape: { spec: { ipAllowList: [{ip, description}] } }, nothing else.
 	var captured *structpb.Struct
 	mc.EXPECT().PatchInstance(gomock.Any(), "inst-1", gomock.Any()).DoAndReturn(func(_ context.Context, _ string, p *structpb.Struct) error {
 		captured = p
@@ -244,7 +245,7 @@ func TestDelete_ClearsAllowList(t *testing.T) {
 }
 
 func TestResolveInstanceID_RefWithoutID_Errors(t *testing.T) {
-	// Instance MR exists but its Status.AtProvider.ID is empty — the
+	// Instance MR exists but its Status.AtProvider.ID is empty; the
 	// controller should error instead of silently patching with an empty
 	// string.
 	pendingInst := newInst()
@@ -293,6 +294,18 @@ func TestUpdate_PatchErr(t *testing.T) {
 	_, err := e.Update(context.Background(), al)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
+	e, mc := newExt(t, newInst())
+	al := newAllowListByRef()
+	meta.SetExternalName(al, al.Name)
+	mc.EXPECT().PatchInstance(gomock.Any(), "inst-1", gomock.Any()).
+		Return(status.Error(codes.InvalidArgument, "invalid ip allow list")).Times(1)
+	_, err := e.Update(context.Background(), al)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"InvalidArgument from PatchInstance must be reason.Terminal-classified, got %T %v", err, err)
 }
 
 // TestObserve_ProvisioningWait covers the short-circuit contract:

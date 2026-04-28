@@ -136,7 +136,7 @@ func TestEquateEmpty(t *testing.T) {
 			name:     "nil vs empty struct",
 			x:        nil,
 			y:        TestStruct{},
-			expected: false, // Different types, should not be equal
+			expected: false,
 		},
 	}
 

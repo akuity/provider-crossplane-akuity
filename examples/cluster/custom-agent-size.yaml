@@ -1,0 +1,42 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Cluster
+metadata:
+  name: my-cluster-custom
+spec:
+  forProvider:
+    instanceRef:
+      name: "my-instance"
+    name: "my-cluster-custom"
+    namespace: "akuity"
+    labels:
+      team: "platform"
+    annotations:
+      owner: "crossplane"
+    clusterSpec:
+      namespaceScoped: true
+      description: "Cluster with explicitly configured agent resources."
+      data:
+        size: "custom"
+        # Custom sizing is platform-specific. Use size: "auto" when
+        # you need autoscalerConfig updates to be continuously reconciled.
+        autoUpgradeDisabled: false
+        autoscalerConfig:
+          applicationController:
+            resourceMinimum:
+              cpu: "750m"
+              mem: "1Gi"
+            resourceMaximum:
+              cpu: "1000m"
+              mem: "2Gi"
+          repoServer:
+            replicaMinimum: 3
+            replicaMaximum: 3
+            resourceMinimum:
+              cpu: "750m"
+              mem: "1Gi"
+            resourceMaximum:
+              cpu: "1000m"
+              mem: "2Gi"
+  providerConfigRef:
+    name: akuity

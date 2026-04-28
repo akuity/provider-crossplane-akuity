@@ -16,9 +16,9 @@ limitations under the License.
 
 // Package observation hosts AtProvider builders: pure functions that
 // project the Akuity gateway response into the ObservationState slot
-// of a managed resource. No reconcile state, no side effects — safe
-// to call from Observe paths, from drift-detection helpers, and from
-// tests without the controller harness.
+// of a managed resource. They hold no reconcile state or side effects,
+// so they are safe to call from Observe paths, drift-detection helpers,
+// and tests without the controller harness.
 package observation
 
 import (

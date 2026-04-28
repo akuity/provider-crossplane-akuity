@@ -6,7 +6,7 @@ metadata:
 spec:
   forProvider:
     # The Kargo instance ID can be hardcoded or resolved via a
-    # KargoInstance MR in the same namespace.
+    # KargoInstance MR in the same Crossplane cluster.
     # kargoInstanceId: "my-kargo-instance-id"
     kargoInstanceRef:
       name: "my-kargo"
@@ -20,9 +20,10 @@ spec:
     kargoAgentSpec:
       description: "The my-kargo-agent agent runs Kargo controllers on the shared cluster."
       data:
-        size: "small"
+        size: "auto"
         autoUpgradeDisabled: false
-        targetVersion: "v1.8.1"
+        # Kargo agent version. Do not use a leading "v" here.
+        targetVersion: "0.5.88"
         kustomization: |
           apiVersion: kustomize.config.k8s.io/v1beta1
           kind: Kustomization
@@ -46,9 +47,9 @@ spec:
               target:
                 kind: Deployment
                 name: kargo-controller
-        remoteArgocd: "my-argocd"
-        akuityManaged: true
+        akuityManaged: false
         argocdNamespace: "argocd"
+        selfManagedArgocdUrl: "https://argocd.example.com"
         allowedJobSa:
           - "kargo:default"
         maintenanceMode: false

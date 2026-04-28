@@ -1,0 +1,52 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Instance
+metadata:
+  name: my-instance-with-cmps
+spec:
+  forProvider:
+    name: my-instance-with-cmps
+    argocd:
+      spec:
+        version: "v3.3.8-ak.87"
+        instanceSpec:
+          declarativeManagementEnabled: true
+          applicationSetExtension:
+            enabled: true
+    configManagementPlugins:
+      kasane:
+        enabled: false
+        image: gcr.io/kasaneapp/kasane
+        spec:
+          init:
+            command:
+              - kasane
+              - update
+          generate:
+            command:
+              - kasane
+              - show
+      tanka:
+        enabled: true
+        image: grafana/tanka:0.25.0
+        spec:
+          version: "v1.0"
+          discover:
+            fileName: jsonnetfile.json
+          init:
+            command:
+              - jb
+              - update
+          generate:
+            command:
+              - sh
+              - -c
+            args:
+              - tk show environments/$PARAM_ENV --dangerous-allow-redirect
+          parameters:
+            static:
+              - name: env
+                required: true
+                string: default
+  providerConfigRef:
+    name: akuity

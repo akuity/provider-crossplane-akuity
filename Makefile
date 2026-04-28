@@ -159,6 +159,8 @@ export CROSSPLANE_MAKE_HELP
 
 mocks:
 	go tool mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/argocd_service_gateway_client_mock.go github.com/akuity/api-client-go/pkg/api/gen/argocd/v1 ArgoCDServiceGatewayClient
+	go tool mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/kargo_service_gateway_client_mock.go github.com/akuity/api-client-go/pkg/api/gen/kargo/v1 KargoServiceGatewayClient
+	go tool mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/organization_service_gateway_client_mock.go github.com/akuity/api-client-go/pkg/api/gen/organization/v1 OrganizationServiceGatewayClient
 	go tool mockgen -package mock_akuity_client -destination internal/clients/akuity/mock/clientset_mock.go github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity Client
 
 crossplane.help:

@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/pkg/errors"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,6 +43,8 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	utilcmp "github.com/akuityio/provider-crossplane-akuity/internal/utils/cmp"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
@@ -74,6 +75,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(recorder),
+		managed.WithManagementPolicies(),
 	)
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -91,12 +93,27 @@ type external struct {
 func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalObservation, error) { //nolint:gocyclo
 	defer base.PropagateObservedGeneration(mg)
 
+	// Short-circuit a cached terminal Create failure before handing the
+	// resource back to Create. Update failures are suppressed later, after
+	// lateInitializeInstance has made the Observe-side key match Update's
+	// recorded key.
+	if meta.GetExternalName(mg) == "" && e.HasTerminalWriteResource(mg, v1alpha1.InstanceGroupVersionKind) {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+			return obs, err
+		}
+	}
+
 	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
 	akuityInstance, err := e.Client.GetInstance(ctx, meta.GetExternalName(mg))
 	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
+		if outcome == base.GetAbsent && e.HasTerminalWriteResource(mg, v1alpha1.InstanceGroupVersionKind) {
+			if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+				return obs, err
+			}
+		}
 		switch outcome {
 		case base.GetOK, base.GetAbsent:
 			// GetOK is filtered by the enclosing `if`; GetAbsent's
@@ -121,6 +138,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		mg.SetConditions(xpv1.ReconcileError(err))
 		return managed.ExternalObservation{}, newErr
 	}
+	presence := base.ForProviderPresence(ctx, e.Kube, mg, v1alpha1.InstanceGroupVersionKind)
 
 	if err := lateInitializeInstance(&mg.Spec.ForProvider, akuityInstance, akuityExportedInstance); err != nil {
 		mg.SetConditions(xpv1.ReconcileError(err))
@@ -134,12 +152,22 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		return managed.ExternalObservation{}, newErr
 	}
 
+	// SecretHash is written by Create/Update after a successful Apply and
+	// drives rotation drift in the block below. instanceObservation is
+	// projected from the gateway response (which returns secret data
+	// masked/nil) and therefore carries no SecretHash. Assigning the
+	// whole struct would clobber the controller-managed hash every poll
+	// and re-trigger Apply on every reconcile.
+	// Preserve across the assignment.
+	preservedSecretHash := mg.Status.AtProvider.SecretHash
 	mg.Status.AtProvider = instanceObservation
+	mg.Status.AtProvider.SecretHash = preservedSecretHash
 	base.SetHealthCondition(mg, instanceObservation.HealthStatus.Code == 1)
 
 	// DeepCopy so Normalize's map mutations (ArgoCDConfigMap rewrites,
 	// ignored-key deletions) don't leak back into the managed resource.
 	spec := driftSpec()
+	spec.Presence = presence
 	desired := mg.Spec.ForProvider.DeepCopy()
 	observed := actualInstance.Spec.ForProvider.DeepCopy()
 	isUpToDate, err := base.EvaluateDrift(ctx, spec, desired, observed, e.Logger, "Instance")
@@ -168,6 +196,38 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		}
 	}
 
+	// Declarative Argo CD child-resource drift: Application,
+	// ApplicationSet, AppProject manifests on
+	// spec.forProvider.resources are additive: every desired child must
+	// be present in observed state.
+	// The struct compare ignores the Resources slice (Export does not
+	// return them inline; they live on the Applications /
+	// ApplicationSets / AppProjects slices on the response). Walk the
+	// already-fetched Export response and report drift if any desired
+	// child is missing or not subset-matched on the gateway. Removing
+	// an entry from spec is intentionally not drift; operators must
+	// delete via the Akuity platform UI.
+	if isUpToDate && len(mg.Spec.ForProvider.Resources) > 0 {
+		ok, report, rerr := argocdResourcesUpToDate(mg.Spec.ForProvider.Resources, akuityExportedInstance)
+		if rerr != nil {
+			mg.SetConditions(xpv1.ReconcileError(rerr))
+			return managed.ExternalObservation{}, rerr
+		}
+		if !ok {
+			e.Logger.Debug("argocd resources drift detected",
+				"missing", report.Missing, "changed", report.Changed)
+			isUpToDate = false
+		}
+	}
+
+	if !isUpToDate {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+			return obs, err
+		}
+	} else {
+		e.clearTerminalWrite(ctx, mg)
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: isUpToDate,
@@ -181,14 +241,19 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
+	key, err := instanceTerminalWriteKey(mg, sec)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
 	request, err := BuildApplyInstanceRequest(*mg, sec)
 	if err != nil {
-		return managed.ExternalCreation{}, errors.New(errTransformInstance)
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformInstance, err)))
 	}
 
 	if err := e.Client.ApplyInstance(ctx, request); err != nil {
-		return managed.ExternalCreation{}, err
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
+	e.ClearTerminalWrite(key)
 	mg.Status.AtProvider.SecretHash = sec.Hash()
 	meta.SetExternalName(mg, request.GetId())
 	return managed.ExternalCreation{}, nil
@@ -201,19 +266,25 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 	if err != nil {
 		return managed.ExternalUpdate{}, err
 	}
-	request, err := BuildApplyInstanceRequest(*mg, sec)
+	key, err := instanceTerminalWriteKey(mg, sec)
 	if err != nil {
-		return managed.ExternalUpdate{}, errors.New(errTransformInstance)
-	}
-	if err := e.Client.ApplyInstance(ctx, request); err != nil {
 		return managed.ExternalUpdate{}, err
 	}
+	request, err := BuildApplyInstanceRequest(*mg, sec)
+	if err != nil {
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformInstance, err)))
+	}
+	if err := e.Client.ApplyInstance(ctx, request); err != nil {
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	e.ClearTerminalWrite(key)
 	mg.Status.AtProvider.SecretHash = sec.Hash()
 	return managed.ExternalUpdate{}, nil
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
+	e.ClearTerminalWriteResource(mg, v1alpha1.InstanceGroupVersionKind)
 
 	externalName := meta.GetExternalName(mg)
 	if externalName == "" {
@@ -224,6 +295,46 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.Instance) (managed.E
 }
 
 func (e *external) Disconnect(_ context.Context) error { return nil }
+
+func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.Instance) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	sec, err := resolveInstanceSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	key, err := instanceTerminalWriteKey(mg, sec)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	return e.SuppressTerminalWrite(mg, key)
+}
+
+func instanceTerminalWriteKey(mg *v1alpha1.Instance, sec resolvedInstanceSecrets) (base.TerminalWriteKey, error) {
+	request, err := BuildApplyInstanceRequest(*mg, sec)
+	if err != nil {
+		return base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, "build-error", mg.Spec.ForProvider, sec.Hash(), err.Error())
+	}
+	return base.NewTerminalWriteKey(mg, v1alpha1.InstanceGroupVersionKind, request, sec.Hash())
+}
+
+func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.Instance) {
+	if !e.HasTerminalWriteResource(mg, v1alpha1.InstanceGroupVersionKind) {
+		return
+	}
+	sec, err := resolveInstanceSecrets(ctx, e.Kube, mg)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	key, err := instanceTerminalWriteKey(mg, sec)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	e.ClearTerminalWrite(key)
+}
 
 func lateInitializeInstance(in *v1alpha1.InstanceParameters, instance *argocdv1.Instance, exportedInstance *argocdv1.ExportInstanceResponse) error {
 	in.ArgoCD.Spec.InstanceSpec.Subdomain = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.Subdomain, instance.GetSpec().GetSubdomain())
@@ -300,19 +411,26 @@ type ResourceCustomization struct {
 	KnownTypeFields   string `yaml:"knownTypeFields,omitempty"`
 }
 
-// normalizeInstanceParameters synchronizes default values from the actual instance to the managed instance,
-// and normalize fields that have same values as the actual instance. This ensures consistency with API defaults.
+// normalizeInstanceParameters adopts API defaults and canonical forms
+// that should not be treated as user-visible drift.
 func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.InstanceParameters) { //nolint:gocyclo
 	if managedInstance == nil || actualInstance == nil {
 		return
 	}
+	// Workspace is a routing selector. The gateway reports the canonical ID,
+	// while spec may be empty, an ID, or a name; keep the drift comparison
+	// neutral and let the client resolve it for workspace-scoped calls.
+	actualInstance.Workspace = managedInstance.Workspace
+
 	if managedInstance.ArgoCD != nil {
-		// MultiClusterK8SDashboardEnabled may be enabled by default and not specified in the CR.
+		// The platform may default MultiClusterK8SDashboardEnabled
+		// even when the CR omits it.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
 		}
 
-		// only one of Fqdn and Subdomain should be set, so we sync them if both are set
+		// Only one of Fqdn and Subdomain should be set. If both are
+		// present, adopt the platform's canonical pair.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn != "" && managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain != "" {
 			managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain = actualInstance.ArgoCD.Spec.InstanceSpec.Subdomain
 			managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn = actualInstance.ArgoCD.Spec.InstanceSpec.Fqdn
@@ -320,9 +438,23 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 
 		if managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig = actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+		} else if actualInstance.ArgoCD != nil && actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig != nil {
+			// The server stamps CveScanConfig.RescanInterval when
+			// scanEnabled=true. If the CR set CveScanConfig but omitted
+			// RescanInterval, inherit the observed scalar so comparison
+			// does not flap on the server default.
+			mkv := managedInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+			akv := actualInstance.ArgoCD.Spec.InstanceSpec.KubeVisionConfig
+			if mkv.CveScanConfig != nil && akv.CveScanConfig != nil {
+				if mkv.CveScanConfig.RescanInterval == "" {
+					mkv.CveScanConfig.RescanInterval = akv.CveScanConfig.RescanInterval
+				}
+			} else if mkv.CveScanConfig == nil {
+				mkv.CveScanConfig = akv.CveScanConfig
+			}
 		}
 
-		// If Akuity Intelligence is enabled by default, sync the value
+		// The platform may default AkuityIntelligenceExtension.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension = actualInstance.ArgoCD.Spec.InstanceSpec.AkuityIntelligenceExtension
 		}
@@ -332,24 +464,53 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 		// BucketQps:50} + ItemRateLimiting{Enabled:true, FailureCooldown:10000,
 		// BaseDelay:1, MaxDelay:1000, BackoffFactor:"1.5"}). If the CR omits
 		// it entirely, inherit the server's defaults to avoid a per-poll
-		// drift-flap. Users who populate the struct partially get their
-		// explicit values honoured; scalar-field defaulting inside a
-		// partially-set struct is Tier 2 territory (§6 #7 scalar lateInit
-		// gap).
+		// drift-flap. If the CR populates it partially, inherit the
+		// missing sibling sub-struct for the same reason.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting = actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+		} else if actualInstance.ArgoCD != nil && actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting != nil {
+			arl := managedInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+			aarl := actualInstance.ArgoCD.Spec.InstanceSpec.AppReconciliationsRateLimiting
+			if arl.ItemRateLimiting == nil {
+				arl.ItemRateLimiting = aarl.ItemRateLimiting
+			} else {
+				normalizeItemRateLimiting(arl.ItemRateLimiting, aarl.ItemRateLimiting)
+			}
+			if arl.BucketRateLimiting == nil {
+				arl.BucketRateLimiting = aarl.BucketRateLimiting
+			} else {
+				normalizeBucketRateLimiting(arl.BucketRateLimiting, aarl.BucketRateLimiting)
+			}
 		}
 
 		// IpAllowList is owned by a separate InstanceIpAllowList MR. When
 		// the Instance CR omits the field, inherit the server's current
 		// list so an IpAllowList MR writing to the same Instance doesn't
-		// cause a per-poll Instance Apply flap (1C.D9 coexist case).
+		// cause a per-poll Instance Apply flap.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.IpAllowList == nil {
 			managedInstance.ArgoCD.Spec.InstanceSpec.IpAllowList = actualInstance.ArgoCD.Spec.InstanceSpec.IpAllowList
 		}
+
+		// ClusterCustomizationDefaults.Kustomization round-trips through
+		// the platform as a verbatim string. The server reliably echoes
+		// back a trailing "\n" on values that did not have one, even
+		// for non-YAML input that bypasses our empty-equivalent check.
+		// Without this normalization, "value" and "value\n" would fire
+		// ApplyInstance every poll while server-side equality
+		// short-circuits the actual write.
+		if managedInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults != nil &&
+			actualInstance.ArgoCD != nil &&
+			actualInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults != nil {
+			mk := managedInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults.Kustomization
+			ak := actualInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults.Kustomization
+			if strings.TrimRight(mk, "\n") == strings.TrimRight(ak, "\n") && mk != ak {
+				managedInstance.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults.Kustomization = ak
+			}
+		}
 	}
 
-	// some configmap values have stable orders which may not be the same as user input
+	// Canonicalize ConfigMap values that the platform stores in a
+	// stable order that may differ from user input.
 	for k, v := range managedInstance.ArgoCDConfigMap {
 		if strings.Contains(k, "accounts.") {
 			value := ""
@@ -385,10 +546,52 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 	}
 	for _, k := range ignoredArgocdCMKeys {
 		delete(managedInstance.ArgoCDConfigMap, k)
+		delete(actualInstance.ArgoCDConfigMap, k)
 	}
 }
 
-// some values are not able to be configured, and we ignore them if they are set
+func normalizeBucketRateLimiting(desired, observed *crossplanetypes.BucketRateLimiting) {
+	if desired == nil || observed == nil {
+		return
+	}
+	if desired.Enabled == nil {
+		desired.Enabled = observed.Enabled
+	}
+	// The platform ignores bucketSize/bucketQps while bucket limiting is
+	// disabled and returns its default floor. When enabled=true but a scalar
+	// was omitted, presence-mode drift already treats that omission as no
+	// opinion, so only normalize the disabled shape here.
+	if !ptr.Deref(desired.Enabled, false) {
+		desired.BucketSize = observed.BucketSize
+		desired.BucketQps = observed.BucketQps
+	}
+}
+
+// normalizeItemRateLimiting mirrors the bucket pattern for the item
+// rate-limiting sub-tree. The platform's read path only echoes user-pinned
+// scalars when the user also set Enabled=true; when Enabled is omitted or
+// false the gateway returns its default scalars (FailureCooldown=10000ms,
+// BaseDelay=1ms, MaxDelay=1000ms, BackoffFactor=1.5) regardless of what was
+// persisted on Update. Without this absorb a CR pinning Enabled=false with
+// non-default scalars drift-flaps every poll because desired=user values vs
+// observed=platform defaults.
+func normalizeItemRateLimiting(desired, observed *crossplanetypes.ItemRateLimiting) {
+	if desired == nil || observed == nil {
+		return
+	}
+	if desired.Enabled == nil {
+		desired.Enabled = observed.Enabled
+	}
+	if !ptr.Deref(desired.Enabled, false) {
+		desired.FailureCooldown = observed.FailureCooldown
+		desired.BaseDelay = observed.BaseDelay
+		desired.MaxDelay = observed.MaxDelay
+		desired.BackoffFactorString = observed.BackoffFactorString
+	}
+}
+
+// ignoredArgocdCMKeys are platform-owned argocd-cm keys that should
+// not participate in drift.
 var ignoredArgocdCMKeys = []string{
 	"cluster.inClusterEnabled",
 	"resource.respectRBAC",
@@ -402,14 +605,20 @@ var ignoredArgocdCMKeys = []string{
 // contributed by the shared DriftSpec baseline.
 //
 // SecretRef fields (ArgoCD / ArgoCDNotifications / ArgoCDImageUpdater /
-// ApplicationSet + the two repo-cred lists) are spec-only — the Akuity
+// ApplicationSet + the two repo-cred lists) are spec-only. The Akuity
 // Export endpoint returns the Secret data masked/nil, so comparing a
 // populated desired ref against an observed nil always flags drift and
-// an Apply fires every poll. These refs are write-only per §2.11; the
-// reconcile path rotates via status.atProvider.secretHash (when the
-// secret-resolution plumbing lands). Ignore them in the struct
-// comparison; drift detection for the referenced secret content lives
-// on the hash compare.
+// an Apply fires every poll. These refs are write-only; the reconcile
+// path rotates via status.atProvider.secretHash. Ignore them in the
+// struct comparison; drift detection for the referenced secret content
+// lives on the hash compare.
+//
+// Resources is ignored here too: declarative Argo CD children are
+// additive, the gateway returns them in separate Export slices
+// (Applications / ApplicationSets / AppProjects), and the struct
+// compare would flag desired=[...] vs observed=nil forever. The
+// argocdResourcesUpToDate side-check on the Export response replaces
+// the struct-level comparison for these.
 func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
 	return base.DriftSpec[v1alpha1.InstanceParameters]{
 		Ignore: []cmp.Option{
@@ -420,19 +629,6 @@ func driftSpec() base.DriftSpec[v1alpha1.InstanceParameters] {
 				"ApplicationSetSecretRef",
 				"RepoCredentialSecretRefs",
 				"RepoTemplateCredentialSecretRefs",
-				// Resources are additive declarative children (Application,
-				// ApplicationSet, AppProject). The Akuity gateway's
-				// ExportInstance does NOT return them inline — the
-				// CrossplaneExtension wire field only carries per-resource
-				// Group metadata for bookkeeping, not the full manifest,
-				// so the struct compare would flag desired=[...] vs
-				// observed=nil forever. KargoInstance uses the same
-				// IgnoreFields pattern (see kargoinstance.go driftSpec) and
-				// relies on a Side check for true drift detection. Tier 2
-				// 2.Children will add the Export-based side check mirroring
-				// kargoResourcesUpToDate; for Tier 1C it's enough that
-				// Apply carries the resources once at Create and struct
-				// compare stops churning per-poll.
 				"Resources",
 			),
 		},

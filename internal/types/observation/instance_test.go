@@ -119,6 +119,121 @@ func TestInstanceArgoCDSpec(t *testing.T) {
 	assert.Equal(t, fixtures.CrossplaneInstanceSpec, result)
 }
 
+func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
+	spec := &argocdv1.InstanceSpec{
+		ClusterCustomizationDefaults: &argocdv1.ClusterCustomization{
+			ServerSideDiffEnabled: true,
+		},
+		Secrets: &argocdv1.SecretsManagementConfig{
+			Sources: []*argocdv1.ClusterSecretMapping{
+				{
+					Clusters: &argocdv1.ObjectSelector{
+						MatchLabels: map[string]string{"cluster": "prod"},
+						MatchExpressions: []*argocdv1.LabelSelectorRequirement{
+							{
+								Key:      ptr.To("env"),
+								Operator: ptr.To("In"),
+								Values:   []string{"prod", "stage"},
+							},
+						},
+					},
+					Secrets: &argocdv1.ObjectSelector{
+						MatchLabels: map[string]string{"sync": "true"},
+					},
+				},
+			},
+			Destinations: []*argocdv1.ClusterSecretMapping{
+				{
+					Clusters: &argocdv1.ObjectSelector{
+						MatchLabels: map[string]string{"cluster": "dest"},
+					},
+					Secrets: &argocdv1.ObjectSelector{
+						MatchExpressions: []*argocdv1.LabelSelectorRequirement{
+							{
+								Key:      ptr.To("team"),
+								Operator: ptr.To("Exists"),
+							},
+						},
+					},
+				},
+			},
+		},
+		MetricsIngressUsername:        ptr.To("metrics-user"),
+		MetricsIngressPasswordHash:    ptr.To("metrics-hash"),
+		PrivilegedNotificationCluster: ptr.To("notifications"),
+		ClusterAddonsExtension: &argocdv1.ClusterAddonsExtension{
+			Enabled:          true,
+			AllowedUsernames: []string{"alice"},
+			AllowedGroups:    []string{"admins"},
+		},
+		ManifestGeneration: &argocdv1.ManifestGeneration{
+			Kustomize: &argocdv1.ConfigManagementToolVersions{
+				DefaultVersion:     "v5.4.3",
+				AdditionalVersions: []string{"v4.5.7"},
+			},
+		},
+	}
+
+	result, err := observation.InstanceArgoCDSpec(spec)
+	require.NoError(t, err)
+
+	assert.Equal(t, &crossplanetypes.ClusterCustomization{
+		AutoUpgradeDisabled:   ptr.To(false),
+		Kustomization:         "",
+		AppReplication:        ptr.To(false),
+		RedisTunneling:        ptr.To(false),
+		ServerSideDiffEnabled: ptr.To(true),
+	}, result.ClusterCustomizationDefaults)
+	assert.Equal(t, &crossplanetypes.SecretsManagementConfig{
+		Sources: []*crossplanetypes.ClusterSecretMapping{
+			{
+				Clusters: &crossplanetypes.ObjectSelector{
+					MatchLabels: map[string]string{"cluster": "prod"},
+					MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
+						{
+							Key:      ptr.To("env"),
+							Operator: ptr.To("In"),
+							Values:   []string{"prod", "stage"},
+						},
+					},
+				},
+				Secrets: &crossplanetypes.ObjectSelector{
+					MatchLabels: map[string]string{"sync": "true"},
+				},
+			},
+		},
+		Destinations: []*crossplanetypes.ClusterSecretMapping{
+			{
+				Clusters: &crossplanetypes.ObjectSelector{
+					MatchLabels: map[string]string{"cluster": "dest"},
+				},
+				Secrets: &crossplanetypes.ObjectSelector{
+					MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
+						{
+							Key:      ptr.To("team"),
+							Operator: ptr.To("Exists"),
+						},
+					},
+				},
+			},
+		},
+	}, result.Secrets)
+	assert.Equal(t, ptr.To("metrics-user"), result.MetricsIngressUsername)
+	assert.Equal(t, ptr.To("metrics-hash"), result.MetricsIngressPasswordHash)
+	assert.Equal(t, ptr.To("notifications"), result.PrivilegedNotificationCluster)
+	assert.Equal(t, &crossplanetypes.ClusterAddonsExtension{
+		Enabled:          ptr.To(true),
+		AllowedUsernames: []string{"alice"},
+		AllowedGroups:    []string{"admins"},
+	}, result.ClusterAddonsExtension)
+	assert.Equal(t, &crossplanetypes.ManifestGeneration{
+		Kustomize: &crossplanetypes.ConfigManagementToolVersions{
+			DefaultVersion:     "v5.4.3",
+			AdditionalVersions: []string{"v4.5.7"},
+		},
+	}, result.ManifestGeneration)
+}
+
 func TestInstanceArgoCD(t *testing.T) {
 	result, err := observation.InstanceArgoCD(fixtures.AkuityInstance)
 	require.NoError(t, err)
@@ -198,6 +313,21 @@ func TestInstance(t *testing.T) {
 		OwnerOrganizationName: "test-org",
 		ArgoCD:                expectedArgoCD,
 	}, result)
+}
+
+func TestInstance_RedactsMetricsIngressPasswordHash(t *testing.T) {
+	instance := &argocdv1.Instance{
+		Spec: &argocdv1.InstanceSpec{
+			MetricsIngressUsername:     ptr.To("metrics-user"),
+			MetricsIngressPasswordHash: ptr.To("metrics-hash"),
+		},
+	}
+
+	result, err := observation.Instance(instance, &argocdv1.ExportInstanceResponse{})
+	require.NoError(t, err)
+
+	assert.Equal(t, ptr.To("metrics-user"), result.ArgoCD.Spec.InstanceSpec.MetricsIngressUsername)
+	assert.Nil(t, result.ArgoCD.Spec.InstanceSpec.MetricsIngressPasswordHash)
 }
 
 func TestCommand(t *testing.T) {

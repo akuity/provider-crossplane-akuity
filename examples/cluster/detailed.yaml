@@ -31,7 +31,7 @@ spec:
       data:
         size: "small"
         autoUpgradeDisabled: true
-        targetVersion: "0.5.0"
+        targetVersion: "0.5.88"
         kustomization: |
           apiVersion: kustomize.config.k8s.io/v1beta1
           kind: Kustomization
@@ -64,23 +64,8 @@ spec:
         project: "test"
         compatibility:
           ipv6Only: false
-        autoscalerConfig:
-          applicationController:
-            resourceMaximum:
-              mem: "8Gi"
-              cpu: "4"
-            resourceMinimum:
-              mem: "0.5Gi"
-              cpu: "250m"
-          repoServer:
-            resourceMaximum:
-              mem: "6Gi"
-              cpu: "4"
-            resourceMinimum:
-              mem: "0.25Gi"
-              cpu: "250m"
-            replicaMaximum: 4
-            replicaMinimum: 1
+        # Use examples/cluster/auto-agent-size.yaml when you want
+        # autoscalerConfig to be continuously reconciled.
     # Use the example Kubernetes Secret above to pass a kubeconfig to the
     # provider.
     # kubeconfigSecretRef:

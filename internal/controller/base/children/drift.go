@@ -56,7 +56,7 @@ func (k Identity) String() string {
 // kube-apiserver-assigned values (resourceVersion, uid, timestamps,
 // generation, managedFields, selfLink) can't produce false drift.
 // The matching entries on metadata are listed inline here rather than
-// as a set literal to make the intent — "these belong to the server" —
+// as a set literal to make the intent, "these belong to the server,"
 // readable at the call site.
 //
 // Fields deliberately NOT stripped:
@@ -80,7 +80,7 @@ var serverMetaFields = []string{
 // Index parses each raw payload into its Identity and stores the
 // decoded object (stripped of server-managed metadata + status). The
 // decoded map is retained so Compare can walk the desired tree and
-// look up each path in the observed tree — no digest comparison
+// look up each path in the observed tree. No digest comparison
 // happens at this layer.
 func Index(raw []runtime.RawExtension) (map[Identity]map[string]interface{}, error) {
 	if len(raw) == 0 {
@@ -160,7 +160,7 @@ func (d DriftReport) Empty() bool {
 // Compare produces a DriftReport for additive-semantics reconciliation
 // with subset field matching. For each desired child, the comparator
 // walks the desired tree and asserts that every path is present and
-// equal in the observed tree. Paths absent from desired are ignored —
+// equal in the observed tree. Paths absent from desired are ignored;
 // that's what makes server-side defaults (e.g. ArgoCD filling in
 // spec.project=default) non-drift.
 //
@@ -170,8 +170,8 @@ func (d DriftReport) Empty() bool {
 // resource exists. This handles the common case where the user writes
 // no namespace and the gateway reports the resource with a concrete
 // default (e.g. "default" or a project namespace) without introducing
-// cross-namespace ambiguity — two observed candidates → no match →
-// fall through to missing, which is the safe signal.
+// cross-namespace ambiguity. Two observed candidates means no match,
+// which falls through to missing as the safe signal.
 func Compare(desired, observed map[Identity]map[string]interface{}) DriftReport {
 	if len(desired) == 0 {
 		return DriftReport{}
@@ -236,9 +236,9 @@ func lookupAnyNamespace(observed map[Identity]map[string]interface{}, id Identit
 // side admission injecting a default toleration into a Kargo Stage,
 // for example), every reconcile loop would report drift and re-Apply
 // the same payload indefinitely. No supported child kind is currently
-// known to behave that way — the regression trap at
+// known to behave that way. The regression trap at
 // drift_test.go:TestMatchesSubset_ArrayAppendTrap documents the
-// behaviour so we learn immediately if the gateway changes.
+// behavior so we learn immediately if the gateway changes.
 //
 // Two deliberate non-fixes here:
 //   - Subset-matching on arrays would hide legitimate user drift
@@ -246,21 +246,37 @@ func lookupAnyNamespace(observed map[Identity]map[string]interface{}, id Identit
 //     semantics are order-sensitive; a lenient matcher is a bug, not
 //     a feature.
 //   - Strategic-merge-patch-style keyed array matching (containers
-//     by name, env by name, …) is per-kind work with no upstream
+//     by name, env by name, etc.) is per-kind work with no upstream
 //     schema source for arbitrary Akuity wire shapes. Introduce it
 //     only when a specific kind forces our hand.
 //
-//nolint:gocyclo // matchesSubset is a single recursive type switch over JSON shapes; flattening it would lose the comparison contract documented in the doc-comment above.
+//nolint:gocyclo // Recursive JSON-shape matching is clearer as one type switch.
 func matchesSubset(desired, observed interface{}) bool {
 	switch d := desired.(type) {
 	case map[string]interface{}:
 		o, ok := observed.(map[string]interface{})
 		if !ok {
-			return false
+			// A desired empty map matches an absent observed value:
+			// "spec: {}" / "metadata: {}" is the same shape the
+			// gateway returns when no fields under that key carry
+			// content, but the gateway suppresses the empty container
+			// from the export response. Treating `present-empty` and
+			// `absent` as distinct produces drift on every reconcile
+			// for any user-supplied manifest with an empty section
+			// (Kargo Project's `spec: {}` is the canonical case:
+			// the kind has no required spec fields and the server
+			// echoes back metadata only).
+			return len(d) == 0 && observed == nil
 		}
 		for k, dv := range d {
 			ov, present := o[k]
 			if !present {
+				// Same logic as the absent-observed branch above:
+				// a desired empty map / empty list / nil is
+				// indistinguishable from absent on the gateway side.
+				if isEmptyJSONValue(dv) {
+					continue
+				}
 				return false
 			}
 			if !matchesSubset(dv, ov) {
@@ -271,7 +287,7 @@ func matchesSubset(desired, observed interface{}) bool {
 	case []interface{}:
 		o, ok := observed.([]interface{})
 		if !ok {
-			return false
+			return len(d) == 0 && observed == nil
 		}
 		if len(d) != len(o) {
 			return false
@@ -285,6 +301,25 @@ func matchesSubset(desired, observed interface{}) bool {
 	default:
 		// Scalars and untyped nils.
 		return reflect.DeepEqual(desired, observed)
+	}
+}
+
+// isEmptyJSONValue reports whether v is the JSON-decoded representation
+// of "this key has no content": empty map, empty array, or nil. It is
+// equivalent to absent during desired/observed subset matching so users
+// can spell out a structural placeholder ("spec: {}") without every
+// reconcile flagging drift against a gateway that suppresses empty
+// containers from its export response.
+func isEmptyJSONValue(v interface{}) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case map[string]interface{}:
+		return len(t) == 0
+	case []interface{}:
+		return len(t) == 0
+	default:
+		return false
 	}
 }
 

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package apis contains Kubernetes API for the Akuity provider.
+// Package apis registers the Kubernetes APIs served by the Akuity provider.
 package apis
 
 import (
@@ -25,17 +25,16 @@ import (
 )
 
 func init() {
-	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
 	AddToSchemes = append(AddToSchemes,
 		akuityv1alpha1.SchemeBuilder.AddToScheme,
 		corev1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
 
-// AddToSchemes may be used to add all resources defined in the project to a Scheme
+// AddToSchemes adds all project resources to a Scheme.
 var AddToSchemes runtime.SchemeBuilder
 
-// AddToScheme adds all Resources to the Scheme
+// AddToScheme adds all project resources to the supplied Scheme.
 func AddToScheme(s *runtime.Scheme) error {
 	return AddToSchemes.AddToScheme(s)
 }

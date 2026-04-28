@@ -16,8 +16,8 @@ limitations under the License.
 
 package pointer
 
-// LateInitialize return from if current matches the default value of T.
-// Otherwise it returns current.
+// LateInitialize returns from when current is T's zero value. Otherwise
+// it returns current.
 func LateInitialize[T comparable](current, from T) T {
 	var defaultVal T
 	if current == defaultVal {

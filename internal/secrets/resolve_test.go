@@ -35,15 +35,19 @@ func newSecret(ns, name string, data map[string]string) *corev1.Secret {
 	}
 }
 
-func TestResolveAllKeys_NilOrEmptyRef(t *testing.T) {
+func TestResolveAllKeys_NilRef(t *testing.T) {
 	c := fakeClient(t).Build()
-	got, err := ResolveAllKeys(context.Background(), c, "default", nil)
+	got, err := ResolveAllKeys(context.Background(), c, nil)
 	if err != nil || got != nil {
 		t.Fatalf("nil ref: got=%v err=%v, want nil,nil", got, err)
 	}
-	got, err = ResolveAllKeys(context.Background(), c, "default", &xpv1.LocalSecretReference{})
-	if err != nil || got != nil {
-		t.Fatalf("empty ref: got=%v err=%v, want nil,nil", got, err)
+}
+
+func TestResolveAllKeys_EmptyRefIsInvalid(t *testing.T) {
+	c := fakeClient(t).Build()
+	_, err := ResolveAllKeys(context.Background(), c, &xpv1.SecretReference{})
+	if !errors.Is(err, ErrInvalidSecretReference) {
+		t.Fatalf("want ErrInvalidSecretReference, got %v", err)
 	}
 }
 
@@ -53,8 +57,8 @@ func TestResolveAllKeys_Found(t *testing.T) {
 		"server.secret":  "s3cr3t",
 	})
 	c := fakeClient(t, sec).Build()
-	got, err := ResolveAllKeys(context.Background(), c, "akuity",
-		&xpv1.LocalSecretReference{Name: "argo-secret"})
+	got, err := ResolveAllKeys(context.Background(), c,
+		&xpv1.SecretReference{Namespace: "akuity", Name: "argo-secret"})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -69,28 +73,38 @@ func TestResolveAllKeys_Found(t *testing.T) {
 
 func TestResolveAllKeys_NotFoundWrapsSentinel(t *testing.T) {
 	c := fakeClient(t).Build()
-	_, err := ResolveAllKeys(context.Background(), c, "akuity",
-		&xpv1.LocalSecretReference{Name: "ghost"})
+	_, err := ResolveAllKeys(context.Background(), c,
+		&xpv1.SecretReference{Namespace: "akuity", Name: "ghost"})
 	if !errors.Is(err, ErrMissingSecret) {
 		t.Fatalf("want ErrMissingSecret, got %v", err)
 	}
 }
 
+func TestResolveAllKeys_EmptySecretWrapsSentinel(t *testing.T) {
+	sec := newSecret("akuity", "empty", nil)
+	c := fakeClient(t, sec).Build()
+	_, err := ResolveAllKeys(context.Background(), c,
+		&xpv1.SecretReference{Namespace: "akuity", Name: "empty"})
+	if !errors.Is(err, ErrEmptySecret) {
+		t.Fatalf("want ErrEmptySecret, got %v", err)
+	}
+}
+
 func TestResolveNamed_HappyPath(t *testing.T) {
 	a := newSecret("akuity", "creds-a", map[string]string{"url": "https://a", "password": "p1"})
-	b := newSecret("akuity", "creds-b", map[string]string{"url": "https://b", "sshPrivateKey": "key"})
+	b := newSecret("akuity", "repo-creds-b", map[string]string{"url": "https://b", "sshPrivateKey": "key"})
 	c := fakeClient(t, a, b).Build()
 
-	got, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha1.NamedLocalSecretReference{
-		{Name: "repo-a", SecretRef: xpv1.LocalSecretReference{Name: "creds-a"}},
-		{Name: "repo-b", SecretRef: xpv1.LocalSecretReference{Name: "creds-b"}},
+	got, err := ResolveNamed(context.Background(), c, []v1alpha1.NamedSecretReference{
+		{Name: "repo-a", SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "creds-a"}},
+		{SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "repo-creds-b"}},
 	})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	want := map[string]map[string]string{
-		"repo-a": {"url": "https://a", "password": "p1"},
-		"repo-b": {"url": "https://b", "sshPrivateKey": "key"},
+	want := map[string]ResolvedSecret{
+		"repo-a":       {Namespace: "akuity", Name: "creds-a", Data: map[string]string{"url": "https://a", "password": "p1"}},
+		"repo-creds-b": {Namespace: "akuity", Name: "repo-creds-b", Data: map[string]string{"url": "https://b", "sshPrivateKey": "key"}},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("mismatch (-want +got):\n%s", diff)
@@ -99,7 +113,7 @@ func TestResolveNamed_HappyPath(t *testing.T) {
 
 func TestResolveNamed_EmptyReturnsNil(t *testing.T) {
 	c := fakeClient(t).Build()
-	got, err := ResolveNamed(context.Background(), c, "akuity", nil)
+	got, err := ResolveNamed(context.Background(), c, nil)
 	if err != nil || got != nil {
 		t.Fatalf("got=%v err=%v, want nil,nil", got, err)
 	}
@@ -108,19 +122,33 @@ func TestResolveNamed_EmptyReturnsNil(t *testing.T) {
 func TestResolveNamed_DuplicateNames(t *testing.T) {
 	a := newSecret("akuity", "creds-a", map[string]string{"url": "https://a"})
 	c := fakeClient(t, a).Build()
-	_, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha1.NamedLocalSecretReference{
-		{Name: "repo-dup", SecretRef: xpv1.LocalSecretReference{Name: "creds-a"}},
-		{Name: "repo-dup", SecretRef: xpv1.LocalSecretReference{Name: "creds-a"}},
+	_, err := ResolveNamed(context.Background(), c, []v1alpha1.NamedSecretReference{
+		{Name: "repo-dup", SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "creds-a"}},
+		{Name: "repo-dup", SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "creds-b"}},
 	})
 	if err == nil {
 		t.Fatalf("want duplicate-name error, got nil")
+	}
+	if !errors.Is(err, ErrInvalidSecretReference) {
+		t.Fatalf("want ErrInvalidSecretReference, got %v", err)
+	}
+}
+
+func TestResolveNamed_InvalidEffectiveName(t *testing.T) {
+	a := newSecret("akuity", "creds-a", map[string]string{"url": "https://a"})
+	c := fakeClient(t, a).Build()
+	_, err := ResolveNamed(context.Background(), c, []v1alpha1.NamedSecretReference{
+		{SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "creds-a"}},
+	})
+	if !errors.Is(err, ErrInvalidSecretReference) {
+		t.Fatalf("want ErrInvalidSecretReference, got %v", err)
 	}
 }
 
 func TestResolveNamed_PropagatesMissing(t *testing.T) {
 	c := fakeClient(t).Build()
-	_, err := ResolveNamed(context.Background(), c, "akuity", []v1alpha1.NamedLocalSecretReference{
-		{Name: "repo-x", SecretRef: xpv1.LocalSecretReference{Name: "ghost"}},
+	_, err := ResolveNamed(context.Background(), c, []v1alpha1.NamedSecretReference{
+		{Name: "repo-x", SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "ghost"}},
 	})
 	if !errors.Is(err, ErrMissingSecret) {
 		t.Fatalf("want ErrMissingSecret, got %v", err)
@@ -156,19 +184,5 @@ func TestHash_EmptyIsEmptyString(t *testing.T) {
 	}
 	if Hash(map[string]string{}) != "" {
 		t.Fatalf("want empty string for empty map")
-	}
-}
-
-func TestHashNamed_Stable(t *testing.T) {
-	a := map[string]map[string]string{
-		"repo-a": {"url": "u1", "password": "p1"},
-		"repo-b": {"url": "u2"},
-	}
-	b := map[string]map[string]string{
-		"repo-b": {"url": "u2"},
-		"repo-a": {"password": "p1", "url": "u1"},
-	}
-	if HashNamed(a) != HashNamed(b) {
-		t.Fatalf("HashNamed unstable across key order")
 	}
 }

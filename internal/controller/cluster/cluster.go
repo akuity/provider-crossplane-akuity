@@ -17,12 +17,13 @@ limitations under the License.
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/pkg/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -42,7 +43,9 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
+	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 	"github.com/akuityio/provider-crossplane-akuity/internal/utils/pointer"
 )
@@ -72,6 +75,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(recorder),
+		managed.WithManagementPolicies(),
 	)
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -95,13 +99,25 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	}
 	mg.Spec.ForProvider.InstanceID = instanceID
 
+	// Short-circuit on a cached terminal write before any gateway round-
+	// trip. With the NameAsExternalName initializer the external-name
+	// is stamped before the first Create, so a Create that fails
+	// terminally (instance ID not found, malformed Kustomization, bad
+	// kubeconfig secret) would otherwise loop GetCluster->NotFound->
+	// Create->reject at controller-runtime backoff (~2s).
+	if e.HasTerminalWriteResource(mg, v1alpha1.ClusterGroupVersionKind) {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+			return obs, err
+		}
+	}
+
 	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
-	// GetCluster stays as the source of truth for observation data
-	// (HealthStatus / ReconciliationStatus / AgentState / agent size /
-	// target version etc.) — none of that round-trips through Export.
+	// GetCluster is the source of truth for observation data such as
+	// health, reconciliation, agent state, agent size, and target
+	// version. Those fields do not round-trip through Export.
 	akuityCluster, err := e.Client.GetCluster(ctx, instanceID, meta.GetExternalName(mg))
 	if outcome, obs, rerr := base.ClassifyGetError(err); outcome != base.GetOK {
 		switch outcome {
@@ -135,15 +151,11 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	mg.Status.AtProvider = clusterObservation
 	base.SetHealthCondition(mg, clusterObservation.HealthStatus.Code == 1)
 
-	// Drift compares against ExportInstanceByID's round-trippable spec
-	// (same structural shape ApplyInstance{Clusters:[one]} sends).
-	// Pattern-consistent with Instance/KargoInstance: read via Export,
-	// write via Apply. GetCluster above is still load-bearing for
-	// observation fields (health/reconciliation/agent state) that
-	// Export does not return. If Export succeeds but the cluster entry
-	// is missing from its Clusters list we fall back to the
-	// GetCluster-derived spec: GetCluster saw it, so it does exist —
-	// Export was just lagging.
+	// Drift compares against ExportInstanceByID's round-trippable spec,
+	// the same structural shape ApplyInstance sends. If Export succeeds
+	// but the cluster is missing from its Clusters list, fall back to
+	// the GetCluster-derived spec because GetCluster already proved the
+	// cluster exists.
 	driftTarget, found, err := e.exportedClusterSpec(ctx, instanceID, meta.GetExternalName(mg), mg.Spec.ForProvider)
 	if err != nil {
 		mg.SetConditions(xpv1.ReconcileError(err))
@@ -152,6 +164,39 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	if !found {
 		driftTarget = actualCluster
 	}
+	statusClusterSpec := driftTarget.ClusterSpec
+
+	// MaintenanceMode and MaintenanceModeExpiry use the dedicated
+	// set-maintenance-mode RPC, not ApplyInstance. ExportInstance echoes
+	// them, and when the user enables maintenance without pinning an
+	// expiry, the platform stamps a rolling expiry. Comparing user-nil
+	// against server-stamped expiry would flap drift forever.
+	//
+	// Branch on user intent: when the user pins a field, compare against
+	// the GetCluster value so real drift surfaces. When the user is
+	// silent, force driftTarget back to nil so a server-stamped value
+	// does not look like user-controlled drift.
+	desiredData := mg.Spec.ForProvider.ClusterSpec.Data
+	if desiredData.MaintenanceMode != nil {
+		driftTarget.ClusterSpec.Data.MaintenanceMode = actualCluster.ClusterSpec.Data.MaintenanceMode
+	} else {
+		driftTarget.ClusterSpec.Data.MaintenanceMode = nil
+	}
+	if desiredData.MaintenanceModeExpiry != nil {
+		driftTarget.ClusterSpec.Data.MaintenanceModeExpiry = actualCluster.ClusterSpec.Data.MaintenanceModeExpiry
+	} else {
+		driftTarget.ClusterSpec.Data.MaintenanceModeExpiry = nil
+	}
+	statusClusterSpec.Data.MaintenanceMode = actualCluster.ClusterSpec.Data.MaintenanceMode
+	statusClusterSpec.Data.MaintenanceModeExpiry = actualCluster.ClusterSpec.Data.MaintenanceModeExpiry
+
+	// These pointer fields are server-stamped and echoed by GetCluster
+	// but not ExportInstance. Use GetCluster values for comparison so
+	// late-initialized defaults settle while user-pinned values still
+	// surface as drift when the platform has not applied them.
+	overlayClusterGetOnlyData(&driftTarget.ClusterSpec.Data, actualCluster.ClusterSpec.Data)
+	overlayClusterGetOnlyData(&statusClusterSpec.Data, actualCluster.ClusterSpec.Data)
+	mg.Status.AtProvider.ClusterSpec = statusClusterSpec
 
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
@@ -160,33 +205,78 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 		return managed.ExternalObservation{}, err
 	}
 
+	if !isUpToDate {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg); ok {
+			return obs, err
+		}
+	} else {
+		e.clearTerminalWrite(ctx, mg)
+	}
+
 	return managed.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: isUpToDate,
 	}, nil
 }
 
+func overlayClusterGetOnlyData(target *generated.ClusterData, actual generated.ClusterData) {
+	if target == nil {
+		return
+	}
+	target.MultiClusterK8SDashboardEnabled = actual.MultiClusterK8SDashboardEnabled
+	target.AutoscalerConfig = actual.AutoscalerConfig
+	target.Compatibility = actual.Compatibility
+	target.ArgocdNotificationsSettings = actual.ArgocdNotificationsSettings
+	target.DirectClusterSpec = actual.DirectClusterSpec
+	target.ServerSideDiffEnabled = actual.ServerSideDiffEnabled
+	target.PodInheritMetadata = actual.PodInheritMetadata
+	target.DatadogAnnotationsEnabled = actual.DatadogAnnotationsEnabled
+	target.EksAddonEnabled = actual.EksAddonEnabled
+}
+
 func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalCreation, error) {
 	defer base.PropagateObservedGeneration(mg)
 
+	key, err := e.clusterTerminalWriteKey(ctx, mg)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
 	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return managed.ExternalCreation{}, errors.Wrap(err, errTransformCluster)
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformCluster, err)))
 	}
 	if err := e.Client.ApplyInstance(ctx, req); err != nil {
-		return managed.ExternalCreation{}, fmt.Errorf("could not create cluster: %w", err)
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 
+	// ApplyInstance has now stamped the platform row. Every subsequent
+	// failure path must roll the row back so a retried Create starts
+	// from a clean slate and a user-initiated kubectl delete (which
+	// short-circuits when the external-name annotation is empty) cannot
+	// orphan the platform row. Mirrors the cleanup pattern used by the
+	// reference Akuity client when applyInstance, reconciliation, or
+	// kubeconfig install fails on a fresh resource.
+	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
+		e.rollbackCreatedCluster(ctx, mg, "syncMaintenanceMode")
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	e.ClearTerminalWrite(key)
+
 	// One-time apply: manifests are installed on the managed cluster at
-	// Create only. Update() intentionally does NOT re-apply — matches
-	// terraform's default (reapply_manifests_on_update=false).
+	// Create only. Update intentionally does not re-apply them.
 	// Server-pushed agent upgrades require a spec change or recreate to
-	// land on the managed cluster.
+	// land on the managed cluster. A failure here also records a
+	// terminal write so the next Observe short-circuits via the
+	// suppress site rather than hot-looping ApplyInstance + rollback
+	// every poll. The terminal-write key is keyed off ForProvider, so a
+	// spec edit (the only way the user can fix a bad kubeconfig source)
+	// rotates the key and lets Create run again.
 	if mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "" {
 		e.Logger.Debug("Retrieving cluster manifests....")
 		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
-			return managed.ExternalCreation{}, fmt.Errorf("could not get cluster manifests to apply: %w", err)
+			e.rollbackCreatedCluster(ctx, mg, "get-manifests")
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyManifestInstallError(fmt.Errorf("could not get cluster manifests to apply: %w", err)))
 		}
 
 		e.Logger.Debug("Applying cluster manifests",
@@ -195,7 +285,8 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		)
 		e.Logger.Debug(clusterManifests)
 		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, false); err != nil {
-			return managed.ExternalCreation{}, fmt.Errorf("could not apply cluster manifests: %w", err)
+			e.rollbackCreatedCluster(ctx, mg, "apply-manifests")
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyManifestInstallError(fmt.Errorf("could not apply cluster manifests: %w", err)))
 		}
 	}
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
@@ -203,18 +294,129 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	return managed.ExternalCreation{}, nil
 }
 
+// rollbackCreatedCluster removes the just-stamped platform row (and
+// optionally the partially-installed manifests) when a Create-path step
+// fails after ApplyInstance succeeded. Errors during rollback are
+// logged at info level rather than returned: the caller's original
+// failure is the user-visible error, and a rollback failure should not
+// mask it. The platform row is already orphaned at that point, so the
+// info log gives operators the breadcrumb without a second error
+// surface.
+func (e *external) rollbackCreatedCluster(ctx context.Context, mg *v1alpha1.Cluster, stage string) {
+	if mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
+		(mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "") {
+		manifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
+		if err == nil {
+			if applyErr := e.applyClusterManifests(ctx, *mg, manifests, true); applyErr != nil {
+				e.Logger.Info("rollback could not strip partially-installed cluster manifests",
+					"stage", stage,
+					"error", applyErr,
+					"instanceID", mg.Spec.ForProvider.InstanceID,
+					"clusterName", mg.Spec.ForProvider.Name,
+				)
+			}
+		}
+	}
+	if err := e.Client.DeleteCluster(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name); err != nil {
+		e.Logger.Info("rollback after create failure left platform row stamped",
+			"stage", stage,
+			"error", err,
+			"instanceID", mg.Spec.ForProvider.InstanceID,
+			"clusterName", mg.Spec.ForProvider.Name,
+		)
+	}
+}
+
 func (e *external) Update(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalUpdate, error) {
 	defer base.PropagateObservedGeneration(mg)
 
+	key, err := e.clusterTerminalWriteKey(ctx, mg)
+	if err != nil {
+		return managed.ExternalUpdate{}, err
+	}
 	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return managed.ExternalUpdate{}, errors.Wrap(err, errTransformCluster)
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformCluster, err)))
 	}
-	return managed.ExternalUpdate{}, e.Client.ApplyInstance(ctx, req)
+	if err := e.Client.ApplyInstance(ctx, req); err != nil {
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
+		return managed.ExternalUpdate{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	e.ClearTerminalWrite(key)
+	return managed.ExternalUpdate{}, nil
+}
+
+// syncMaintenanceMode pushes data.maintenanceMode and data.maintenanceModeExpiry
+// through the dedicated set-maintenance-mode endpoint when the user has
+// configured either field. ApplyInstance silently drops both fields, so
+// without this separate RPC the user-set state never reaches the
+// platform and the drift comparator would keep scheduling Apply. Before
+// this RPC, the loop produced roughly 4 wasted writes in 2 minutes.
+// This uses the platform's dedicated maintenance-mode mutation path.
+//
+// When neither field is configured (both *bool nil and *string nil) the
+// call is skipped, avoiding an implicit clear of a value the user did
+// not ask this resource to control.
+//
+// When the desired (mode, expiry) already matches the observation in
+// status.atProvider, skip the call as well. The dedicated RPC fires on
+// every Update otherwise and burns one wire round-trip per poll for any
+// cluster with maintenanceMode pinned in spec.
+func (e *external) syncMaintenanceMode(ctx context.Context, mg *v1alpha1.Cluster) error {
+	data := mg.Spec.ForProvider.ClusterSpec.Data
+	if data.MaintenanceMode == nil && data.MaintenanceModeExpiry == nil {
+		return nil
+	}
+	mode := false
+	if data.MaintenanceMode != nil {
+		mode = *data.MaintenanceMode
+	}
+	var expiry *time.Time
+	if data.MaintenanceModeExpiry != nil && *data.MaintenanceModeExpiry != "" {
+		t, err := time.Parse(time.RFC3339, *data.MaintenanceModeExpiry)
+		if err != nil {
+			return reason.AsTerminal(fmt.Errorf("could not parse spec.forProvider.data.maintenanceModeExpiry as RFC3339: %w", err))
+		}
+		expiry = &t
+	}
+	if maintenanceModeAlreadyApplied(mg, mode, expiry) {
+		return nil
+	}
+	return e.Client.SetClusterMaintenanceMode(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name, mode, expiry)
+}
+
+// maintenanceModeAlreadyApplied returns true when the observed
+// status.atProvider already reflects (mode, expiry) so the dedicated RPC
+// does not need to fire again. atProvider.MaintenanceMode is populated
+// by Observe from the platform's GetCluster response, so this is the
+// authoritative comparison surface. Returns false on Create (atProvider
+// empty), so the initial sync still runs.
+func maintenanceModeAlreadyApplied(mg *v1alpha1.Cluster, mode bool, expiry *time.Time) bool {
+	observed := mg.Status.AtProvider.ClusterSpec.Data
+	if observed.MaintenanceMode == nil {
+		return false
+	}
+	if *observed.MaintenanceMode != mode {
+		return false
+	}
+	if expiry == nil {
+		return observed.MaintenanceModeExpiry == nil
+	}
+	if observed.MaintenanceModeExpiry == nil {
+		return false
+	}
+	observedTime, err := time.Parse(time.RFC3339, *observed.MaintenanceModeExpiry)
+	if err != nil {
+		return false
+	}
+	return observedTime.Equal(*expiry)
 }
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
+	e.ClearTerminalWriteResource(mg, v1alpha1.ClusterGroupVersionKind)
 
 	externalName := meta.GetExternalName(mg)
 	if externalName == "" {
@@ -242,6 +444,38 @@ func (e *external) Delete(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 
 func (e *external) Disconnect(_ context.Context) error { return nil }
 
+func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.Cluster) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	key, err := e.clusterTerminalWriteKey(ctx, mg)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	return e.SuppressTerminalWrite(mg, key)
+}
+
+func (e *external) clusterTerminalWriteKey(ctx context.Context, mg *v1alpha1.Cluster) (base.TerminalWriteKey, error) {
+	req, err := BuildApplyInstanceRequest(mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider)
+	targetFP := kube.TargetFingerprint(ctx, e.Kube, targetKubeConfig(*mg))
+	if err != nil {
+		return base.NewTerminalWriteKey(mg, v1alpha1.ClusterGroupVersionKind, "build-error", mg.Spec.ForProvider, targetFP, err.Error())
+	}
+	return base.NewTerminalWriteKey(mg, v1alpha1.ClusterGroupVersionKind, req, targetFP)
+}
+
+func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.Cluster) {
+	if !e.HasTerminalWriteResource(mg, v1alpha1.ClusterGroupVersionKind) {
+		return
+	}
+	key, err := e.clusterTerminalWriteKey(ctx, mg)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	e.ClearTerminalWrite(key)
+}
+
 func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.ClusterParameters) {
 	in.Namespace = pointer.LateInitialize(in.Namespace, actual.Namespace)
 	in.ClusterSpec.Data.AutoUpgradeDisabled = pointer.LateInitialize(in.ClusterSpec.Data.AutoUpgradeDisabled, actual.ClusterSpec.Data.AutoUpgradeDisabled)
@@ -252,6 +486,7 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 	in.ClusterSpec.Data.Kustomization = pointer.LateInitialize(in.ClusterSpec.Data.Kustomization, actual.ClusterSpec.Data.Kustomization)
 	in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled = pointer.LateInitialize(in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled, actual.ClusterSpec.Data.MultiClusterK8SDashboardEnabled)
 	in.ClusterSpec.Data.AutoscalerConfig = pointer.LateInitialize(in.ClusterSpec.Data.AutoscalerConfig, actual.ClusterSpec.Data.AutoscalerConfig)
+	in.ClusterSpec.Data.PodInheritMetadata = pointer.LateInitialize(in.ClusterSpec.Data.PodInheritMetadata, actual.ClusterSpec.Data.PodInheritMetadata)
 }
 
 // exportedClusterSpec returns the canonical ClusterParameters for
@@ -259,11 +494,14 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 // `found` flag is false when Export succeeds but the named cluster is
 // absent from the response (e.g. server mid-provisioning or a
 // concurrent sibling deletion); caller falls back to GetCluster-based
-// drift in that case. Errors are transient Export failures only.
+// drift in that case. Transport failures are logged and treated as not
+// found so observation can fall back to Get; errors are decode/schema
+// failures in the Export payload.
 func (e *external) exportedClusterSpec(ctx context.Context, instanceID, clusterName string, desired v1alpha1.ClusterParameters) (v1alpha1.ClusterParameters, bool, error) {
 	exp, err := e.Client.ExportInstanceByID(ctx, instanceID)
 	if err != nil {
-		return v1alpha1.ClusterParameters{}, false, err
+		e.Logger.Debug("ExportInstanceByID failed; falling back to GetCluster for drift", "err", err)
+		return v1alpha1.ClusterParameters{}, false, nil
 	}
 	for _, entry := range exp.GetClusters() {
 		if entry == nil {
@@ -322,27 +560,10 @@ func (e *external) applyClusterManifests(ctx context.Context, mg v1alpha1.Cluste
 }
 
 // driftSpec is the Cluster drift-detection recipe. Normalize bridges
-// the lateInit-vs-Export shape gap: lateInitializeCluster pulls
-// server-defaulted fields off the GetCluster response onto spec
-// (AutoscalerConfig, MultiClusterK8SDashboardEnabled, etc.), but
-// ExportInstanceByID — the round-trippable comparison surface — omits
-// those same defaults. Without normalization the drift compare would
-// flap every poll: desired (lateInit-stamped) vs observed (Export)
-// disagree on fields neither the user nor the server actually consider
-// drift. EquateEmpty is contributed by the shared DriftSpec baseline.
-//
-// Two-direction handling:
-//
-//  1. desired==nil, observed populated → adopt observed (covers the
-//     case where lateInit hasn't run yet on first Observe, or where the
-//     stored CR was never lateInit'd).
-//  2. desired populated, observed==nil → drop desired (the lateInit
-//     residue case — observed via Export is the source of truth and
-//     it omits server defaults).
-//
-// Covers §6 rows 9 + 10 (naive ClusterSpec.Equals, zero-struct
-// Compatibility/ArgocdNotificationsSettings echo) plus the
-// lateInit-vs-Export gap surfaced in 1A.U2/U7.
+// the lateInit-vs-Export shape gap: lateInitializeCluster adopts
+// server defaults from GetCluster, while ExportInstanceByID omits some
+// of those defaults. Without normalization, desired and observed would
+// disagree on fields neither the user nor the server treats as drift.
 func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 	return base.DriftSpec[v1alpha1.ClusterParameters]{
 		Normalize: func(desired, observed *v1alpha1.ClusterParameters) {
@@ -366,37 +587,79 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 				&desired.ClusterSpec.Data.ArgocdNotificationsSettings,
 				&observed.ClusterSpec.Data.ArgocdNotificationsSettings,
 			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.DirectClusterSpec,
+				&observed.ClusterSpec.Data.DirectClusterSpec,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.ServerSideDiffEnabled,
+				&observed.ClusterSpec.Data.ServerSideDiffEnabled,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.DatadogAnnotationsEnabled,
+				&observed.ClusterSpec.Data.DatadogAnnotationsEnabled,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.EksAddonEnabled,
+				&observed.ClusterSpec.Data.EksAddonEnabled,
+			)
+			normalizePtrField(
+				&desired.ClusterSpec.Data.PodInheritMetadata,
+				&observed.ClusterSpec.Data.PodInheritMetadata,
+			)
 
-			// Kustomization is a YAML string round-trip. lateInit pulls
-			// the GetCluster value (often "{}\n") onto spec; Export
-			// returns the canonical "apiVersion: ...\nkind:
-			// Kustomization\n" scaffold. Both parse to a structurally-
-			// empty Kustomization (no resources / patches / generators).
-			// When EITHER side parses to that empty form and the OTHER
-			// also parses to an empty form, treat as equal by adopting
-			// observed.
-			if kustomizationEmptyEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
+			// Kustomization is a YAML string round-trip. GetCluster may
+			// return "{}\n" while Export returns the canonical
+			// "apiVersion/kind" scaffold; both represent an empty
+			// Kustomization, so adopt observed when both sides parse empty.
+			// Also flatten trailing-newline-only differences: the platform
+			// stores the string verbatim, so "value" and "value\n" would
+			// otherwise fire ApplyCluster every poll while the server
+			// short-circuits the write.
+			if kustomizationEquivalent(desired.ClusterSpec.Data.Kustomization, observed.ClusterSpec.Data.Kustomization) {
 				desired.ClusterSpec.Data.Kustomization = observed.ClusterSpec.Data.Kustomization
+			}
+
+			// Platform's UpdateInstanceCluster only consults
+			// data.autoscalerConfig when the cluster size is "auto".
+			// For small/medium/large the gateway stamps size-based
+			// defaults regardless of what the user pinned, so any
+			// pinned autoscalerConfig drift-flaps every poll. Adopt
+			// observed when the size is non-auto so the user's value
+			// stops fighting the platform; the user's intent is still
+			// honored on auto-sized clusters where it actually round-
+			// trips.
+			if !sizeUsesUserAutoscaler(desired.ClusterSpec.Data.Size) {
+				desired.ClusterSpec.Data.AutoscalerConfig =
+					observed.ClusterSpec.Data.AutoscalerConfig
 			}
 		},
 	}
 }
 
-// normalizePtrField bridges a single pointer field across the
-// lateInit-vs-Export gap. When one side is nil and the other is
-// populated, adopt the OBSERVED value (Export is the source of truth
-// for drift comparison; lateInit residue is collapsed). When both
-// sides are populated, leave them alone — go-cmp will compare element
-// by element. When both are nil, no-op.
+func sizeUsesUserAutoscaler(size generated.ClusterSize) bool {
+	return strings.EqualFold(string(size), "auto")
+}
+
+// normalizePtrField adopts the observed pointer value onto desired
+// when desired is unset and observed carries a server-stamped value.
+// This is the safe direction of the lateInit-vs-Export bridge: the
+// user did not pin anything, so inheriting the platform default avoids
+// per-poll drift on values the user does not control.
+//
+// The reverse direction (desired set, observed nil) is intentionally
+// not handled here. Collapsing desired to nil would drop user-pinned
+// values whenever the platform has not observed them yet. Real drift
+// must surface so Apply runs and either persists the value or returns
+// the platform's rejection.
 func normalizePtrField[T any](desired, observed **T) {
-	if (*desired == nil) == (*observed == nil) {
-		return
+	if *desired == nil && *observed != nil {
+		*desired = *observed
 	}
-	*desired = *observed
 }
 
 // kustomizationEmptyEquivalent returns true when both Kustomization
-// strings parse to a structurally-empty Kustomization manifest — i.e.,
+// strings parse to a structurally-empty Kustomization manifest: that is,
 // only the scaffold keys (apiVersion, kind) plus zero or more empty
 // arrays/objects, no resources/patches/generators/etc. that would
 // represent real user intent. Comparison is lenient: if either side
@@ -414,15 +677,30 @@ func kustomizationEmptyEquivalent(a, b string) bool {
 	return aEmpty && bEmpty
 }
 
+func kustomizationEquivalent(a, b string) bool {
+	if kustomizationEmptyEquivalent(a, b) {
+		return true
+	}
+	if strings.TrimRight(a, "\n") == strings.TrimRight(b, "\n") {
+		return true
+	}
+	aRaw, aErr := clusterKustomizationRaw(a)
+	bRaw, bErr := clusterKustomizationRaw(b)
+	if aErr != nil || bErr != nil {
+		return false
+	}
+	return bytes.Equal(aRaw.Raw, bRaw.Raw)
+}
+
 // isEmptyKustomization decides whether a Kustomization YAML string
-// represents an "empty" manifest — i.e., contains nothing the server
+// represents an "empty" manifest: it contains nothing the server
 // would treat as actual configuration. The empty cases are:
 //   - "" or whitespace-only
 //   - "{}" / "{}\n" / "null"
 //   - Only apiVersion + kind keys present, no resources/patches/etc.
 //
 // Any other key under the root object means the user has put real
-// content into Kustomization and we should NOT collapse drift.
+// content into Kustomization and should not collapse drift.
 func isEmptyKustomization(s string) (bool, error) {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" || trimmed == "{}" || trimmed == "null" {

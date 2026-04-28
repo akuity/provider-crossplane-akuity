@@ -1,0 +1,32 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoAgent
+metadata:
+  name: my-kargo-agent-self-hosted
+spec:
+  forProvider:
+    kargoInstanceRef:
+      name: "my-kargo"
+    name: "my-kargo-agent-self-hosted"
+    namespace: "kargo"
+    workspace: "my-project"
+    kargoAgentSpec:
+      description: "Self-hosted Kargo agent connected to a self-managed Argo CD instance."
+      data:
+        akuityManaged: false
+        size: "medium"
+        # Kargo agent version. Do not use a leading "v" here.
+        targetVersion: "0.5.88"
+        autoUpgradeDisabled: true
+        argocdNamespace: "argocd"
+        selfManagedArgocdUrl: "https://argocd.example.com"
+        kustomization: |
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          images:
+            - name: ghcr.io/akuity/kargo
+              newName: quay.io/akuity/kargo
+            - name: quay.io/akuity/agent
+              newName: quay.io/akuity/agent
+  providerConfigRef:
+    name: akuity

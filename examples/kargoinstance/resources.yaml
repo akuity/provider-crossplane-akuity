@@ -1,0 +1,79 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoInstance
+metadata:
+  name: my-kargo-with-resources
+spec:
+  forProvider:
+    name: my-kargo-with-resources
+    kargo:
+      description: "My Kargo instance with declarative resources."
+      version: "v1.10.1-ak.0"
+      kargoInstanceSpec:
+        promoControllerEnabled: true
+    resources:
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: Project
+        metadata:
+          name: kargo-demo
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: Warehouse
+        metadata:
+          name: images
+          namespace: kargo-demo
+        spec:
+          subscriptions:
+            - image:
+                repoURL: public.ecr.aws/nginx/nginx
+                semverConstraint: ^1.28.0
+                discoveryLimit: 5
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: Stage
+        metadata:
+          name: deploy
+          namespace: kargo-demo
+        spec:
+          requestedFreight:
+            - origin:
+                kind: Warehouse
+                name: images
+              sources:
+                direct: true
+      - apiVersion: argoproj.io/v1alpha1
+        kind: AnalysisTemplate
+        metadata:
+          name: smoke
+          namespace: kargo-demo
+        spec:
+          metrics:
+            - name: smoke
+              provider:
+                web:
+                  url: https://example.com/healthz
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: PromotionTask
+        metadata:
+          name: promote-image
+          namespace: kargo-demo
+        spec:
+          steps:
+            - uses: git-clone
+              config:
+                repoURL: https://github.com/my-org/platform-gitops
+                checkout:
+                  - branch: main
+                    path: ./repo
+      - apiVersion: kargo.akuity.io/v1alpha1
+        kind: ClusterPromotionTask
+        metadata:
+          name: promote-image-cluster
+        spec:
+          steps:
+            - uses: git-clone
+              config:
+                repoURL: https://github.com/my-org/platform-gitops
+                checkout:
+                  - branch: main
+                    path: ./repo
+  providerConfigRef:
+    name: akuity

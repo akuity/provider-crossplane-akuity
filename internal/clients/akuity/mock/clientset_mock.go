@@ -12,9 +12,11 @@ package mock_akuity_client
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	organizationv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
 	gomock "go.uber.org/mock/gomock"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
@@ -277,6 +279,21 @@ func (mr *MockClientMockRecorder) GetKargoInstanceAgent(ctx, kargoInstanceID, ag
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceAgent", reflect.TypeOf((*MockClient)(nil).GetKargoInstanceAgent), ctx, kargoInstanceID, agentName)
 }
 
+// GetKargoInstanceAgentManifests mocks base method.
+func (m *MockClient) GetKargoInstanceAgentManifests(ctx context.Context, kargoInstanceID, agentName string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKargoInstanceAgentManifests", ctx, kargoInstanceID, agentName)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKargoInstanceAgentManifests indicates an expected call of GetKargoInstanceAgentManifests.
+func (mr *MockClientMockRecorder) GetKargoInstanceAgentManifests(ctx, kargoInstanceID, agentName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceAgentManifests", reflect.TypeOf((*MockClient)(nil).GetKargoInstanceAgentManifests), ctx, kargoInstanceID, agentName)
+}
+
 // GetKargoInstanceAgentManifestsOnce mocks base method.
 func (m *MockClient) GetKargoInstanceAgentManifestsOnce(ctx context.Context, kargoInstanceID, agentID string) (string, error) {
 	m.ctrl.T.Helper()
@@ -333,4 +350,33 @@ func (m *MockClient) PatchKargoInstance(ctx context.Context, id string, patch *s
 func (mr *MockClientMockRecorder) PatchKargoInstance(ctx, id, patch any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchKargoInstance", reflect.TypeOf((*MockClient)(nil).PatchKargoInstance), ctx, id, patch)
+}
+
+// ResolveWorkspace mocks base method.
+func (m *MockClient) ResolveWorkspace(ctx context.Context, name string) (*organizationv1.Workspace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveWorkspace", ctx, name)
+	ret0, _ := ret[0].(*organizationv1.Workspace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveWorkspace indicates an expected call of ResolveWorkspace.
+func (mr *MockClientMockRecorder) ResolveWorkspace(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveWorkspace", reflect.TypeOf((*MockClient)(nil).ResolveWorkspace), ctx, name)
+}
+
+// SetClusterMaintenanceMode mocks base method.
+func (m *MockClient) SetClusterMaintenanceMode(ctx context.Context, instanceID, clusterName string, mode bool, expiry *time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetClusterMaintenanceMode", ctx, instanceID, clusterName, mode, expiry)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetClusterMaintenanceMode indicates an expected call of SetClusterMaintenanceMode.
+func (mr *MockClientMockRecorder) SetClusterMaintenanceMode(ctx, instanceID, clusterName, mode, expiry any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClusterMaintenanceMode", reflect.TypeOf((*MockClient)(nil).SetClusterMaintenanceMode), ctx, instanceID, clusterName, mode, expiry)
 }

@@ -86,26 +86,27 @@ spec:
                   the KargoInstance's Status.AtProvider.ID field.
                 properties:
                   agentName:
-                    description: |-
-                      AgentName is the name of the shard agent to promote as default.
+                    description: AgentName is the shard agent name to promote as default.
                       Required.
                     minLength: 1
                     type: string
                   kargoInstanceId:
                     description: |-
                       KargoInstanceID references the owning Kargo instance by its
-                      opaque Akuity ID. Mutually exclusive with KargoInstanceRef.
+                      opaque Akuity ID. At least one of KargoInstanceID or
+                      KargoInstanceRef must be set; when both are present,
+                      KargoInstanceID is used.
                     type: string
                   kargoInstanceRef:
                     description: |-
                       KargoInstanceRef references the owning Kargo instance by name
                       in the same namespace as this KargoDefaultShardAgent. The
                       controller reads the referenced KargoInstance's
-                      Status.AtProvider.ID to resolve the underlying Akuity ID.
-                      Mutually exclusive with KargoInstanceID.
+                      Status.AtProvider.ID to resolve the underlying Akuity ID. At
+                      least one of KargoInstanceID or KargoInstanceRef must be set.
                     properties:
                       name:
-                        description: Name of the referenced object. Required.
+                        description: Name is the referenced object's name. Required.
                         minLength: 1
                         type: string
                     required:

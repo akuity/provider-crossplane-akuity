@@ -25,7 +25,8 @@
     "autoUpgradeDisabled": true,
     "kustomization": "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\npatches:\n- patch: |-\n    apiVersion: apps/v1\n    kind: Deployment\n    metadata:\n      name: argocd-repo-server\n    spec:\n      template:\n        spec:\n          containers:\n          - name: argocd-repo-server\n            resources:\n              limits:\n                memory: 2Gi\n              requests:\n                cpu: 750m\n                memory: 1Gi\n    target:\n      kind: Deployment\n      name: argocd-repo-server\n",
     "appReplication": true,
-    "redisTunneling": true
+    "redisTunneling": true,
+    "serverSideDiffEnabled": false
   },
   "imageUpdaterEnabled": true,
   "backendIpAllowListEnabled": true,

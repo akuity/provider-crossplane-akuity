@@ -5,9 +5,7 @@ Copyright 2026 Akuity, Inc.
 
 package v1alpha1
 
-import (
-	corev1 "k8s.io/api/core/v1"
-)
+import xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 
 // +kubebuilder:object:generate=true
 type Kargo struct {
@@ -18,7 +16,7 @@ type Kargo struct {
 // because it carries provider-specific overlays the Akuity Crossplane
 // provider needs but the upstream API source type does not define:
 //
-//   - DexConfigSecretRef: a same-namespace Secret reference resolved at
+//   - DexConfigSecretRef: a namespaced Secret reference resolved at
 //     reconcile time into the wire-shape DexConfigSecret map. Plaintext
 //     dex credentials never live on the managed resource spec.
 //   - // +optional markers on every field so controller-gen drops them
@@ -35,12 +33,15 @@ type KargoOidcConfig struct {
 	DexConfig string `json:"dexConfig,omitempty"`
 	// +optional
 	DexConfigSecret map[string]Value `json:"dexConfigSecret,omitempty"`
-	// DexConfigSecretRef references a Secret whose data is resolved at
-	// reconcile time by the Crossplane provider and forwarded to the
-	// Akuity gateway as the wire-shape DexConfigSecret map. Mutually
-	// exclusive with the inline DexConfigSecret above.
+	// DexConfigSecretRef references a namespaced Secret whose data is
+	// resolved at reconcile time by the Crossplane provider and
+	// forwarded to the Akuity gateway as the wire-shape
+	// DexConfigSecret map. Mutually exclusive with the inline
+	// DexConfigSecret above. Removing this ref stops applying the
+	// platform-side Secret, but does not delete it from the Akuity
+	// platform.
 	// +optional
-	DexConfigSecretRef *corev1.LocalObjectReference `json:"dexConfigSecretRef,omitempty"`
+	DexConfigSecretRef *xpv1.SecretReference `json:"dexConfigSecretRef,omitempty"`
 	// +optional
 	IssuerURL string `json:"issuerUrl,omitempty"`
 	// +optional

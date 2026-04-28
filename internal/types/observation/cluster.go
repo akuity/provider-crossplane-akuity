@@ -18,9 +18,12 @@ package observation
 
 import (
 	"maps"
+	"time"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"k8s.io/utils/ptr"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
@@ -69,14 +72,7 @@ func Cluster(cluster *argocdv1.Cluster) (v1alpha1.ClusterObservation, error) {
 	obs.ClusterSpec = crossplanetypes.ClusterSpec{
 		Description:     cluster.GetDescription(),
 		NamespaceScoped: boolPtrIfSet(cluster.GetData().GetNamespaceScoped()),
-		Data: crossplanetypes.ClusterData{
-			Size:                crossplanetypes.ClusterSize(clusterSizeToString(cluster.GetData().GetSize())),
-			AutoUpgradeDisabled: cluster.GetData().AutoUpgradeDisabled,
-			Kustomization:       string(kustomizationYAML),
-			AppReplication:      cluster.GetData().AppReplication,
-			TargetVersion:       cluster.GetData().GetTargetVersion(),
-			RedisTunneling:      cluster.GetData().RedisTunneling,
-		},
+		Data:            clusterData(cluster.GetData(), string(kustomizationYAML)),
 	}
 	return obs, nil
 }
@@ -90,6 +86,126 @@ func boolPtrIfSet(b bool) *bool {
 		return nil
 	}
 	return &b
+}
+
+func clusterData(data *argocdv1.ClusterData, kustomizationYAML string) crossplanetypes.ClusterData {
+	if data == nil {
+		return crossplanetypes.ClusterData{}
+	}
+	return crossplanetypes.ClusterData{
+		Size:                            crossplanetypes.ClusterSize(clusterSizeToString(data.GetSize())),
+		AutoUpgradeDisabled:             data.AutoUpgradeDisabled,
+		Kustomization:                   kustomizationYAML,
+		AppReplication:                  data.AppReplication,
+		TargetVersion:                   data.GetTargetVersion(),
+		RedisTunneling:                  data.RedisTunneling,
+		DirectClusterSpec:               directClusterSpec(data.GetDirectClusterSpec()),
+		DatadogAnnotationsEnabled:       data.DatadogAnnotationsEnabled,
+		EksAddonEnabled:                 data.EksAddonEnabled,
+		ManagedClusterConfig:            managedClusterConfig(data.GetManagedClusterConfig()),
+		MaintenanceMode:                 data.MaintenanceMode,
+		MultiClusterK8SDashboardEnabled: data.MultiClusterK8SDashboardEnabled,
+		AutoscalerConfig:                autoscalerConfig(data.GetAutoscalerConfig()),
+		Project:                         data.GetProject(),
+		Compatibility:                   compatibility(data.GetCompatibility()),
+		ArgocdNotificationsSettings:     argocdNotificationsSettings(data.GetArgocdNotificationsSettings()),
+		ServerSideDiffEnabled:           data.ServerSideDiffEnabled,
+		MaintenanceModeExpiry:           timestampPtrToStringPtr(data.GetMaintenanceModeExpiry()),
+		PodInheritMetadata:              data.PodInheritMetadata,
+	}
+}
+
+func directClusterSpec(in *argocdv1.DirectClusterSpec) *crossplanetypes.DirectClusterSpec {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.DirectClusterSpec{
+		ClusterType:     directClusterType(in.GetClusterType()),
+		KargoInstanceId: in.KargoInstanceId,
+		Server:          in.Server,
+		Organization:    in.Organization,
+		Token:           in.Token,
+		CaData:          in.CaData,
+	}
+}
+
+func directClusterType(in argocdv1.DirectClusterType) crossplanetypes.DirectClusterType {
+	switch in {
+	case argocdv1.DirectClusterType_DIRECT_CLUSTER_TYPE_KARGO:
+		return "kargo"
+	case argocdv1.DirectClusterType_DIRECT_CLUSTER_TYPE_UPBOUND:
+		return "upbound"
+	default:
+		return ""
+	}
+}
+
+func managedClusterConfig(in *argocdv1.ManagedClusterConfig) *crossplanetypes.ManagedClusterConfig {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.ManagedClusterConfig{
+		SecretName: in.GetSecretName(),
+		SecretKey:  in.GetSecretKey(),
+	}
+}
+
+func autoscalerConfig(in *argocdv1.AutoScalerConfig) *crossplanetypes.AutoScalerConfig {
+	if in == nil {
+		return nil
+	}
+	out := &crossplanetypes.AutoScalerConfig{}
+	if in.GetApplicationController() != nil {
+		out.ApplicationController = &crossplanetypes.AppControllerAutoScalingConfig{
+			ResourceMinimum: resources(in.GetApplicationController().GetResourceMinimum()),
+			ResourceMaximum: resources(in.GetApplicationController().GetResourceMaximum()),
+		}
+	}
+	if in.GetRepoServer() != nil {
+		out.RepoServer = &crossplanetypes.RepoServerAutoScalingConfig{
+			ResourceMinimum: resources(in.GetRepoServer().GetResourceMinimum()),
+			ResourceMaximum: resources(in.GetRepoServer().GetResourceMaximum()),
+			ReplicaMaximum:  in.GetRepoServer().GetReplicaMaximum(),
+			ReplicaMinimum:  in.GetRepoServer().GetReplicaMinimum(),
+		}
+	}
+	return out
+}
+
+func resources(in *argocdv1.Resources) *crossplanetypes.Resources {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.Resources{
+		Mem: in.GetMem(),
+		Cpu: in.GetCpu(),
+	}
+}
+
+func compatibility(in *argocdv1.ClusterCompatibility) *crossplanetypes.ClusterCompatibility {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.ClusterCompatibility{Ipv6Only: ptr.To(in.GetIpv6Only())}
+}
+
+func argocdNotificationsSettings(in *argocdv1.ClusterArgoCDNotificationsSettings) *crossplanetypes.ClusterArgoCDNotificationsSettings {
+	if in == nil {
+		return nil
+	}
+	return &crossplanetypes.ClusterArgoCDNotificationsSettings{InClusterSettings: ptr.To(in.GetInClusterSettings())}
+}
+
+func timestampPtrToStringPtr(t *timestamppb.Timestamp) *string {
+	if t == nil {
+		return nil
+	}
+	tt := t.AsTime()
+	if tt.IsZero() {
+		return nil
+	}
+	s := tt.UTC().Format(time.RFC3339)
+	return &s
 }
 
 // ClusterAgentState projects an AgentState proto into the observed

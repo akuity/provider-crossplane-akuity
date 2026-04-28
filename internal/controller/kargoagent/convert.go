@@ -23,9 +23,11 @@ import (
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
+	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
@@ -35,6 +37,18 @@ import (
 // ExportKargoInstance returns inside its Agents slice, giving
 // round-trip symmetry between read (Export) and write (Apply).
 func SpecToAPI(p v1alpha1.KargoAgentParameters) (akuitytypes.KargoAgent, error) {
+	// Reject sizes outside the gateway's enum here so the failure is
+	// classified terminal upfront. The platform silently clamps
+	// unknown values back to a default while leaving the wire request
+	// as the user wrote it; without this guard the reconciler re-fires
+	// ApplyKargoInstance every poll because desired never matches
+	// observed. An empty Size is allowed and resolves to the platform
+	// default at apply time.
+	switch string(p.KargoAgentSpec.Data.Size) {
+	case "", "small", "medium", "large", "auto":
+	default:
+		return akuitytypes.KargoAgent{}, reason.AsTerminal(fmt.Errorf("spec.forProvider.kargoAgentSpec.data.size %q is not one of small, medium, large, auto", p.KargoAgentSpec.Data.Size))
+	}
 	if err := crossplanetypes.ValidateKustomizationYAML(p.KargoAgentSpec.Data.Kustomization); err != nil {
 		return akuitytypes.KargoAgent{}, fmt.Errorf("spec.forProvider.kargoAgentSpec.data.kustomization: %w", err)
 	}
@@ -63,7 +77,7 @@ func SpecToAPI(p v1alpha1.KargoAgentParameters) (akuitytypes.KargoAgent, error) 
 // BuildApplyKargoInstanceRequest returns an ApplyKargoInstanceRequest
 // that narrow-merges only the Agents slice (with this one agent) into
 // the target KargoInstance. Sibling fields (Kargo envelope,
-// KargoConfigmap, Projects, Warehouses, Stages, RepoCredentials, …)
+// KargoConfigmap, Projects, Warehouses, Stages, RepoCredentials, etc.)
 // are left untouched by the server. OrganizationId is filled in by
 // the akuity client wrapper.
 func BuildApplyKargoInstanceRequest(kargoInstanceID string, p v1alpha1.KargoAgentParameters) (*kargov1.ApplyKargoInstanceRequest, error) {
@@ -85,20 +99,25 @@ func BuildApplyKargoInstanceRequest(kargoInstanceID string, p v1alpha1.KargoAgen
 
 // apiToSpec rebuilds KargoAgentParameters from the
 // observed Akuity KargoAgent. Fields that the user owns locally
-// (KargoInstanceID / KargoInstanceRef / Workspace) are carried over
-// from the managed resource so drift detection compares apples to
-// apples. Namespace / Labels / Annotations live inside the proto Data
-// sub-tree on the wire.
+// (KargoInstanceID / KargoInstanceRef / Workspace, plus the agent-install
+// kubeconfig trio that never round-trips through the Akuity gateway:
+// KubeConfigSecretRef / EnableInClusterKubeConfig /
+// RemoveAgentResourcesOnDestroy) are carried over from the managed
+// resource so drift detection compares apples to apples. Namespace /
+// Labels / Annotations live inside the proto Data sub-tree on the wire.
 func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent) v1alpha1.KargoAgentParameters {
 	data := agent.GetData()
 	out := v1alpha1.KargoAgentParameters{
-		KargoInstanceID:  desired.KargoInstanceID,
-		KargoInstanceRef: desired.KargoInstanceRef,
-		Name:             agent.GetName(),
-		Namespace:        data.GetNamespace(),
-		Workspace:        desired.Workspace,
-		Labels:           data.GetLabels(),
-		Annotations:      data.GetAnnotations(),
+		KargoInstanceID:               desired.KargoInstanceID,
+		KargoInstanceRef:              desired.KargoInstanceRef,
+		Name:                          agent.GetName(),
+		Namespace:                     data.GetNamespace(),
+		Workspace:                     desired.Workspace,
+		Labels:                        data.GetLabels(),
+		Annotations:                   data.GetAnnotations(),
+		KubeConfigSecretRef:           desired.KubeConfigSecretRef,
+		EnableInClusterKubeConfig:     desired.EnableInClusterKubeConfig,
+		RemoveAgentResourcesOnDestroy: desired.RemoveAgentResourcesOnDestroy,
 	}
 	// Description + data live under the KargoAgentSpec wrapper,
 	// mirroring the Cluster shape where payload lives under
@@ -107,31 +126,44 @@ func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent)
 	if d := convertAgentData(data); d != nil {
 		out.KargoAgentSpec.Data = *d
 	}
+	if data != nil && out.KargoAgentSpec.Data.AkuityManaged == nil {
+		out.KargoAgentSpec.Data.AkuityManaged = ptr.To(data.GetAkuityManaged())
+	}
 	return out
 }
 
 // wireToSpec rebuilds KargoAgentParameters from the Akuity wire-form
 // KargoAgent that ExportKargoInstance returns inside its Agents slice.
 // Namespace / Labels / Annotations live on ObjectMeta in the wire
-// form (not on Data, as in the proto). Spec-only fields (KargoInstanceID,
-// KargoInstanceRef, Workspace) are carried from desired because the
-// Akuity API does not own them.
+// form (not on Data, as in the proto). Spec-only fields that the Akuity
+// API does not own (KargoInstanceID / KargoInstanceRef / Workspace,
+// plus the agent-install kubeconfig trio: KubeConfigSecretRef /
+// EnableInClusterKubeConfig / RemoveAgentResourcesOnDestroy) are
+// carried from desired so drift detection compares apples to apples.
 func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAgent) v1alpha1.KargoAgentParameters {
 	if wire == nil {
 		return v1alpha1.KargoAgentParameters{}
 	}
 	out := v1alpha1.KargoAgentParameters{
-		KargoInstanceID:  desired.KargoInstanceID,
-		KargoInstanceRef: desired.KargoInstanceRef,
-		Name:             wire.GetName(),
-		Namespace:        wire.Namespace,
-		Workspace:        desired.Workspace,
-		Labels:           wire.Labels,
-		Annotations:      wire.Annotations,
+		KargoInstanceID:               desired.KargoInstanceID,
+		KargoInstanceRef:              desired.KargoInstanceRef,
+		Name:                          wire.GetName(),
+		Namespace:                     wire.Namespace,
+		Workspace:                     desired.Workspace,
+		Labels:                        wire.Labels,
+		Annotations:                   wire.Annotations,
+		KubeConfigSecretRef:           desired.KubeConfigSecretRef,
+		EnableInClusterKubeConfig:     desired.EnableInClusterKubeConfig,
+		RemoveAgentResourcesOnDestroy: desired.RemoveAgentResourcesOnDestroy,
 	}
 	out.KargoAgentSpec.Description = wire.Spec.Description
 	if d := crossplanetypes.KargoAgentDataAPIToSpec(&wire.Spec.Data); d != nil {
 		out.KargoAgentSpec.Data = *d
+	}
+	if out.KargoAgentSpec.Data.AkuityManaged == nil &&
+		desired.KargoAgentSpec.Data.AkuityManaged != nil &&
+		!*desired.KargoAgentSpec.Data.AkuityManaged {
+		out.KargoAgentSpec.Data.AkuityManaged = ptr.To(false)
 	}
 	if len(out.Labels) == 0 {
 		out.Labels = nil

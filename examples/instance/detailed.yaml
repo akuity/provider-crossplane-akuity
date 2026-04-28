@@ -9,7 +9,7 @@ spec:
     argocd:
       spec:
         description: "My ArgoCD instance used for my project."
-        version: "v3.1.9-ak.67"
+        version: "v3.3.8-ak.87"
         instanceSpec:
           declarativeManagementEnabled: false
           backendIpAllowListEnabled: true
@@ -66,7 +66,7 @@ spec:
           appReconciliationsRateLimiting:
             bucketRateLimiting:
               enabled: true
-              bucketSize: 5
+              bucketSize: 500
               bucketQps: 10
             itemRateLimiting:
               enabled: true

@@ -34,7 +34,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A Instance is an Akuity ArgoCD Instance API type.
+        description: An Instance is an Akuity Argo CD instance.
         properties:
           apiVersion:
             description: |-
@@ -54,7 +54,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: A InstanceSpec defines the desired state of a Instance.
+            description: An InstanceSpec defines the desired state of an Instance.
             properties:
               deletionPolicy:
                 default: Delete
@@ -71,22 +71,36 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: InstanceParameters are the configurable fields of a Instance.
+                description: InstanceParameters are the configurable fields of an
+                  Instance.
                 properties:
                   applicationSetSecretRef:
                     description: |-
-                      ApplicationSetSecretRef references a Secret whose data is sent
-                      verbatim as the argocd-application-set-secret payload
-                      (ApplicationSet plugin credentials).
+                      ApplicationSetSecretRef references a namespaced Secret whose data
+                      is sent verbatim as the argocd-application-set-secret payload
+                      (ApplicationSet plugin credentials). Removing this ref stops
+                      applying the platform-side Secret, but does not delete it from
+                      the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: applicationSetSecretRef.name and applicationSetSecretRef.namespace
+                        are required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   argocd:
-                    description: The attributes of the instance. Required.
+                    description: |-
+                      ArgoCD contains the instance configuration sent to the Akuity
+                      platform. Required.
                     properties:
                       spec:
                         properties:
@@ -614,83 +628,122 @@ spec:
                     additionalProperties:
                       type: string
                     description: |-
-                      Used to specify the options in the argocd-cm ConfigMap. Optional.
+                      ArgoCDConfigMap sets options in the argocd-cm ConfigMap.
                       Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
                       for required keys when using this option.
                     type: object
                   argocdImageUpdaterConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-image-updater-config
-                      ConfigMap. Optional.
+                    description: |-
+                      ArgoCDImageUpdaterConfigMap sets options in the
+                      argocd-image-updater-config ConfigMap.
                     type: object
                   argocdImageUpdaterSecretRef:
                     description: |-
-                      ArgoCDImageUpdaterSecretRef references a Secret whose data is
-                      sent verbatim as the argocd-image-updater-secret payload
-                      (container registry credentials).
+                      ArgoCDImageUpdaterSecretRef references a namespaced Secret whose
+                      data is sent verbatim as the argocd-image-updater-secret payload
+                      (container registry credentials). Removing this ref stops
+                      applying the platform-side Secret, but does not delete it from
+                      the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: argocdImageUpdaterSecretRef.name and argocdImageUpdaterSecretRef.namespace
+                        are required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   argocdImageUpdaterSshConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-image-updater-ssh-config
-                      ConfigMap. Optional.
+                    description: |-
+                      ArgoCDImageUpdaterSSHConfigMap sets options in the
+                      argocd-image-updater-ssh-config ConfigMap.
                     type: object
                   argocdNotificationsConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-notifications-cm
-                      ConfigMap. Optional.
+                    description: |-
+                      ArgoCDNotificationsConfigMap sets options in the
+                      argocd-notifications-cm ConfigMap.
                     type: object
                   argocdNotificationsSecretRef:
                     description: |-
-                      ArgoCDNotificationsSecretRef references a Secret whose data is
-                      sent verbatim as the argocd-notifications-secret payload
-                      (SMTP, Slack, webhook tokens).
+                      ArgoCDNotificationsSecretRef references a namespaced Secret
+                      whose data is sent verbatim as the argocd-notifications-secret
+                      payload (SMTP, Slack, webhook tokens). Removing this ref stops
+                      applying the platform-side Secret, but does not delete it from
+                      the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: argocdNotificationsSecretRef.name and argocdNotificationsSecretRef.namespace
+                        are required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   argocdRbacConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-rbac-cm
-                      ConfigMap. Optional.
+                    description: ArgoCDRBACConfigMap sets options in the argocd-rbac-cm
+                      ConfigMap.
                     type: object
                   argocdSecretRef:
                     description: |-
-                      ArgoCDSecretRef references a Secret whose data is sent verbatim
-                      as the argocd-secret payload (admin.password, server.secretkey,
-                      dex.config, webhook.*.secret, oidc.*.clientSecret).
+                      ArgoCDSecretRef references a namespaced Secret whose data is sent
+                      verbatim as the argocd-secret payload (admin.password,
+                      server.secretkey, dex.config, webhook.*.secret,
+                      oidc.*.clientSecret). Removing this ref stops applying the
+                      platform-side Secret, but does not delete it from the Akuity
+                      platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: argocdSecretRef.name and argocdSecretRef.namespace
+                        are required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   argocdSshKnownHostsConfigMap:
                     additionalProperties:
                       type: string
                     description: |-
-                      Used to specify the options in the argocd-ssh-known-hosts-cm ConfigMap. Optional.
+                      ArgoCDSSHKnownHostsConfigMap sets options in the
+                      argocd-ssh-known-hosts-cm ConfigMap.
                       Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
                       for required entries when using this option.
                     type: object
                   argocdTlsCertsConfigMap:
                     additionalProperties:
                       type: string
-                    description: Used to specify the options in the argocd-tls-certs-cm
-                      ConfigMap. Optional.
+                    description: |-
+                      ArgoCDTLSCertsConfigMap sets options in the
+                      argocd-tls-certs-cm ConfigMap.
                     type: object
                   configManagementPlugins:
                     additionalProperties:
@@ -792,11 +845,11 @@ spec:
                       - image
                       type: object
                     description: |-
-                      Used to specify config management plugins. The key of the map entry is the name of the
-                      plugin. The value is the definition of the Config Management Plugin (v2). Optional.
+                      ConfigManagementPlugins maps plugin names to Config Management
+                      Plugin v2 definitions.
                     type: object
                   name:
-                    description: The name of the instance. Required.
+                    description: Name is the Akuity Argo CD instance name. Required.
                     minLength: 1
                     type: string
                   repoCredentialSecretRefs:
@@ -806,93 +859,117 @@ spec:
                       ^repo-[a-z0-9][a-z0-9-]*$) becomes the server-side secret
                       identifier; the pointed-at Secret's data supplies the credential
                       key/value pairs (url, username, password, sshPrivateKey, etc.).
+                      If an entry omits Name, the controller uses SecretRef.Name as
+                      the server-side secret identifier.
+                      Removing an entry stops applying that platform-side credential,
+                      but does not delete it from the Akuity platform.
                     items:
                       description: |-
-                        NamedLocalSecretReference binds a gateway-facing credential name to a
-                        kube Secret. The Secret's data keys are forwarded to the Akuity
-                        gateway verbatim under the Name slot (e.g.
-                        repoCredentialSecrets["repo-github"] = {"url": "...", "password":
-                        "..."}).
+                        NamedSecretReference binds a gateway-facing credential name to a
+                        namespaced kube Secret. If Name is omitted, SecretRef.Name is used as
+                        the gateway credential name. Resource-specific controllers validate
+                        the effective name against the destination's rules.
                       properties:
                         name:
                           description: |-
-                            Name is the identifier under which this Secret's data is sent
-                            to the Akuity gateway. For ArgoCD repo credentials this must
-                            start with "repo-"; per-field CEL rules enforce a stricter
-                            pattern. The MaxLength matches Kubernetes object-name bounds
-                            and keeps CEL cost estimates within the apiserver's budget.
+                            Name is the optional identifier under which this Secret's data is
+                            sent to the Akuity gateway. When omitted, SecretRef.Name is used.
                           maxLength: 253
                           minLength: 1
                           type: string
                         secretRef:
                           description: |-
-                            SecretRef points at a Secret. All keys of that Secret are
-                            forwarded to the gateway verbatim.
+                            SecretRef points at a namespaced Secret. All keys of that Secret
+                            are forwarded to the gateway verbatim.
+                            OpenAPI required only enforces field presence, so the CEL size checks
+                            reject empty name/namespace strings explicitly.
                           properties:
                             name:
                               description: Name of the secret.
                               type: string
+                            namespace:
+                              description: Namespace of the secret.
+                              type: string
                           required:
                           - name
+                          - namespace
                           type: object
+                          x-kubernetes-validations:
+                          - message: secretRef.name and secretRef.namespace are required
+                            rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                              && size(self.__namespace__) > 0
                       required:
-                      - name
                       - secretRef
                       type: object
                     maxItems: 128
                     type: array
                     x-kubernetes-validations:
-                    - message: each repoCredentialSecretRefs[].name must match ^repo-[a-z0-9][a-z0-9-]*$
-                      rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
+                    - message: each repoCredentialSecretRefs[] name must match ^repo-[a-z0-9][a-z0-9-]*$
+                        when set
+                      rule: self.all(r, !has(r.name) || r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
                   repoTemplateCredentialSecretRefs:
                     description: |-
                       RepoTemplateCredentialSecretRefs registers scoped repository
-                      template credentials. Same shape + regex constraint as
+                      template credentials using the same server-side naming rules as
                       RepoCredentialSecretRefs.
                     items:
                       description: |-
-                        NamedLocalSecretReference binds a gateway-facing credential name to a
-                        kube Secret. The Secret's data keys are forwarded to the Akuity
-                        gateway verbatim under the Name slot (e.g.
-                        repoCredentialSecrets["repo-github"] = {"url": "...", "password":
-                        "..."}).
+                        NamedSecretReference binds a gateway-facing credential name to a
+                        namespaced kube Secret. If Name is omitted, SecretRef.Name is used as
+                        the gateway credential name. Resource-specific controllers validate
+                        the effective name against the destination's rules.
                       properties:
                         name:
                           description: |-
-                            Name is the identifier under which this Secret's data is sent
-                            to the Akuity gateway. For ArgoCD repo credentials this must
-                            start with "repo-"; per-field CEL rules enforce a stricter
-                            pattern. The MaxLength matches Kubernetes object-name bounds
-                            and keeps CEL cost estimates within the apiserver's budget.
+                            Name is the optional identifier under which this Secret's data is
+                            sent to the Akuity gateway. When omitted, SecretRef.Name is used.
                           maxLength: 253
                           minLength: 1
                           type: string
                         secretRef:
                           description: |-
-                            SecretRef points at a Secret. All keys of that Secret are
-                            forwarded to the gateway verbatim.
+                            SecretRef points at a namespaced Secret. All keys of that Secret
+                            are forwarded to the gateway verbatim.
+                            OpenAPI required only enforces field presence, so the CEL size checks
+                            reject empty name/namespace strings explicitly.
                           properties:
                             name:
                               description: Name of the secret.
                               type: string
+                            namespace:
+                              description: Namespace of the secret.
+                              type: string
                           required:
                           - name
+                          - namespace
                           type: object
+                          x-kubernetes-validations:
+                          - message: secretRef.name and secretRef.namespace are required
+                            rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                              && size(self.__namespace__) > 0
                       required:
-                      - name
                       - secretRef
                       type: object
                     maxItems: 128
                     type: array
                     x-kubernetes-validations:
-                    - message: each repoTemplateCredentialSecretRefs[].name must match
-                        ^repo-[a-z0-9][a-z0-9-]*$
-                      rule: self.all(r, r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
+                    - message: each repoTemplateCredentialSecretRefs[] name must match
+                        ^repo-[a-z0-9][a-z0-9-]*$ when set
+                      rule: self.all(r, !has(r.name) || r.name.matches('^repo-[a-z0-9][a-z0-9-]*$'))
                   resources:
                     description: |-
                       Resources carries raw YAML manifests for declarative ArgoCD
                       child resources (Application, ApplicationSet, AppProject).
                     x-kubernetes-preserve-unknown-fields: true
+                  workspace:
+                    description: |-
+                      Workspace is the Akuity workspace this Argo CD instance belongs to. The
+                      preferred value is the workspace ID because workspace-scoped gateway calls
+                      are routed by ID. A workspace name is also accepted and resolved before
+                      gateway calls. When omitted, the organization default workspace is used on
+                      create. The canonical workspace ID is reported in
+                      status.atProvider.workspace.
+                    type: string
                 required:
                 - argocd
                 - name
@@ -900,6 +977,16 @@ spec:
                 x-kubernetes-validations:
                 - message: name is immutable
                   rule: self.name == oldSelf.name
+                - message: argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize
+                    must be at least 500 when bucket rate limiting is enabled
+                  rule: '!has(self.argocd) || !has(self.argocd.spec) || !has(self.argocd.spec.instanceSpec)
+                    || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting)
+                    || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting)
+                    || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.enabled)
+                    || self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.enabled
+                    != true || !has(self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize)
+                    || self.argocd.spec.instanceSpec.appReconciliationsRateLimiting.bucketRateLimiting.bucketSize
+                    >= 500'
               managementPolicies:
                 default:
                 - '*'
@@ -987,10 +1074,11 @@ spec:
             - forProvider
             type: object
           status:
-            description: A InstanceStatus represents the observed state of a Instance.
+            description: An InstanceStatus represents the observed state of an Instance.
             properties:
               atProvider:
-                description: InstanceObservation are the observable fields of a Instance.
+                description: InstanceObservation contains the observable fields of
+                  an Instance.
                 properties:
                   argocd:
                     properties:
@@ -1649,7 +1737,7 @@ spec:
                     type: object
                   healthStatus:
                     description: |-
-                      ResourceStatusCode captures the Akuity API status code + message pair
+                      ResourceStatusCode captures the Akuity API status code and message pair
                       exposed on most observable resources.
                     properties:
                       code:
@@ -1670,7 +1758,7 @@ spec:
                     type: string
                   reconciliationStatus:
                     description: |-
-                      ResourceStatusCode captures the Akuity API status code + message pair
+                      ResourceStatusCode captures the Akuity API status code and message pair
                       exposed on most observable resources.
                     properties:
                       code:
@@ -1686,6 +1774,8 @@ spec:
                       SecretHash is the SHA256 of the concatenation of every resolved
                       Secret referenced by spec.forProvider on the most recent Apply.
                       Used as the drift signal for Secret rotation.
+                    type: string
+                  workspace:
                     type: string
                 required:
                 - argocd

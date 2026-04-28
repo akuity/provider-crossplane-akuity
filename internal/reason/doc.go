@@ -5,7 +5,7 @@
 //
 // # NotFound / PermissionDenied conflation
 //
-// The Akuity control plane uses organisation-scoped RBAC. Calls that target
+// The Akuity control plane uses organization-scoped RBAC. Calls that target
 // a resource the caller cannot see may return either codes.NotFound or
 // codes.PermissionDenied depending on which gate fired first, and the two
 // are not distinguishable from the client. Because the Crossplane provider

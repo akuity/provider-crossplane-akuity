@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package kargoagent is the KargoAgent controller. It drives
-// the Akuity Kargo-plane agent endpoints (Create/Update/Get/Delete)
-// and installs the Akuity-generated agent manifests onto the managed
-// cluster via a user-provided kubeconfig (same model as Cluster).
+// Package kargoagent reconciles KargoAgent managed resources. It drives
+// the Akuity Kargo-plane agent endpoints and installs Akuity-generated
+// agent manifests onto managed clusters.
 package kargoagent
 
 import (
@@ -49,24 +48,48 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
 )
 
-// driftSpec is the KargoAgent drift-detection recipe. The Ignore slot
-// is an extension point for write-only proto fields; it is empty post
-// the v0.29.1 api-client-go bump which added proto read support for
-// PodInheritMetadata and AutoscalerConfig. The shared DriftSpec
-// contributes utilcmp.EquateEmpty() so nil-vs-empty collections
-// resolve equal — an earlier bare cmp.Equal call flagged these as
+// driftSpec is the KargoAgent drift-detection recipe. The shared
+// DriftSpec contributes utilcmp.EquateEmpty() so nil-vs-empty
+// collections resolve equal.
+//
+// Normalize absorbs server defaults on optional spec fields. Namespace,
+// Size, ArgocdNamespace, and TargetVersion all come back populated from
+// the Akuity gateway even when the CR omits them. Without this normalize,
+// every poll sees desired="" vs observed=<default> and fires
+// ApplyKargoInstance wastefully; the server Equals() short-circuits the
+// DB generation bump, but the local counter still advances 1/poll.
+//
+// AkuityManaged is server-authority after create. The create path
+// persists whatever the client sends, but update copies the existing DB
+// value and ignores incoming changes. Without normalization, a
+// post-create flip to true on a row created with false produces
+// desired=&true vs observed=nil (proto3 bool, omitempty wire, nil
+// *bool), drift fires every poll, ApplyKargoInstance hits 1/poll, and
+// the guarded SQL trigger keeps DB gen frozen. Copy observed into
+// desired so the pair matches the server-retained value; Normalize only
+// runs on Observe, so the user's create-time AkuityManaged still writes
+// through unchanged.
+//
+// TargetVersion is server-defaulted to the latest agent version when
+// the CR leaves it empty. Same shape as ArgocdNamespace: inherit
+// observed when desired is empty so unset does not round-trip as
 // perpetual drift.
 //
-// Normalize absorbs server-defaults on spec-optional fields
-// (§6 #11 audit): Namespace, Size, and Data.ArgocdNamespace all come
-// back populated from the Akuity gateway (Namespace inherits
-// KargoInstance.Name, Size defaults to KARGO_AGENT_SIZE_SMALL,
-// ArgocdNamespace defaults to "argocd") even when the CR omits them.
-// Terraform's resource_akp_kargoagent.go:377-381 applies the same
-// inherit-when-empty pattern to ArgocdNamespace and MaintenanceModeExpiry.
-// Without this normalize every poll sees desired="" vs observed=<default>
-// and fires ApplyKargoInstance wastefully; the server Equals() short-
-// circuits the DB-gen bump but the local counter still advances 1/poll.
+// MaintenanceMode and MaintenanceModeExpiry are not writable through the
+// Apply pipeline at all — the platform exposes a dedicated
+// SetAgentMaintenanceMode RPC and the Apply→Update path silently drops
+// these fields when persisting the agent row. Adopt observed
+// unconditionally so a user-pinned value does not drift-flap forever.
+//
+// On akuityManaged=true agents, the platform also clamps ArgocdNamespace
+// (cleared when remoteArgocd is set or akuityManaged is true) and
+// TargetVersion (a separate ManagedAgent reconciler force-rotates the
+// row to the latest supported agent patch on every cycle). User-pinned
+// non-empty values for these two fields drift-flap forever on managed
+// agents because the existing empty-only absorb does not catch them.
+// Adopt observed for these two whenever the agent is akuityManaged so
+// drift detection short-circuits, leaving the user's pinned values on
+// self-managed agents (where they actually round-trip) untouched.
 func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 	return base.DriftSpec[v1alpha1.KargoAgentParameters]{
 		Normalize: func(desired, observed *v1alpha1.KargoAgentParameters) {
@@ -83,7 +106,75 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 				desired.KargoAgentSpec.Data.ArgocdNamespace =
 					observed.KargoAgentSpec.Data.ArgocdNamespace
 			}
+			if desired.KargoAgentSpec.Data.TargetVersion == "" {
+				desired.KargoAgentSpec.Data.TargetVersion =
+					observed.KargoAgentSpec.Data.TargetVersion
+			}
+			// Kustomization round-trips as a verbatim string; the
+			// platform appends a trailing "\n" to user values that
+			// don't already have one. Same wasteful-Apply pattern as
+			// the other normalize entries: server Equals() short-
+			// circuits the DB-gen bump but the local counter still
+			// advances 1/poll. Flatten newline-only differences so
+			// presence-mode-style equality holds for byte-identical-
+			// modulo-newline content.
+			if strings.TrimRight(desired.KargoAgentSpec.Data.Kustomization, "\n") ==
+				strings.TrimRight(observed.KargoAgentSpec.Data.Kustomization, "\n") &&
+				desired.KargoAgentSpec.Data.Kustomization !=
+					observed.KargoAgentSpec.Data.Kustomization {
+				desired.KargoAgentSpec.Data.Kustomization =
+					observed.KargoAgentSpec.Data.Kustomization
+			}
+			desired.KargoAgentSpec.Data.AkuityManaged =
+				observed.KargoAgentSpec.Data.AkuityManaged
+			absorbServerClamps(desired, observed)
+			// Optional pointer fields inherit server defaults only when
+			// the user omitted them. If a user pins one and the gateway
+			// fails to echo/apply it, keep the drift visible instead of
+			// silently masking a provider/platform write-path bug.
+			normalizePtrField(
+				&desired.KargoAgentSpec.Data.PodInheritMetadata,
+				&observed.KargoAgentSpec.Data.PodInheritMetadata,
+			)
+			normalizePtrField(
+				&desired.KargoAgentSpec.Data.AutoscalerConfig,
+				&observed.KargoAgentSpec.Data.AutoscalerConfig,
+			)
 		},
+	}
+}
+
+// absorbServerClamps adopts observed for fields the platform either
+// silently drops on Apply or rotates out-of-band, so user-pinned values
+// stop fighting the platform.
+//
+//   - MaintenanceMode and MaintenanceModeExpiry: the Apply→Update pipeline
+//     never persists these — they route only through SetAgentMaintenanceMode.
+//   - ArgocdNamespace and TargetVersion (akuityManaged only): platform
+//     clears ArgocdNamespace on Update when akuityManaged is true, and a
+//     separate ManagedAgent reconciler force-rotates TargetVersion to the
+//     latest supported patch.
+func absorbServerClamps(desired, observed *v1alpha1.KargoAgentParameters) {
+	desired.KargoAgentSpec.Data.MaintenanceMode =
+		observed.KargoAgentSpec.Data.MaintenanceMode
+	desired.KargoAgentSpec.Data.MaintenanceModeExpiry =
+		observed.KargoAgentSpec.Data.MaintenanceModeExpiry
+	if observed.KargoAgentSpec.Data.AkuityManaged == nil ||
+		!*observed.KargoAgentSpec.Data.AkuityManaged {
+		return
+	}
+	desired.KargoAgentSpec.Data.ArgocdNamespace =
+		observed.KargoAgentSpec.Data.ArgocdNamespace
+	desired.KargoAgentSpec.Data.TargetVersion =
+		observed.KargoAgentSpec.Data.TargetVersion
+}
+
+func normalizePtrField[T any](desired, observed **T) {
+	if desired == nil || observed == nil {
+		return
+	}
+	if *desired == nil && *observed != nil {
+		*desired = *observed
 	}
 }
 
@@ -110,6 +201,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		managed.WithLogger(logger),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(recorder),
+		managed.WithManagementPolicies(),
 	)
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -131,6 +223,23 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		return managed.ExternalObservation{}, err
 	}
 	mg.Spec.ForProvider.KargoInstanceID = instanceID
+	terminalFP := mg.Spec.ForProvider
+	if terminalFP.Workspace == "" {
+		terminalFP.Workspace = e.resolveWorkspaceFromParent(ctx, mg)
+	}
+
+	// Short-circuit on a cached terminal write before any gateway
+	// round-trip. With Crossplane's NameAsExternalName initializer the
+	// external-name is stamped before the first Create runs, so a bad-
+	// input rejection on Create would otherwise loop
+	// GetKargoInstanceAgent->NotFound->Create->reject at controller-
+	// runtime backoff (~2s). HasTerminalWriteResource is a cheap map
+	// lookup so happy-path Observes pay nothing extra.
+	if e.HasTerminalWriteResource(mg, v1alpha1.KargoAgentGroupVersionKind) {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg, terminalFP); ok {
+			return obs, err
+		}
+	}
 
 	if meta.GetExternalName(mg) == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
@@ -152,37 +261,46 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 
 	actual := apiToSpec(mg.Spec.ForProvider, agent)
 	mg.Status.AtProvider = observation.KargoAgent(agent)
-	// Mirror the observed agent sub-tree onto AtProvider so
-	// compositions and dashboards can read the effective server-side
-	// shape without a separate Export call. Parity with
-	// KargoInstance.AtProvider.Kargo.
-	mg.Status.AtProvider.KargoAgentSpec = actual.KargoAgentSpec
 	base.SetHealthCondition(mg, mg.Status.AtProvider.HealthStatus.Code == 1)
 
 	// Drift compares against the ExportKargoInstance round-trippable
-	// spec (the same wire shape that ApplyKargoInstance encodes),
-	// matching the pattern Instance/Cluster/KargoInstance use:
-	// read-via-Export, write-via-Apply. The GetKargoInstanceAgent call
-	// above stays load-bearing for observation (health / reconciliation
-	// / ID) — Export returns only spec. If Export fails or the agent is
-	// missing from its Agents list we fall back to the Get-derived spec
-	// so the reconcile still completes; the next poll re-attempts Export.
+	// spec, the same wire shape ApplyKargoInstance encodes. Get remains
+	// the source of observation fields such as health, reconciliation,
+	// and ID. If Export fails or omits the agent, fall back to the
+	// Get-derived spec so the reconcile still completes.
 	//
 	// Always compare spec so a matching desired/observed pair does not
 	// trigger Update() on every poll while reconciliation is still
 	// pending. Returning ResourceUpToDate=false during provisioning
 	// caused a hot-loop of ApplyKargoInstance calls on the Akuity API.
 	driftTarget := actual
+	statusSpec := actual.KargoAgentSpec
 	if exportAgent, found, xerr := e.exportedAgentSpec(ctx, mg, instanceID); xerr != nil {
-		e.Logger.Debug("ExportKargoInstance failed; falling back to GetKargoInstanceAgent for drift", "err", xerr)
+		mg.SetConditions(xpv1.ReconcileError(xerr))
+		return managed.ExternalObservation{}, xerr
 	} else if found {
 		driftTarget = exportAgent
+		statusSpec = exportAgent.KargoAgentSpec
 	}
+	// Mirror the exported agent sub-tree onto AtProvider when
+	// available so compositions and dashboards see the same wire shape
+	// that ApplyKargoInstance round-trips. Get remains the fallback
+	// while Export is unavailable or the agent is absent during
+	// provisioning.
+	mg.Status.AtProvider.KargoAgentSpec = statusSpec
 	spec := driftSpec()
 	desired := mg.Spec.ForProvider
 	upToDate, err := base.EvaluateDrift(ctx, spec, &desired, &driftTarget, e.Logger, "KargoAgent")
 	if err != nil {
 		return managed.ExternalObservation{}, err
+	}
+
+	if !upToDate {
+		if obs, err, ok := e.suppressTerminalWrite(ctx, mg, terminalFP); ok {
+			return obs, err
+		}
+	} else {
+		e.clearTerminalWrite(ctx, mg, terminalFP)
 	}
 
 	return managed.ExternalObservation{
@@ -194,7 +312,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 // apply routes both Create and Update through ApplyKargoInstance with
 // only the Agents slice populated. The backend narrow-merges into the
 // parent KargoInstance: sibling fields (Kargo envelope, Projects,
-// Warehouses, Stages, RepoCredentials, …) are untouched so this MR
+// Warehouses, Stages, RepoCredentials, etc.) are untouched so this MR
 // coexists with a KargoInstance MR owning those. Same pattern Cluster
 // uses against ApplyInstance (cluster/convert.go BuildApplyInstanceRequest).
 func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
@@ -208,17 +326,24 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
 	// an unset WorkspaceId on the request substitutes empty into the
 	// URL template and portal-server 404s. When the user didn't pin a
 	// workspace on the KargoAgent CR, inherit it from the parent
-	// KargoInstance's spec — same MR reference the controller already
-	// used to resolve the instance ID. Matches the terraform
-	// behaviour in resource_akp_kargoagent.go#resolveKargoAgentWorkspace.
+	// KargoInstance's spec, the same MR reference the controller
+	// already used to resolve the instance ID.
 	if mg.Spec.ForProvider.Workspace == "" {
 		mg.Spec.ForProvider.Workspace = e.resolveWorkspaceFromParent(ctx, mg)
 	}
-	req, err := BuildApplyKargoInstanceRequest(instanceID, mg.Spec.ForProvider)
+	key, err := e.kargoAgentTerminalWriteKey(ctx, mg, mg.Spec.ForProvider)
 	if err != nil {
 		return err
 	}
-	return e.Client.ApplyKargoInstance(ctx, req)
+	req, err := BuildApplyKargoInstanceRequest(instanceID, mg.Spec.ForProvider)
+	if err != nil {
+		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
+		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	e.ClearTerminalWrite(key)
+	return nil
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalCreation, error) {
@@ -227,22 +352,63 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 		return managed.ExternalCreation{}, err
 	}
 
+	// ApplyKargoInstance has now stamped the agent row on the parent
+	// KargoInstance. Any failure between here and SetExternalName must
+	// roll that row back so a retried Create starts clean and a
+	// user-initiated kubectl delete (which short-circuits when the
+	// external-name annotation is empty) cannot orphan the platform
+	// row. Mirrors the cluster-side rollback pattern.
+	//
 	// One-time apply: when a kubeconfig source is configured, install
 	// the agent manifests on the managed cluster before setting the
-	// external-name. Mirrors Cluster.Create — a failure here leaves the
-	// external-name unset so the next reconcile retries via Create
-	// rather than observing a "ready" MR with a stale target cluster.
-	// Matches the terraform default (reapply_manifests_on_update=false);
-	// server-pushed agent upgrades require a spec change or recreate
-	// to re-land on the managed cluster.
+	// external-name. Server-pushed agent upgrades require a spec change
+	// or recreate to re-land on the managed cluster.
 	if target := targetKubeConfig(mg.Spec.ForProvider); target.HasKubeConfig() {
 		if err := e.installAgentManifests(ctx, mg, target, false); err != nil {
-			return managed.ExternalCreation{}, err
+			e.rollbackCreatedAgent(ctx, mg, target, "install-manifests")
+			// Classify install failure as terminal so the next Observe
+			// short-circuits via the suppress site instead of
+			// hot-looping ApplyKargoInstance + rollback every poll. The
+			// terminal-write key is keyed off ForProvider; a spec edit
+			// (the only way to fix a bad kubeconfig source) rotates the
+			// key and lets Create run again.
+			key, kerr := e.kargoAgentTerminalWriteKey(ctx, mg, mg.Spec.ForProvider)
+			if kerr != nil {
+				return managed.ExternalCreation{}, err
+			}
+			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyManifestInstallError(err))
 		}
 	}
 
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 	return managed.ExternalCreation{}, nil
+}
+
+// rollbackCreatedAgent removes the agent row from the parent
+// KargoInstance (and optionally strips partially-installed manifests)
+// when a Create-path step fails after ApplyKargoInstance landed. Errors
+// during rollback are logged at info level rather than returned: the
+// caller's original failure is the user-visible error and a rollback
+// failure must not mask it.
+func (e *external) rollbackCreatedAgent(ctx context.Context, mg *v1alpha1.KargoAgent, target kube.TargetKubeConfig, stage string) {
+	if mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy && target.HasKubeConfig() {
+		if err := e.installAgentManifests(ctx, mg, target, true); err != nil {
+			e.Logger.Info("rollback could not strip partially-installed kargo agent manifests",
+				"stage", stage,
+				"error", err,
+				"kargoInstanceID", mg.Spec.ForProvider.KargoInstanceID,
+				"agentName", mg.Spec.ForProvider.Name,
+			)
+		}
+	}
+	if err := e.Client.DeleteKargoInstanceAgent(ctx, mg.Spec.ForProvider.KargoInstanceID, mg.Spec.ForProvider.Name); err != nil {
+		e.Logger.Info("rollback after create failure left platform row stamped",
+			"stage", stage,
+			"error", err,
+			"kargoInstanceID", mg.Spec.ForProvider.KargoInstanceID,
+			"agentName", mg.Spec.ForProvider.Name,
+		)
+	}
 }
 
 func (e *external) Update(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalUpdate, error) {
@@ -252,6 +418,8 @@ func (e *external) Update(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 
 func (e *external) Delete(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalDelete, error) {
 	defer base.PropagateObservedGeneration(mg)
+	e.ClearTerminalWriteResource(mg, v1alpha1.KargoAgentGroupVersionKind)
+
 	name := meta.GetExternalName(mg)
 	if name == "" {
 		return managed.ExternalDelete{}, nil
@@ -301,15 +469,18 @@ func targetKubeConfig(fp v1alpha1.KargoAgentParameters) kube.TargetKubeConfig {
 // for mg's agent and applies (or deletes when del is true) them onto
 // the cluster identified by target. Requires mg.Spec.ForProvider
 // .KargoInstanceID to be resolved.
+//
+// Uses the wait-for-reconciliation manifest fetcher so the first Create
+// right after ApplyKargoInstance doesn't race the gateway's manifest
+// renderer and hit codes.Unavailable.
+// A one-shot failure here would leave the platform row stamped without
+// the agent installed on the managed cluster because
+// Update does not retry manifest installation.
 func (e *external) installAgentManifests(ctx context.Context, mg *v1alpha1.KargoAgent, target kube.TargetKubeConfig, del bool) error {
 	instanceID := mg.Spec.ForProvider.KargoInstanceID
-	agent, err := e.Client.GetKargoInstanceAgent(ctx, instanceID, mg.Spec.ForProvider.Name)
+	manifests, err := e.Client.GetKargoInstanceAgentManifests(ctx, instanceID, mg.Spec.ForProvider.Name)
 	if err != nil {
-		return fmt.Errorf("could not get kargo agent to %s manifests: %w", applyVerb(del), err)
-	}
-	manifests, err := e.Client.GetKargoInstanceAgentManifestsOnce(ctx, instanceID, agent.GetId())
-	if err != nil {
-		return fmt.Errorf("could not get kargo agent manifests: %w", err)
+		return fmt.Errorf("could not get kargo agent manifests to %s: %w", applyVerb(del), err)
 	}
 	if err := kube.ApplyManifestsToTarget(ctx, e.Kube, e.Logger, target, manifests, del); err != nil {
 		return fmt.Errorf("could not %s kargo agent manifests: %w", applyVerb(del), err)
@@ -326,12 +497,45 @@ func applyVerb(del bool) string {
 
 func (e *external) Disconnect(_ context.Context) error { return nil }
 
+func (e *external) suppressTerminalWrite(ctx context.Context, mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) (managed.ExternalObservation, error, bool) {
+	if e.TerminalWrites == nil {
+		return managed.ExternalObservation{}, nil, false
+	}
+	key, err := e.kargoAgentTerminalWriteKey(ctx, mg, fp)
+	if err != nil {
+		return e.SkipTerminalWriteGuard(err)
+	}
+	return e.SuppressTerminalWrite(mg, key)
+}
+
+func (e *external) kargoAgentTerminalWriteKey(ctx context.Context, mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) (base.TerminalWriteKey, error) {
+	req, err := BuildApplyKargoInstanceRequest(fp.KargoInstanceID, fp)
+	targetFP := kube.TargetFingerprint(ctx, e.Kube, targetKubeConfig(fp))
+	if err != nil {
+		return base.NewTerminalWriteKey(mg, v1alpha1.KargoAgentGroupVersionKind, "build-error", fp, targetFP, err.Error())
+	}
+	return base.NewTerminalWriteKey(mg, v1alpha1.KargoAgentGroupVersionKind, req, targetFP)
+}
+
+func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.KargoAgent, fp v1alpha1.KargoAgentParameters) {
+	if !e.HasTerminalWriteResource(mg, v1alpha1.KargoAgentGroupVersionKind) {
+		return
+	}
+	key, err := e.kargoAgentTerminalWriteKey(ctx, mg, fp)
+	if err != nil {
+		e.LogTerminalWriteGuardSkipped(err)
+		return
+	}
+	e.ClearTerminalWrite(key)
+}
+
 // exportedAgentSpec returns the canonical KargoAgentParameters for
 // mg.Spec.ForProvider.Name built from ExportKargoInstance's response.
 // `found` is false when Export succeeds but the agent is absent from
 // the Agents slice (e.g. server lag mid-provisioning); caller falls
-// back to Get-based drift in that case. Errors are transient Export
-// failures.
+// back to Get-based drift in that case. Transport failures are logged
+// and treated as not found so observation can fall back to Get; errors
+// are decode/schema failures in the Export payload.
 func (e *external) exportedAgentSpec(ctx context.Context, mg *v1alpha1.KargoAgent, instanceID string) (v1alpha1.KargoAgentParameters, bool, error) {
 	// ExportKargoInstance is workspace-scoped at the HTTP gateway; an
 	// empty workspace 404s on multi-workspace orgs. Resolve the same
@@ -345,7 +549,8 @@ func (e *external) exportedAgentSpec(ctx context.Context, mg *v1alpha1.KargoAgen
 	}
 	exp, err := e.Client.ExportKargoInstance(ctx, instanceID, workspace)
 	if err != nil {
-		return v1alpha1.KargoAgentParameters{}, false, err
+		e.Logger.Debug("ExportKargoInstance failed; falling back to GetKargoInstanceAgent for drift", "err", err)
+		return v1alpha1.KargoAgentParameters{}, false, nil
 	}
 	agentName := mg.Spec.ForProvider.Name
 	for _, entry := range exp.GetAgents() {
@@ -373,7 +578,7 @@ func (e *external) exportedAgentSpec(ctx context.Context, mg *v1alpha1.KargoAgen
 // "" when there is no ref or the lookup fails. Used by apply() and
 // exportedAgentSpec() when the user did not pin a workspace on the
 // KargoAgent CR. Mirrors
-// resource_akp_kargoagent.go#resolveKargoAgentWorkspace.
+// the workspace resolution used by apply().
 func (e *external) resolveWorkspaceFromParent(ctx context.Context, mg *v1alpha1.KargoAgent) string {
 	ref := mg.Spec.ForProvider.KargoInstanceRef
 	if ref == nil || ref.Name == "" {
@@ -384,7 +589,10 @@ func (e *external) resolveWorkspaceFromParent(ctx context.Context, mg *v1alpha1.
 	if err := e.Kube.Get(ctx, key, parent); err != nil {
 		return ""
 	}
-	return parent.Spec.ForProvider.Workspace
+	if parent.Spec.ForProvider.Workspace != "" {
+		return parent.Spec.ForProvider.Workspace
+	}
+	return parent.Status.AtProvider.Workspace
 }
 
 // resolveKargoInstanceID returns the Akuity ID of the owning Kargo
@@ -416,7 +624,7 @@ func (e *external) resolveKargoInstanceID(ctx context.Context, mg *v1alpha1.Karg
 // isConnectedAgentDeleteError recognises the Akuity API error surface
 // that indicates a KargoAgent cannot be deleted because a managed
 // cluster is still connected to it. The exact message is API-driven
-// and subject to wording drift — match loosely on the stable
+// and subject to wording drift; match loosely on the stable
 // substring.
 func isConnectedAgentDeleteError(err error) bool {
 	if err == nil {

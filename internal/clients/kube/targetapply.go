@@ -18,10 +18,13 @@ package kube
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -46,6 +49,44 @@ type TargetKubeConfig struct {
 // Callers use this to decide whether to perform target-cluster apply.
 func (t TargetKubeConfig) HasKubeConfig() bool {
 	return t.EnableInCluster || t.SecretName != ""
+}
+
+// TargetFingerprint returns a stable, non-secret fingerprint for the
+// kubeconfig source used by terminal-write guards. It includes Secret
+// contents when available so rotating a bad kubeconfig lets a suppressed
+// write retry without requiring a spec edit. Resolution errors are
+// included as markers so missing or malformed Secret refs can still be
+// suppressed until the Secret changes or the spec changes.
+func TargetFingerprint(ctx context.Context, c client.Client, t TargetKubeConfig) string {
+	if !t.HasKubeConfig() {
+		return ""
+	}
+	if t.EnableInCluster {
+		return "in-cluster"
+	}
+	ref := fmt.Sprintf("secret:%s/%s", t.SecretNamespace, t.SecretName)
+	if c == nil {
+		return ref + ":client-unavailable"
+	}
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, k8stypes.NamespacedName{Name: t.SecretName, Namespace: t.SecretNamespace}, secret); err != nil {
+		switch {
+		case apierrors.IsNotFound(err):
+			return ref + ":not-found"
+		case apierrors.IsForbidden(err):
+			return ref + ":forbidden"
+		case apierrors.IsUnauthorized(err):
+			return ref + ":unauthorized"
+		default:
+			return ref + ":resolve-error"
+		}
+	}
+	data, ok := secret.Data["kubeconfig"]
+	if !ok {
+		return ref + ":missing-key:kubeconfig"
+	}
+	sum := sha256.Sum256(data)
+	return ref + ":sha256:" + hex.EncodeToString(sum[:])
 }
 
 // RestConfig resolves the TargetKubeConfig into a client-go rest.Config,

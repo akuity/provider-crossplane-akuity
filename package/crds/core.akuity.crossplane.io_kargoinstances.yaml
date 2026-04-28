@@ -84,6 +84,10 @@ spec:
                       the secret map can keep doing so; new deployments should use
                       dexConfigSecretRef so plaintext never lives on the managed
                       resource spec.
+                    - kargoConfigMap keys are constrained to the platform's KargoApiCM
+                      proto field set (see KargoConfigMapAllowedKeys). Any other
+                      key would crash ApplyKargoInstance's strict protojson unmarshal
+                      server-side and hot-loop the reconciler on retries.
 
                   v1/Secret manifests are forbidden inside resources, but the check
                   lives in the controller (splitKargoResources) rather than CEL: the
@@ -94,7 +98,9 @@ spec:
                   v1/Secret entries in resources are rejected at reconcile time.
                 properties:
                   kargo:
-                    description: Kargo describes the Kargo configuration. Required.
+                    description: |-
+                      Kargo contains the Kargo configuration sent to the Akuity platform.
+                      Required.
                     properties:
                       description:
                         type: string
@@ -269,7 +275,7 @@ spec:
                           because it carries provider-specific overlays the Akuity Crossplane
                           provider needs but the upstream API source type does not define:
 
-                            - DexConfigSecretRef: a same-namespace Secret reference resolved at
+                            - DexConfigSecretRef: a namespaced Secret reference resolved at
                               reconcile time into the wire-shape DexConfigSecret map. Plaintext
                               dex credentials never live on the managed resource spec.
                             - // +optional markers on every field so controller-gen drops them
@@ -309,22 +315,24 @@ spec:
                             type: object
                           dexConfigSecretRef:
                             description: |-
-                              DexConfigSecretRef references a Secret whose data is resolved at
-                              reconcile time by the Crossplane provider and forwarded to the
-                              Akuity gateway as the wire-shape DexConfigSecret map. Mutually
-                              exclusive with the inline DexConfigSecret above.
+                              DexConfigSecretRef references a namespaced Secret whose data is
+                              resolved at reconcile time by the Crossplane provider and
+                              forwarded to the Akuity gateway as the wire-shape
+                              DexConfigSecret map. Mutually exclusive with the inline
+                              DexConfigSecret above. Removing this ref stops applying the
+                              platform-side Secret, but does not delete it from the Akuity
+                              platform.
                             properties:
                               name:
-                                default: ""
-                                description: |-
-                                  Name of the referent.
-                                  This field is effectively required, but due to backwards compatibility is
-                                  allowed to be empty. Instances of this type with an empty value here are
-                                  almost certainly wrong.
-                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                description: Name of the secret.
                                 type: string
+                              namespace:
+                                description: Namespace of the secret.
+                                type: string
+                            required:
+                            - name
+                            - namespace
                             type: object
-                            x-kubernetes-map-type: atomic
                           dexEnabled:
                             type: boolean
                           enabled:
@@ -393,35 +401,44 @@ spec:
                     description: |-
                       KargoRepoCredentialSecretRefs registers repository credentials
                       with the Kargo gateway. Each entry's SecretRef points at a
-                      Secret in the MR's namespace; the controller synthesises a
-                      labelled Kargo-shaped Secret (kargo.akuity.io/cred-type=<type>)
-                      named after the slot, writes it into the entry's
-                      ProjectNamespace, and forwards it to ApplyKargoInstance.
-                      Plaintext never lives on the managed resource spec.
+                      namespaced Secret; the controller synthesizes a labeled
+                      Kargo-shaped Secret (kargo.akuity.io/cred-type=<type>)
+                      named after the effective slot, writes it into the effective
+                      Kargo project namespace, and forwards it to ApplyKargoInstance.
+                      If an entry omits Name, the controller uses SecretRef.Name as
+                      the slot. ProjectNamespace must be set explicitly because the
+                      platform lands the synthesized credential Secret in that
+                      namespace on its control plane and a wrong value produces an
+                      opaque Internal error during ApplyKargoInstance. If CredType is
+                      omitted, the controller uses the referenced Secret's
+                      kargo.akuity.io/cred-type label. Plaintext never lives on the
+                      managed resource spec.
 
-                      Drift: this field is write-only on the Kargo gateway — the
-                      Export response does not return repo_credentials — so rotation
-                      participates in drift via the SecretHash on
+                      Drift: this field is write-only on the Kargo gateway. Because
+                      Export does not return repo_credentials, rotation participates
+                      in drift via the SecretHash on
                       status.atProvider. Removal from spec does NOT delete the
-                      Secret on the gateway; see the additive-semantics note on
-                      resources below.
-                      The uniqueness rule is written with exists_one rather than
-                      size(self.map(...)) == size(self): CEL's .map() returns a list
-                      (not a set) so the size comparison never catches duplicates.
-                      exists_one is O(n²), kept in budget by the MaxItems=128 cap.
+                      Secret on the gateway; delete it through the Akuity platform
+                      UI or API if it should be removed.
+                      Explicit Name values are validated at admission. When Name is
+                      omitted, the controller validates the effective SecretRef.Name
+                      and duplicate (effective project namespace, effective name) pairs at
+                      reconcile time; the upstream Crossplane SecretReference schema
+                      intentionally does not bound name length, so equivalent CEL rules
+                      would exceed the apiserver's CRD cost budget.
                     items:
                       description: |-
                         KargoRepoCredentialSecretRef binds a Kargo repository-credential slot
-                        to a kube Secret. Mirrors the ArgoCD NamedLocalSecretReference
-                        pattern — no plaintext on the MR spec — but carries the extra
-                        Kargo-specific identity bits (project namespace + credential type)
-                        needed to route the resulting Secret into the correct Kargo project
-                        on the gateway.
+                        to a kube Secret. Mirrors the ArgoCD NamedSecretReference
+                        pattern - no plaintext on the MR spec - while allowing Kargo-specific
+                        routing metadata to be set explicitly or derived from the source Secret.
                       properties:
                         credType:
                           description: |-
                             CredType selects the Kargo credential family. Stamped onto the
                             Secret as the kargo.akuity.io/cred-type label before submission.
+                            Defaults to the referenced Secret's kargo.akuity.io/cred-type
+                            label when omitted.
                           enum:
                           - git
                           - helm
@@ -430,60 +447,84 @@ spec:
                           type: string
                         name:
                           description: |-
-                            Name is the Secret name written into the Kargo project.
-                            Must be DNS-1123-compatible. The slot uniquely identifies the
-                            credential within its ProjectNamespace.
+                            Name is the optional identifier under which this Secret's data is
+                            sent to the Akuity gateway. When omitted, SecretRef.Name is used.
                           maxLength: 253
                           minLength: 1
-                          pattern: ^[a-z0-9][a-z0-9-]*$
                           type: string
                         projectNamespace:
                           description: |-
                             ProjectNamespace is the Kargo project namespace the credential
-                            belongs to. Kargo enforces DNS-1123 naming on project
-                            namespaces; the Pattern here mirrors that.
+                            belongs to. Required because Kargo lands the synthesized
+                            credential Secret in this namespace on the control plane and a
+                            missing namespace produces an opaque platform-side Internal
+                            error. Kargo enforces DNS-1123 naming on project namespaces;
+                            the Pattern here mirrors that.
                           maxLength: 253
                           minLength: 1
                           pattern: ^[a-z0-9][a-z0-9-]*$
                           type: string
                         secretRef:
                           description: |-
-                            SecretRef points at a Secret. All keys of that Secret are
-                            forwarded to the gateway verbatim under the slot Name.
+                            SecretRef points at a namespaced Secret. All keys of that Secret
+                            are forwarded to the gateway verbatim.
+                            OpenAPI required only enforces field presence, so the CEL size checks
+                            reject empty name/namespace strings explicitly.
                           properties:
                             name:
                               description: Name of the secret.
                               type: string
+                            namespace:
+                              description: Namespace of the secret.
+                              type: string
                           required:
                           - name
+                          - namespace
                           type: object
+                          x-kubernetes-validations:
+                          - message: secretRef.name and secretRef.namespace are required
+                            rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                              && size(self.__namespace__) > 0
                       required:
-                      - credType
-                      - name
                       - projectNamespace
                       - secretRef
                       type: object
                     maxItems: 128
                     type: array
                     x-kubernetes-validations:
-                    - message: kargoRepoCredentialSecretRefs entries must have unique
-                        (projectNamespace, name) pairs
-                      rule: self.all(i, self.exists_one(j, j.projectNamespace == i.projectNamespace
-                        && j.name == i.name))
+                    - message: kargoRepoCredentialSecretRefs names must match ^[a-z0-9][a-z0-9-]*$
+                        when set
+                      rule: self.all(r, !has(r.name) || r.name.matches('^[a-z0-9][a-z0-9-]*$'))
                   kargoSecretRef:
                     description: |-
-                      KargoSecretRef references a Secret whose data is sent verbatim
-                      as the kargo-secret payload (OIDC client secrets, webhook
-                      tokens, admin bootstrap).
+                      KargoSecretRef references a namespaced Secret whose data is sent
+                      to the platform as the KargoApiSecret payload. The platform's
+                      KargoApiSecret proto is strongly typed — the only currently
+                      recognized key is admin_account_password_hash (proto name) /
+                      adminAccountPasswordHash (JSON name); see
+                      KargoSecretAllowedKeys. The controller normalizes every
+                      accepted spelling onto its canonical lowerCamel form before
+                      Apply and rejects any other key with a terminal classification.
+                      Removing this ref stops applying the platform-side Secret, but
+                      does not delete it from the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
                         type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
                     required:
                     - name
+                    - namespace
                     type: object
+                    x-kubernetes-validations:
+                    - message: kargoSecretRef.name and kargoSecretRef.namespace are
+                        required
+                      rule: has(self.name) && size(self.name) > 0 && has(self.__namespace__)
+                        && size(self.__namespace__) > 0
                   name:
-                    description: Name of the Kargo instance in the Akuity Platform.
+                    description: Name is the Kargo instance name in the Akuity platform.
                       Required.
                     minLength: 1
                     type: string
@@ -492,11 +533,10 @@ spec:
                       Resources carries raw YAML manifests for declarative Kargo
                       child resources (Projects, Warehouses, Stages,
                       AnalysisTemplates, PromotionTasks, ClusterPromotionTasks).
-                      Repository-credential Secrets are NOT accepted here — the
-                      parent-level CEL rule rejects v1/Secret entries at admission
-                      time so inline credential data cannot land in etcd. Use
+                      Repository-credential Secrets are not accepted here. Use
                       KargoRepoCredentialSecretRefs (typed refs) so plaintext stays
-                      out of the MR spec and rotation flows through SecretHash drift.
+                      out of the MR spec and rotation flows through SecretHash drift;
+                      the controller rejects inline v1/Secret entries during reconcile.
 
                       The controller validates each entry's apiVersion/kind, groups
                       them by kind, and sends them alongside the instance spec on
@@ -511,19 +551,17 @@ spec:
                       controller does not enable ApplyKargoInstance's
                       PruneResourceTypes because out-of-band resources managed via
                       the Akuity UI or other tooling would be deleted as collateral
-                      damage. To remove a resource, delete it via the Akuity
-                      platform UI or API. See PARITY_PLAN.md for the rationale.
+                      damage. To remove a resource, delete it via the Akuity platform
+                      UI or API.
                     x-kubernetes-preserve-unknown-fields: true
                   workspace:
                     description: |-
-                      Workspace is the ID of the Akuity workspace this Kargo instance
-                      belongs to. The Akuity API's ApplyKargoInstance / PatchKargoInstance
-                      / DeleteInstance HTTP routes are all scoped under a workspace; the
-                      workspace-less compat path is GET-only. Required when the target
-                      organization has more than one workspace; for single-workspace
-                      organizations the portal's default workspace is used when left
-                      unset (controller discovers it on first Observe and records the
-                      resolved ID on status.atProvider.workspaceId).
+                      Workspace is the Akuity workspace this Kargo instance belongs to. The
+                      preferred value is the workspace ID because workspace-scoped gateway calls
+                      are routed by ID. A workspace name is also accepted and resolved before
+                      gateway calls. When omitted, the organization default workspace is used on
+                      create. The canonical workspace ID is reported in
+                      status.atProvider.workspace.
                     type: string
                 required:
                 - kargo
@@ -537,6 +575,18 @@ spec:
                     == 0'
                 - message: name is immutable
                   rule: self.name == oldSelf.name
+                - message: 'kargoConfigMap accepts only these keys: adminAccountEnabled,
+                    adminAccountTokenTtl, admin_account_enabled, admin_account_token_ttl.
+                    Other keys are rejected before Apply.'
+                  rule: '!has(self.kargoConfigMap) || self.kargoConfigMap.all(k, k
+                    in [''adminAccountEnabled'', ''adminAccountTokenTtl'', ''admin_account_enabled'',
+                    ''admin_account_token_ttl''])'
+                - message: kargoConfigMap must not set both lowerCamel and snake_case
+                    aliases for the same key
+                  rule: '!has(self.kargoConfigMap) || !(''adminAccountEnabled'' in
+                    self.kargoConfigMap && ''admin_account_enabled'' in self.kargoConfigMap)
+                    && !(''adminAccountTokenTtl'' in self.kargoConfigMap && ''admin_account_token_ttl''
+                    in self.kargoConfigMap)'
               managementPolicies:
                 default:
                 - '*'
@@ -633,15 +683,6 @@ spec:
                   KargoInstanceObservation are the observable fields of a Kargo
                   instance.
                 properties:
-                  configMapHash:
-                    description: |-
-                      ConfigMapHash is the SHA256 of the last-applied
-                      spec.forProvider.kargoConfigMap key/value set. Observe compares
-                      the current desired digest against this to detect key removals
-                      — a case the export-based subset check misses. An empty value
-                      means either the field has never been applied or the last apply
-                      sent an explicit empty payload (tombstone).
-                    type: string
                   healthStatus:
                     description: HealthStatus is the instance health.
                     properties:
@@ -657,7 +698,7 @@ spec:
                     description: Hostname is the public hostname.
                     type: string
                   id:
-                    description: ID assigned by the Akuity Platform.
+                    description: ID assigned by the Akuity platform.
                     type: string
                   kargo:
                     description: |-
@@ -839,7 +880,7 @@ spec:
                           because it carries provider-specific overlays the Akuity Crossplane
                           provider needs but the upstream API source type does not define:
 
-                            - DexConfigSecretRef: a same-namespace Secret reference resolved at
+                            - DexConfigSecretRef: a namespaced Secret reference resolved at
                               reconcile time into the wire-shape DexConfigSecret map. Plaintext
                               dex credentials never live on the managed resource spec.
                             - // +optional markers on every field so controller-gen drops them
@@ -879,22 +920,24 @@ spec:
                             type: object
                           dexConfigSecretRef:
                             description: |-
-                              DexConfigSecretRef references a Secret whose data is resolved at
-                              reconcile time by the Crossplane provider and forwarded to the
-                              Akuity gateway as the wire-shape DexConfigSecret map. Mutually
-                              exclusive with the inline DexConfigSecret above.
+                              DexConfigSecretRef references a namespaced Secret whose data is
+                              resolved at reconcile time by the Crossplane provider and
+                              forwarded to the Akuity gateway as the wire-shape
+                              DexConfigSecret map. Mutually exclusive with the inline
+                              DexConfigSecret above. Removing this ref stops applying the
+                              platform-side Secret, but does not delete it from the Akuity
+                              platform.
                             properties:
                               name:
-                                default: ""
-                                description: |-
-                                  Name of the referent.
-                                  This field is effectively required, but due to backwards compatibility is
-                                  allowed to be empty. Instances of this type with an empty value here are
-                                  almost certainly wrong.
-                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                description: Name of the secret.
                                 type: string
+                              namespace:
+                                description: Namespace of the secret.
+                                type: string
+                            required:
+                            - name
+                            - namespace
                             type: object
-                            x-kubernetes-map-type: atomic
                           dexEnabled:
                             type: boolean
                           enabled:
@@ -952,6 +995,18 @@ spec:
                     - description
                     - version
                     type: object
+                  kargoConfigMapHash:
+                    description: |-
+                      KargoConfigMapHash is the SHA256 of spec.forProvider.kargoConfigMap
+                      from the most recent successful Apply. Some gateway builds omit
+                      the kargo_configmap sub-tree from ExportKargoInstance even after
+                      Apply has accepted it, so a subset comparison cannot tell
+                      "Applied but not echoed" from "spec changed since last Apply".
+                      The hash bridges that gap: when the export omits the sub-tree,
+                      the comparator defers drift only when this hash matches the hash
+                      of the current desired CM. A spec edit that adds, mutates, or
+                      removes keys rotates the hash and re-fires Apply.
+                    type: string
                   name:
                     description: Name of the instance.
                     type: string
@@ -972,16 +1027,6 @@ spec:
                         description: Message reported by the Akuity API.
                         type: string
                     type: object
-                  repoCredsAppliedAt:
-                    description: |-
-                      RepoCredsAppliedAt records the wall-clock time of the most
-                      recent Apply that included spec.forProvider.kargoRepoCredentialSecretRefs.
-                      The Kargo Export response has no repo_credentials field, so
-                      the controller periodically forces a re-Apply past a TTL to
-                      self-heal out-of-band deletions that neither the SecretHash
-                      nor the Export-based drift check can see.
-                    format: date-time
-                    type: string
                   secretHash:
                     description: |-
                       SecretHash is the SHA256 of the concatenation of every resolved
@@ -991,6 +1036,19 @@ spec:
                       Secret rotation. Stored in status rather than an annotation
                       because managed.Reconciler persists status after Create/Update
                       but does not persist arbitrary metadata.
+                    type: string
+                  workspace:
+                    description: |-
+                      Workspace is the canonical Akuity workspace ID this Kargo
+                      instance belongs to. When spec.forProvider.workspace is empty,
+                      the controller resolves and caches the organization's default
+                      workspace so ApplyKargoInstance, ExportKargoInstance, and
+                      DeleteKargoInstance route to the correct workspace-scoped HTTP
+                      path without another ListWorkspaces round-trip. The HTTP routes
+                      404 when the workspace_id template segment is empty; before this
+                      cache, first-create for a KargoInstance that omitted
+                      spec.workspace hot-looped portal-server at roughly 350 wasted
+                      writes in 12 minutes.
                     type: string
                 type: object
               conditions:
