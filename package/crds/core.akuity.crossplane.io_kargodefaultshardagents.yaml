@@ -102,8 +102,8 @@ spec:
                       KargoInstanceRef references the owning Kargo instance by name
                       in the same namespace as this KargoDefaultShardAgent. The
                       controller reads the referenced KargoInstance's
-                      Status.AtProvider.ID to resolve the underlying Akuity ID.
-                      At least one of KargoInstanceID or KargoInstanceRef must be set.
+                      Status.AtProvider.ID to resolve the underlying Akuity ID. At
+                      least one of KargoInstanceID or KargoInstanceRef must be set.
                     properties:
                       name:
                         description: Name is the referenced object's name. Required.

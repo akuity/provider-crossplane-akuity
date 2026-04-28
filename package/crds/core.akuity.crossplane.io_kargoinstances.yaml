@@ -498,10 +498,15 @@ spec:
                   kargoSecretRef:
                     description: |-
                       KargoSecretRef references a namespaced Secret whose data is sent
-                      verbatim as the kargo-secret payload (OIDC client secrets,
-                      webhook tokens, admin bootstrap). Removing this ref stops
-                      applying the platform-side Secret, but does not delete it from
-                      the Akuity platform.
+                      to the platform as the KargoApiSecret payload. The platform's
+                      KargoApiSecret proto is strongly typed — the only currently
+                      recognized key is admin_account_password_hash (proto name) /
+                      adminAccountPasswordHash (JSON name); see
+                      KargoSecretAllowedKeys. The controller normalizes every
+                      accepted spelling onto its canonical lowerCamel form before
+                      Apply and rejects any other key with a terminal classification.
+                      Removing this ref stops applying the platform-side Secret, but
+                      does not delete it from the Akuity platform.
                     properties:
                       name:
                         description: Name of the secret.
