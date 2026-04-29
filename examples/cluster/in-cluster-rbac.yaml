@@ -128,11 +128,38 @@ rules:
     verbs:
       - bind
       - escalate
-  # Modern Event resources used by some applied agent RBAC/manifests.
+  # PodDisruptionBudget + NetworkPolicy: agent manifest set includes
+  # akuity-agent PDB + akuity-agent-network-policy. Provider SSAs both
+  # directly through this ServiceAccount during install and removes them
+  # during teardown when removeAgentResourcesOnDestroy=true.
   - apiGroups:
-      - events.k8s.io
+      - policy
     resources:
-      - events
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - get
+      - create
+      - update
+      - patch
+      - delete
+  # MutatingWebhookConfiguration: self-hosted KargoAgent (akuityManaged: false)
+  # ships kargo-webhook MutatingWebhookConfiguration. Provider SSAs it through
+  # this ServiceAccount on install and removes it on teardown.
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - mutatingwebhookconfigurations
+      - validatingwebhookconfigurations
     verbs:
       - get
       - create
