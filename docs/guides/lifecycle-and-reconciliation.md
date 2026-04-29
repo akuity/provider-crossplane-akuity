@@ -4,13 +4,50 @@ This provider reconciles Akuity resources through Crossplane managed resources. 
 
 ## Crossplane Controls
 
-All managed resources in `core.akuity.crossplane.io/v1alpha1` opt in to Crossplane `managementPolicies`.
+### `managementPolicies`
 
-- Use the default policies when Crossplane should create, update, observe, and delete the Akuity resource.
-- Use `managementPolicies: ["Observe"]` to watch an existing Akuity resource without applying changes.
-- Use `deletionPolicy: Orphan` when deleting the Kubernetes managed resource should leave the Akuity resource in place.
+`managementPolicies` is an upstream Crossplane field that scopes which
+operations a provider may perform on the external resource. Every managed
+resource in `core.akuity.crossplane.io/v1alpha1` opts in.
 
-`ProviderConfigUsage` cleanup follows Crossplane runtime behavior. Remove dependent managed resources before deleting the provider if you want an orderly teardown.
+The supported actions and their effect on Akuity API traffic:
+
+| Action | Effect when listed in `spec.managementPolicies` |
+| --- | --- |
+| `Observe` | Read the external resource and populate `.status.atProvider`. No writes. |
+| `Create` | Allow the controller to create the Akuity-side resource if missing. |
+| `Update` | Allow `Apply`/`Patch` calls when the spec drifts from the platform. |
+| `Delete` | Allow the controller to delete the Akuity resource on MR delete. |
+| `LateInitialize` | Copy server-defaulted scalars back into the spec on first observation. |
+| `*` | Shorthand for all of the above. Default when `managementPolicies` is omitted. |
+
+Common combinations:
+
+- `["*"]` (or omitted): full reconciliation. Default, intended for greenfield
+  resources Crossplane owns end-to-end.
+- `["Observe"]`: pure read-only mode. Use to import an existing Akuity
+  resource into a Crossplane control plane for visibility, with zero risk of
+  the controller writing to the platform. Pair with `deletionPolicy: Orphan`
+  to ensure the Akuity-side resource survives MR deletion.
+- `["Observe", "Create", "Update"]`: reconcile spec drift but never delete
+  the Akuity resource; the platform-side row outlives the Kubernetes MR.
+
+Upstream reference:
+[Crossplane managed resources — managementPolicies](https://docs.crossplane.io/latest/managed-resources/managed-resources/#managementpolicies).
+
+### `deletionPolicy`
+
+- `deletionPolicy: Orphan` — deleting the Kubernetes managed resource leaves
+  the Akuity-side resource in place.
+- `deletionPolicy: Delete` (default) — deleting the MR also deletes the
+  Akuity-side resource, subject to the `Delete` policy being present in
+  `managementPolicies`.
+
+### Provider teardown
+
+`ProviderConfigUsage` cleanup follows Crossplane runtime behavior. Remove
+dependent managed resources before deleting the provider if you want an
+orderly teardown.
 
 ## Parent References
 

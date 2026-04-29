@@ -52,4 +52,4 @@ For self-hosted agents, set `akuityManaged: false`, provide the self-managed Arg
 - [Akuity-managed agent](../../examples/kargoagent/akuity-managed.yaml)
 - [Self-hosted agent](../../examples/kargoagent/self-hosted.yaml)
 
-For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity).
+For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

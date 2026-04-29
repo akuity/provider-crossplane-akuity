@@ -55,4 +55,4 @@ spec:
 - [Declarative Kargo resources](../../examples/kargoinstance/resources.yaml)
 - [OIDC with Secret refs](../../examples/kargoinstance/oidc-secret-ref.yaml)
 
-For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity).
+For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

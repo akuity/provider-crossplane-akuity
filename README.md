@@ -1,9 +1,9 @@
-# provider-akuity
+# provider-crossplane-akuity
 
-The `provider-akuity` repository is the Crossplane infrastructure provider for
-[Akuity Platform](https://akuity.io/akuity-platform/). It installs Kubernetes
-CRDs and controllers that let Crossplane manage Akuity resources from managed
-resource specs.
+The `provider-crossplane-akuity` repository is the Crossplane infrastructure
+provider for [Akuity Platform](https://akuity.io/akuity-platform/). It installs
+Kubernetes CRDs and controllers that let Crossplane manage Akuity resources
+from managed resource specs.
 
 ## Documentation
 
@@ -61,26 +61,47 @@ All managed resources are cluster-scoped and live in
 | `KargoDefaultShardAgent` | Default shard agent binding for a Kargo instance. | [examples/kargodefaultshardagent](./examples/kargodefaultshardagent) |
 
 For the full CRD schema, use
-[doc.crds.dev/github.com/akuityio/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity).
+[doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).
 
-## Compatibility
+## Crossplane Compatibility
 
-- Crossplane 1.19.x and 2.x are supported by the same artifact.
-- Existing `v1alpha1` manifests continue to work unchanged.
-- All managed resources opt in to Crossplane `managementPolicies`; `Observe`
-  and `deletionPolicy: Orphan` are supported lifecycle controls.
+- Crossplane 1.19.x and 2.x are supported by the same provider artifact.
 - `spec.crossplane.version: ">=v1.19.0"` is declared in
   [package/crossplane.yaml](./package/crossplane.yaml).
-- ESS runtime fields (`publishConnectionDetailsTo`, `StoreConfig`) are not
-  supported by the runtime-v2 provider. Use external secret tooling such as
-  external-secrets-operator, provider-vault, or provider-sops.
-- Before upgrading from v0.3.x: the v2 runtime does not support
-  `publishConnectionDetailsTo` or `StoreConfig`. Migrate any manifests using
-  ESS-style connection publishing before installing v2.0.0, or the controller
-  will reject those resources at apply.
-- Cluster and Kargo agent Kubernetes install manifests are applied during
-  create when a kubeconfig source is configured. Updates do not reapply those
-  generated manifests to the target cluster.
+- The provider declares the `safe-start` capability (Crossplane 2.x); 1.x
+  cores ignore it as a no-op.
+- `v1alpha1` manifests authored against earlier provider releases continue to
+  work without edits.
+
+## Provider Behavior
+
+- **`managementPolicies` (beta):** every managed resource accepts the
+  Crossplane `spec.managementPolicies` list, which scopes the operations the
+  controller may perform on the external Akuity resource. `["*"]` (default)
+  allows the full create/update/delete loop; `["Observe"]` makes the resource
+  read-only — the provider syncs `.status.atProvider` and never writes to the
+  Akuity API. Use it to import an existing Akuity resource without risk of
+  drift-correction. See
+  [Lifecycle and Reconciliation](./docs/guides/lifecycle-and-reconciliation.md)
+  for the full policy matrix.
+- **`deletionPolicy: Orphan`** leaves the Akuity-side resource in place when
+  the Kubernetes managed resource is deleted.
+- **Agent installs are one-shot.** `Cluster` and `KargoAgent` apply
+  Akuity-generated install manifests during create when a kubeconfig source
+  is configured. Updates do not reapply those manifests; recreate the MR or
+  reapply manually.
+- **External Secret Stores (ESS) is not supported.** The runtime-v2 provider
+  rejects `publishConnectionDetailsTo` and `StoreConfig`. Use
+  external-secrets-operator, provider-vault, or provider-sops instead.
+
+## Upgrading from v0.3.x
+
+- The v2 runtime does not support ESS connection publishing. Migrate any
+  manifests using `publishConnectionDetailsTo` or `StoreConfig` before
+  installing v2.0.0; the controller rejects them at apply.
+- Reapplying existing v1alpha1 `Instance`, `Cluster`, `KargoInstance`,
+  `KargoAgent`, `KargoDefaultShardAgent`, and `InstanceIpAllowList` manifests
+  is sufficient; no schema changes affect the upgrade path.
 
 ## Local Development
 
@@ -134,4 +155,4 @@ started with `make dev` and start it again to include your changes:
 ## Report a Bug
 
 For filing bugs, suggesting improvements, or requesting new features, please
-open an [issue](https://github.com/akuityio/provider-crossplane-akuity/issues).
+open an [issue](https://github.com/akuity/provider-crossplane-akuity/issues).

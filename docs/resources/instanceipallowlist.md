@@ -38,4 +38,4 @@ The controller caches the resolved instance ID in status so delete can clear the
 
 - [Basic allow list](../../examples/instanceipallowlist/basic.yaml)
 
-For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity).
+For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

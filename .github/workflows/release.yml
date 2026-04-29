@@ -1,9 +1,9 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "*"
+  release:
+    types:
+      - published
 
 env:
   GO_VERSION: "1.26.1"
@@ -91,5 +91,28 @@ jobs:
 
       - name: Mirror to Upbound Marketplace
         run: make akuity-publish.marketplace
+        env:
+          VERSION: ${{ github.ref_name }}
+
+      - name: Install Upbound CLI
+        env:
+          UP_VERSION: v0.47.0
+        run: |
+          set -euo pipefail
+          curl -sL https://cli.upbound.io | VERSION=${UP_VERSION} sh
+          sudo mv up /usr/local/bin/up
+          up version --client
+
+      - name: Append Marketplace Extensions
+        run: make akuity-publish.marketplace.extensions
+        env:
+          VERSION: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pre-warm doc.crds.dev index
+        run: |
+          curl -sf -o /dev/null \
+            "https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity@${VERSION}" \
+            || echo "doc.crds.dev pre-warm failed; CRD docs will index on first visit."
         env:
           VERSION: ${{ github.ref_name }}
