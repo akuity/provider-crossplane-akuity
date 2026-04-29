@@ -34,4 +34,4 @@ Use the [Lifecycle and Reconciliation](guides/lifecycle-and-reconciliation.md) g
 - Additive child resources and ConfigMap keys.
 - Create-time agent manifest installs.
 
-The examples under `examples/` are Kubernetes manifests. Crossplane packages can include examples from this directory when building the provider package with the Crossplane CLI examples root.
+The examples under `examples/` are Kubernetes manifests. They are embedded in the published xpkg image (via `crossplane xpkg build --examples-root`) so `crossplane xpkg install` consumers can introspect them. They are not duplicated into the marketplace docs tree; example links inside the marketplace-rendered README and resource pages resolve to the same files on GitHub at the release tag.
