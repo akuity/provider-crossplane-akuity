@@ -49,4 +49,4 @@ Child resources are additive. Removing a child from the Crossplane spec stops ma
 
 ConfigMap fields are key-owned and additive. See [Secrets and ConfigMaps](../guides/secrets-and-configmaps.md).
 
-For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity).
+For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

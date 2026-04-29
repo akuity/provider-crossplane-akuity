@@ -4,10 +4,12 @@ metadata:
   name: provider-crossplane-akuity
   annotations:
     meta.crossplane.io/maintainer: Akuity <info@akuity.io>
-    meta.crossplane.io/source: github.com/akuityio/provider-crossplane-akuity
+    meta.crossplane.io/source: github.com/akuity/provider-crossplane-akuity
     meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/friendly-name: Provider Akuity
     meta.crossplane.io/description: |
-      A Crossplane provider that can be used to manage Akuity resources.
+      Manage Akuity Platform Argo CD instances, Kargo instances, attached
+      clusters, and agents declaratively from a Crossplane control plane.
 spec:
   capabilities:
     - safe-start

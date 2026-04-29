@@ -62,4 +62,4 @@ For `small`, `medium`, and `large`, the platform stamps size-profile autoscaler 
 - [In-cluster agent install](../../examples/cluster/in-cluster.yaml)
 - [In-cluster agent install RBAC](../../examples/cluster/in-cluster-rbac.yaml)
 
-For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity).
+For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

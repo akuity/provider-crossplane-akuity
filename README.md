@@ -1,9 +1,9 @@
-# provider-akuity
+# provider-crossplane-akuity
 
-The `provider-akuity` repository is the Crossplane infrastructure provider for
-[Akuity Platform](https://akuity.io/akuity-platform/). It installs Kubernetes
-CRDs and controllers that let Crossplane manage Akuity resources from managed
-resource specs.
+The `provider-crossplane-akuity` repository is the Crossplane infrastructure
+provider for [Akuity Platform](https://akuity.io/akuity-platform/). It installs
+Kubernetes CRDs and controllers that let Crossplane manage Akuity resources
+from managed resource specs.
 
 ## Documentation
 
@@ -61,7 +61,7 @@ All managed resources are cluster-scoped and live in
 | `KargoDefaultShardAgent` | Default shard agent binding for a Kargo instance. | [examples/kargodefaultshardagent](./examples/kargodefaultshardagent) |
 
 For the full CRD schema, use
-[doc.crds.dev/github.com/akuityio/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity).
+[doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).
 
 ## Compatibility
 
@@ -134,4 +134,4 @@ started with `make dev` and start it again to include your changes:
 ## Report a Bug
 
 For filing bugs, suggesting improvements, or requesting new features, please
-open an [issue](https://github.com/akuityio/provider-crossplane-akuity/issues).
+open an [issue](https://github.com/akuity/provider-crossplane-akuity/issues).

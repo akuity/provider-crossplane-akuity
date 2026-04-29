@@ -9,7 +9,7 @@
 - [Lifecycle and reconciliation behavior](guides/lifecycle-and-reconciliation.md)
 - [Managing Argo CD Config Management Plugins](guides/managing-cmps.md)
 - [Managing declarative Kargo resources](guides/managing-kargo-resources.md)
-- [Full CRD reference on doc.crds.dev](https://doc.crds.dev/github.com/akuityio/provider-crossplane-akuity)
+- [Full CRD reference on doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity)
 
 ## Resource Documentation
 

@@ -168,7 +168,7 @@ crossplane.help:
 
 help-special: crossplane.help
 
-akuity-publish: akuity-publish.gar akuity-publish.marketplace
+akuity-publish: akuity-publish.gar akuity-publish.marketplace akuity-publish.marketplace.extensions
 
 akuity-publish.gar:
 	crossplane xpkg push -f _output/xpkg/linux_arm64/provider-crossplane-akuity-$(VERSION).xpkg \
@@ -196,4 +196,53 @@ akuity-publish.marketplace:
 		"$$tmpdir/xpkg" \
 		xpkg.upbound.io/akuity/provider-crossplane-akuity:$(VERSION)
 
-.PHONY: crossplane.help help-special
+# ====================================================================================
+# Marketplace extensions assembly
+#
+# Upbound Marketplace renders icon, README, docs tree, and release notes from a
+# tarball appended to the published xpkg via `up alpha xpkg append`. Sources
+# stay single-rooted in the repo (assets/icon.svg, README.md, docs/, gh release
+# body); package.extensions copies them into the layout the append command
+# expects.
+EXTENSIONS_DIR ?= $(OUTPUT_DIR)/extensions
+EXTENSIONS_LINK_REF ?= $(VERSION)
+
+# Release-notes copy: always source from the GitHub Release body for $(VERSION).
+# CI uses `gh` against the just-created Release; local builds can override with
+# RELEASE_NOTES_BODY="..." make package.extensions to skip the gh fetch.
+package.extensions:
+	@$(INFO) assembling marketplace extensions tree at $(EXTENSIONS_DIR)
+	@rm -rf $(EXTENSIONS_DIR)
+	@mkdir -p $(EXTENSIONS_DIR)/icons $(EXTENSIONS_DIR)/readme $(EXTENSIONS_DIR)/docs $(EXTENSIONS_DIR)/release-notes
+	@cp assets/icon.svg $(EXTENSIONS_DIR)/icons/icon.svg
+	@cp README.md $(EXTENSIONS_DIR)/readme/readme.md
+	@cp -R docs/. $(EXTENSIONS_DIR)/docs/
+	@set -euo pipefail; \
+	if [ -n "$${RELEASE_NOTES_BODY:-}" ]; then \
+		printf '%s\n' "$${RELEASE_NOTES_BODY}" > $(EXTENSIONS_DIR)/release-notes/release_notes.md; \
+	else \
+		body=$$(gh release view "$(VERSION)" --json body -q .body 2>/dev/null) || { \
+			echo "ERROR: GitHub Release $(VERSION) not found. Publish the release via the GitHub UI, or set RELEASE_NOTES_BODY for local builds." >&2; \
+			exit 1; \
+		}; \
+		if [ -z "$$body" ]; then \
+			echo "ERROR: GitHub Release $(VERSION) body is empty. Add notes via the GitHub UI before publishing the release." >&2; \
+			exit 1; \
+		fi; \
+		printf '%s\n' "$$body" > $(EXTENSIONS_DIR)/release-notes/release_notes.md; \
+	fi
+	@hack/rewrite-extension-links.sh $(EXTENSIONS_DIR) $(EXTENSIONS_LINK_REF)
+	@$(OK) extensions tree assembled
+
+# Append assets onto the marketplace tag in place. Requires `up` v0.39+ on PATH
+# and prior `docker login xpkg.upbound.io`. Re-tags the marketplace ref with a
+# manifest that includes the extensions layer; the artifact is unsigned today
+# so signing concerns do not apply.
+akuity-publish.marketplace.extensions: package.extensions
+	@$(INFO) appending marketplace extensions to xpkg.upbound.io/akuity/provider-crossplane-akuity:$(VERSION)
+	@up alpha xpkg append \
+		--extensions-root=$(EXTENSIONS_DIR) \
+		xpkg.upbound.io/akuity/provider-crossplane-akuity:$(VERSION)
+	@$(OK) marketplace extensions appended
+
+.PHONY: crossplane.help help-special package.extensions akuity-publish akuity-publish.gar akuity-publish.marketplace akuity-publish.marketplace.extensions
