@@ -511,13 +511,12 @@ func TestKargoAgent_AkuityManagedImmutable(t *testing.T) {
 	assert.Contains(t, err.Error(), "akuityManaged is immutable after create")
 }
 
-// TestKargoInstance_KargoConfigMapKeyAllowlist covers the map-key
-// XValidation on kargoConfigMap. The platform's PatchKargoInstance
-// receiver strictly protojson-unmarshals into the closed-set
-// KargoApiCM proto; any unknown key crashes the unmarshal and would
-// otherwise hot-loop the reconciler on every poll. Admission rejects
-// unknown keys so users get an immediate, fixable error.
-func TestKargoInstance_KargoConfigMapKeyAllowlist(t *testing.T) {
+// TestKargoInstance_KargoConfigMapAllowsPlatformOwnedKeys covers the
+// deliberate absence of client-side map-key validation on
+// kargoConfigMap. The platform is the source of truth for supported
+// Kargo API config map keys, so newer platform fields must not require
+// a provider CRD release.
+func TestKargoInstance_KargoConfigMapAllowsPlatformOwnedKeys(t *testing.T) {
 	ctx := context.Background()
 
 	withEnabled := &v1alpha1.KargoInstance{
@@ -546,19 +545,6 @@ func TestKargoInstance_KargoConfigMapKeyAllowlist(t *testing.T) {
 	require.NoError(t, kube.Create(ctx, withTTL), "adminAccountTokenTtl must be accepted")
 	t.Cleanup(func() { _ = kube.Delete(ctx, withTTL) })
 
-	withProtoNames := &v1alpha1.KargoInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-proto"},
-		Spec: v1alpha1.KargoInstanceSpec{
-			ForProvider: v1alpha1.KargoInstanceParameters{
-				Name:           "ki-cm-5",
-				Kargo:          minimalKargoSpec(),
-				KargoConfigMap: map[string]string{"admin_account_enabled": "true"},
-			},
-		},
-	}
-	require.NoError(t, kube.Create(ctx, withProtoNames), "proto field names must remain accepted")
-	t.Cleanup(func() { _ = kube.Delete(ctx, withProtoNames) })
-
 	withoutCM := &v1alpha1.KargoInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-absent"},
 		Spec: v1alpha1.KargoInstanceSpec{
@@ -571,36 +557,18 @@ func TestKargoInstance_KargoConfigMapKeyAllowlist(t *testing.T) {
 	require.NoError(t, kube.Create(ctx, withoutCM), "absent kargoConfigMap must be accepted")
 	t.Cleanup(func() { _ = kube.Delete(ctx, withoutCM) })
 
-	withUnknown := &v1alpha1.KargoInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-unknown"},
+	withFutureKey := &v1alpha1.KargoInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-future-key"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				Name:           "ki-cm-4",
 				Kargo:          minimalKargoSpec(),
-				KargoConfigMap: map[string]string{"some_unknown_key": "value"},
+				KargoConfigMap: map[string]string{"futurePlatformKey": "value"},
 			},
 		},
 	}
-	err := kube.Create(ctx, withUnknown)
-	require.Error(t, err, "apiserver must reject KargoInstance with unknown kargoConfigMap key")
-	assert.Contains(t, err.Error(), "kargoConfigMap accepts only these keys")
-
-	withMixedAliases := &v1alpha1.KargoInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "ki-cm-mixed-aliases"},
-		Spec: v1alpha1.KargoInstanceSpec{
-			ForProvider: v1alpha1.KargoInstanceParameters{
-				Name:  "ki-cm-6",
-				Kargo: minimalKargoSpec(),
-				KargoConfigMap: map[string]string{
-					"adminAccountEnabled":   "true",
-					"admin_account_enabled": "false",
-				},
-			},
-		},
-	}
-	err = kube.Create(ctx, withMixedAliases)
-	require.Error(t, err, "apiserver must reject mixed aliases for the same kargoConfigMap key")
-	assert.Contains(t, err.Error(), "must not set both lowerCamel and snake_case aliases")
+	require.NoError(t, kube.Create(ctx, withFutureKey), "provider CRD must not block future platform-owned kargoConfigMap keys")
+	t.Cleanup(func() { _ = kube.Delete(ctx, withFutureKey) })
 }
 
 // TestCluster_InstanceIDImmutable covers the id/ref-immutable rule on

@@ -68,6 +68,15 @@ func TestSpecToAPI_PropagatesAllCurrentGeneratedClusterDataFields(t *testing.T) 
 	assert.Nil(t, wire.Spec.Data.MaintenanceModeExpiry)
 }
 
+func TestSpecToAPI_PassesUnknownClusterSizeToPlatform(t *testing.T) {
+	desired := fixtures.CrossplaneCluster
+	desired.ClusterSpec.Data.Size = generated.ClusterSize("xlarge")
+
+	wire, err := SpecToAPI(desired)
+	require.NoError(t, err)
+	assert.Equal(t, "xlarge", string(wire.Spec.Data.Size))
+}
+
 func TestSpecToAPI_CanonicalizesKustomizationScaffold(t *testing.T) {
 	desired := fixtures.CrossplaneCluster
 	desired.ClusterSpec.Data.Kustomization = "resources:\n- namespace.yaml\n"

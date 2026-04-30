@@ -84,10 +84,11 @@ spec:
                       the secret map can keep doing so; new deployments should use
                       dexConfigSecretRef so plaintext never lives on the managed
                       resource spec.
-                    - kargoConfigMap keys are constrained to the platform's KargoApiCM
-                      proto field set (see KargoConfigMapAllowedKeys). Any other
-                      key would crash ApplyKargoInstance's strict protojson unmarshal
-                      server-side and hot-loop the reconciler on retries.
+                    - kargoConfigMap is intentionally not key-validated by the
+                      provider. The platform is the source of truth for supported
+                      Kargo API config map fields, so new platform fields can be used
+                      without a provider release. Platform-side InvalidArgument errors
+                      are classified as terminal to avoid hot-looping.
 
                   v1/Secret manifests are forbidden inside resources, but the check
                   lives in the controller (splitKargoResources) rather than CEL: the
@@ -575,18 +576,6 @@ spec:
                     == 0'
                 - message: name is immutable
                   rule: self.name == oldSelf.name
-                - message: 'kargoConfigMap accepts only these keys: adminAccountEnabled,
-                    adminAccountTokenTtl, admin_account_enabled, admin_account_token_ttl.
-                    Other keys are rejected before Apply.'
-                  rule: '!has(self.kargoConfigMap) || self.kargoConfigMap.all(k, k
-                    in [''adminAccountEnabled'', ''adminAccountTokenTtl'', ''admin_account_enabled'',
-                    ''admin_account_token_ttl''])'
-                - message: kargoConfigMap must not set both lowerCamel and snake_case
-                    aliases for the same key
-                  rule: '!has(self.kargoConfigMap) || !(''adminAccountEnabled'' in
-                    self.kargoConfigMap && ''admin_account_enabled'' in self.kargoConfigMap)
-                    && !(''adminAccountTokenTtl'' in self.kargoConfigMap && ''admin_account_token_ttl''
-                    in self.kargoConfigMap)'
               managementPolicies:
                 default:
                 - '*'

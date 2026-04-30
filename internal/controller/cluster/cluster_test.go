@@ -886,6 +886,40 @@ func TestObserve_AutoscalerConfig_NonAutoSilentlyAdoptsObserved(t *testing.T) {
 		"non-auto sized clusters must adopt observed autoscalerConfig because the platform ignores user input there")
 }
 
+func TestDriftSpec_UnknownClusterSizeAdoptsObservedClamp(t *testing.T) {
+	desired := v1alpha1.ClusterParameters{
+		ClusterSpec: generated.ClusterSpec{
+			Data: generated.ClusterData{Size: generated.ClusterSize("xlarge")},
+		},
+	}
+	observed := v1alpha1.ClusterParameters{
+		ClusterSpec: generated.ClusterSpec{
+			Data: generated.ClusterData{Size: generated.ClusterSize("small")},
+		},
+	}
+
+	ok, err := driftSpec().UpToDate(ctx, &desired, &observed)
+	require.NoError(t, err)
+	assert.True(t, ok, "unknown cluster sizes clamped by the platform must not write-loop")
+}
+
+func TestDriftSpec_KnownClusterSizeMismatchStillDrifts(t *testing.T) {
+	desired := v1alpha1.ClusterParameters{
+		ClusterSpec: generated.ClusterSpec{
+			Data: generated.ClusterData{Size: generated.ClusterSize("large")},
+		},
+	}
+	observed := v1alpha1.ClusterParameters{
+		ClusterSpec: generated.ClusterSpec{
+			Data: generated.ClusterData{Size: generated.ClusterSize("small")},
+		},
+	}
+
+	ok, err := driftSpec().UpToDate(ctx, &desired, &observed)
+	require.NoError(t, err)
+	assert.False(t, ok, "known cluster size mismatches must still be reconciled")
+}
+
 func TestKustomizationEquivalent_DefaultedScaffold(t *testing.T) {
 	desired := "resources:\n- namespace.yaml\n"
 	observed := "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- namespace.yaml\n"

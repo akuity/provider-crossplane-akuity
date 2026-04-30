@@ -620,6 +620,18 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 				desired.ClusterSpec.Data.Kustomization = observed.ClusterSpec.Data.Kustomization
 			}
 
+			// Size is intentionally open-ended so new platform-side sizes can
+			// pass through without requiring a provider release. If the
+			// platform echoes the same new string, comparison naturally passes.
+			// If the platform clamps an unknown value to a supported size, adopt
+			// the observed value for drift comparison so a typo or not-yet-
+			// supported value does not produce an endless Apply loop.
+			if !knownClusterSize(desired.ClusterSpec.Data.Size) &&
+				observed.ClusterSpec.Data.Size != "" &&
+				!strings.EqualFold(string(desired.ClusterSpec.Data.Size), string(observed.ClusterSpec.Data.Size)) {
+				desired.ClusterSpec.Data.Size = observed.ClusterSpec.Data.Size
+			}
+
 			// Platform's UpdateInstanceCluster only consults
 			// data.autoscalerConfig when the cluster size is "auto".
 			// For small/medium/large the gateway stamps size-based
@@ -639,6 +651,15 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 
 func sizeUsesUserAutoscaler(size generated.ClusterSize) bool {
 	return strings.EqualFold(string(size), "auto")
+}
+
+func knownClusterSize(size generated.ClusterSize) bool {
+	switch strings.ToLower(string(size)) {
+	case "", "small", "medium", "large", "auto", "custom":
+		return true
+	default:
+		return false
+	}
 }
 
 // normalizePtrField adopts the observed pointer value onto desired

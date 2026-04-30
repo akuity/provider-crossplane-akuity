@@ -49,4 +49,6 @@ Child resources are additive. Removing a child from the Crossplane spec stops ma
 
 ConfigMap fields are key-owned and additive. See [Secrets and ConfigMaps](../guides/secrets-and-configmaps.md).
 
+For `argocdSshKnownHostsConfigMap.ssh_known_hosts`, keep the Akuity Platform default known_hosts entries and append custom hosts. The platform-observed value is visible at `status.atProvider.argocdSshKnownHostsConfigMap.ssh_known_hosts`.
+
 For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

@@ -390,6 +390,114 @@ func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
 		"InvalidArgument from ApplyKargoInstance must be reason.Terminal-classified, got %T %v", err, err)
 }
 
+func TestUpdate_PermissionDenied_Terminal(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(status.Error(codes.PermissionDenied, "Access to instance shared-inst is denied")).Times(1)
+	_, err := e.Update(context.Background(), a)
+	require.Error(t, err)
+	assert.True(t, reason.IsTerminal(err),
+		"PermissionDenied from ApplyKargoInstance must be reason.Terminal-classified so repeated bad remoteArgocd writes are cached")
+}
+
+func TestDriftSpec_AutoscalerResourceQuantitiesCompareSemantically(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AutoscalerConfig: &crossplanetypes.KargoAutoscalerConfig{
+					KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
+						ResourceMinimum: &crossplanetypes.KargoResources{Mem: "512Mi", Cpu: "250m"},
+						ResourceMaximum: &crossplanetypes.KargoResources{Mem: "2Gi", Cpu: "1"},
+					},
+				},
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				AutoscalerConfig: &crossplanetypes.KargoAutoscalerConfig{
+					KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
+						ResourceMinimum: &crossplanetypes.KargoResources{Mem: "0.50Gi", Cpu: "250m"},
+						ResourceMaximum: &crossplanetypes.KargoResources{Mem: "2.00Gi", Cpu: "1000m"},
+					},
+				},
+			},
+		},
+	}
+
+	ok, err := driftSpec().UpToDate(context.Background(), &desired, &observed)
+	require.NoError(t, err)
+	assert.True(t, ok, "KargoAgent autoscaler quantity canonicalization must not create drift")
+}
+
+func TestDriftSpec_KustomizationSemanticEquivalence(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Kustomization: "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\ncommonAnnotations:\n  testing.akuity.io/row: \"3.4.4\"\n",
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Kustomization: "apiVersion: kustomize.config.k8s.io/v1beta1\ncommonAnnotations:\n  testing.akuity.io/row: 3.4.4\nkind: Kustomization\n",
+			},
+		},
+	}
+
+	ok, err := driftSpec().UpToDate(context.Background(), &desired, &observed)
+	require.NoError(t, err)
+	assert.True(t, ok, "KargoAgent kustomization YAML canonicalization must not create drift")
+	assert.Equal(t, observed.KargoAgentSpec.Data.Kustomization, desired.KargoAgentSpec.Data.Kustomization)
+}
+
+func TestDriftSpec_UnknownKargoAgentSizeAdoptsObservedClamp(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size: crossplanetypes.KargoAgentSize("xlarge"),
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size: crossplanetypes.KargoAgentSize("small"),
+			},
+		},
+	}
+
+	ok, err := driftSpec().UpToDate(context.Background(), &desired, &observed)
+	require.NoError(t, err)
+	assert.True(t, ok, "unknown future KargoAgent sizes should not loop if the platform clamps them")
+	assert.Equal(t, crossplanetypes.KargoAgentSize("small"), desired.KargoAgentSpec.Data.Size)
+}
+
+func TestDriftSpec_KnownKargoAgentSizeMismatchStillDrifts(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size: crossplanetypes.KargoAgentSize("medium"),
+			},
+		},
+	}
+	observed := v1alpha1.KargoAgentParameters{
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size: crossplanetypes.KargoAgentSize("small"),
+			},
+		},
+	}
+
+	ok, err := driftSpec().UpToDate(context.Background(), &desired, &observed)
+	require.NoError(t, err)
+	assert.False(t, ok, "known KargoAgent size changes remain user-owned drift")
+}
+
 func TestDriftSpec_PodInheritMetadataDesiredNilAdoptsObserved(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{}
 	observed := v1alpha1.KargoAgentParameters{

@@ -61,7 +61,7 @@ func ClassifyApplyError(err error) error {
 	if !ok {
 		return err
 	}
-	if s.Code() == codes.InvalidArgument {
+	if s.Code() == codes.InvalidArgument || s.Code() == codes.PermissionDenied {
 		return AsTerminal(err)
 	}
 	return err

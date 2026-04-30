@@ -290,6 +290,21 @@ func TestSpecToAPI_PropagatesAllCurrentGeneratedAgentDataFields(t *testing.T) {
 	assert.Equal(t, &akuitytypes.KargoResources{Cpu: "1", Mem: "1Gi"}, wire.Spec.Data.AutoscalerConfig.KargoController.ResourceMaximum)
 }
 
+func TestSpecToAPI_PassesUnknownAgentSizeToPlatform(t *testing.T) {
+	p := v1alpha1.KargoAgentParameters{
+		Name: "agt",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size: crossplanetypes.KargoAgentSize("xlarge"),
+			},
+		},
+	}
+
+	wire, err := SpecToAPI(p)
+	require.NoError(t, err)
+	assert.Equal(t, akuitytypes.KargoAgentSize("xlarge"), wire.Spec.Data.Size)
+}
+
 // TestBuildApplyKargoInstanceRequest_InvalidKustomizationErrors keeps
 // the validation guard on Kustomization. Users pass raw YAML, and a
 // malformed kustomization.yaml must fail at encode rather than be

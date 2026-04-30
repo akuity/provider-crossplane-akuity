@@ -46,7 +46,9 @@ spec:
 
 `kargoRepoCredentialSecretRefs[].projectNamespace` is required and identifies the destination Kargo project namespace. It does not default to the source Kubernetes Secret namespace.
 
-`kargoConfigMap` accepts only `adminAccountEnabled`, `adminAccountTokenTtl`, `admin_account_enabled`, and `admin_account_token_ttl`. Do not set both spellings for the same key.
+`kargoConfigMap` is forwarded to the platform without a provider-side key allow-list. Current platform-documented keys include `adminAccountEnabled` and `adminAccountTokenTtl`; newer platform fields can be used without waiting for a provider CRD release.
+
+When migrating existing specs from snake_case aliases to lowerCamel keys, remove `kargoConfigMap`, wait for `Synced=True`, then re-add the lowerCamel form. A direct alias swap can be rejected by the platform merge path as a duplicate proto field.
 
 ## Examples
 
