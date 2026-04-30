@@ -705,17 +705,25 @@ func kargoConfigMapUpToDate(desired map[string]string, exp *kargov1.ExportKargoI
 	if len(desired) == 0 {
 		return true, nil, nil
 	}
+	canonicalDesired, err := canonicalKargoConfigMap(desired)
+	if err != nil {
+		return false, nil, err
+	}
 	observed, present, err := extractKargoConfigMapData(exp.GetKargoConfigmap())
 	if err != nil {
 		return false, nil, fmt.Errorf("kargoConfigMap: %w", err)
 	}
+	observed, err = canonicalKargoConfigMap(observed)
+	if err != nil {
+		return false, nil, fmt.Errorf("kargoConfigMap: %w", err)
+	}
 	if !present {
-		if hashKargoConfigMap(desired) == lastAppliedHash {
+		if hashKargoConfigMap(canonicalDesired) == lastAppliedHash {
 			return true, nil, nil
 		}
 		return false, nil, nil
 	}
-	for k, v := range desired {
+	for k, v := range canonicalDesired {
 		got, ok := observed[k]
 		if !ok || got != v {
 			return false, observed, nil
@@ -731,6 +739,10 @@ func kargoConfigMapUpToDate(desired map[string]string, exp *kargov1.ExportKargoI
 func hashKargoConfigMap(data map[string]string) string {
 	if len(data) == 0 {
 		return ""
+	}
+	canonical, err := canonicalKargoConfigMap(data)
+	if err == nil {
+		data = canonical
 	}
 	keys := make([]string, 0, len(data))
 	for k := range data {
@@ -1347,24 +1359,85 @@ func getSecretHash(mg *v1alpha1.KargoInstance) string {
 	return mg.Status.AtProvider.SecretHash
 }
 
+var kargoConfigMapAliases = map[string]string{
+	"adminAccountEnabled":     "adminAccountEnabled",
+	"admin_account_enabled":   "adminAccountEnabled",
+	"adminAccountTokenTtl":    "adminAccountTokenTtl",
+	"admin_account_token_ttl": "adminAccountTokenTtl",
+}
+
+var kargoConfigMapCanonicalAliases = map[string][]string{
+	"adminAccountEnabled":  {"admin_account_enabled"},
+	"adminAccountTokenTtl": {"admin_account_token_ttl"},
+}
+
 // buildKargoConfigMapPB serializes the desired kargo-cm payload. An
 // empty desired map means the user has no currently managed ConfigMap
 // keys, so the Apply payload omits the ConfigMap and leaves any
-// platform-side keys alone.
+// platform-side keys alone. Known Kargo API aliases are canonicalized
+// to the platform's lowerCamel JSON names, with nulls for the alternate
+// proto spellings so a previous alias spelling is removed during the
+// platform merge patch.
 func buildKargoConfigMapPB(data map[string]string) (*structpb.Struct, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	cm := corev1.ConfigMap{
-		TypeMeta:   metav1.TypeMeta{Kind: "ConfigMap", APIVersion: "v1"},
-		ObjectMeta: metav1.ObjectMeta{Name: kargoCMKey},
-		Data:       data,
+	cmData, err := kargoConfigMapApplyData(data)
+	if err != nil {
+		return nil, err
 	}
-	pb, err := marshal.APIModelToPBStruct(cm)
+	cm := map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata": map[string]interface{}{
+			"name": kargoCMKey,
+		},
+		"data": cmData,
+	}
+	pb, err := structpb.NewStruct(cm)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal %s configmap to protobuf: %w", kargoCMKey, err)
 	}
 	return pb, nil
+}
+
+func kargoConfigMapApplyData(data map[string]string) (map[string]interface{}, error) {
+	canonicalValues := map[string]string{}
+	out := make(map[string]interface{}, len(data))
+	for k, v := range data {
+		canonical, known := kargoConfigMapAliases[k]
+		if !known {
+			out[k] = v
+			continue
+		}
+		if existing, ok := canonicalValues[canonical]; ok && existing != v {
+			return nil, fmt.Errorf("kargoConfigMap carries conflicting aliases for %q", canonical)
+		}
+		canonicalValues[canonical] = v
+		out[canonical] = v
+		for _, alias := range kargoConfigMapCanonicalAliases[canonical] {
+			out[alias] = nil
+		}
+	}
+	return out, nil
+}
+
+func canonicalKargoConfigMap(data map[string]string) (map[string]string, error) {
+	if len(data) == 0 {
+		return data, nil
+	}
+	out := make(map[string]string, len(data))
+	for k, v := range data {
+		canonical, known := kargoConfigMapAliases[k]
+		if !known {
+			canonical = k
+		}
+		if existing, ok := out[canonical]; ok && existing != v {
+			return nil, fmt.Errorf("kargoConfigMap carries conflicting aliases for %q", canonical)
+		}
+		out[canonical] = v
+	}
+	return out, nil
 }
 
 // specToPB marshals the curated KargoInstance into the

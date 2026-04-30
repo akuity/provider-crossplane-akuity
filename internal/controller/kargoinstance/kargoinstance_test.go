@@ -481,6 +481,21 @@ func TestKargoConfigMapUpToDate_CanonicalizesBoolValues(t *testing.T) {
 	assert.Equal(t, "true", observed["adminAccountEnabled"])
 }
 
+func TestKargoConfigMapUpToDate_CanonicalizesKnownAliases(t *testing.T) {
+	desired := map[string]string{"admin_account_token_ttl": "24h"}
+	pb, err := structpb.NewStruct(map[string]interface{}{
+		"data": map[string]interface{}{
+			"adminAccountTokenTtl": "24h",
+		},
+	})
+	require.NoError(t, err)
+
+	ok, observed, err := kargoConfigMapUpToDate(desired, &kargov1.ExportKargoInstanceResponse{KargoConfigmap: pb}, "")
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, "24h", observed["adminAccountTokenTtl"])
+}
+
 // TestUpdate_DelegatesToApply covers the Update path: Update must reuse
 // apply() so the same orchestration (secrets, configmap, spec,
 // repo-creds) runs once the external name is set.

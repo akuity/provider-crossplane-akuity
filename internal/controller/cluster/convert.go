@@ -188,6 +188,9 @@ func SpecToAPI(cluster v1alpha1.ClusterParameters) (akuitytypes.Cluster, error) 
 	if cluster.ClusterSpec.Data.Size == "" {
 		cluster.ClusterSpec.Data.Size = "small"
 	}
+	if err := projectCustomClusterSize(&cluster.ClusterSpec.Data); err != nil {
+		return akuitytypes.Cluster{}, err
+	}
 
 	kustomization, err := clusterKustomizationRaw(cluster.ClusterSpec.Data.Kustomization)
 	if err != nil {

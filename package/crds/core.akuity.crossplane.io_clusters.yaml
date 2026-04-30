@@ -149,6 +149,26 @@ spec:
                                     type: object
                                 type: object
                             type: object
+                          customAgentSizeConfig:
+                            properties:
+                              applicationController:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                              repoServer:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                  replicas:
+                                    format: int32
+                                    type: integer
+                                type: object
+                            type: object
                           compatibility:
                             properties:
                               ipv6Only:
@@ -470,6 +490,26 @@ spec:
                                       mem:
                                         type: string
                                     type: object
+                                type: object
+                            type: object
+                          customAgentSizeConfig:
+                            properties:
+                              applicationController:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                              repoServer:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                  replicas:
+                                    format: int32
+                                    type: integer
                                 type: object
                             type: object
                           compatibility:

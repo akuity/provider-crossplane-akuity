@@ -36,6 +36,9 @@ import (
 // ExportKargoInstance returns inside its Agents slice, giving
 // round-trip symmetry between read (Export) and write (Apply).
 func SpecToAPI(p v1alpha1.KargoAgentParameters) (akuitytypes.KargoAgent, error) {
+	if err := projectCustomKargoAgentSize(p.Name, &p.KargoAgentSpec.Data); err != nil {
+		return akuitytypes.KargoAgent{}, err
+	}
 	if err := crossplanetypes.ValidateKustomizationYAML(p.KargoAgentSpec.Data.Kustomization); err != nil {
 		return akuitytypes.KargoAgent{}, fmt.Errorf("spec.forProvider.kargoAgentSpec.data.kustomization: %w", err)
 	}

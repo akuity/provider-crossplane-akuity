@@ -103,10 +103,15 @@ func normalizeKargoAgentParameters(desired, observed *v1alpha1.KargoAgentParamet
 		return
 	}
 	absorbKargoAgentScalarDefaults(desired, observed)
-	absorbKargoAgentKustomizationRender(desired, observed)
 	desired.KargoAgentSpec.Data.AkuityManaged =
 		observed.KargoAgentSpec.Data.AkuityManaged
 	absorbServerClamps(desired, observed)
+	// Custom is a provider-side convenience. The platform stores it as
+	// a large agent plus generated Kustomize patches, so compare the
+	// projected desired shape against Export/Get.
+	_ = projectCustomKargoAgentSize(desired.Name, &desired.KargoAgentSpec.Data)
+	absorbKargoAgentSizeClamp(desired, observed)
+	absorbKargoAgentKustomizationRender(desired, observed)
 	// Optional pointer fields inherit server defaults only when the user
 	// omitted them. If a user pins one and the gateway fails to echo/apply
 	// it, keep the drift visible instead of silently masking a provider or
@@ -128,11 +133,6 @@ func absorbKargoAgentScalarDefaults(desired, observed *v1alpha1.KargoAgentParame
 	if desired.KargoAgentSpec.Data.Size == "" {
 		desired.KargoAgentSpec.Data.Size = observed.KargoAgentSpec.Data.Size
 	}
-	if !knownKargoAgentSize(string(desired.KargoAgentSpec.Data.Size)) &&
-		observed.KargoAgentSpec.Data.Size != "" &&
-		desired.KargoAgentSpec.Data.Size != observed.KargoAgentSpec.Data.Size {
-		desired.KargoAgentSpec.Data.Size = observed.KargoAgentSpec.Data.Size
-	}
 	if desired.KargoAgentSpec.Data.ArgocdNamespace == "" {
 		desired.KargoAgentSpec.Data.ArgocdNamespace =
 			observed.KargoAgentSpec.Data.ArgocdNamespace
@@ -140,6 +140,14 @@ func absorbKargoAgentScalarDefaults(desired, observed *v1alpha1.KargoAgentParame
 	if desired.KargoAgentSpec.Data.TargetVersion == "" {
 		desired.KargoAgentSpec.Data.TargetVersion =
 			observed.KargoAgentSpec.Data.TargetVersion
+	}
+}
+
+func absorbKargoAgentSizeClamp(desired, observed *v1alpha1.KargoAgentParameters) {
+	if !knownKargoAgentSize(string(desired.KargoAgentSpec.Data.Size)) &&
+		observed.KargoAgentSpec.Data.Size != "" &&
+		desired.KargoAgentSpec.Data.Size != observed.KargoAgentSpec.Data.Size {
+		desired.KargoAgentSpec.Data.Size = observed.KargoAgentSpec.Data.Size
 	}
 }
 

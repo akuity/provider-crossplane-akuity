@@ -920,6 +920,64 @@ func TestDriftSpec_KnownClusterSizeMismatchStillDrifts(t *testing.T) {
 	assert.False(t, ok, "known cluster size mismatches must still be reconciled")
 }
 
+func TestDriftSpec_CustomClusterSizeProjectsToLarge(t *testing.T) {
+	desired := v1alpha1.ClusterParameters{
+		ClusterSpec: generated.ClusterSpec{
+			Data: generated.ClusterData{
+				Size: generated.ClusterSize("custom"),
+				CustomAgentSizeConfig: &generated.ClusterCustomAgentSizeConfig{
+					ApplicationController: &generated.Resources{Cpu: "1000m", Mem: "2Gi"},
+				},
+			},
+		},
+	}
+	kustomization, err := generateClusterCustomSizeKustomization(desired.ClusterSpec.Data.CustomAgentSizeConfig, "")
+	require.NoError(t, err)
+	observed := v1alpha1.ClusterParameters{
+		ClusterSpec: generated.ClusterSpec{
+			Data: generated.ClusterData{
+				Size:             generated.ClusterSize("large"),
+				Kustomization:    kustomization,
+				AutoscalerConfig: &generated.AutoScalerConfig{ApplicationController: &generated.AppControllerAutoScalingConfig{}},
+			},
+		},
+	}
+
+	ok, err := driftSpec().UpToDate(ctx, &desired, &observed)
+	require.NoError(t, err)
+	assert.True(t, ok, "provider-side custom size must compare against the platform's large+kustomization projection")
+}
+
+func TestLateInitializeCluster_CustomSizeDoesNotAdoptProjectedFields(t *testing.T) {
+	desired := v1alpha1.ClusterParameters{
+		ClusterSpec: generated.ClusterSpec{
+			Data: generated.ClusterData{
+				Size: generated.ClusterSize("custom"),
+				CustomAgentSizeConfig: &generated.ClusterCustomAgentSizeConfig{
+					ApplicationController: &generated.Resources{Cpu: "1000m", Mem: "2Gi"},
+				},
+			},
+		},
+	}
+	actual := v1alpha1.ClusterParameters{
+		Namespace: "akuity",
+		ClusterSpec: generated.ClusterSpec{
+			Data: generated.ClusterData{
+				Size:             generated.ClusterSize("large"),
+				Kustomization:    "patches: []\n",
+				AutoscalerConfig: &generated.AutoScalerConfig{ApplicationController: &generated.AppControllerAutoScalingConfig{}},
+			},
+		},
+	}
+
+	lateInitializeCluster(&desired, actual)
+
+	assert.Equal(t, generated.ClusterSize("custom"), desired.ClusterSpec.Data.Size)
+	assert.Empty(t, desired.ClusterSpec.Data.Kustomization)
+	assert.Nil(t, desired.ClusterSpec.Data.AutoscalerConfig)
+	assert.NotNil(t, desired.ClusterSpec.Data.CustomAgentSizeConfig)
+}
+
 func TestKustomizationEquivalent_DefaultedScaffold(t *testing.T) {
 	desired := "resources:\n- namespace.yaml\n"
 	observed := "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n- namespace.yaml\n"

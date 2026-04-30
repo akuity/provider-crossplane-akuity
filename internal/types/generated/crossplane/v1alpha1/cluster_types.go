@@ -69,6 +69,19 @@ type RepoServerAutoScalingConfig struct {
 }
 
 // +kubebuilder:object:generate=true
+type RepoServerCustomAgentSizeConfig struct {
+	Mem      string `json:"mem,omitempty"`
+	Cpu      string `json:"cpu,omitempty"`
+	Replicas int32  `json:"replicas,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
+type ClusterCustomAgentSizeConfig struct {
+	ApplicationController *Resources                       `json:"applicationController,omitempty"`
+	RepoServer            *RepoServerCustomAgentSizeConfig `json:"repoServer,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
 type ClusterCompatibility struct {
 	Ipv6Only *bool `json:"ipv6Only,omitempty"`
 }
@@ -93,6 +106,7 @@ type ClusterData struct {
 	MaintenanceMode                 *bool                               `json:"maintenanceMode,omitempty"`
 	MultiClusterK8SDashboardEnabled *bool                               `json:"multiClusterK8sDashboardEnabled,omitempty"`
 	AutoscalerConfig                *AutoScalerConfig                   `json:"autoscalerConfig,omitempty"`
+	CustomAgentSizeConfig           *ClusterCustomAgentSizeConfig       `json:"customAgentSizeConfig,omitempty"`
 	Project                         string                              `json:"project,omitempty"`
 	Compatibility                   *ClusterCompatibility               `json:"compatibility,omitempty"`
 	ArgocdNotificationsSettings     *ClusterArgoCDNotificationsSettings `json:"argocdNotificationsSettings,omitempty"`

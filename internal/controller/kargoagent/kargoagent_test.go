@@ -498,6 +498,40 @@ func TestDriftSpec_KnownKargoAgentSizeMismatchStillDrifts(t *testing.T) {
 	assert.False(t, ok, "known KargoAgent size changes remain user-owned drift")
 }
 
+func TestDriftSpec_CustomKargoAgentSizeProjectsToLarge(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		Name: "agent-a",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size:          crossplanetypes.KargoAgentSize("custom"),
+				AkuityManaged: boolPtr(false),
+				CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
+					KargoController: &crossplanetypes.KargoResources{
+						Cpu: "1000m",
+						Mem: "2Gi",
+					},
+				},
+			},
+		},
+	}
+	kustomization, err := generateKargoAgentCustomSizeKustomization("agent-a", desired.KargoAgentSpec.Data.CustomAgentSizeConfig, "")
+	require.NoError(t, err)
+	observed := v1alpha1.KargoAgentParameters{
+		Name: "agent-a",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size:          crossplanetypes.KargoAgentSize("large"),
+				AkuityManaged: boolPtr(false),
+				Kustomization: kustomization,
+			},
+		},
+	}
+
+	ok, err := driftSpec().UpToDate(context.Background(), &desired, &observed)
+	require.NoError(t, err)
+	assert.True(t, ok, "provider-side custom size must compare against the platform's large+kustomization projection")
+}
+
 func TestDriftSpec_PodInheritMetadataDesiredNilAdoptsObserved(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{}
 	observed := v1alpha1.KargoAgentParameters{

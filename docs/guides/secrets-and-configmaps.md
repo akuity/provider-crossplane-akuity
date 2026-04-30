@@ -64,6 +64,6 @@ Valid Kargo credential types are `git`, `helm`, `generic`, and `image`.
 
 Use the lowerCamel spellings above for currently documented fields; they match the platform's canonical Kargo API config map names. If the platform adds more fields, the provider CRD does not need a release to pass them through.
 
-If you already used snake_case aliases and need to move to lowerCamel, first remove `kargoConfigMap` from the managed resource and wait for `Synced=True`, then add the lowerCamel keys. Replacing snake_case with lowerCamel in a single edit can leave both aliases in the platform merge path and be rejected by Akuity as a duplicate proto field.
+Known Kargo API aliases such as `admin_account_token_ttl` are canonicalized to the platform's lowerCamel JSON names before apply. The provider also clears the alternate known spelling in the same apply to avoid duplicate-field platform merge state. Removing `kargoConfigMap` from the managed resource stops managing those keys, but does not clear platform-side values.
 
 For `Instance.argocdSshKnownHostsConfigMap.ssh_known_hosts`, keep the Akuity Platform default known_hosts entries and append custom hosts. The full value observed from the platform is exposed at `status.atProvider.argocdSshKnownHostsConfigMap.ssh_known_hosts`, which can be used as the source when refreshing the spec after platform defaults change.

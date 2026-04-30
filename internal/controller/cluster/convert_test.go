@@ -77,6 +77,92 @@ func TestSpecToAPI_PassesUnknownClusterSizeToPlatform(t *testing.T) {
 	assert.Equal(t, "xlarge", string(wire.Spec.Data.Size))
 }
 
+func TestSpecToAPI_ProjectsCustomClusterSize(t *testing.T) {
+	desired := fixtures.CrossplaneCluster
+	desired.ClusterSpec.Data.Size = generated.ClusterSize("custom")
+	desired.ClusterSpec.Data.AutoscalerConfig = nil
+	desired.ClusterSpec.Data.Kustomization = "commonLabels:\n  team: platform\n"
+	desired.ClusterSpec.Data.CustomAgentSizeConfig = &generated.ClusterCustomAgentSizeConfig{
+		ApplicationController: &generated.Resources{Cpu: "1000m", Mem: "2Gi"},
+		RepoServer: &generated.RepoServerCustomAgentSizeConfig{
+			Cpu:      "750m",
+			Mem:      "1Gi",
+			Replicas: 3,
+		},
+	}
+
+	wire, err := SpecToAPI(desired)
+	require.NoError(t, err)
+	assert.Equal(t, "large", string(wire.Spec.Data.Size))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(wire.Spec.Data.Kustomization.Raw, &got))
+	assert.Equal(t, "platform", got["commonLabels"].(map[string]any)["team"])
+	require.Len(t, got["patches"], 2)
+	require.Len(t, got["replicas"], 1)
+	assert.Equal(t, "argocd-repo-server", got["replicas"].([]any)[0].(map[string]any)["name"])
+	assert.InDelta(t, float64(3), got["replicas"].([]any)[0].(map[string]any)["count"], 0)
+}
+
+func TestSpecToAPI_RejectsInvalidCustomClusterSize(t *testing.T) {
+	t.Run("missing config", func(t *testing.T) {
+		desired := fixtures.CrossplaneCluster
+		desired.ClusterSpec.Data.Size = generated.ClusterSize("custom")
+
+		_, err := SpecToAPI(desired)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "size custom requires customAgentSizeConfig")
+	})
+
+	t.Run("autoscaler config", func(t *testing.T) {
+		desired := fixtures.CrossplaneCluster
+		desired.ClusterSpec.Data.Size = generated.ClusterSize("custom")
+		desired.ClusterSpec.Data.AutoscalerConfig = &generated.AutoScalerConfig{
+			ApplicationController: &generated.AppControllerAutoScalingConfig{},
+		}
+		desired.ClusterSpec.Data.CustomAgentSizeConfig = &generated.ClusterCustomAgentSizeConfig{
+			ApplicationController: &generated.Resources{Cpu: "1000m", Mem: "2Gi"},
+		}
+
+		_, err := SpecToAPI(desired)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be combined with autoscalerConfig")
+	})
+}
+
+func TestSpecToAPI_RejectsConflictingCustomClusterKustomization(t *testing.T) {
+	desired := fixtures.CrossplaneCluster
+	desired.ClusterSpec.Data.Size = generated.ClusterSize("custom")
+	desired.ClusterSpec.Data.AutoscalerConfig = nil
+	desired.ClusterSpec.Data.CustomAgentSizeConfig = &generated.ClusterCustomAgentSizeConfig{
+		ApplicationController: &generated.Resources{Cpu: "1000m", Mem: "2Gi"},
+	}
+	desired.ClusterSpec.Data.Kustomization = `
+patches:
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: argocd-application-controller
+    spec:
+      template:
+        spec:
+          containers:
+          - name: argocd-application-controller
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+  target:
+    kind: Deployment
+    name: argocd-application-controller
+`
+
+	_, err := SpecToAPI(desired)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicts with customAgentSizeConfig")
+}
+
 func TestSpecToAPI_CanonicalizesKustomizationScaffold(t *testing.T) {
 	desired := fixtures.CrossplaneCluster
 	desired.ClusterSpec.Data.Kustomization = "resources:\n- namespace.yaml\n"

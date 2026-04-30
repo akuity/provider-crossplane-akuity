@@ -483,9 +483,11 @@ func lateInitializeCluster(in *v1alpha1.ClusterParameters, actual v1alpha1.Clust
 	in.ClusterSpec.Data.TargetVersion = pointer.LateInitialize(in.ClusterSpec.Data.TargetVersion, actual.ClusterSpec.Data.TargetVersion)
 	in.ClusterSpec.Data.RedisTunneling = pointer.LateInitialize(in.ClusterSpec.Data.RedisTunneling, actual.ClusterSpec.Data.RedisTunneling)
 	in.ClusterSpec.Data.Size = pointer.LateInitialize(in.ClusterSpec.Data.Size, actual.ClusterSpec.Data.Size)
-	in.ClusterSpec.Data.Kustomization = pointer.LateInitialize(in.ClusterSpec.Data.Kustomization, actual.ClusterSpec.Data.Kustomization)
 	in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled = pointer.LateInitialize(in.ClusterSpec.Data.MultiClusterK8SDashboardEnabled, actual.ClusterSpec.Data.MultiClusterK8SDashboardEnabled)
-	in.ClusterSpec.Data.AutoscalerConfig = pointer.LateInitialize(in.ClusterSpec.Data.AutoscalerConfig, actual.ClusterSpec.Data.AutoscalerConfig)
+	if !strings.EqualFold(string(in.ClusterSpec.Data.Size), customClusterSize) {
+		in.ClusterSpec.Data.Kustomization = pointer.LateInitialize(in.ClusterSpec.Data.Kustomization, actual.ClusterSpec.Data.Kustomization)
+		in.ClusterSpec.Data.AutoscalerConfig = pointer.LateInitialize(in.ClusterSpec.Data.AutoscalerConfig, actual.ClusterSpec.Data.AutoscalerConfig)
+	}
 	in.ClusterSpec.Data.PodInheritMetadata = pointer.LateInitialize(in.ClusterSpec.Data.PodInheritMetadata, actual.ClusterSpec.Data.PodInheritMetadata)
 }
 
@@ -575,6 +577,13 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 				&desired.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
 				&observed.ClusterSpec.Data.MultiClusterK8SDashboardEnabled,
 			)
+			// Custom is a provider-side convenience. The platform stores it as
+			// a large agent plus generated Kustomize patches. Project before
+			// adopting server-stamped autoscaler defaults, otherwise the
+			// synthetic platform defaults make custom look like an invalid
+			// custom+autoscaler spec.
+			_ = projectCustomClusterSize(&desired.ClusterSpec.Data)
+
 			normalizePtrField(
 				&desired.ClusterSpec.Data.AutoscalerConfig,
 				&observed.ClusterSpec.Data.AutoscalerConfig,
@@ -655,7 +664,7 @@ func sizeUsesUserAutoscaler(size generated.ClusterSize) bool {
 
 func knownClusterSize(size generated.ClusterSize) bool {
 	switch strings.ToLower(string(size)) {
-	case "", "small", "medium", "large", "auto", "custom":
+	case "", "small", "medium", "large", "auto":
 		return true
 	default:
 		return false
