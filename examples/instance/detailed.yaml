@@ -57,7 +57,7 @@ spec:
           basepath: ""
           appsetProgressiveSyncsEnabled: true
           appsetPlugins:
-            - name: "example-plugin"
+            - name: "plugin-example"
               token: "example-token"
               baseUrl: "https://plugins.example.com"
               requestTimeout: 30
