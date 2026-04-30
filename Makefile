@@ -216,7 +216,7 @@ package.extensions:
 	@mkdir -p $(EXTENSIONS_DIR)/icons $(EXTENSIONS_DIR)/readme $(EXTENSIONS_DIR)/docs $(EXTENSIONS_DIR)/release-notes
 	@cp assets/icon.svg $(EXTENSIONS_DIR)/icons/icon.svg
 	@cp README.md $(EXTENSIONS_DIR)/readme/readme.md
-	@cp -R docs/. $(EXTENSIONS_DIR)/docs/
+	@cp docs/guides/*.md $(EXTENSIONS_DIR)/docs/
 	@set -euo pipefail; \
 	if [ -n "$${RELEASE_NOTES_BODY:-}" ]; then \
 		printf '%s\n' "$${RELEASE_NOTES_BODY}" > $(EXTENSIONS_DIR)/release-notes/release_notes.md; \
