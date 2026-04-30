@@ -146,6 +146,16 @@ spec:
                                     type: object
                                 type: object
                             type: object
+                          customAgentSizeConfig:
+                            properties:
+                              kargoController:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                            type: object
                           kustomization:
                             type: string
                           maintenanceMode:
@@ -395,6 +405,16 @@ spec:
                                       mem:
                                         type: string
                                     type: object
+                                type: object
+                            type: object
+                          customAgentSizeConfig:
+                            properties:
+                              kargoController:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
                                 type: object
                             type: object
                           kustomization:

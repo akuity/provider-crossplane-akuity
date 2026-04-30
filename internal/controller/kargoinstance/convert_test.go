@@ -187,6 +187,32 @@ func TestBuildKargoConfigMapPB_Populated(t *testing.T) {
 	assert.Equal(t, "b", data["a"])
 }
 
+func TestBuildKargoConfigMapPB_CanonicalizesKnownAliases(t *testing.T) {
+	pb, err := buildKargoConfigMapPB(map[string]string{"admin_account_token_ttl": "24h"})
+	require.NoError(t, err)
+	require.NotNil(t, pb)
+	data, _ := pb.AsMap()["data"].(map[string]interface{})
+	assert.Equal(t, "24h", data["adminAccountTokenTtl"])
+	assert.Nil(t, data["admin_account_token_ttl"])
+}
+
+func TestBuildKargoConfigMapPB_PreservesFutureKeys(t *testing.T) {
+	pb, err := buildKargoConfigMapPB(map[string]string{"futurePlatformKey": "value"})
+	require.NoError(t, err)
+	require.NotNil(t, pb)
+	data, _ := pb.AsMap()["data"].(map[string]interface{})
+	assert.Equal(t, "value", data["futurePlatformKey"])
+}
+
+func TestBuildKargoConfigMapPB_RejectsConflictingAliases(t *testing.T) {
+	_, err := buildKargoConfigMapPB(map[string]string{
+		"adminAccountEnabled":   "true",
+		"admin_account_enabled": "false",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicting aliases")
+}
+
 func TestBuildKargoConfigMapPB_EmptyOmitted(t *testing.T) {
 	pb, err := buildKargoConfigMapPB(nil)
 	require.NoError(t, err)

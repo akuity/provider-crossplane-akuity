@@ -36,18 +36,24 @@ type KargoAutoscalerConfig struct {
 }
 
 // +kubebuilder:object:generate=true
+type KargoAgentCustomAgentSizeConfig struct {
+	KargoController *KargoResources `json:"kargoController,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
 type KargoAgentData struct {
-	Size                  KargoAgentSize         `json:"size,omitempty"`
-	AutoUpgradeDisabled   *bool                  `json:"autoUpgradeDisabled,omitempty"`
-	TargetVersion         string                 `json:"targetVersion,omitempty"`
-	Kustomization         string                 `json:"kustomization,omitempty"`
-	RemoteArgocd          string                 `json:"remoteArgocd,omitempty"`
-	AkuityManaged         *bool                  `json:"akuityManaged,omitempty"`
-	ArgocdNamespace       string                 `json:"argocdNamespace,omitempty"`
-	SelfManagedArgocdUrl  string                 `json:"selfManagedArgocdUrl,omitempty"`
-	AllowedJobSa          []string               `json:"allowedJobSa,omitempty"`
-	MaintenanceMode       *bool                  `json:"maintenanceMode,omitempty"`
-	MaintenanceModeExpiry *string                `json:"maintenanceModeExpiry,omitempty"`
-	PodInheritMetadata    *bool                  `json:"podInheritMetadata,omitempty"`
-	AutoscalerConfig      *KargoAutoscalerConfig `json:"autoscalerConfig,omitempty"`
+	Size                  KargoAgentSize                   `json:"size,omitempty"`
+	AutoUpgradeDisabled   *bool                            `json:"autoUpgradeDisabled,omitempty"`
+	TargetVersion         string                           `json:"targetVersion,omitempty"`
+	Kustomization         string                           `json:"kustomization,omitempty"`
+	RemoteArgocd          string                           `json:"remoteArgocd,omitempty"`
+	AkuityManaged         *bool                            `json:"akuityManaged,omitempty"`
+	ArgocdNamespace       string                           `json:"argocdNamespace,omitempty"`
+	SelfManagedArgocdUrl  string                           `json:"selfManagedArgocdUrl,omitempty"`
+	AllowedJobSa          []string                         `json:"allowedJobSa,omitempty"`
+	MaintenanceMode       *bool                            `json:"maintenanceMode,omitempty"`
+	MaintenanceModeExpiry *string                          `json:"maintenanceModeExpiry,omitempty"`
+	PodInheritMetadata    *bool                            `json:"podInheritMetadata,omitempty"`
+	AutoscalerConfig      *KargoAutoscalerConfig           `json:"autoscalerConfig,omitempty"`
+	CustomAgentSizeConfig *KargoAgentCustomAgentSizeConfig `json:"customAgentSizeConfig,omitempty"`
 }

@@ -31,6 +31,12 @@ func TestClassifyApplyError_BadInputWrapsAsTerminal(t *testing.T) {
 	assert.True(t, reason.IsTerminal(got))
 }
 
+func TestClassifyApplyError_PermissionDeniedWrapsAsTerminal(t *testing.T) {
+	got := reason.ClassifyApplyError(status.Error(codes.PermissionDenied, "Access to instance shared-inst is denied"))
+	require.Error(t, got)
+	assert.True(t, reason.IsTerminal(got))
+}
+
 func TestClassifyApplyError_NilPassthrough(t *testing.T) {
 	assert.NoError(t, reason.ClassifyApplyError(nil))
 }

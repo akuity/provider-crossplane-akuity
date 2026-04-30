@@ -17,6 +17,7 @@ limitations under the License.
 package kargoagent
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -106,6 +107,129 @@ func TestApiToSpec_PreservesAkuityManagedFalse(t *testing.T) {
 	out := apiToSpec(v1alpha1.KargoAgentParameters{}, agent)
 	require.NotNil(t, out.KargoAgentSpec.Data.AkuityManaged)
 	assert.False(t, *out.KargoAgentSpec.Data.AkuityManaged)
+}
+
+func TestSpecToAPI_ProjectsCustomKargoAgentSize(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		Name:      "agent-a",
+		Namespace: "kargo",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size:          crossplanetypes.KargoAgentSize("custom"),
+				AkuityManaged: boolPtr(false),
+				CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
+					KargoController: &crossplanetypes.KargoResources{
+						Cpu: "1000m",
+						Mem: "2Gi",
+					},
+				},
+			},
+		},
+	}
+
+	wire, err := SpecToAPI(desired)
+	require.NoError(t, err)
+	assert.Equal(t, "large", string(wire.Spec.Data.Size))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(wire.Spec.Data.Kustomization.Raw, &got))
+	require.Len(t, got["patches"], 1)
+	patch := got["patches"].([]any)[0].(map[string]any)
+	assert.Equal(t, "kargo-controller-agent-a", patch["target"].(map[string]any)["name"])
+}
+
+func TestSpecToAPI_RejectsInvalidCustomKargoAgentSize(t *testing.T) {
+	t.Run("missing config", func(t *testing.T) {
+		desired := v1alpha1.KargoAgentParameters{
+			Name: "agent-a",
+			KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+				Data: crossplanetypes.KargoAgentData{Size: crossplanetypes.KargoAgentSize("custom")},
+			},
+		}
+
+		_, err := SpecToAPI(desired)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "size custom requires customAgentSizeConfig")
+	})
+
+	t.Run("autoscaler config", func(t *testing.T) {
+		desired := v1alpha1.KargoAgentParameters{
+			Name: "agent-a",
+			KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+				Data: crossplanetypes.KargoAgentData{
+					Size: crossplanetypes.KargoAgentSize("custom"),
+					AutoscalerConfig: &crossplanetypes.KargoAutoscalerConfig{
+						KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{},
+					},
+					CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
+						KargoController: &crossplanetypes.KargoResources{Cpu: "1000m", Mem: "2Gi"},
+					},
+				},
+			},
+		}
+
+		_, err := SpecToAPI(desired)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be combined with autoscalerConfig")
+	})
+
+	t.Run("akuity managed", func(t *testing.T) {
+		desired := v1alpha1.KargoAgentParameters{
+			Name: "agent-a",
+			KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+				Data: crossplanetypes.KargoAgentData{
+					Size:          crossplanetypes.KargoAgentSize("custom"),
+					AkuityManaged: boolPtr(true),
+					CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
+						KargoController: &crossplanetypes.KargoResources{Cpu: "1000m", Mem: "2Gi"},
+					},
+				},
+			},
+		}
+
+		_, err := SpecToAPI(desired)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not allowed for akuityManaged")
+	})
+}
+
+func TestSpecToAPI_RejectsConflictingCustomKargoAgentKustomization(t *testing.T) {
+	desired := v1alpha1.KargoAgentParameters{
+		Name: "agent-a",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size:          crossplanetypes.KargoAgentSize("custom"),
+				AkuityManaged: boolPtr(false),
+				CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
+					KargoController: &crossplanetypes.KargoResources{Cpu: "1000m", Mem: "2Gi"},
+				},
+				Kustomization: `
+patches:
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: kargo-controller-agent-a
+    spec:
+      template:
+        spec:
+          containers:
+          - name: controller
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+  target:
+    kind: Deployment
+    name: kargo-controller-agent-a
+`,
+			},
+		},
+	}
+
+	_, err := SpecToAPI(desired)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicts with customAgentSizeConfig")
 }
 
 // TestWireToSpec_NilReturnsZero covers the explicit nil guard so
@@ -288,6 +412,21 @@ func TestSpecToAPI_PropagatesAllCurrentGeneratedAgentDataFields(t *testing.T) {
 	require.NotNil(t, wire.Spec.Data.AutoscalerConfig.KargoController)
 	assert.Equal(t, &akuitytypes.KargoResources{Cpu: "100m", Mem: "256Mi"}, wire.Spec.Data.AutoscalerConfig.KargoController.ResourceMinimum)
 	assert.Equal(t, &akuitytypes.KargoResources{Cpu: "1", Mem: "1Gi"}, wire.Spec.Data.AutoscalerConfig.KargoController.ResourceMaximum)
+}
+
+func TestSpecToAPI_PassesUnknownAgentSizeToPlatform(t *testing.T) {
+	p := v1alpha1.KargoAgentParameters{
+		Name: "agt",
+		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
+			Data: crossplanetypes.KargoAgentData{
+				Size: crossplanetypes.KargoAgentSize("xlarge"),
+			},
+		},
+	}
+
+	wire, err := SpecToAPI(p)
+	require.NoError(t, err)
+	assert.Equal(t, akuitytypes.KargoAgentSize("xlarge"), wire.Spec.Data.Size)
 }
 
 // TestBuildApplyKargoInstanceRequest_InvalidKustomizationErrors keeps

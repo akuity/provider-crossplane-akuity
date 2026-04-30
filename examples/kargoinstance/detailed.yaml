@@ -90,7 +90,9 @@ spec:
         additionalScopes:
           - "groups"
     kargoConfigMap:
-      # Keys are forwarded to the kargo-cm ConfigMap.
+      # Keys are forwarded to the kargo-cm ConfigMap. Use lowerCamel keys here;
+      # they match the platform's canonical form.
+      # Known snake_case aliases are canonicalized to lowerCamel before apply.
       # Set to "true" only when kargoSecretRef supplies
       # adminAccountPasswordHash or the hash already exists in Akuity.
       adminAccountEnabled: "false"

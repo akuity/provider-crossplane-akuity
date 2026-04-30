@@ -20,6 +20,7 @@ limitations under the License.
 package kargoagent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	sigsyaml "sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 
@@ -92,55 +94,85 @@ import (
 // self-managed agents (where they actually round-trip) untouched.
 func driftSpec() base.DriftSpec[v1alpha1.KargoAgentParameters] {
 	return base.DriftSpec[v1alpha1.KargoAgentParameters]{
-		Normalize: func(desired, observed *v1alpha1.KargoAgentParameters) {
-			if desired == nil || observed == nil {
-				return
-			}
-			if desired.Namespace == "" {
-				desired.Namespace = observed.Namespace
-			}
-			if desired.KargoAgentSpec.Data.Size == "" {
-				desired.KargoAgentSpec.Data.Size = observed.KargoAgentSpec.Data.Size
-			}
-			if desired.KargoAgentSpec.Data.ArgocdNamespace == "" {
-				desired.KargoAgentSpec.Data.ArgocdNamespace =
-					observed.KargoAgentSpec.Data.ArgocdNamespace
-			}
-			if desired.KargoAgentSpec.Data.TargetVersion == "" {
-				desired.KargoAgentSpec.Data.TargetVersion =
-					observed.KargoAgentSpec.Data.TargetVersion
-			}
-			// Kustomization round-trips as a verbatim string; the
-			// platform appends a trailing "\n" to user values that
-			// don't already have one. Same wasteful-Apply pattern as
-			// the other normalize entries: server Equals() short-
-			// circuits the DB-gen bump but the local counter still
-			// advances 1/poll. Flatten newline-only differences so
-			// presence-mode-style equality holds for byte-identical-
-			// modulo-newline content.
-			if strings.TrimRight(desired.KargoAgentSpec.Data.Kustomization, "\n") ==
-				strings.TrimRight(observed.KargoAgentSpec.Data.Kustomization, "\n") &&
-				desired.KargoAgentSpec.Data.Kustomization !=
-					observed.KargoAgentSpec.Data.Kustomization {
-				desired.KargoAgentSpec.Data.Kustomization =
-					observed.KargoAgentSpec.Data.Kustomization
-			}
-			desired.KargoAgentSpec.Data.AkuityManaged =
-				observed.KargoAgentSpec.Data.AkuityManaged
-			absorbServerClamps(desired, observed)
-			// Optional pointer fields inherit server defaults only when
-			// the user omitted them. If a user pins one and the gateway
-			// fails to echo/apply it, keep the drift visible instead of
-			// silently masking a provider/platform write-path bug.
-			normalizePtrField(
-				&desired.KargoAgentSpec.Data.PodInheritMetadata,
-				&observed.KargoAgentSpec.Data.PodInheritMetadata,
-			)
-			normalizePtrField(
-				&desired.KargoAgentSpec.Data.AutoscalerConfig,
-				&observed.KargoAgentSpec.Data.AutoscalerConfig,
-			)
-		},
+		Normalize: normalizeKargoAgentParameters,
+	}
+}
+
+func normalizeKargoAgentParameters(desired, observed *v1alpha1.KargoAgentParameters) {
+	if desired == nil || observed == nil {
+		return
+	}
+	absorbKargoAgentScalarDefaults(desired, observed)
+	desired.KargoAgentSpec.Data.AkuityManaged =
+		observed.KargoAgentSpec.Data.AkuityManaged
+	absorbServerClamps(desired, observed)
+	// Custom is a provider-side convenience. The platform stores it as
+	// a large agent plus generated Kustomize patches, so compare the
+	// projected desired shape against Export/Get.
+	_ = projectCustomKargoAgentSize(desired.Name, &desired.KargoAgentSpec.Data)
+	absorbKargoAgentSizeClamp(desired, observed)
+	absorbKargoAgentKustomizationRender(desired, observed)
+	// Optional pointer fields inherit server defaults only when the user
+	// omitted them. If a user pins one and the gateway fails to echo/apply
+	// it, keep the drift visible instead of silently masking a provider or
+	// platform write-path bug.
+	normalizePtrField(
+		&desired.KargoAgentSpec.Data.PodInheritMetadata,
+		&observed.KargoAgentSpec.Data.PodInheritMetadata,
+	)
+	normalizePtrField(
+		&desired.KargoAgentSpec.Data.AutoscalerConfig,
+		&observed.KargoAgentSpec.Data.AutoscalerConfig,
+	)
+}
+
+func absorbKargoAgentScalarDefaults(desired, observed *v1alpha1.KargoAgentParameters) {
+	if desired.Namespace == "" {
+		desired.Namespace = observed.Namespace
+	}
+	if desired.KargoAgentSpec.Data.Size == "" {
+		desired.KargoAgentSpec.Data.Size = observed.KargoAgentSpec.Data.Size
+	}
+	if desired.KargoAgentSpec.Data.ArgocdNamespace == "" {
+		desired.KargoAgentSpec.Data.ArgocdNamespace =
+			observed.KargoAgentSpec.Data.ArgocdNamespace
+	}
+	if desired.KargoAgentSpec.Data.TargetVersion == "" {
+		desired.KargoAgentSpec.Data.TargetVersion =
+			observed.KargoAgentSpec.Data.TargetVersion
+	}
+}
+
+func absorbKargoAgentSizeClamp(desired, observed *v1alpha1.KargoAgentParameters) {
+	if !knownKargoAgentSize(string(desired.KargoAgentSpec.Data.Size)) &&
+		observed.KargoAgentSpec.Data.Size != "" &&
+		desired.KargoAgentSpec.Data.Size != observed.KargoAgentSpec.Data.Size {
+		desired.KargoAgentSpec.Data.Size = observed.KargoAgentSpec.Data.Size
+	}
+}
+
+func absorbKargoAgentKustomizationRender(desired, observed *v1alpha1.KargoAgentParameters) {
+	// Kustomization round-trips as YAML text. The platform may re-render
+	// equivalent YAML with a different key order, scalar quoting, or
+	// trailing newline. Collapse semantic equality so the controller does
+	// not re-Apply every poll for equivalent manifests.
+	if kargoAgentKustomizationEquivalent(
+		desired.KargoAgentSpec.Data.Kustomization,
+		observed.KargoAgentSpec.Data.Kustomization,
+	) &&
+		desired.KargoAgentSpec.Data.Kustomization !=
+			observed.KargoAgentSpec.Data.Kustomization {
+		desired.KargoAgentSpec.Data.Kustomization =
+			observed.KargoAgentSpec.Data.Kustomization
+	}
+}
+
+func knownKargoAgentSize(size string) bool {
+	switch size {
+	case "", "small", "medium", "large", "auto":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -176,6 +208,63 @@ func normalizePtrField[T any](desired, observed **T) {
 	if *desired == nil && *observed != nil {
 		*desired = *observed
 	}
+}
+
+func kargoAgentKustomizationEquivalent(a, b string) bool {
+	if a == b {
+		return true
+	}
+	if strings.TrimRight(a, "\n") == strings.TrimRight(b, "\n") {
+		return true
+	}
+	aEmpty, aEmptyErr := isEmptyKargoAgentKustomization(a)
+	bEmpty, bEmptyErr := isEmptyKargoAgentKustomization(b)
+	if aEmptyErr == nil && bEmptyErr == nil && aEmpty && bEmpty {
+		return true
+	}
+	aRaw, aErr := kargoAgentKustomizationRaw(a)
+	bRaw, bErr := kargoAgentKustomizationRaw(b)
+	if aErr != nil || bErr != nil {
+		return false
+	}
+	return bytes.Equal(aRaw, bRaw)
+}
+
+func kargoAgentKustomizationRaw(s string) ([]byte, error) {
+	if strings.TrimSpace(s) == "" {
+		return nil, nil
+	}
+	raw, err := sigsyaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return nil, err
+	}
+	var top map[string]any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func isEmptyKargoAgentKustomization(s string) (bool, error) {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" || trimmed == "{}" || trimmed == "null" {
+		return true, nil
+	}
+	raw, err := kargoAgentKustomizationRaw(s)
+	if err != nil {
+		return false, err
+	}
+	var top map[string]any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return false, err
+	}
+	for k := range top {
+		if k == "apiVersion" || k == "kind" {
+			continue
+		}
+		return false, nil
+	}
+	return true, nil
 }
 
 // Setup registers the controller with the manager.

@@ -90,7 +90,7 @@ Delete unwanted platform-side children, ConfigMap keys, or credential Secrets th
 
 Some fields are normalized to platform-observed values because the Akuity API owns the effective value:
 
-- Cluster `autoscalerConfig` is reconciled for `clusterSpec.data.size: "auto"`. For `small`, `medium`, and `large`, the platform stamps size-profile defaults and the provider treats those observed values as authoritative.
+- Cluster and KargoAgent `autoscalerConfig` are reconciled for `size: "auto"`. For `small`, `medium`, and `large`, the platform stamps size-profile defaults and the provider treats those observed values as authoritative. For `custom`, the provider maps the desired state to platform size `large` plus generated `kustomization` patches.
 - Akuity-managed Kargo agents do not accept self-hosted customization fields such as `size`, `targetVersion`, `kustomization`, `allowedJobSa`, `autoscalerConfig`, or self-hosted Argo CD settings. Use `akuityManaged: false` for self-hosted agents.
 - Kargo agent maintenance mode is routed through a dedicated maintenance RPC rather than the normal apply payload.
 

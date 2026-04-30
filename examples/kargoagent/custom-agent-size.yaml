@@ -1,0 +1,28 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoAgent
+metadata:
+  name: my-kargo-agent-custom
+spec:
+  forProvider:
+    kargoInstanceRef:
+      name: "my-kargo"
+    name: "my-kargo-agent-custom"
+    namespace: "kargo"
+    kargoAgentSpec:
+      description: "Self-hosted Kargo agent with explicitly configured controller resources."
+      data:
+        akuityManaged: false
+        size: "custom"
+        # custom is a provider-side convenience. The provider sends
+        # platform size "large" plus generated kustomization patches.
+        targetVersion: "0.5.88"
+        autoUpgradeDisabled: false
+        argocdNamespace: "argocd"
+        selfManagedArgocdUrl: "https://argocd.example.com"
+        customAgentSizeConfig:
+          kargoController:
+            cpu: "1000m"
+            mem: "2Gi"
+  providerConfigRef:
+    name: akuity

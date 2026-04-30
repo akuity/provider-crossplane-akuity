@@ -47,11 +47,13 @@ and the managed resource remains `Synced=False`.
 
 ## Agent Sizing
 
-Use `clusterSpec.data.size: small`, `medium`, `large`, `custom`, or `auto` according to the target platform behavior.
+Use `clusterSpec.data.size: small`, `medium`, `large`, or `auto` for platform-native sizes.
 
 For `auto`, set `autoscalerConfig` and keep `autoUpgradeDisabled: false`. This is the size mode where the provider continuously reconciles user-provided autoscaler bounds.
 
 For `small`, `medium`, and `large`, the platform stamps size-profile autoscaler defaults. If `autoscalerConfig` is present for those sizes, the provider treats the platform-observed values as authoritative to avoid drift.
+
+For custom fixed resources, set `clusterSpec.data.size: custom` with `customAgentSizeConfig`. `custom` is a provider-side convenience: the provider sends platform size `large` and generated `kustomization` patches for `argocd-application-controller`, `argocd-repo-server`, and repo-server replicas. Do not combine `custom` with `autoscalerConfig`.
 
 ## Examples
 

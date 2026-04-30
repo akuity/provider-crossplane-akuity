@@ -57,11 +57,13 @@ Valid Kargo credential types are `git`, `helm`, `generic`, and `image`.
 - Removing a key from the spec stops managing that key.
 - Removing a key from the spec does not delete or clear it in Akuity.
 
-`KargoInstance.kargoConfigMap` accepts only these keys:
+`KargoInstance.kargoConfigMap` is forwarded to the platform without a provider-side key allow-list. Current platform-documented keys include:
 
 - `adminAccountEnabled`
 - `adminAccountTokenTtl`
-- `admin_account_enabled`
-- `admin_account_token_ttl`
 
-Do not set both lowerCamel and snake_case aliases for the same key.
+Use the lowerCamel spellings above for currently documented fields; they match the platform's canonical Kargo API config map names. If the platform adds more fields, the provider CRD does not need a release to pass them through.
+
+Known Kargo API aliases such as `admin_account_token_ttl` are canonicalized to the platform's lowerCamel JSON names before apply. The provider also clears the alternate known spelling in the same apply to avoid duplicate-field platform merge state. Removing `kargoConfigMap` from the managed resource stops managing those keys, but does not clear platform-side values.
+
+For `Instance.argocdSshKnownHostsConfigMap.ssh_known_hosts`, keep the Akuity Platform default known_hosts entries and append custom hosts. The full value observed from the platform is exposed at `status.atProvider.argocdSshKnownHostsConfigMap.ssh_known_hosts`, which can be used as the source when refreshing the spec after platform defaults change.

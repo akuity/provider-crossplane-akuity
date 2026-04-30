@@ -154,6 +154,26 @@ spec:
                               ipv6Only:
                                 type: boolean
                             type: object
+                          customAgentSizeConfig:
+                            properties:
+                              applicationController:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                              repoServer:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                  replicas:
+                                    format: int32
+                                    type: integer
+                                type: object
+                            type: object
                           datadogAnnotationsEnabled:
                             type: boolean
                           directClusterSpec:
@@ -476,6 +496,26 @@ spec:
                             properties:
                               ipv6Only:
                                 type: boolean
+                            type: object
+                          customAgentSizeConfig:
+                            properties:
+                              applicationController:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                type: object
+                              repoServer:
+                                properties:
+                                  cpu:
+                                    type: string
+                                  mem:
+                                    type: string
+                                  replicas:
+                                    format: int32
+                                    type: integer
+                                type: object
                             type: object
                           datadogAnnotationsEnabled:
                             type: boolean

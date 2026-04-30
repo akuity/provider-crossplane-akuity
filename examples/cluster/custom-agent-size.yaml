@@ -18,25 +18,16 @@ spec:
       description: "Cluster with explicitly configured agent resources."
       data:
         size: "custom"
-        # Custom sizing is platform-specific. Use size: "auto" when
-        # you need autoscalerConfig updates to be continuously reconciled.
+        # custom is a provider-side convenience. The provider sends
+        # platform size "large" plus generated kustomization patches.
         autoUpgradeDisabled: false
-        autoscalerConfig:
+        customAgentSizeConfig:
           applicationController:
-            resourceMinimum:
-              cpu: "750m"
-              mem: "1Gi"
-            resourceMaximum:
-              cpu: "1000m"
-              mem: "2Gi"
+            cpu: "1000m"
+            mem: "2Gi"
           repoServer:
-            replicaMinimum: 3
-            replicaMaximum: 3
-            resourceMinimum:
-              cpu: "750m"
-              mem: "1Gi"
-            resourceMaximum:
-              cpu: "1000m"
-              mem: "2Gi"
+            cpu: "750m"
+            mem: "1Gi"
+            replicas: 3
   providerConfigRef:
     name: akuity

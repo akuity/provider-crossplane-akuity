@@ -27,24 +27,6 @@ import (
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-// KargoConfigMapAllowedKeys mirrors the JSON/proto field names on the
-// platform's KargoApiCM proto. The lowerCamel spellings are canonical
-// in platform exports and docs; snake_case proto names are accepted for
-// compatibility with protojson. Any key outside this set would fail
-// ApplyKargoInstance's strict protojson unmarshal. The CRD CEL rule on
-// KargoInstanceParameters enforces the same set at admission so users
-// get an immediate error.
-//
-// The Go list and CEL strings are hand-typed in three places: this
-// slice, the allowlist CEL, and the alias-conflict CEL. Updating one
-// requires updating all three, both keyed off the same upstream proto.
-var KargoConfigMapAllowedKeys = []string{
-	"adminAccountEnabled",
-	"adminAccountTokenTtl",
-	"admin_account_enabled",
-	"admin_account_token_ttl",
-}
-
 // KargoSecretAllowedKeys is the set of kube Secret data keys the
 // controller forwards into the platform's KargoApiSecret proto. The
 // platform serializes the base instance with the default protojson
@@ -70,10 +52,11 @@ var KargoSecretAllowedKeys = map[string]string{
 //     the secret map can keep doing so; new deployments should use
 //     dexConfigSecretRef so plaintext never lives on the managed
 //     resource spec.
-//   - kargoConfigMap keys are constrained to the platform's KargoApiCM
-//     proto field set (see KargoConfigMapAllowedKeys). Any other
-//     key would crash ApplyKargoInstance's strict protojson unmarshal
-//     server-side and hot-loop the reconciler on retries.
+//   - kargoConfigMap is intentionally not key-validated by the
+//     provider. The platform is the source of truth for supported
+//     Kargo API config map fields, so new platform fields can be used
+//     without a provider release. Platform-side InvalidArgument errors
+//     are classified as terminal to avoid hot-looping.
 //
 // v1/Secret manifests are forbidden inside resources, but the check
 // lives in the controller (splitKargoResources) rather than CEL: the
@@ -85,8 +68,6 @@ var KargoSecretAllowedKeys = map[string]string{
 //
 // +kubebuilder:validation:XValidation:rule="!has(self.kargo.oidcConfig) || !has(self.kargo.oidcConfig.dexConfigSecretRef) || !has(self.kargo.oidcConfig.dexConfigSecret) || size(self.kargo.oidcConfig.dexConfigSecret) == 0",message="set either kargo.oidcConfig.dexConfigSecretRef or kargo.oidcConfig.dexConfigSecret, not both"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
-// +kubebuilder:validation:XValidation:rule="!has(self.kargoConfigMap) || self.kargoConfigMap.all(k, k in ['adminAccountEnabled', 'adminAccountTokenTtl', 'admin_account_enabled', 'admin_account_token_ttl'])",message="kargoConfigMap accepts only these keys: adminAccountEnabled, adminAccountTokenTtl, admin_account_enabled, admin_account_token_ttl. Other keys are rejected before Apply."
-// +kubebuilder:validation:XValidation:rule="!has(self.kargoConfigMap) || !('adminAccountEnabled' in self.kargoConfigMap && 'admin_account_enabled' in self.kargoConfigMap) && !('adminAccountTokenTtl' in self.kargoConfigMap && 'admin_account_token_ttl' in self.kargoConfigMap)",message="kargoConfigMap must not set both lowerCamel and snake_case aliases for the same key"
 type KargoInstanceParameters struct {
 	// Name is the Kargo instance name in the Akuity platform. Required.
 	// +kubebuilder:validation:Required
