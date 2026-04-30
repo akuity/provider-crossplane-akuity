@@ -149,6 +149,11 @@ spec:
                                     type: object
                                 type: object
                             type: object
+                          compatibility:
+                            properties:
+                              ipv6Only:
+                                type: boolean
+                            type: object
                           customAgentSizeConfig:
                             properties:
                               applicationController:
@@ -168,11 +173,6 @@ spec:
                                     format: int32
                                     type: integer
                                 type: object
-                            type: object
-                          compatibility:
-                            properties:
-                              ipv6Only:
-                                type: boolean
                             type: object
                           datadogAnnotationsEnabled:
                             type: boolean
@@ -492,6 +492,11 @@ spec:
                                     type: object
                                 type: object
                             type: object
+                          compatibility:
+                            properties:
+                              ipv6Only:
+                                type: boolean
+                            type: object
                           customAgentSizeConfig:
                             properties:
                               applicationController:
@@ -511,11 +516,6 @@ spec:
                                     format: int32
                                     type: integer
                                 type: object
-                            type: object
-                          compatibility:
-                            properties:
-                              ipv6Only:
-                                type: boolean
                             type: object
                           datadogAnnotationsEnabled:
                             type: boolean
