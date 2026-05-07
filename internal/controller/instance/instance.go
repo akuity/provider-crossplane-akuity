@@ -586,7 +586,7 @@ func normalizeItemRateLimiting(desired, observed *crossplanetypes.ItemRateLimiti
 		desired.FailureCooldown = observed.FailureCooldown
 		desired.BaseDelay = observed.BaseDelay
 		desired.MaxDelay = observed.MaxDelay
-		desired.BackoffFactorString = observed.BackoffFactorString
+		desired.BackoffFactor = observed.BackoffFactor
 	}
 }
 

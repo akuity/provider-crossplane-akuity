@@ -231,7 +231,7 @@ func ConfigManagementPlugins(pbConfigManagementPlugins []*structpb.Struct) (map[
 				Generate:         Command(configManagementPlugin.Spec.Generate),
 				Discover:         Discover(configManagementPlugin.Spec.Discover),
 				Parameters:       Parameters(configManagementPlugin.Spec.Parameters),
-				PreserveFileMode: ptr.Deref(configManagementPlugin.Spec.PreserveFileMode, false),
+				PreserveFileMode: configManagementPlugin.Spec.PreserveFileMode,
 			},
 		}
 	}
@@ -657,11 +657,11 @@ func AppReconciliationsRateLimiting(in *argocdv1.AppReconciliationsRateLimiting)
 	if in.GetItemRateLimiting() != nil {
 		item := in.GetItemRateLimiting()
 		rl.ItemRateLimiting = &crossplanetypes.ItemRateLimiting{
-			Enabled:             ptr.To(item.GetEnabled()),
-			FailureCooldown:     item.GetFailureCooldown(),
-			BaseDelay:           item.GetBaseDelay(),
-			MaxDelay:            item.GetMaxDelay(),
-			BackoffFactorString: strconv.FormatFloat(float64(item.GetBackoffFactor()), 'f', -1, 32),
+			Enabled:         ptr.To(item.GetEnabled()),
+			FailureCooldown: item.GetFailureCooldown(),
+			BaseDelay:       item.GetBaseDelay(),
+			MaxDelay:        item.GetMaxDelay(),
+			BackoffFactor:   strconv.FormatFloat(float64(item.GetBackoffFactor()), 'f', -1, 32),
 		}
 	}
 
@@ -711,7 +711,7 @@ func Parameters(p *argocdtypes.Parameters) *crossplanetypes.Parameters {
 				Name:           static.Name,
 				Title:          static.Title,
 				Tooltip:        static.Tooltip,
-				Required:       ptr.Deref(static.Required, false),
+				Required:       static.Required,
 				ItemType:       static.ItemType,
 				CollectionType: static.CollectionType,
 				String_:        static.String_,

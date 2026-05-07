@@ -494,11 +494,11 @@ func TestNormalizeInstanceParameters_DisabledItemRateLimitingAdoptsServerScalars
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-							Enabled:             ptr.To(false),
-							FailureCooldown:     30,
-							BaseDelay:           2,
-							MaxDelay:            60,
-							BackoffFactorString: "2.0",
+							Enabled:         ptr.To(false),
+							FailureCooldown: 30,
+							BaseDelay:       2,
+							MaxDelay:        60,
+							BackoffFactor:   "2.0",
 						},
 					},
 				},
@@ -511,11 +511,11 @@ func TestNormalizeInstanceParameters_DisabledItemRateLimitingAdoptsServerScalars
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-							Enabled:             ptr.To(false),
-							FailureCooldown:     10000,
-							BaseDelay:           1,
-							MaxDelay:            1000,
-							BackoffFactorString: "1.5",
+							Enabled:         ptr.To(false),
+							FailureCooldown: 10000,
+							BaseDelay:       1,
+							MaxDelay:        1000,
+							BackoffFactor:   "1.5",
 						},
 					},
 				},
@@ -531,7 +531,7 @@ func TestNormalizeInstanceParameters_DisabledItemRateLimitingAdoptsServerScalars
 	assert.Equal(t, uint32(10000), item.FailureCooldown)
 	assert.Equal(t, uint32(1), item.BaseDelay)
 	assert.Equal(t, uint32(1000), item.MaxDelay)
-	assert.Equal(t, "1.5", item.BackoffFactorString)
+	assert.Equal(t, "1.5", item.BackoffFactor)
 }
 
 func TestNormalizeInstanceParameters_EnabledItemRateLimitingKeepsUserScalars(t *testing.T) {
@@ -541,11 +541,11 @@ func TestNormalizeInstanceParameters_EnabledItemRateLimitingKeepsUserScalars(t *
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-							Enabled:             ptr.To(true),
-							FailureCooldown:     30,
-							BaseDelay:           2,
-							MaxDelay:            60,
-							BackoffFactorString: "2.0",
+							Enabled:         ptr.To(true),
+							FailureCooldown: 30,
+							BaseDelay:       2,
+							MaxDelay:        60,
+							BackoffFactor:   "2.0",
 						},
 					},
 				},
@@ -558,11 +558,11 @@ func TestNormalizeInstanceParameters_EnabledItemRateLimitingKeepsUserScalars(t *
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-							Enabled:             ptr.To(true),
-							FailureCooldown:     30,
-							BaseDelay:           2,
-							MaxDelay:            60,
-							BackoffFactorString: "2.0",
+							Enabled:         ptr.To(true),
+							FailureCooldown: 30,
+							BaseDelay:       2,
+							MaxDelay:        60,
+							BackoffFactor:   "2.0",
 						},
 					},
 				},
@@ -576,7 +576,7 @@ func TestNormalizeInstanceParameters_EnabledItemRateLimitingKeepsUserScalars(t *
 	assert.Equal(t, uint32(30), item.FailureCooldown)
 	assert.Equal(t, uint32(2), item.BaseDelay)
 	assert.Equal(t, uint32(60), item.MaxDelay)
-	assert.Equal(t, "2.0", item.BackoffFactorString)
+	assert.Equal(t, "2.0", item.BackoffFactor)
 }
 
 func TestObserve_GetInstanceNotFoundErr(t *testing.T) {
