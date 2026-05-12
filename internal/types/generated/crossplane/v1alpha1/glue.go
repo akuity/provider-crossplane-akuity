@@ -14,6 +14,7 @@ package v1alpha1
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -110,6 +111,35 @@ func TimePtrToStringPtr(t *metav1.Time) *string {
 	}
 	s := t.Format(time.RFC3339)
 	return &s
+}
+
+// Float32StringToFloat32 parses a CRD-side float-string into the
+// wire-shape float32. Empty input yields 0; unparseable input also
+// yields 0 (silent) — the curated side is expected to be regex-
+// validated at admission, so a parse failure here only happens when
+// admission is bypassed. Preserves the contract that codegen-emitted
+// converters never return errors.
+func Float32StringToFloat32(s string) float32 {
+	if s == "" {
+		return 0
+	}
+	v, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return 0
+	}
+	return float32(v)
+}
+
+// Float32ToFloat32String renders a wire-shape float32 back to its
+// curated CRD-friendly string form. Zero yields the empty string so
+// `omitempty` drops the field from observed state. Non-zero values
+// use shortest round-trip ('f' verb, -1 precision) to avoid scientific
+// notation and trailing-zero churn that would re-trigger reconciles.
+func Float32ToFloat32String(f float32) string {
+	if f == 0 {
+		return ""
+	}
+	return strconv.FormatFloat(float64(f), 'f', -1, 32)
 }
 
 // DexConfigSecretResolvedToAPI wraps a flat map of dex configuration
