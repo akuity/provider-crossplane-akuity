@@ -388,11 +388,11 @@ var (
 			BucketQps:  10,
 		},
 		ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-			Enabled:             ptr.To(true),
-			FailureCooldown:     30,
-			BaseDelay:           1,
-			MaxDelay:            10,
-			BackoffFactorString: "1.5",
+			Enabled:         ptr.To(true),
+			FailureCooldown: 30,
+			BaseDelay:       1,
+			MaxDelay:        10,
+			BackoffFactor:   "1.5",
 		},
 	}
 

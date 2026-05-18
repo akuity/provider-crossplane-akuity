@@ -26,6 +26,12 @@ limitations under the License.
 // Generate deepcopy methodsets and CRD manifests
 //go:generate go run -tags generate sigs.k8s.io/controller-tools/cmd/controller-gen object:headerFile=../hack/boilerplate.go.txt paths=./... crd:crdVersions=v1,allowDangerousTypes=true output:artifacts:config=../package/crds
 
+// Generate deepcopy for the curated wire/CRD types under
+// internal/types/generated/. The out-of-tree generator emits the type
+// definitions; controller-gen produces zz_generated.deepcopy.go in each
+// package on the consumer side.
+//go:generate go run -tags generate sigs.k8s.io/controller-tools/cmd/controller-gen object:headerFile=../hack/boilerplate.go.txt paths=../internal/types/generated/...
+
 // Generate crossplane-runtime methodsets (resource.Claim, etc)
 //go:generate go run -tags generate github.com/crossplane/crossplane-tools/cmd/angryjet generate-methodsets --header-file=../hack/boilerplate.go.txt ./...
 
