@@ -30,9 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
@@ -331,9 +329,14 @@ func specToArgoCDPB(name string, instance *crossplanetypes.ArgoCD) (*structpb.St
 }
 
 func SpecToInstanceSpec(instanceSpec crossplanetypes.InstanceSpec) (akuitytypes.InstanceSpec, error) {
-	clusterCustomization, err := specToClusterCustomization(instanceSpec.ClusterCustomizationDefaults)
-	if err != nil {
-		return akuitytypes.InstanceSpec{}, fmt.Errorf("could not build instance argocd instance spec: %w", err)
+	// Reject malformed kustomization upfront. The generated
+	// ClusterCustomizationSpecToAPI calls KustomizationStringToRaw,
+	// which silently swallows YAML errors; the controller surfaces
+	// admission-bypassed bad input as a reconcile error here.
+	if cc := instanceSpec.ClusterCustomizationDefaults; cc != nil {
+		if err := crossplanetypes.ValidateKustomizationYAML(cc.Kustomization); err != nil {
+			return akuitytypes.InstanceSpec{}, fmt.Errorf("could not build instance argocd instance spec: %w", err)
+		}
 	}
 
 	appReconciliationsRateLimiting, err := specToAppReconciliationsRateLimiting(instanceSpec.AppReconciliationsRateLimiting)
@@ -341,173 +344,9 @@ func SpecToInstanceSpec(instanceSpec crossplanetypes.InstanceSpec) (akuitytypes.
 		return akuitytypes.InstanceSpec{}, fmt.Errorf("could not build instance app reconciliations rate limiting config: %w", err)
 	}
 
-	return akuitytypes.InstanceSpec{
-		IpAllowList:                     specToIPAllowList(instanceSpec.IpAllowList),
-		Subdomain:                       instanceSpec.Subdomain,
-		DeclarativeManagementEnabled:    instanceSpec.DeclarativeManagementEnabled,
-		Extensions:                      specToExtensionInstallEntries(instanceSpec.Extensions),
-		ClusterCustomizationDefaults:    clusterCustomization,
-		ImageUpdaterEnabled:             instanceSpec.ImageUpdaterEnabled,
-		BackendIpAllowListEnabled:       instanceSpec.BackendIpAllowListEnabled,
-		RepoServerDelegate:              specToRepoServerDelegate(instanceSpec.RepoServerDelegate),
-		AuditExtensionEnabled:           instanceSpec.AuditExtensionEnabled,
-		SyncHistoryExtensionEnabled:     instanceSpec.SyncHistoryExtensionEnabled,
-		CrossplaneExtension:             specToCrossplaneExtension(instanceSpec.CrossplaneExtension),
-		ImageUpdaterDelegate:            specToImageUpdaterDelegate(instanceSpec.ImageUpdaterDelegate),
-		AppSetDelegate:                  specToAppSetDelegate(instanceSpec.AppSetDelegate),
-		AssistantExtensionEnabled:       instanceSpec.AssistantExtensionEnabled,
-		AppsetPolicy:                    specToAppsetPolicy(instanceSpec.AppsetPolicy),
-		HostAliases:                     specToHostAliases(instanceSpec.HostAliases),
-		AgentPermissionsRules:           specToAgentPermissionsRules(instanceSpec.AgentPermissionsRules),
-		Fqdn:                            instanceSpec.Fqdn,
-		MultiClusterK8SDashboardEnabled: instanceSpec.MultiClusterK8SDashboardEnabled,
-		AkuityIntelligenceExtension:     specToAkuityIntelligenceExtension(instanceSpec.AkuityIntelligenceExtension),
-		ImageUpdaterVersion:             instanceSpec.ImageUpdaterVersion,
-		CustomDeprecatedApis:            specToCustomDeprecatedApis(instanceSpec.CustomDeprecatedApis),
-		KubeVisionConfig:                specToKubeVisionConfig(instanceSpec.KubeVisionConfig),
-		AppInAnyNamespaceConfig:         specToAppInAnyNamespaceConfig(instanceSpec.AppInAnyNamespaceConfig),
-		Basepath:                        instanceSpec.Basepath,
-		AppsetProgressiveSyncsEnabled:   instanceSpec.AppsetProgressiveSyncsEnabled,
-		Secrets:                         crossplanetypes.SecretsManagementConfigSpecToAPI(instanceSpec.Secrets),
-		AppsetPlugins:                   specToAppsetPlugins(instanceSpec.AppsetPlugins),
-		ApplicationSetExtension:         specToApplicationSetExtension(instanceSpec.ApplicationSetExtension),
-		AppReconciliationsRateLimiting:  appReconciliationsRateLimiting,
-		MetricsIngressUsername:          instanceSpec.MetricsIngressUsername,
-		MetricsIngressPasswordHash:      instanceSpec.MetricsIngressPasswordHash,
-		PrivilegedNotificationCluster:   instanceSpec.PrivilegedNotificationCluster,
-		ClusterAddonsExtension:          crossplanetypes.ClusterAddonsExtensionSpecToAPI(instanceSpec.ClusterAddonsExtension),
-		ManifestGeneration:              crossplanetypes.ManifestGenerationSpecToAPI(instanceSpec.ManifestGeneration),
-	}, nil
-}
-
-func specToIPAllowList(ipAllowList []*crossplanetypes.IPAllowListEntry) []*akuitytypes.IPAllowListEntry {
-	out := make([]*akuitytypes.IPAllowListEntry, 0, len(ipAllowList))
-	for _, i := range ipAllowList {
-		out = append(out, &akuitytypes.IPAllowListEntry{
-			Ip:          i.Ip,
-			Description: i.Description,
-		})
-	}
-	return out
-}
-
-func specToExtensionInstallEntries(list []*crossplanetypes.ArgoCDExtensionInstallEntry) []*akuitytypes.ArgoCDExtensionInstallEntry {
-	out := make([]*akuitytypes.ArgoCDExtensionInstallEntry, 0, len(list))
-	for _, i := range list {
-		out = append(out, &akuitytypes.ArgoCDExtensionInstallEntry{
-			Id:      i.Id,
-			Version: i.Version,
-		})
-	}
-	return out
-}
-
-func specToClusterCustomization(in *crossplanetypes.ClusterCustomization) (*akuitytypes.ClusterCustomization, error) {
-	if in == nil {
-		return nil, nil
-	}
-	kustomization := runtime.RawExtension{}
-	if err := yaml.Unmarshal([]byte(in.Kustomization), &kustomization); err != nil {
-		return nil, fmt.Errorf("could not unmarshal cluster Kustomization from YAML to runtime raw extension: %w", err)
-	}
-	return &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled:   in.AutoUpgradeDisabled,
-		Kustomization:         kustomization,
-		AppReplication:        in.AppReplication,
-		RedisTunneling:        in.RedisTunneling,
-		ServerSideDiffEnabled: in.ServerSideDiffEnabled,
-	}, nil
-}
-
-func specToRepoServerDelegate(in *crossplanetypes.RepoServerDelegate) *akuitytypes.RepoServerDelegate {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.RepoServerDelegate{
-		ControlPlane: in.ControlPlane,
-	}
-	if in.ManagedCluster != nil {
-		out.ManagedCluster = &akuitytypes.ManagedCluster{
-			ClusterName: in.ManagedCluster.ClusterName,
-		}
-	}
-	return out
-}
-
-func specToCrossplaneExtension(in *crossplanetypes.CrossplaneExtension) *akuitytypes.CrossplaneExtension {
-	if in == nil {
-		return nil
-	}
-	resources := make([]*akuitytypes.CrossplaneExtensionResource, 0, len(in.Resources))
-	for _, r := range in.Resources {
-		resources = append(resources, &akuitytypes.CrossplaneExtensionResource{Group: r.Group})
-	}
-	return &akuitytypes.CrossplaneExtension{Resources: resources}
-}
-
-func specToImageUpdaterDelegate(in *crossplanetypes.ImageUpdaterDelegate) *akuitytypes.ImageUpdaterDelegate {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: in.ControlPlane,
-	}
-	if in.ManagedCluster != nil {
-		out.ManagedCluster = &akuitytypes.ManagedCluster{
-			ClusterName: in.ManagedCluster.ClusterName,
-		}
-	}
-	return out
-}
-
-func specToAppSetDelegate(in *crossplanetypes.AppSetDelegate) *akuitytypes.AppSetDelegate {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.AppSetDelegate{}
-	if in.ManagedCluster != nil {
-		out.ManagedCluster = &akuitytypes.ManagedCluster{
-			ClusterName: in.ManagedCluster.ClusterName,
-		}
-	}
-	return out
-}
-
-func specToAppsetPolicy(in *crossplanetypes.AppsetPolicy) *akuitytypes.AppsetPolicy {
-	if in == nil {
-		return nil
-	}
-	return &akuitytypes.AppsetPolicy{
-		Policy:         in.Policy,
-		OverridePolicy: in.OverridePolicy,
-	}
-}
-
-func specToHostAliases(list []*crossplanetypes.HostAliases) []*akuitytypes.HostAliases {
-	out := make([]*akuitytypes.HostAliases, 0, len(list))
-	for _, h := range list {
-		out = append(out, &akuitytypes.HostAliases{
-			Ip:        h.Ip,
-			Hostnames: h.Hostnames,
-		})
-	}
-	return out
-}
-
-func specToAgentPermissionsRules(rules []*crossplanetypes.AgentPermissionsRule) []*akuitytypes.AgentPermissionsRule {
-	if len(rules) == 0 {
-		return nil
-	}
-	out := make([]*akuitytypes.AgentPermissionsRule, 0, len(rules))
-	for _, r := range rules {
-		copied := r.DeepCopy()
-		out = append(out, &akuitytypes.AgentPermissionsRule{
-			ApiGroups: copied.ApiGroups,
-			Resources: copied.Resources,
-			Verbs:     copied.Verbs,
-		})
-	}
-	return out
+	out := crossplanetypes.InstanceSpecSpecToAPI(&instanceSpec)
+	out.AppReconciliationsRateLimiting = appReconciliationsRateLimiting
+	return *out, nil
 }
 
 func specToConfigMapPB(name string, data map[string]string) (*structpb.Struct, error) {
@@ -557,7 +396,7 @@ func specToConfigManagementPluginsPB(plugins map[string]crossplanetypes.ConfigMa
 					Name:           pm.Name,
 					Title:          pm.Title,
 					Tooltip:        pm.Tooltip,
-					Required:       ptr.To(pm.Required),
+					Required:       pm.Required,
 					ItemType:       pm.ItemType,
 					CollectionType: pm.CollectionType,
 					String_:        pm.String_,
@@ -589,7 +428,7 @@ func specToConfigManagementPluginsPB(plugins map[string]crossplanetypes.ConfigMa
 				Generate:         (*argocdtypes.Command)(plugin.Spec.Generate),
 				Discover:         discover,
 				Parameters:       parameters,
-				PreserveFileMode: ptr.To(plugin.Spec.PreserveFileMode),
+				PreserveFileMode: plugin.Spec.PreserveFileMode,
 			},
 		}
 
@@ -601,81 +440,6 @@ func specToConfigManagementPluginsPB(plugins map[string]crossplanetypes.ConfigMa
 	}
 
 	return out, nil
-}
-
-func specToAkuityIntelligenceExtension(in *crossplanetypes.AkuityIntelligenceExtension) *akuitytypes.AkuityIntelligenceExtension {
-	if in == nil {
-		return nil
-	}
-	return &akuitytypes.AkuityIntelligenceExtension{
-		Enabled:                  in.Enabled,
-		AllowedUsernames:         in.AllowedUsernames,
-		AllowedGroups:            in.AllowedGroups,
-		AiSupportEngineerEnabled: in.AiSupportEngineerEnabled,
-		ModelVersion:             in.ModelVersion,
-	}
-}
-
-func specToCustomDeprecatedApis(list []*crossplanetypes.CustomDeprecatedAPI) []*akuitytypes.CustomDeprecatedAPI {
-	if len(list) == 0 {
-		return nil
-	}
-	out := make([]*akuitytypes.CustomDeprecatedAPI, 0, len(list))
-	for _, c := range list {
-		out = append(out, &akuitytypes.CustomDeprecatedAPI{
-			ApiVersion:                     c.ApiVersion,
-			NewApiVersion:                  c.NewApiVersion,
-			DeprecatedInKubernetesVersion:  c.DeprecatedInKubernetesVersion,
-			UnavailableInKubernetesVersion: c.UnavailableInKubernetesVersion,
-		})
-	}
-	return out
-}
-
-func specToKubeVisionConfig(in *crossplanetypes.KubeVisionConfig) *akuitytypes.KubeVisionConfig {
-	if in == nil {
-		return nil
-	}
-	return &akuitytypes.KubeVisionConfig{
-		CveScanConfig: &akuitytypes.CveScanConfig{
-			ScanEnabled:    in.CveScanConfig.ScanEnabled,
-			RescanInterval: in.CveScanConfig.RescanInterval,
-		},
-	}
-}
-
-func specToAppInAnyNamespaceConfig(in *crossplanetypes.AppInAnyNamespaceConfig) *akuitytypes.AppInAnyNamespaceConfig {
-	if in == nil {
-		return nil
-	}
-	return &akuitytypes.AppInAnyNamespaceConfig{
-		Enabled: in.Enabled,
-	}
-}
-
-func specToAppsetPlugins(list []*crossplanetypes.AppsetPlugins) []*akuitytypes.AppsetPlugins {
-	if len(list) == 0 {
-		return nil
-	}
-	out := make([]*akuitytypes.AppsetPlugins, 0, len(list))
-	for _, p := range list {
-		out = append(out, &akuitytypes.AppsetPlugins{
-			Name:           p.Name,
-			Token:          p.Token,
-			BaseUrl:        p.BaseUrl,
-			RequestTimeout: p.RequestTimeout,
-		})
-	}
-	return out
-}
-
-func specToApplicationSetExtension(in *crossplanetypes.ApplicationSetExtension) *akuitytypes.ApplicationSetExtension {
-	if in == nil {
-		return nil
-	}
-	return &akuitytypes.ApplicationSetExtension{
-		Enabled: in.Enabled,
-	}
 }
 
 func specToAppReconciliationsRateLimiting(in *crossplanetypes.AppReconciliationsRateLimiting) (*akuitytypes.AppReconciliationsRateLimiting, error) {
@@ -702,10 +466,10 @@ func specToAppReconciliationsRateLimiting(in *crossplanetypes.AppReconciliations
 			MaxDelay:        item.MaxDelay,
 		}
 
-		if item.BackoffFactorString != "" {
-			backoff, err := strconv.ParseFloat(item.BackoffFactorString, 32)
+		if item.BackoffFactor != "" {
+			backoff, err := strconv.ParseFloat(item.BackoffFactor, 32)
 			if err != nil {
-				return nil, fmt.Errorf("could not parse backoff factor %q as float: %w", item.BackoffFactorString, err)
+				return nil, fmt.Errorf("could not parse backoff factor %q as float: %w", item.BackoffFactor, err)
 			}
 			rl.ItemRateLimiting.BackoffFactor = float32(backoff)
 		}

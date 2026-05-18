@@ -221,11 +221,16 @@ type BucketRateLimiting struct {
 
 // +kubebuilder:object:generate=true
 type ItemRateLimiting struct {
-	Enabled             *bool  `json:"enabled,omitempty"`
-	FailureCooldown     uint32 `json:"failureCooldown,omitempty"`
-	BaseDelay           uint32 `json:"baseDelay,omitempty"`
-	MaxDelay            uint32 `json:"maxDelay,omitempty"`
-	BackoffFactorString string `json:"backoffFactor,omitempty"`
+	Enabled         *bool  `json:"enabled,omitempty"`
+	FailureCooldown uint32 `json:"failureCooldown,omitempty"`
+	BaseDelay       uint32 `json:"baseDelay,omitempty"`
+	MaxDelay        uint32 `json:"maxDelay,omitempty"`
+	// BackoffFactor is the curated string form of the wire float32. The
+	// pattern enforces a numeric format so the converter's
+	// Float32StringToFloat32 adapter does not silently coerce malformed
+	// input to 0 at apply time.
+	// +kubebuilder:validation:Pattern=`^[0-9]+(\.[0-9]+)?$`
+	BackoffFactor string `json:"backoffFactor,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
