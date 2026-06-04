@@ -65,7 +65,7 @@ Edit [examples/provider/config.yaml](../../examples/provider/config.yaml):
 
 - Set `spec.organizationId` to the Akuity organization ID.
 - Keep `spec.credentialsSecretRef` pointed at the credentials Secret.
-- Set `spec.serverUrl` only for non-default Akuity API endpoints.
+- Set `spec.serverUrl` only for non-default Akuity API endpoints. The default is `https://akuity.cloud` (US region); for the EU region, set `https://eu.akuity.cloud`.
 - Use `spec.skipTlsVerify` only for local or test environments.
 
 Apply the ProviderConfig:
