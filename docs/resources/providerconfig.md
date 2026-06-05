@@ -21,7 +21,7 @@ spec:
 | --- | --- | --- |
 | `spec.organizationId` | Yes | Akuity organization ID used for all API calls. |
 | `spec.credentialsSecretRef` | Yes | Secret key containing JSON with `apiKeyId` and `apiKeySecret`. |
-| `spec.serverUrl` | No | Akuity Platform API URL. Defaults to `https://akuity.cloud`. |
+| `spec.serverUrl` | No | Akuity Platform API URL. Defaults to `https://akuity.cloud` (US region). For the EU region, set `https://eu.akuity.cloud`. |
 | `spec.skipTlsVerify` | No | Skips TLS verification. Use only for local or test endpoints. |
 
 ## Examples
