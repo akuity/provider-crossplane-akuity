@@ -30,11 +30,13 @@ type ArgoCDExtensionInstallEntry struct {
 
 // +kubebuilder:object:generate=true
 type ClusterCustomization struct {
-	AutoUpgradeDisabled   *bool  `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization         string `json:"kustomization,omitempty"`
-	AppReplication        *bool  `json:"appReplication,omitempty"`
-	RedisTunneling        *bool  `json:"redisTunneling,omitempty"`
-	ServerSideDiffEnabled *bool  `json:"serverSideDiffEnabled,omitempty"`
+	AutoUpgradeDisabled   *bool        `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization         string       `json:"kustomization,omitempty"`
+	AppReplication        *bool        `json:"appReplication,omitempty"`
+	RedisTunneling        *bool        `json:"redisTunneling,omitempty"`
+	ServerSideDiffEnabled *bool        `json:"serverSideDiffEnabled,omitempty"`
+	Connectivity          Connectivity `json:"connectivity,omitempty"`
+	CustomCaBundle        string       `json:"customCaBundle,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
@@ -287,6 +289,11 @@ type InstanceSpec struct {
 	PrivilegedNotificationCluster   *string                         `json:"privilegedNotificationCluster,omitempty"`
 	ClusterAddonsExtension          *ClusterAddonsExtension         `json:"clusterAddonsExtension,omitempty"`
 	ManifestGeneration              *ManifestGeneration             `json:"manifestGeneration,omitempty"`
+	PreferControlPlaneRepoServer    *bool                           `json:"preferControlPlaneRepoServer,omitempty"`
+	TerminationProtectionEnabled    *bool                           `json:"terminationProtectionEnabled,omitempty"`
+	TerminationProtectionNotes      *string                         `json:"terminationProtectionNotes,omitempty"`
+	Connectivity                    Connectivity                    `json:"connectivity,omitempty"`
+	AppsetNewGitFileGlobbingEnabled *bool                           `json:"appsetNewGitFileGlobbingEnabled,omitempty"`
 }
 
 // +kubebuilder:object:generate=true

@@ -196,6 +196,8 @@ spec:
                                   enabled:
                                     type: boolean
                                 type: object
+                              appsetNewGitFileGlobbingEnabled:
+                                type: boolean
                               appsetPlugins:
                                 items:
                                   properties:
@@ -246,6 +248,10 @@ spec:
                                     type: boolean
                                   autoUpgradeDisabled:
                                     type: boolean
+                                  connectivity:
+                                    type: string
+                                  customCaBundle:
+                                    type: string
                                   kustomization:
                                     type: string
                                   redisTunneling:
@@ -253,6 +259,8 @@ spec:
                                   serverSideDiffEnabled:
                                     type: boolean
                                 type: object
+                              connectivity:
+                                type: string
                               crossplaneExtension:
                                 properties:
                                   resources:
@@ -514,6 +522,8 @@ spec:
                                 type: string
                               multiClusterK8sDashboardEnabled:
                                 type: boolean
+                              preferControlPlaneRepoServer:
+                                type: boolean
                               privilegedNotificationCluster:
                                 type: string
                               repoServerDelegate:
@@ -623,6 +633,10 @@ spec:
                                 type: string
                               syncHistoryExtensionEnabled:
                                 type: boolean
+                              terminationProtectionEnabled:
+                                type: boolean
+                              terminationProtectionNotes:
+                                type: string
                             type: object
                           version:
                             type: string
@@ -1182,6 +1196,8 @@ spec:
                                   enabled:
                                     type: boolean
                                 type: object
+                              appsetNewGitFileGlobbingEnabled:
+                                type: boolean
                               appsetPlugins:
                                 items:
                                   properties:
@@ -1232,6 +1248,10 @@ spec:
                                     type: boolean
                                   autoUpgradeDisabled:
                                     type: boolean
+                                  connectivity:
+                                    type: string
+                                  customCaBundle:
+                                    type: string
                                   kustomization:
                                     type: string
                                   redisTunneling:
@@ -1239,6 +1259,8 @@ spec:
                                   serverSideDiffEnabled:
                                     type: boolean
                                 type: object
+                              connectivity:
+                                type: string
                               crossplaneExtension:
                                 properties:
                                   resources:
@@ -1500,6 +1522,8 @@ spec:
                                 type: string
                               multiClusterK8sDashboardEnabled:
                                 type: boolean
+                              preferControlPlaneRepoServer:
+                                type: boolean
                               privilegedNotificationCluster:
                                 type: string
                               repoServerDelegate:
@@ -1609,6 +1633,10 @@ spec:
                                 type: string
                               syncHistoryExtensionEnabled:
                                 type: boolean
+                              terminationProtectionEnabled:
+                                type: boolean
+                              terminationProtectionNotes:
+                                type: string
                             type: object
                           version:
                             type: string

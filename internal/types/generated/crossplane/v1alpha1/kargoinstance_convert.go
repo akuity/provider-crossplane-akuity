@@ -70,6 +70,8 @@ func KargoAgentCustomizationSpecToAPI(in *KargoAgentCustomization) *akuitytypes.
 	out := &akuitytypes.KargoAgentCustomization{}
 	out.AutoUpgradeDisabled = in.AutoUpgradeDisabled
 	out.Kustomization = KustomizationStringToRaw(in.Kustomization)
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -81,6 +83,8 @@ func KargoAgentCustomizationAPIToSpec(in *akuitytypes.KargoAgentCustomization) *
 	out := &KargoAgentCustomization{}
 	out.AutoUpgradeDisabled = in.AutoUpgradeDisabled
 	out.Kustomization = KustomizationRawToString(in.Kustomization)
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -148,6 +152,9 @@ func KargoInstanceSpecSpecToAPI(in *KargoInstanceSpec) *akuitytypes.KargoInstanc
 	out.PromoControllerEnabled = in.PromoControllerEnabled
 	out.Secrets = *SecretsManagementConfigSpecToAPI(&in.Secrets)
 	out.ArgocdUi = KargoArgoCDUIConfigSpecToAPI(in.ArgocdUi)
+	out.TerminationProtectionEnabled = in.TerminationProtectionEnabled
+	out.TerminationProtectionNotes = in.TerminationProtectionNotes
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
 	return out
 }
 
@@ -173,6 +180,9 @@ func KargoInstanceSpecAPIToSpec(in *akuitytypes.KargoInstanceSpec) *KargoInstanc
 	out.PromoControllerEnabled = in.PromoControllerEnabled
 	out.Secrets = *SecretsManagementConfigAPIToSpec(&in.Secrets)
 	out.ArgocdUi = KargoArgoCDUIConfigAPIToSpec(in.ArgocdUi)
+	out.TerminationProtectionEnabled = in.TerminationProtectionEnabled
+	out.TerminationProtectionNotes = in.TerminationProtectionNotes
+	out.Connectivity = Connectivity(in.Connectivity)
 	return out
 }
 
@@ -290,6 +300,7 @@ func KargoSpecSpecToAPI(in *KargoSpec) *akuitytypes.KargoSpec {
 	out := &akuitytypes.KargoSpec{}
 	out.Description = in.Description
 	out.Version = in.Version
+	out.Shard = in.Shard
 	out.KargoInstanceSpec = *KargoInstanceSpecSpecToAPI(&in.KargoInstanceSpec)
 	out.Fqdn = in.Fqdn
 	out.Subdomain = in.Subdomain
@@ -305,6 +316,7 @@ func KargoSpecAPIToSpec(in *akuitytypes.KargoSpec) *KargoSpec {
 	out := &KargoSpec{}
 	out.Description = in.Description
 	out.Version = in.Version
+	out.Shard = in.Shard
 	out.KargoInstanceSpec = *KargoInstanceSpecAPIToSpec(&in.KargoInstanceSpec)
 	out.Fqdn = in.Fqdn
 	out.Subdomain = in.Subdomain
