@@ -117,6 +117,9 @@ func ClusterDataSpecToAPI(in *ClusterData) *akuitytypes.ClusterData {
 	out.ServerSideDiffEnabled = in.ServerSideDiffEnabled
 	out.MaintenanceModeExpiry = StringPtrToTimePtr(in.MaintenanceModeExpiry)
 	out.PodInheritMetadata = in.PodInheritMetadata
+	out.UseLocalRepoCreds = in.UseLocalRepoCreds
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -145,6 +148,9 @@ func ClusterDataAPIToSpec(in *akuitytypes.ClusterData) *ClusterData {
 	out.ServerSideDiffEnabled = in.ServerSideDiffEnabled
 	out.MaintenanceModeExpiry = TimePtrToStringPtr(in.MaintenanceModeExpiry)
 	out.PodInheritMetadata = in.PodInheritMetadata
+	out.UseLocalRepoCreds = in.UseLocalRepoCreds
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 

@@ -113,6 +113,10 @@ spec:
                             properties:
                               autoUpgradeDisabled:
                                 type: boolean
+                              connectivity:
+                                type: string
+                              customCaBundle:
+                                type: string
                               kustomization:
                                 type: string
                             type: object
@@ -140,6 +144,8 @@ spec:
                             type: object
                           backendIpAllowListEnabled:
                             type: boolean
+                          connectivity:
+                            type: string
                           defaultShardAgent:
                             type: string
                           gcConfig:
@@ -269,6 +275,10 @@ spec:
                                   type: object
                                 type: array
                             type: object
+                          terminationProtectionEnabled:
+                            type: boolean
+                          terminationProtectionNotes:
+                            type: string
                         type: object
                       oidcConfig:
                         description: |-
@@ -379,6 +389,8 @@ spec:
                                 type: object
                             type: object
                         type: object
+                      shard:
+                        type: string
                       subdomain:
                         type: string
                       version:
@@ -702,6 +714,10 @@ spec:
                             properties:
                               autoUpgradeDisabled:
                                 type: boolean
+                              connectivity:
+                                type: string
+                              customCaBundle:
+                                type: string
                               kustomization:
                                 type: string
                             type: object
@@ -729,6 +745,8 @@ spec:
                             type: object
                           backendIpAllowListEnabled:
                             type: boolean
+                          connectivity:
+                            type: string
                           defaultShardAgent:
                             type: string
                           gcConfig:
@@ -858,6 +876,10 @@ spec:
                                   type: object
                                 type: array
                             type: object
+                          terminationProtectionEnabled:
+                            type: boolean
+                          terminationProtectionNotes:
+                            type: string
                         type: object
                       oidcConfig:
                         description: |-
@@ -968,6 +990,8 @@ spec:
                                 type: object
                             type: object
                         type: object
+                      shard:
+                        type: string
                       subdomain:
                         type: string
                       version:

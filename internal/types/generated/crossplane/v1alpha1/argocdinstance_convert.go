@@ -371,6 +371,8 @@ func ClusterCustomizationSpecToAPI(in *ClusterCustomization) *akuitytypes.Cluste
 	out.AppReplication = in.AppReplication
 	out.RedisTunneling = in.RedisTunneling
 	out.ServerSideDiffEnabled = in.ServerSideDiffEnabled
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -385,6 +387,8 @@ func ClusterCustomizationAPIToSpec(in *akuitytypes.ClusterCustomization) *Cluste
 	out.AppReplication = in.AppReplication
 	out.RedisTunneling = in.RedisTunneling
 	out.ServerSideDiffEnabled = in.ServerSideDiffEnabled
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -823,6 +827,11 @@ func InstanceSpecSpecToAPI(in *InstanceSpec) *akuitytypes.InstanceSpec {
 	out.PrivilegedNotificationCluster = in.PrivilegedNotificationCluster
 	out.ClusterAddonsExtension = ClusterAddonsExtensionSpecToAPI(in.ClusterAddonsExtension)
 	out.ManifestGeneration = ManifestGenerationSpecToAPI(in.ManifestGeneration)
+	out.PreferControlPlaneRepoServer = in.PreferControlPlaneRepoServer
+	out.TerminationProtectionEnabled = in.TerminationProtectionEnabled
+	out.TerminationProtectionNotes = in.TerminationProtectionNotes
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.AppsetNewGitFileGlobbingEnabled = in.AppsetNewGitFileGlobbingEnabled
 	return out
 }
 
@@ -897,6 +906,11 @@ func InstanceSpecAPIToSpec(in *akuitytypes.InstanceSpec) *InstanceSpec {
 	out.PrivilegedNotificationCluster = in.PrivilegedNotificationCluster
 	out.ClusterAddonsExtension = ClusterAddonsExtensionAPIToSpec(in.ClusterAddonsExtension)
 	out.ManifestGeneration = ManifestGenerationAPIToSpec(in.ManifestGeneration)
+	out.PreferControlPlaneRepoServer = in.PreferControlPlaneRepoServer
+	out.TerminationProtectionEnabled = in.TerminationProtectionEnabled
+	out.TerminationProtectionNotes = in.TerminationProtectionNotes
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.AppsetNewGitFileGlobbingEnabled = in.AppsetNewGitFileGlobbingEnabled
 	return out
 }
 

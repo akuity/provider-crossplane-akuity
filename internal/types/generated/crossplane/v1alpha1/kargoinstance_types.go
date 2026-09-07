@@ -47,6 +47,7 @@ type KargoOidcConfig struct {
 type KargoSpec struct {
 	Description       string            `json:"description"`
 	Version           string            `json:"version"`
+	Shard             string            `json:"shard,omitempty"`
 	KargoInstanceSpec KargoInstanceSpec `json:"kargoInstanceSpec,omitempty"`
 	Fqdn              string            `json:"fqdn,omitempty"`
 	Subdomain         string            `json:"subdomain,omitempty"`
@@ -76,23 +77,28 @@ type KargoIPAllowListEntry struct {
 
 // +kubebuilder:object:generate=true
 type KargoAgentCustomization struct {
-	AutoUpgradeDisabled *bool  `json:"autoUpgradeDisabled,omitempty"`
-	Kustomization       string `json:"kustomization,omitempty"`
+	AutoUpgradeDisabled *bool        `json:"autoUpgradeDisabled,omitempty"`
+	Kustomization       string       `json:"kustomization,omitempty"`
+	Connectivity        Connectivity `json:"connectivity,omitempty"`
+	CustomCaBundle      string       `json:"customCaBundle,omitempty"`
 }
 
 // +kubebuilder:object:generate=true
 type KargoInstanceSpec struct {
-	BackendIpAllowListEnabled  *bool                    `json:"backendIpAllowListEnabled,omitempty"`
-	IpAllowList                []*KargoIPAllowListEntry `json:"ipAllowList,omitempty"`
-	AgentCustomizationDefaults *KargoAgentCustomization `json:"agentCustomizationDefaults,omitempty"`
-	DefaultShardAgent          string                   `json:"defaultShardAgent,omitempty"`
-	GlobalCredentialsNs        []string                 `json:"globalCredentialsNs,omitempty"`
-	GlobalServiceAccountNs     []string                 `json:"globalServiceAccountNs,omitempty"`
-	AkuityIntelligence         *AkuityIntelligence      `json:"akuityIntelligence,omitempty"`
-	GcConfig                   *GarbageCollectorConfig  `json:"gcConfig,omitempty"`
-	PromoControllerEnabled     *bool                    `json:"promoControllerEnabled,omitempty"`
-	Secrets                    SecretsManagementConfig  `json:"secrets,omitempty"`
-	ArgocdUi                   *KargoArgoCDUIConfig     `json:"argocdUi,omitempty"`
+	BackendIpAllowListEnabled    *bool                    `json:"backendIpAllowListEnabled,omitempty"`
+	IpAllowList                  []*KargoIPAllowListEntry `json:"ipAllowList,omitempty"`
+	AgentCustomizationDefaults   *KargoAgentCustomization `json:"agentCustomizationDefaults,omitempty"`
+	DefaultShardAgent            string                   `json:"defaultShardAgent,omitempty"`
+	GlobalCredentialsNs          []string                 `json:"globalCredentialsNs,omitempty"`
+	GlobalServiceAccountNs       []string                 `json:"globalServiceAccountNs,omitempty"`
+	AkuityIntelligence           *AkuityIntelligence      `json:"akuityIntelligence,omitempty"`
+	GcConfig                     *GarbageCollectorConfig  `json:"gcConfig,omitempty"`
+	PromoControllerEnabled       *bool                    `json:"promoControllerEnabled,omitempty"`
+	Secrets                      SecretsManagementConfig  `json:"secrets,omitempty"`
+	ArgocdUi                     *KargoArgoCDUIConfig     `json:"argocdUi,omitempty"`
+	TerminationProtectionEnabled *bool                    `json:"terminationProtectionEnabled,omitempty"`
+	TerminationProtectionNotes   *string                  `json:"terminationProtectionNotes,omitempty"`
+	Connectivity                 Connectivity             `json:"connectivity,omitempty"`
 }
 
 // +kubebuilder:object:generate=true

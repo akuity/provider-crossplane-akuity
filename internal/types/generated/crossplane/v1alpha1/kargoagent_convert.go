@@ -27,6 +27,8 @@ func KargoAgentDataSpecToAPI(in *KargoAgentData) *akuitytypes.KargoAgentData {
 	out.MaintenanceModeExpiry = StringPtrToTimePtr(in.MaintenanceModeExpiry)
 	out.PodInheritMetadata = in.PodInheritMetadata
 	out.AutoscalerConfig = KargoAutoscalerConfigSpecToAPI(in.AutoscalerConfig)
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -49,6 +51,8 @@ func KargoAgentDataAPIToSpec(in *akuitytypes.KargoAgentData) *KargoAgentData {
 	out.MaintenanceModeExpiry = TimePtrToStringPtr(in.MaintenanceModeExpiry)
 	out.PodInheritMetadata = in.PodInheritMetadata
 	out.AutoscalerConfig = KargoAutoscalerConfigAPIToSpec(in.AutoscalerConfig)
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 

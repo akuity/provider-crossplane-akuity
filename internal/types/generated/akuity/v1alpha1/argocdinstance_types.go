@@ -35,9 +35,15 @@ func init() {
 }
 
 type ArgoCDSpec struct {
-	Description  string       `json:"description"`
-	Version      string       `json:"version"`
-	Shard        string       `json:"shard"`
+	Description string `json:"description"`
+	Version     string `json:"version"`
+	// Shard carries omitempty to match KargoSpec.Shard. It changes no behaviour
+	// today: the only place this struct is marshalled is the export handler, which
+	// always fills Shard via instances.DisplayShard and so never emits an empty
+	// value (a default-shard instance exports as the default shard's display name,
+	// e.g. "us0"). The tag guards a future construction site that leaves Shard
+	// unset, so it renders as an absent key rather than "shard": "".
+	Shard        string       `json:"shard,omitempty"`
 	InstanceSpec InstanceSpec `json:"instanceSpec,omitempty"`
 }
 
@@ -52,6 +58,8 @@ type ClusterCustomization struct {
 	AppReplication        *bool                `json:"appReplication,omitempty"`
 	RedisTunneling        *bool                `json:"redisTunneling,omitempty"`
 	ServerSideDiffEnabled *bool                `json:"serverSideDiffEnabled,omitempty"`
+	Connectivity          Connectivity         `json:"connectivity,omitempty"`
+	CustomCaBundle        string               `json:"customCaBundle,omitempty"`
 }
 
 type AppsetPolicy struct {
@@ -268,6 +276,11 @@ type InstanceSpec struct {
 	PrivilegedNotificationCluster   *string                         `json:"privilegedNotificationCluster,omitempty"`
 	ClusterAddonsExtension          *ClusterAddonsExtension         `json:"clusterAddonsExtension,omitempty"`
 	ManifestGeneration              *ManifestGeneration             `json:"manifestGeneration,omitempty"`
+	PreferControlPlaneRepoServer    *bool                           `json:"preferControlPlaneRepoServer,omitempty"`
+	TerminationProtectionEnabled    *bool                           `json:"terminationProtectionEnabled,omitempty"`
+	TerminationProtectionNotes      *string                         `json:"terminationProtectionNotes,omitempty"`
+	Connectivity                    Connectivity                    `json:"connectivity,omitempty"`
+	AppsetNewGitFileGlobbingEnabled *bool                           `json:"appsetNewGitFileGlobbingEnabled,omitempty"`
 }
 
 type AppsetPlugins struct {
