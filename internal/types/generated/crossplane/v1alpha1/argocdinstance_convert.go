@@ -136,6 +136,28 @@ func AkuityIntelligenceExtensionAPIToSpec(in *akuitytypes.AkuityIntelligenceExte
 	return out
 }
 
+// AppControllerAutoScalingConfigSpecToAPI converts the curated AppControllerAutoScalingConfig into the Akuity API AppControllerAutoScalingConfig wire type.
+func AppControllerAutoScalingConfigSpecToAPI(in *AppControllerAutoScalingConfig) *akuitytypes.AppControllerAutoScalingConfig {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.AppControllerAutoScalingConfig{}
+	out.ResourceMinimum = ResourcesSpecToAPI(in.ResourceMinimum)
+	out.ResourceMaximum = ResourcesSpecToAPI(in.ResourceMaximum)
+	return out
+}
+
+// AppControllerAutoScalingConfigAPIToSpec converts the Akuity API AppControllerAutoScalingConfig wire type back into the curated AppControllerAutoScalingConfig.
+func AppControllerAutoScalingConfigAPIToSpec(in *akuitytypes.AppControllerAutoScalingConfig) *AppControllerAutoScalingConfig {
+	if in == nil {
+		return nil
+	}
+	out := &AppControllerAutoScalingConfig{}
+	out.ResourceMinimum = ResourcesAPIToSpec(in.ResourceMinimum)
+	out.ResourceMaximum = ResourcesAPIToSpec(in.ResourceMaximum)
+	return out
+}
+
 // AppInAnyNamespaceConfigSpecToAPI converts the curated AppInAnyNamespaceConfig into the Akuity API AppInAnyNamespaceConfig wire type.
 func AppInAnyNamespaceConfigSpecToAPI(in *AppInAnyNamespaceConfig) *akuitytypes.AppInAnyNamespaceConfig {
 	if in == nil {
@@ -312,6 +334,28 @@ func ArgoCDSpecAPIToSpec(in *akuitytypes.ArgoCDSpec) *ArgoCDSpec {
 	return out
 }
 
+// AutoScalerConfigSpecToAPI converts the curated AutoScalerConfig into the Akuity API AutoScalerConfig wire type.
+func AutoScalerConfigSpecToAPI(in *AutoScalerConfig) *akuitytypes.AutoScalerConfig {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.AutoScalerConfig{}
+	out.ApplicationController = AppControllerAutoScalingConfigSpecToAPI(in.ApplicationController)
+	out.RepoServer = RepoServerAutoScalingConfigSpecToAPI(in.RepoServer)
+	return out
+}
+
+// AutoScalerConfigAPIToSpec converts the Akuity API AutoScalerConfig wire type back into the curated AutoScalerConfig.
+func AutoScalerConfigAPIToSpec(in *akuitytypes.AutoScalerConfig) *AutoScalerConfig {
+	if in == nil {
+		return nil
+	}
+	out := &AutoScalerConfig{}
+	out.ApplicationController = AppControllerAutoScalingConfigAPIToSpec(in.ApplicationController)
+	out.RepoServer = RepoServerAutoScalingConfigAPIToSpec(in.RepoServer)
+	return out
+}
+
 // BucketRateLimitingSpecToAPI converts the curated BucketRateLimiting into the Akuity API BucketRateLimiting wire type.
 func BucketRateLimitingSpecToAPI(in *BucketRateLimiting) *akuitytypes.BucketRateLimiting {
 	if in == nil {
@@ -371,6 +415,10 @@ func ClusterCustomizationSpecToAPI(in *ClusterCustomization) *akuitytypes.Cluste
 	out.AppReplication = in.AppReplication
 	out.RedisTunneling = in.RedisTunneling
 	out.ServerSideDiffEnabled = in.ServerSideDiffEnabled
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
+	out.Size = akuitytypes.ClusterSize(in.Size)
+	out.AutoscalerConfig = AutoScalerConfigSpecToAPI(in.AutoscalerConfig)
 	return out
 }
 
@@ -385,6 +433,10 @@ func ClusterCustomizationAPIToSpec(in *akuitytypes.ClusterCustomization) *Cluste
 	out.AppReplication = in.AppReplication
 	out.RedisTunneling = in.RedisTunneling
 	out.ServerSideDiffEnabled = in.ServerSideDiffEnabled
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
+	out.Size = ClusterSize(in.Size)
+	out.AutoscalerConfig = AutoScalerConfigAPIToSpec(in.AutoscalerConfig)
 	return out
 }
 
@@ -823,6 +875,12 @@ func InstanceSpecSpecToAPI(in *InstanceSpec) *akuitytypes.InstanceSpec {
 	out.PrivilegedNotificationCluster = in.PrivilegedNotificationCluster
 	out.ClusterAddonsExtension = ClusterAddonsExtensionSpecToAPI(in.ClusterAddonsExtension)
 	out.ManifestGeneration = ManifestGenerationSpecToAPI(in.ManifestGeneration)
+	out.PreferControlPlaneRepoServer = in.PreferControlPlaneRepoServer
+	out.TerminationProtectionEnabled = in.TerminationProtectionEnabled
+	out.TerminationProtectionNotes = in.TerminationProtectionNotes
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.McpServer = MCPServerConfigSpecToAPI(in.McpServer)
+	out.AppsetNewGitFileGlobbingEnabled = in.AppsetNewGitFileGlobbingEnabled
 	return out
 }
 
@@ -897,6 +955,12 @@ func InstanceSpecAPIToSpec(in *akuitytypes.InstanceSpec) *InstanceSpec {
 	out.PrivilegedNotificationCluster = in.PrivilegedNotificationCluster
 	out.ClusterAddonsExtension = ClusterAddonsExtensionAPIToSpec(in.ClusterAddonsExtension)
 	out.ManifestGeneration = ManifestGenerationAPIToSpec(in.ManifestGeneration)
+	out.PreferControlPlaneRepoServer = in.PreferControlPlaneRepoServer
+	out.TerminationProtectionEnabled = in.TerminationProtectionEnabled
+	out.TerminationProtectionNotes = in.TerminationProtectionNotes
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.McpServer = MCPServerConfigAPIToSpec(in.McpServer)
+	out.AppsetNewGitFileGlobbingEnabled = in.AppsetNewGitFileGlobbingEnabled
 	return out
 }
 
@@ -986,6 +1050,26 @@ func LabelSelectorRequirementAPIToSpec(in *akuitytypes.LabelSelectorRequirement)
 	return out
 }
 
+// MCPServerConfigSpecToAPI converts the curated MCPServerConfig into the Akuity API MCPServerConfig wire type.
+func MCPServerConfigSpecToAPI(in *MCPServerConfig) *akuitytypes.MCPServerConfig {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.MCPServerConfig{}
+	out.Enabled = in.Enabled
+	return out
+}
+
+// MCPServerConfigAPIToSpec converts the Akuity API MCPServerConfig wire type back into the curated MCPServerConfig.
+func MCPServerConfigAPIToSpec(in *akuitytypes.MCPServerConfig) *MCPServerConfig {
+	if in == nil {
+		return nil
+	}
+	out := &MCPServerConfig{}
+	out.Enabled = in.Enabled
+	return out
+}
+
 // ManagedClusterSpecToAPI converts the curated ManagedCluster into the Akuity API ManagedCluster wire type.
 func ManagedClusterSpecToAPI(in *ManagedCluster) *akuitytypes.ManagedCluster {
 	if in == nil {
@@ -1058,6 +1142,32 @@ func ObjectSelectorAPIToSpec(in *akuitytypes.ObjectSelector) *ObjectSelector {
 	return out
 }
 
+// RepoServerAutoScalingConfigSpecToAPI converts the curated RepoServerAutoScalingConfig into the Akuity API RepoServerAutoScalingConfig wire type.
+func RepoServerAutoScalingConfigSpecToAPI(in *RepoServerAutoScalingConfig) *akuitytypes.RepoServerAutoScalingConfig {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.RepoServerAutoScalingConfig{}
+	out.ResourceMinimum = ResourcesSpecToAPI(in.ResourceMinimum)
+	out.ResourceMaximum = ResourcesSpecToAPI(in.ResourceMaximum)
+	out.ReplicaMaximum = in.ReplicaMaximum
+	out.ReplicaMinimum = in.ReplicaMinimum
+	return out
+}
+
+// RepoServerAutoScalingConfigAPIToSpec converts the Akuity API RepoServerAutoScalingConfig wire type back into the curated RepoServerAutoScalingConfig.
+func RepoServerAutoScalingConfigAPIToSpec(in *akuitytypes.RepoServerAutoScalingConfig) *RepoServerAutoScalingConfig {
+	if in == nil {
+		return nil
+	}
+	out := &RepoServerAutoScalingConfig{}
+	out.ResourceMinimum = ResourcesAPIToSpec(in.ResourceMinimum)
+	out.ResourceMaximum = ResourcesAPIToSpec(in.ResourceMaximum)
+	out.ReplicaMaximum = in.ReplicaMaximum
+	out.ReplicaMinimum = in.ReplicaMinimum
+	return out
+}
+
 // RepoServerDelegateSpecToAPI converts the curated RepoServerDelegate into the Akuity API RepoServerDelegate wire type.
 func RepoServerDelegateSpecToAPI(in *RepoServerDelegate) *akuitytypes.RepoServerDelegate {
 	if in == nil {
@@ -1077,6 +1187,28 @@ func RepoServerDelegateAPIToSpec(in *akuitytypes.RepoServerDelegate) *RepoServer
 	out := &RepoServerDelegate{}
 	out.ControlPlane = in.ControlPlane
 	out.ManagedCluster = ManagedClusterAPIToSpec(in.ManagedCluster)
+	return out
+}
+
+// ResourcesSpecToAPI converts the curated Resources into the Akuity API Resources wire type.
+func ResourcesSpecToAPI(in *Resources) *akuitytypes.Resources {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.Resources{}
+	out.Mem = in.Mem
+	out.Cpu = in.Cpu
+	return out
+}
+
+// ResourcesAPIToSpec converts the Akuity API Resources wire type back into the curated Resources.
+func ResourcesAPIToSpec(in *akuitytypes.Resources) *Resources {
+	if in == nil {
+		return nil
+	}
+	out := &Resources{}
+	out.Mem = in.Mem
+	out.Cpu = in.Cpu
 	return out
 }
 

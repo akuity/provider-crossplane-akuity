@@ -27,6 +27,8 @@ func KargoAgentDataSpecToAPI(in *KargoAgentData) *akuitytypes.KargoAgentData {
 	out.MaintenanceModeExpiry = StringPtrToTimePtr(in.MaintenanceModeExpiry)
 	out.PodInheritMetadata = in.PodInheritMetadata
 	out.AutoscalerConfig = KargoAutoscalerConfigSpecToAPI(in.AutoscalerConfig)
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -49,6 +51,8 @@ func KargoAgentDataAPIToSpec(in *akuitytypes.KargoAgentData) *KargoAgentData {
 	out.MaintenanceModeExpiry = TimePtrToStringPtr(in.MaintenanceModeExpiry)
 	out.PodInheritMetadata = in.PodInheritMetadata
 	out.AutoscalerConfig = KargoAutoscalerConfigAPIToSpec(in.AutoscalerConfig)
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -71,69 +75,5 @@ func KargoAgentSpecAPIToSpec(in *akuitytypes.KargoAgentSpec) *KargoAgentSpec {
 	out := &KargoAgentSpec{}
 	out.Description = in.Description
 	out.Data = *KargoAgentDataAPIToSpec(&in.Data)
-	return out
-}
-
-// KargoAutoscalerConfigSpecToAPI converts the curated KargoAutoscalerConfig into the Akuity API KargoAutoscalerConfig wire type.
-func KargoAutoscalerConfigSpecToAPI(in *KargoAutoscalerConfig) *akuitytypes.KargoAutoscalerConfig {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.KargoAutoscalerConfig{}
-	out.KargoController = KargoControllerAutoScalingConfigSpecToAPI(in.KargoController)
-	return out
-}
-
-// KargoAutoscalerConfigAPIToSpec converts the Akuity API KargoAutoscalerConfig wire type back into the curated KargoAutoscalerConfig.
-func KargoAutoscalerConfigAPIToSpec(in *akuitytypes.KargoAutoscalerConfig) *KargoAutoscalerConfig {
-	if in == nil {
-		return nil
-	}
-	out := &KargoAutoscalerConfig{}
-	out.KargoController = KargoControllerAutoScalingConfigAPIToSpec(in.KargoController)
-	return out
-}
-
-// KargoControllerAutoScalingConfigSpecToAPI converts the curated KargoControllerAutoScalingConfig into the Akuity API KargoControllerAutoScalingConfig wire type.
-func KargoControllerAutoScalingConfigSpecToAPI(in *KargoControllerAutoScalingConfig) *akuitytypes.KargoControllerAutoScalingConfig {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.KargoControllerAutoScalingConfig{}
-	out.ResourceMinimum = KargoResourcesSpecToAPI(in.ResourceMinimum)
-	out.ResourceMaximum = KargoResourcesSpecToAPI(in.ResourceMaximum)
-	return out
-}
-
-// KargoControllerAutoScalingConfigAPIToSpec converts the Akuity API KargoControllerAutoScalingConfig wire type back into the curated KargoControllerAutoScalingConfig.
-func KargoControllerAutoScalingConfigAPIToSpec(in *akuitytypes.KargoControllerAutoScalingConfig) *KargoControllerAutoScalingConfig {
-	if in == nil {
-		return nil
-	}
-	out := &KargoControllerAutoScalingConfig{}
-	out.ResourceMinimum = KargoResourcesAPIToSpec(in.ResourceMinimum)
-	out.ResourceMaximum = KargoResourcesAPIToSpec(in.ResourceMaximum)
-	return out
-}
-
-// KargoResourcesSpecToAPI converts the curated KargoResources into the Akuity API KargoResources wire type.
-func KargoResourcesSpecToAPI(in *KargoResources) *akuitytypes.KargoResources {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.KargoResources{}
-	out.Mem = in.Mem
-	out.Cpu = in.Cpu
-	return out
-}
-
-// KargoResourcesAPIToSpec converts the Akuity API KargoResources wire type back into the curated KargoResources.
-func KargoResourcesAPIToSpec(in *akuitytypes.KargoResources) *KargoResources {
-	if in == nil {
-		return nil
-	}
-	out := &KargoResources{}
-	out.Mem = in.Mem
-	out.Cpu = in.Cpu
 	return out
 }
