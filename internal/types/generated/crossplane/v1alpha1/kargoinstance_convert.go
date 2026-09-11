@@ -70,6 +70,10 @@ func KargoAgentCustomizationSpecToAPI(in *KargoAgentCustomization) *akuitytypes.
 	out := &akuitytypes.KargoAgentCustomization{}
 	out.AutoUpgradeDisabled = in.AutoUpgradeDisabled
 	out.Kustomization = KustomizationStringToRaw(in.Kustomization)
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
+	out.Size = akuitytypes.KargoAgentSize(in.Size)
+	out.AutoscalerConfig = KargoAutoscalerConfigSpecToAPI(in.AutoscalerConfig)
 	return out
 }
 
@@ -81,6 +85,10 @@ func KargoAgentCustomizationAPIToSpec(in *akuitytypes.KargoAgentCustomization) *
 	out := &KargoAgentCustomization{}
 	out.AutoUpgradeDisabled = in.AutoUpgradeDisabled
 	out.Kustomization = KustomizationRawToString(in.Kustomization)
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
+	out.Size = KargoAgentSize(in.Size)
+	out.AutoscalerConfig = KargoAutoscalerConfigAPIToSpec(in.AutoscalerConfig)
 	return out
 }
 
@@ -101,6 +109,48 @@ func KargoArgoCDUIConfigAPIToSpec(in *akuitytypes.KargoArgoCDUIConfig) *KargoArg
 	}
 	out := &KargoArgoCDUIConfig{}
 	out.IdpGroupsMapping = in.IdpGroupsMapping
+	return out
+}
+
+// KargoAutoscalerConfigSpecToAPI converts the curated KargoAutoscalerConfig into the Akuity API KargoAutoscalerConfig wire type.
+func KargoAutoscalerConfigSpecToAPI(in *KargoAutoscalerConfig) *akuitytypes.KargoAutoscalerConfig {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.KargoAutoscalerConfig{}
+	out.KargoController = KargoControllerAutoScalingConfigSpecToAPI(in.KargoController)
+	return out
+}
+
+// KargoAutoscalerConfigAPIToSpec converts the Akuity API KargoAutoscalerConfig wire type back into the curated KargoAutoscalerConfig.
+func KargoAutoscalerConfigAPIToSpec(in *akuitytypes.KargoAutoscalerConfig) *KargoAutoscalerConfig {
+	if in == nil {
+		return nil
+	}
+	out := &KargoAutoscalerConfig{}
+	out.KargoController = KargoControllerAutoScalingConfigAPIToSpec(in.KargoController)
+	return out
+}
+
+// KargoControllerAutoScalingConfigSpecToAPI converts the curated KargoControllerAutoScalingConfig into the Akuity API KargoControllerAutoScalingConfig wire type.
+func KargoControllerAutoScalingConfigSpecToAPI(in *KargoControllerAutoScalingConfig) *akuitytypes.KargoControllerAutoScalingConfig {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.KargoControllerAutoScalingConfig{}
+	out.ResourceMinimum = KargoResourcesSpecToAPI(in.ResourceMinimum)
+	out.ResourceMaximum = KargoResourcesSpecToAPI(in.ResourceMaximum)
+	return out
+}
+
+// KargoControllerAutoScalingConfigAPIToSpec converts the Akuity API KargoControllerAutoScalingConfig wire type back into the curated KargoControllerAutoScalingConfig.
+func KargoControllerAutoScalingConfigAPIToSpec(in *akuitytypes.KargoControllerAutoScalingConfig) *KargoControllerAutoScalingConfig {
+	if in == nil {
+		return nil
+	}
+	out := &KargoControllerAutoScalingConfig{}
+	out.ResourceMinimum = KargoResourcesAPIToSpec(in.ResourceMinimum)
+	out.ResourceMaximum = KargoResourcesAPIToSpec(in.ResourceMaximum)
 	return out
 }
 
@@ -148,6 +198,10 @@ func KargoInstanceSpecSpecToAPI(in *KargoInstanceSpec) *akuitytypes.KargoInstanc
 	out.PromoControllerEnabled = in.PromoControllerEnabled
 	out.Secrets = *SecretsManagementConfigSpecToAPI(&in.Secrets)
 	out.ArgocdUi = KargoArgoCDUIConfigSpecToAPI(in.ArgocdUi)
+	out.TerminationProtectionEnabled = in.TerminationProtectionEnabled
+	out.TerminationProtectionNotes = in.TerminationProtectionNotes
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.McpServer = MCPServerConfigSpecToAPI(in.McpServer)
 	return out
 }
 
@@ -173,6 +227,10 @@ func KargoInstanceSpecAPIToSpec(in *akuitytypes.KargoInstanceSpec) *KargoInstanc
 	out.PromoControllerEnabled = in.PromoControllerEnabled
 	out.Secrets = *SecretsManagementConfigAPIToSpec(&in.Secrets)
 	out.ArgocdUi = KargoArgoCDUIConfigAPIToSpec(in.ArgocdUi)
+	out.TerminationProtectionEnabled = in.TerminationProtectionEnabled
+	out.TerminationProtectionNotes = in.TerminationProtectionNotes
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.McpServer = MCPServerConfigAPIToSpec(in.McpServer)
 	return out
 }
 
@@ -282,6 +340,28 @@ func KargoPredefinedAccountDataAPIToSpec(in *akuitytypes.KargoPredefinedAccountD
 	return out
 }
 
+// KargoResourcesSpecToAPI converts the curated KargoResources into the Akuity API KargoResources wire type.
+func KargoResourcesSpecToAPI(in *KargoResources) *akuitytypes.KargoResources {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.KargoResources{}
+	out.Mem = in.Mem
+	out.Cpu = in.Cpu
+	return out
+}
+
+// KargoResourcesAPIToSpec converts the Akuity API KargoResources wire type back into the curated KargoResources.
+func KargoResourcesAPIToSpec(in *akuitytypes.KargoResources) *KargoResources {
+	if in == nil {
+		return nil
+	}
+	out := &KargoResources{}
+	out.Mem = in.Mem
+	out.Cpu = in.Cpu
+	return out
+}
+
 // KargoSpecSpecToAPI converts the curated KargoSpec into the Akuity API KargoSpec wire type.
 func KargoSpecSpecToAPI(in *KargoSpec) *akuitytypes.KargoSpec {
 	if in == nil {
@@ -290,6 +370,7 @@ func KargoSpecSpecToAPI(in *KargoSpec) *akuitytypes.KargoSpec {
 	out := &akuitytypes.KargoSpec{}
 	out.Description = in.Description
 	out.Version = in.Version
+	out.Shard = in.Shard
 	out.KargoInstanceSpec = *KargoInstanceSpecSpecToAPI(&in.KargoInstanceSpec)
 	out.Fqdn = in.Fqdn
 	out.Subdomain = in.Subdomain
@@ -305,6 +386,7 @@ func KargoSpecAPIToSpec(in *akuitytypes.KargoSpec) *KargoSpec {
 	out := &KargoSpec{}
 	out.Description = in.Description
 	out.Version = in.Version
+	out.Shard = in.Shard
 	out.KargoInstanceSpec = *KargoInstanceSpecAPIToSpec(&in.KargoInstanceSpec)
 	out.Fqdn = in.Fqdn
 	out.Subdomain = in.Subdomain

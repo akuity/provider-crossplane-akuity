@@ -113,7 +113,33 @@ spec:
                             properties:
                               autoUpgradeDisabled:
                                 type: boolean
+                              autoscalerConfig:
+                                properties:
+                                  kargoController:
+                                    properties:
+                                      resourceMaximum:
+                                        properties:
+                                          cpu:
+                                            type: string
+                                          mem:
+                                            type: string
+                                        type: object
+                                      resourceMinimum:
+                                        properties:
+                                          cpu:
+                                            type: string
+                                          mem:
+                                            type: string
+                                        type: object
+                                    type: object
+                                type: object
+                              connectivity:
+                                type: string
+                              customCaBundle:
+                                type: string
                               kustomization:
+                                type: string
+                              size:
                                 type: string
                             type: object
                           akuityIntelligence:
@@ -140,6 +166,8 @@ spec:
                             type: object
                           backendIpAllowListEnabled:
                             type: boolean
+                          connectivity:
+                            type: string
                           defaultShardAgent:
                             type: string
                           gcConfig:
@@ -174,6 +202,13 @@ spec:
                                   type: string
                               type: object
                             type: array
+                          mcpServer:
+                            properties:
+                              enabled:
+                                type: boolean
+                            required:
+                            - enabled
+                            type: object
                           promoControllerEnabled:
                             type: boolean
                           secrets:
@@ -269,6 +304,10 @@ spec:
                                   type: object
                                 type: array
                             type: object
+                          terminationProtectionEnabled:
+                            type: boolean
+                          terminationProtectionNotes:
+                            type: string
                         type: object
                       oidcConfig:
                         description: |-
@@ -379,6 +418,8 @@ spec:
                                 type: object
                             type: object
                         type: object
+                      shard:
+                        type: string
                       subdomain:
                         type: string
                       version:
@@ -702,7 +743,33 @@ spec:
                             properties:
                               autoUpgradeDisabled:
                                 type: boolean
+                              autoscalerConfig:
+                                properties:
+                                  kargoController:
+                                    properties:
+                                      resourceMaximum:
+                                        properties:
+                                          cpu:
+                                            type: string
+                                          mem:
+                                            type: string
+                                        type: object
+                                      resourceMinimum:
+                                        properties:
+                                          cpu:
+                                            type: string
+                                          mem:
+                                            type: string
+                                        type: object
+                                    type: object
+                                type: object
+                              connectivity:
+                                type: string
+                              customCaBundle:
+                                type: string
                               kustomization:
+                                type: string
+                              size:
                                 type: string
                             type: object
                           akuityIntelligence:
@@ -729,6 +796,8 @@ spec:
                             type: object
                           backendIpAllowListEnabled:
                             type: boolean
+                          connectivity:
+                            type: string
                           defaultShardAgent:
                             type: string
                           gcConfig:
@@ -763,6 +832,13 @@ spec:
                                   type: string
                               type: object
                             type: array
+                          mcpServer:
+                            properties:
+                              enabled:
+                                type: boolean
+                            required:
+                            - enabled
+                            type: object
                           promoControllerEnabled:
                             type: boolean
                           secrets:
@@ -858,6 +934,10 @@ spec:
                                   type: object
                                 type: array
                             type: object
+                          terminationProtectionEnabled:
+                            type: boolean
+                          terminationProtectionNotes:
+                            type: string
                         type: object
                       oidcConfig:
                         description: |-
@@ -968,6 +1048,8 @@ spec:
                                 type: object
                             type: object
                         type: object
+                      shard:
+                        type: string
                       subdomain:
                         type: string
                       version:

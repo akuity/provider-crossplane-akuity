@@ -8,50 +8,6 @@ package v1alpha1
 
 import akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 
-// AppControllerAutoScalingConfigSpecToAPI converts the curated AppControllerAutoScalingConfig into the Akuity API AppControllerAutoScalingConfig wire type.
-func AppControllerAutoScalingConfigSpecToAPI(in *AppControllerAutoScalingConfig) *akuitytypes.AppControllerAutoScalingConfig {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.AppControllerAutoScalingConfig{}
-	out.ResourceMinimum = ResourcesSpecToAPI(in.ResourceMinimum)
-	out.ResourceMaximum = ResourcesSpecToAPI(in.ResourceMaximum)
-	return out
-}
-
-// AppControllerAutoScalingConfigAPIToSpec converts the Akuity API AppControllerAutoScalingConfig wire type back into the curated AppControllerAutoScalingConfig.
-func AppControllerAutoScalingConfigAPIToSpec(in *akuitytypes.AppControllerAutoScalingConfig) *AppControllerAutoScalingConfig {
-	if in == nil {
-		return nil
-	}
-	out := &AppControllerAutoScalingConfig{}
-	out.ResourceMinimum = ResourcesAPIToSpec(in.ResourceMinimum)
-	out.ResourceMaximum = ResourcesAPIToSpec(in.ResourceMaximum)
-	return out
-}
-
-// AutoScalerConfigSpecToAPI converts the curated AutoScalerConfig into the Akuity API AutoScalerConfig wire type.
-func AutoScalerConfigSpecToAPI(in *AutoScalerConfig) *akuitytypes.AutoScalerConfig {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.AutoScalerConfig{}
-	out.ApplicationController = AppControllerAutoScalingConfigSpecToAPI(in.ApplicationController)
-	out.RepoServer = RepoServerAutoScalingConfigSpecToAPI(in.RepoServer)
-	return out
-}
-
-// AutoScalerConfigAPIToSpec converts the Akuity API AutoScalerConfig wire type back into the curated AutoScalerConfig.
-func AutoScalerConfigAPIToSpec(in *akuitytypes.AutoScalerConfig) *AutoScalerConfig {
-	if in == nil {
-		return nil
-	}
-	out := &AutoScalerConfig{}
-	out.ApplicationController = AppControllerAutoScalingConfigAPIToSpec(in.ApplicationController)
-	out.RepoServer = RepoServerAutoScalingConfigAPIToSpec(in.RepoServer)
-	return out
-}
-
 // ClusterArgoCDNotificationsSettingsSpecToAPI converts the curated ClusterArgoCDNotificationsSettings into the Akuity API ClusterArgoCDNotificationsSettings wire type.
 func ClusterArgoCDNotificationsSettingsSpecToAPI(in *ClusterArgoCDNotificationsSettings) *akuitytypes.ClusterArgoCDNotificationsSettings {
 	if in == nil {
@@ -117,6 +73,9 @@ func ClusterDataSpecToAPI(in *ClusterData) *akuitytypes.ClusterData {
 	out.ServerSideDiffEnabled = in.ServerSideDiffEnabled
 	out.MaintenanceModeExpiry = StringPtrToTimePtr(in.MaintenanceModeExpiry)
 	out.PodInheritMetadata = in.PodInheritMetadata
+	out.UseLocalRepoCreds = in.UseLocalRepoCreds
+	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -145,6 +104,9 @@ func ClusterDataAPIToSpec(in *akuitytypes.ClusterData) *ClusterData {
 	out.ServerSideDiffEnabled = in.ServerSideDiffEnabled
 	out.MaintenanceModeExpiry = TimePtrToStringPtr(in.MaintenanceModeExpiry)
 	out.PodInheritMetadata = in.PodInheritMetadata
+	out.UseLocalRepoCreds = in.UseLocalRepoCreds
+	out.Connectivity = Connectivity(in.Connectivity)
+	out.CustomCaBundle = in.CustomCaBundle
 	return out
 }
 
@@ -197,53 +159,5 @@ func ManagedClusterConfigAPIToSpec(in *akuitytypes.ManagedClusterConfig) *Manage
 	out := &ManagedClusterConfig{}
 	out.SecretName = in.SecretName
 	out.SecretKey = in.SecretKey
-	return out
-}
-
-// RepoServerAutoScalingConfigSpecToAPI converts the curated RepoServerAutoScalingConfig into the Akuity API RepoServerAutoScalingConfig wire type.
-func RepoServerAutoScalingConfigSpecToAPI(in *RepoServerAutoScalingConfig) *akuitytypes.RepoServerAutoScalingConfig {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.RepoServerAutoScalingConfig{}
-	out.ResourceMinimum = ResourcesSpecToAPI(in.ResourceMinimum)
-	out.ResourceMaximum = ResourcesSpecToAPI(in.ResourceMaximum)
-	out.ReplicaMaximum = in.ReplicaMaximum
-	out.ReplicaMinimum = in.ReplicaMinimum
-	return out
-}
-
-// RepoServerAutoScalingConfigAPIToSpec converts the Akuity API RepoServerAutoScalingConfig wire type back into the curated RepoServerAutoScalingConfig.
-func RepoServerAutoScalingConfigAPIToSpec(in *akuitytypes.RepoServerAutoScalingConfig) *RepoServerAutoScalingConfig {
-	if in == nil {
-		return nil
-	}
-	out := &RepoServerAutoScalingConfig{}
-	out.ResourceMinimum = ResourcesAPIToSpec(in.ResourceMinimum)
-	out.ResourceMaximum = ResourcesAPIToSpec(in.ResourceMaximum)
-	out.ReplicaMaximum = in.ReplicaMaximum
-	out.ReplicaMinimum = in.ReplicaMinimum
-	return out
-}
-
-// ResourcesSpecToAPI converts the curated Resources into the Akuity API Resources wire type.
-func ResourcesSpecToAPI(in *Resources) *akuitytypes.Resources {
-	if in == nil {
-		return nil
-	}
-	out := &akuitytypes.Resources{}
-	out.Mem = in.Mem
-	out.Cpu = in.Cpu
-	return out
-}
-
-// ResourcesAPIToSpec converts the Akuity API Resources wire type back into the curated Resources.
-func ResourcesAPIToSpec(in *akuitytypes.Resources) *Resources {
-	if in == nil {
-		return nil
-	}
-	out := &Resources{}
-	out.Mem = in.Mem
-	out.Cpu = in.Cpu
 	return out
 }
