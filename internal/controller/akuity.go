@@ -18,8 +18,11 @@ package controller
 
 import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
+	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/cluster"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/config"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/instance"
@@ -44,6 +47,30 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		if err := setup(mgr, o); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// SetupGated starts each controller once the CRDs of its kinds are established.
+func SetupGated(mgr ctrl.Manager, o controller.Options) error {
+	for _, c := range []struct {
+		setup func(ctrl.Manager, controller.Options) error
+		gvks  []schema.GroupVersionKind
+	}{
+		{config.Setup, []schema.GroupVersionKind{apisv1alpha1.ProviderConfigGroupVersionKind, apisv1alpha1.ProviderConfigUsageGroupVersionKind}},
+		{instance.Setup, []schema.GroupVersionKind{v1alpha1.InstanceGroupVersionKind}},
+		{cluster.Setup, []schema.GroupVersionKind{v1alpha1.ClusterGroupVersionKind}},
+		{instanceipallowlist.Setup, []schema.GroupVersionKind{v1alpha1.InstanceIpAllowListGroupVersionKind}},
+		{kargoinstance.Setup, []schema.GroupVersionKind{v1alpha1.KargoInstanceGroupVersionKind}},
+		{kargoagent.Setup, []schema.GroupVersionKind{v1alpha1.KargoAgentGroupVersionKind}},
+		{kargodefaultshardagent.Setup, []schema.GroupVersionKind{v1alpha1.KargoDefaultShardAgentGroupVersionKind}},
+	} {
+		o.Gate.Register(func() {
+			if err := c.setup(mgr, o); err != nil {
+				mgr.GetLogger().Error(err, "unable to setup reconciler", "gvks", c.gvks)
+			}
+		}, c.gvks...)
 	}
 
 	return nil
