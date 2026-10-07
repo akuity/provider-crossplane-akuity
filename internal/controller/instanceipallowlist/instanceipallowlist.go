@@ -36,13 +36,13 @@ import (
 
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 
@@ -172,7 +172,7 @@ func handleGetOutcome(
 	case base.GetProvisioning:
 		base.SetHealthCondition(mg, false)
 	case base.GetTerminal:
-		mg.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv2.ReconcileError(err))
 	}
 	return obs, rerr
 }

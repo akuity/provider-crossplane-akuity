@@ -24,7 +24,7 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,7 +130,7 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 			},
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
-		KubeConfigSecretRef: xpv1.SecretReference{
+		KubeConfigSecretRef: xpv2.SecretReference{
 			Name:      managedCluster.KubeConfigSecretRef.Name,
 			Namespace: managedCluster.KubeConfigSecretRef.Namespace,
 		},
@@ -161,7 +161,7 @@ func wireToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, wi
 			NamespaceScoped: wireCluster.Spec.NamespaceScoped,
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
-		KubeConfigSecretRef: xpv1.SecretReference{
+		KubeConfigSecretRef: xpv2.SecretReference{
 			Name:      managedCluster.KubeConfigSecretRef.Name,
 			Namespace: managedCluster.KubeConfigSecretRef.Namespace,
 		},

@@ -23,7 +23,7 @@ import (
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	secretsv1 "github.com/akuity/api-client-go/pkg/api/gen/types/secrets/v1"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -74,7 +74,7 @@ func TestResolveKargoSecret_ReadsSecret(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
-				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+				KargoSecretRef: &xpv2.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
 			},
 		},
 	}
@@ -97,7 +97,7 @@ func TestResolveKargoSecret_NormalizesSnakeCaseProtoName(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
-				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+				KargoSecretRef: &xpv2.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
 			},
 		},
 	}
@@ -121,7 +121,7 @@ func TestResolveKargoSecret_RejectsUnknownKey(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
-				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+				KargoSecretRef: &xpv2.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
 			},
 		},
 	}
@@ -147,7 +147,7 @@ func TestResolveKargoSecret_RejectsConflictingAliases(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Namespace: "team-a"},
 		Spec: v1alpha1.KargoInstanceSpec{
 			ForProvider: v1alpha1.KargoInstanceParameters{
-				KargoSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
+				KargoSecretRef: &xpv2.SecretReference{Namespace: "team-a", Name: "kargo-admin"},
 			},
 		},
 	}
@@ -241,7 +241,7 @@ func TestResolveKargoSecrets_ResolvesDex(t *testing.T) {
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				Kargo: crossplanetypes.KargoSpec{
 					OidcConfig: &crossplanetypes.KargoOidcConfig{
-						DexConfigSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "dex-creds"},
+						DexConfigSecretRef: &xpv2.SecretReference{Namespace: "team-a", Name: "dex-creds"},
 					},
 				},
 			},
@@ -273,7 +273,7 @@ func TestSpecToPB_InjectsResolvedDex(t *testing.T) {
 			Version: "v1.4.0",
 			OidcConfig: &crossplanetypes.KargoOidcConfig{
 				ClientID:           "app",
-				DexConfigSecretRef: &xpv1.SecretReference{Namespace: "team-a", Name: "dex-creds"},
+				DexConfigSecretRef: &xpv2.SecretReference{Namespace: "team-a", Name: "dex-creds"},
 			},
 		},
 	}
@@ -434,7 +434,7 @@ func TestResolveKargoSecrets_ResolvesRepoCredentials(t *testing.T) {
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "repo-github"},
+						SecretRef: xpv2.SecretReference{Namespace: "team-a", Name: "repo-github"},
 					},
 					ProjectNamespace: "platform",
 					CredType:         "git",
@@ -473,7 +473,7 @@ func TestResolveKargoSecrets_RepoCredsDerivesCredTypeFromLabel(t *testing.T) {
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+						SecretRef: xpv2.SecretReference{Namespace: "platform", Name: "repo-github"},
 					},
 					ProjectNamespace: "platform",
 				}},
@@ -505,7 +505,7 @@ func TestResolveKargoSecrets_RepoCredsRejectsMissingProjectNamespace(t *testing.
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+						SecretRef: xpv2.SecretReference{Namespace: "platform", Name: "repo-github"},
 					},
 				}},
 			},
@@ -530,7 +530,7 @@ func TestResolveKargoSecrets_RepoCredsRejectsMissingDerivedCredType(t *testing.T
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+						SecretRef: xpv2.SecretReference{Namespace: "platform", Name: "repo-github"},
 					},
 					ProjectNamespace: "platform",
 				}},
@@ -560,7 +560,7 @@ func TestResolveKargoSecrets_RepoCredsRejectsInvalidDerivedCredType(t *testing.T
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+						SecretRef: xpv2.SecretReference{Namespace: "platform", Name: "repo-github"},
 					},
 					ProjectNamespace: "platform",
 				}},
@@ -597,13 +597,13 @@ func TestResolveKargoSecrets_RepoCredsRejectsDuplicateSlot(t *testing.T) {
 					{
 						NamedSecretReference: v1alpha1.NamedSecretReference{
 							Name:      "repo-github",
-							SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "s"},
+							SecretRef: xpv2.SecretReference{Namespace: "team-a", Name: "s"},
 						},
 						ProjectNamespace: "team-a",
 					},
 					{
 						NamedSecretReference: v1alpha1.NamedSecretReference{
-							SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "repo-github"},
+							SecretRef: xpv2.SecretReference{Namespace: "team-a", Name: "repo-github"},
 						},
 						ProjectNamespace: "team-a",
 					},
@@ -630,7 +630,7 @@ func TestResolveKargoSecrets_RepoCredsRejectsInvalidEffectiveName(t *testing.T) 
 			ForProvider: v1alpha1.KargoInstanceParameters{
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "team-a", Name: "Bad_Name"},
+						SecretRef: xpv2.SecretReference{Namespace: "team-a", Name: "Bad_Name"},
 					},
 					ProjectNamespace: "platform",
 					CredType:         "git",

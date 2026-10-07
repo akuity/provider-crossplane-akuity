@@ -19,7 +19,7 @@ package v1alpha1
 import (
 	"reflect"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -99,7 +99,7 @@ type KargoAgentParameters struct {
 	// when Create reconciles. Mutually exclusive with
 	// EnableInClusterKubeConfig.
 	// +optional
-	KubeConfigSecretRef xpv1.SecretReference `json:"kubeconfigSecretRef,omitempty"`
+	KubeConfigSecretRef xpv2.SecretReference `json:"kubeconfigSecretRef,omitempty"`
 
 	// EnableInClusterKubeConfig uses the provider pod's in-cluster
 	// configuration to install the agent manifests, when the managed
@@ -136,14 +136,14 @@ type KargoAgentObservation struct {
 
 // A KargoAgentSpec defines the desired state of a KargoAgent.
 type KargoAgentSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       KargoAgentParameters `json:"forProvider"`
+	xpv2.ClusterManagedResourceSpec `json:",inline"`
+	ForProvider                     KargoAgentParameters `json:"forProvider"`
 }
 
 // A KargoAgentStatus represents the observed state of a KargoAgent.
 type KargoAgentStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          KargoAgentObservation `json:"atProvider,omitempty"`
+	xpv2.ManagedResourceStatus `json:",inline"`
+	AtProvider                 KargoAgentObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -180,7 +180,3 @@ var (
 	KargoAgentKindAPIVersion   = KargoAgentKind + "." + SchemeGroupVersion.String()
 	KargoAgentGroupVersionKind = SchemeGroupVersion.WithKind(KargoAgentKind)
 )
-
-func init() {
-	SchemeBuilder.Register(&KargoAgent{}, &KargoAgentList{})
-}
