@@ -32,13 +32,13 @@ import (
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -208,12 +208,12 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.KargoInstanceGroupVersionKind),
-		managed.WithTypedExternalConnector[*v1alpha1.KargoInstance](conn),
-		managed.WithLogger(logger),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(recorder),
-		managed.WithManagementPolicies(),
+		base.ReconcilerOptions(o, logger, recorder, managed.WithTypedExternalConnector[*v1alpha1.KargoInstance](conn))...,
 	)
+
+	if err := base.AddStateMetrics(mgr, o, &v1alpha1.KargoInstanceList{}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -256,7 +256,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		case base.GetProvisioning:
 			base.SetHealthCondition(mg, false)
 		case base.GetTerminal:
-			mg.SetConditions(xpv1.ReconcileError(err))
+			mg.SetConditions(xpv2.ReconcileError(err))
 			e.recordTerminalObserve(ctx, mg, err)
 		}
 		return obs, rerr
@@ -265,7 +265,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 
 	actual, err := apiToSpec(ki)
 	if err != nil {
-		mg.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv2.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 
@@ -306,7 +306,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 		} else {
 			exportActual, found, xerr := exportToSpec(ki, exp)
 			if xerr != nil {
-				mg.SetConditions(xpv1.ReconcileError(xerr))
+				mg.SetConditions(xpv2.ReconcileError(xerr))
 				return managed.ExternalObservation{}, xerr
 			}
 			if found {
@@ -382,7 +382,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 			if len(mg.Spec.ForProvider.KargoConfigMap) > 0 {
 				ok, observed, cerr := kargoConfigMapUpToDate(mg.Spec.ForProvider.KargoConfigMap, exp, mg.Status.AtProvider.KargoConfigMapHash)
 				if cerr != nil {
-					mg.SetConditions(xpv1.ReconcileError(cerr))
+					mg.SetConditions(xpv2.ReconcileError(cerr))
 					return managed.ExternalObservation{}, cerr
 				}
 				if !ok {
@@ -394,7 +394,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 			if upToDate && len(mg.Spec.ForProvider.Resources) > 0 {
 				ok, report, rerr := kargoResourcesUpToDate(mg.Spec.ForProvider.Resources, exp, mg.Status.AtProvider.KargoResourcesHash)
 				if rerr != nil {
-					mg.SetConditions(xpv1.ReconcileError(rerr))
+					mg.SetConditions(xpv2.ReconcileError(rerr))
 					return managed.ExternalObservation{}, rerr
 				}
 				if !ok {
@@ -409,7 +409,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoInstance) (man
 	if upToDate {
 		sec, serr := resolveKargoSecrets(ctx, e.Kube, mg)
 		if serr != nil {
-			mg.SetConditions(xpv1.ReconcileError(serr))
+			mg.SetConditions(xpv2.ReconcileError(serr))
 			return managed.ExternalObservation{}, serr
 		}
 		if sec.Hash() != getSecretHash(mg) {

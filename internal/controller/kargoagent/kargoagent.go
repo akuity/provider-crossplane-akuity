@@ -26,13 +26,13 @@ import (
 	"fmt"
 	"strings"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -286,12 +286,12 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.KargoAgentGroupVersionKind),
-		managed.WithTypedExternalConnector[*v1alpha1.KargoAgent](conn),
-		managed.WithLogger(logger),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(recorder),
-		managed.WithManagementPolicies(),
+		base.ReconcilerOptions(o, logger, recorder, managed.WithTypedExternalConnector[*v1alpha1.KargoAgent](conn))...,
 	)
+
+	if err := base.AddStateMetrics(mgr, o, &v1alpha1.KargoAgentList{}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -343,7 +343,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		case base.GetProvisioning:
 			base.SetHealthCondition(mg, false)
 		case base.GetTerminal:
-			mg.SetConditions(xpv1.ReconcileError(err))
+			mg.SetConditions(xpv2.ReconcileError(err))
 		}
 		return obs, rerr
 	}
@@ -365,7 +365,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	driftTarget := actual
 	statusSpec := actual.KargoAgentSpec
 	if exportAgent, found, xerr := e.exportedAgentSpec(ctx, mg, instanceID); xerr != nil {
-		mg.SetConditions(xpv1.ReconcileError(xerr))
+		mg.SetConditions(xpv2.ReconcileError(xerr))
 		return managed.ExternalObservation{}, xerr
 	} else if found {
 		driftTarget = exportAgent

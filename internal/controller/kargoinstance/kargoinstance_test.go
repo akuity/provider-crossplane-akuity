@@ -23,9 +23,9 @@ import (
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -414,7 +414,7 @@ func TestObserve_RepoCredsHashOnlyNoPeriodicReapply(t *testing.T) {
 	ki.Spec.ForProvider.KargoRepoCredentialSecretRefs = []v1alpha1.KargoRepoCredentialSecretRef{{
 		NamedSecretReference: v1alpha1.NamedSecretReference{
 			Name:      "repo-github",
-			SecretRef: xpv1.SecretReference{Namespace: "ns", Name: "k8s-secret"},
+			SecretRef: xpv2.SecretReference{Namespace: "ns", Name: "k8s-secret"},
 		},
 		ProjectNamespace: "platform",
 		CredType:         "git",
@@ -771,10 +771,10 @@ func TestObserve_ProvisioningWait(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, obs.ResourceExists)
 	assert.True(t, obs.ResourceUpToDate)
-	got := ki.Status.GetCondition(xpv1.TypeReady)
-	assert.Equal(t, xpv1.Unavailable().Type, got.Type)
-	assert.Equal(t, xpv1.Unavailable().Status, got.Status)
-	assert.Equal(t, xpv1.Unavailable().Reason, got.Reason)
+	got := ki.Status.GetCondition(xpv2.TypeReady)
+	assert.Equal(t, xpv2.Unavailable().Type, got.Type)
+	assert.Equal(t, xpv2.Unavailable().Status, got.Status)
+	assert.Equal(t, xpv2.Unavailable().Reason, got.Reason)
 }
 
 // TestObserve_GenericErrPropagates covers Get's non-transient error

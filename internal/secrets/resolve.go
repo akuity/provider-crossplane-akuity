@@ -16,7 +16,7 @@ import (
 	"regexp"
 	"sort"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -89,7 +89,7 @@ func (r ResolvedSecret) Hash() string {
 // nil, so callers can compose it without pre-checks. If the Secret does
 // not exist, ErrMissingSecret is returned wrapped with the secret name
 // for diagnostics.
-func Resolve(ctx context.Context, c client.Client, ref *xpv1.SecretReference) (ResolvedSecret, error) {
+func Resolve(ctx context.Context, c client.Client, ref *xpv2.SecretReference) (ResolvedSecret, error) {
 	if ref == nil {
 		return ResolvedSecret{}, nil
 	}
@@ -116,7 +116,7 @@ func resolve(ctx context.Context, c client.Client, namespace, name string) (Reso
 
 // ResolveAllKeys loads the Secret at ref and returns a copy of its data
 // as map[string]string.
-func ResolveAllKeys(ctx context.Context, c client.Client, ref *xpv1.SecretReference) (map[string]string, error) {
+func ResolveAllKeys(ctx context.Context, c client.Client, ref *xpv2.SecretReference) (map[string]string, error) {
 	resolved, err := Resolve(ctx, c, ref)
 	if err != nil {
 		return nil, err

@@ -24,7 +24,7 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,7 +130,7 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 			},
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
-		KubeConfigSecretRef: xpv1.SecretReference{
+		KubeConfigSecretRef: xpv2.SecretReference{
 			Name:      managedCluster.KubeConfigSecretRef.Name,
 			Namespace: managedCluster.KubeConfigSecretRef.Namespace,
 		},
@@ -161,7 +161,7 @@ func wireToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, wi
 			NamespaceScoped: wireCluster.Spec.NamespaceScoped,
 		},
 		EnableInClusterKubeConfig: managedCluster.EnableInClusterKubeConfig,
-		KubeConfigSecretRef: xpv1.SecretReference{
+		KubeConfigSecretRef: xpv2.SecretReference{
 			Name:      managedCluster.KubeConfigSecretRef.Name,
 			Namespace: managedCluster.KubeConfigSecretRef.Namespace,
 		},
@@ -245,11 +245,11 @@ func clusterKustomizationRaw(s string) (runtime.RawExtension, error) {
 	if err := validateClusterKustomizationObject(top); err != nil {
 		return runtime.RawExtension{}, err
 	}
-	if _, ok := top["apiVersion"]; !ok {
-		top["apiVersion"] = "kustomize.config.k8s.io/v1beta1"
+	if _, ok := top[apiVersionKey]; !ok {
+		top[apiVersionKey] = "kustomize.config.k8s.io/v1beta1"
 	}
-	if _, ok := top["kind"]; !ok {
-		top["kind"] = "Kustomization"
+	if _, ok := top[kindKey]; !ok {
+		top[kindKey] = "Kustomization"
 	}
 	raw, err = json.Marshal(top)
 	if err != nil {
@@ -263,10 +263,10 @@ func validateClusterKustomizationObject(top map[string]any) error {
 		if !clusterKustomizationTopLevelKeys[k] {
 			return fmt.Errorf("unknown top-level Kustomization field %q", k)
 		}
-		if k == "kind" && v != "Kustomization" {
+		if k == kindKey && v != "Kustomization" {
 			return fmt.Errorf("kind must be Kustomization when set")
 		}
-		if (k == "apiVersion" || k == "kind") && v != nil {
+		if (k == apiVersionKey || k == kindKey) && v != nil {
 			if _, ok := v.(string); !ok {
 				return fmt.Errorf("%s must be a string when set", k)
 			}
@@ -275,9 +275,15 @@ func validateClusterKustomizationObject(top map[string]any) error {
 	return nil
 }
 
+// Keys every Kubernetes object carries at the top level.
+const (
+	apiVersionKey = "apiVersion"
+	kindKey       = "kind"
+)
+
 var clusterKustomizationTopLevelKeys = map[string]bool{
-	"apiVersion":                true,
-	"kind":                      true,
+	apiVersionKey:               true,
+	kindKey:                     true,
 	"metadata":                  true,
 	"namespace":                 true,
 	"namePrefix":                true,

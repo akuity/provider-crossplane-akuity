@@ -29,13 +29,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	sigsyaml "sigs.k8s.io/yaml"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
@@ -71,12 +71,12 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.ClusterGroupVersionKind),
-		managed.WithTypedExternalConnector[*v1alpha1.Cluster](conn),
-		managed.WithLogger(logger),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(recorder),
-		managed.WithManagementPolicies(),
+		base.ReconcilerOptions(o, logger, recorder, managed.WithTypedExternalConnector[*v1alpha1.Cluster](conn))...,
 	)
+
+	if err := base.AddStateMetrics(mgr, o, &v1alpha1.ClusterList{}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -127,7 +127,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 		case base.GetProvisioning:
 			base.SetHealthCondition(mg, false)
 		case base.GetTerminal:
-			mg.SetConditions(xpv1.ReconcileError(err))
+			mg.SetConditions(xpv2.ReconcileError(err))
 		}
 		return obs, rerr
 	}
@@ -135,7 +135,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	actualCluster, err := APIToSpec(instanceID, mg.Spec.ForProvider, akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster from Akuity API: %w", err)
-		mg.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv2.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
@@ -144,7 +144,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	clusterObservation, err := observation.Cluster(akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster observation: %w", err)
-		mg.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv2.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
@@ -158,7 +158,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	// cluster exists.
 	driftTarget, found, err := e.exportedClusterSpec(ctx, instanceID, meta.GetExternalName(mg), mg.Spec.ForProvider)
 	if err != nil {
-		mg.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv2.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 	if !found {
@@ -753,7 +753,7 @@ func isEmptyKustomization(s string) (bool, error) {
 		return true, nil
 	}
 	for k := range v {
-		if k == "apiVersion" || k == "kind" {
+		if k == apiVersionKey || k == kindKey {
 			continue
 		}
 		// Any other key represents user-set Kustomization content.

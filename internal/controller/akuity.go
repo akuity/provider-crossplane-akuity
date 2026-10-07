@@ -32,6 +32,10 @@ import (
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/kargoinstance"
 )
 
+// Groups lists the API groups served by this provider. The CRD gate only
+// watches CustomResourceDefinitions of these groups.
+var Groups = []string{apisv1alpha1.Group, v1alpha1.Group}
+
 // Setup creates all akuity controllers with the supplied logger and adds them to
 // the supplied manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {

@@ -19,7 +19,7 @@ package v1alpha1
 import (
 	"reflect"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -73,15 +73,15 @@ type InstanceIpAllowListObservation struct {
 // An InstanceIpAllowListSpec defines the desired state of an
 // InstanceIpAllowList.
 type InstanceIpAllowListSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       InstanceIpAllowListParameters `json:"forProvider"`
+	xpv2.ClusterManagedResourceSpec `json:",inline"`
+	ForProvider                     InstanceIpAllowListParameters `json:"forProvider"`
 }
 
 // An InstanceIpAllowListStatus represents the observed state of an
 // InstanceIpAllowList.
 type InstanceIpAllowListStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          InstanceIpAllowListObservation `json:"atProvider,omitempty"`
+	xpv2.ManagedResourceStatus `json:",inline"`
+	AtProvider                 InstanceIpAllowListObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -118,7 +118,3 @@ var (
 	InstanceIpAllowListKindAPIVersion   = InstanceIpAllowListKind + "." + SchemeGroupVersion.String()
 	InstanceIpAllowListGroupVersionKind = SchemeGroupVersion.WithKind(InstanceIpAllowListKind)
 )
-
-func init() {
-	SchemeBuilder.Register(&InstanceIpAllowList{}, &InstanceIpAllowListList{})
-}

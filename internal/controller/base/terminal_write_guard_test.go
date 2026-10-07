@@ -20,8 +20,8 @@ import (
 	"errors"
 	"testing"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +48,7 @@ func TestTerminalWriteGuardSuppressesSameTerminalPayload(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, obs)
 	require.Len(t, mg.Status.Conditions, 1)
-	assert.Equal(t, xpv1.ReasonReconcileError, mg.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.ReasonReconcileError, mg.Status.Conditions[0].Reason)
 	assert.Contains(t, mg.Status.Conditions[0].Message, "bad payload")
 }
 

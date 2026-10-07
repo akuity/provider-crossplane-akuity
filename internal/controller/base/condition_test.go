@@ -19,7 +19,7 @@ package base_test
 import (
 	"testing"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -29,15 +29,15 @@ import (
 func TestSetHealthCondition_Healthy(t *testing.T) {
 	mg := &v1alpha1.Instance{}
 	base.SetHealthCondition(mg, true)
-	got := mg.Status.GetCondition(xpv1.TypeReady)
-	assert.Equal(t, xpv1.Available().Reason, got.Reason)
-	assert.Equal(t, xpv1.Available().Status, got.Status)
+	got := mg.Status.GetCondition(xpv2.TypeReady)
+	assert.Equal(t, xpv2.Available().Reason, got.Reason)
+	assert.Equal(t, xpv2.Available().Status, got.Status)
 }
 
 func TestSetHealthCondition_Unhealthy(t *testing.T) {
 	mg := &v1alpha1.Instance{}
 	base.SetHealthCondition(mg, false)
-	got := mg.Status.GetCondition(xpv1.TypeReady)
-	assert.Equal(t, xpv1.Unavailable().Reason, got.Reason)
-	assert.Equal(t, xpv1.Unavailable().Status, got.Status)
+	got := mg.Status.GetCondition(xpv2.TypeReady)
+	assert.Equal(t, xpv2.Unavailable().Reason, got.Reason)
+	assert.Equal(t, xpv2.Unavailable().Status, got.Status)
 }

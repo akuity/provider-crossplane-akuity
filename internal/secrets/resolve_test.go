@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,7 +45,7 @@ func TestResolveAllKeys_NilRef(t *testing.T) {
 
 func TestResolveAllKeys_EmptyRefIsInvalid(t *testing.T) {
 	c := fakeClient(t).Build()
-	_, err := ResolveAllKeys(context.Background(), c, &xpv1.SecretReference{})
+	_, err := ResolveAllKeys(context.Background(), c, &xpv2.SecretReference{})
 	if !errors.Is(err, ErrInvalidSecretReference) {
 		t.Fatalf("want ErrInvalidSecretReference, got %v", err)
 	}
@@ -58,7 +58,7 @@ func TestResolveAllKeys_Found(t *testing.T) {
 	})
 	c := fakeClient(t, sec).Build()
 	got, err := ResolveAllKeys(context.Background(), c,
-		&xpv1.SecretReference{Namespace: "akuity", Name: "argo-secret"})
+		&xpv2.SecretReference{Namespace: "akuity", Name: "argo-secret"})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestResolveAllKeys_Found(t *testing.T) {
 func TestResolveAllKeys_NotFoundWrapsSentinel(t *testing.T) {
 	c := fakeClient(t).Build()
 	_, err := ResolveAllKeys(context.Background(), c,
-		&xpv1.SecretReference{Namespace: "akuity", Name: "ghost"})
+		&xpv2.SecretReference{Namespace: "akuity", Name: "ghost"})
 	if !errors.Is(err, ErrMissingSecret) {
 		t.Fatalf("want ErrMissingSecret, got %v", err)
 	}
@@ -84,7 +84,7 @@ func TestResolveAllKeys_EmptySecretWrapsSentinel(t *testing.T) {
 	sec := newSecret("akuity", "empty", nil)
 	c := fakeClient(t, sec).Build()
 	_, err := ResolveAllKeys(context.Background(), c,
-		&xpv1.SecretReference{Namespace: "akuity", Name: "empty"})
+		&xpv2.SecretReference{Namespace: "akuity", Name: "empty"})
 	if !errors.Is(err, ErrEmptySecret) {
 		t.Fatalf("want ErrEmptySecret, got %v", err)
 	}
@@ -96,8 +96,8 @@ func TestResolveNamed_HappyPath(t *testing.T) {
 	c := fakeClient(t, a, b).Build()
 
 	got, err := ResolveNamed(context.Background(), c, []v1alpha1.NamedSecretReference{
-		{Name: "repo-a", SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "creds-a"}},
-		{SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "repo-creds-b"}},
+		{Name: "repo-a", SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "creds-a"}},
+		{SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "repo-creds-b"}},
 	})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
@@ -123,8 +123,8 @@ func TestResolveNamed_DuplicateNames(t *testing.T) {
 	a := newSecret("akuity", "creds-a", map[string]string{"url": "https://a"})
 	c := fakeClient(t, a).Build()
 	_, err := ResolveNamed(context.Background(), c, []v1alpha1.NamedSecretReference{
-		{Name: "repo-dup", SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "creds-a"}},
-		{Name: "repo-dup", SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "creds-b"}},
+		{Name: "repo-dup", SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "creds-a"}},
+		{Name: "repo-dup", SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "creds-b"}},
 	})
 	if err == nil {
 		t.Fatalf("want duplicate-name error, got nil")
@@ -138,7 +138,7 @@ func TestResolveNamed_InvalidEffectiveName(t *testing.T) {
 	a := newSecret("akuity", "creds-a", map[string]string{"url": "https://a"})
 	c := fakeClient(t, a).Build()
 	_, err := ResolveNamed(context.Background(), c, []v1alpha1.NamedSecretReference{
-		{SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "creds-a"}},
+		{SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "creds-a"}},
 	})
 	if !errors.Is(err, ErrInvalidSecretReference) {
 		t.Fatalf("want ErrInvalidSecretReference, got %v", err)
@@ -148,7 +148,7 @@ func TestResolveNamed_InvalidEffectiveName(t *testing.T) {
 func TestResolveNamed_PropagatesMissing(t *testing.T) {
 	c := fakeClient(t).Build()
 	_, err := ResolveNamed(context.Background(), c, []v1alpha1.NamedSecretReference{
-		{Name: "repo-x", SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "ghost"}},
+		{Name: "repo-x", SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "ghost"}},
 	})
 	if !errors.Is(err, ErrMissingSecret) {
 		t.Fatalf("want ErrMissingSecret, got %v", err)

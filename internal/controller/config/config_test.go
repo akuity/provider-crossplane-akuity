@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,8 +21,8 @@ var (
 			Name: "test-provider-config",
 		},
 		Spec: apisv1alpha1.ProviderConfigSpec{
-			CredentialsSecretRef: xpv1.SecretKeySelector{
-				SecretReference: xpv1.SecretReference{
+			CredentialsSecretRef: xpv2.SecretKeySelector{
+				SecretReference: xpv2.SecretReference{
 					Name:      "test-secret",
 					Namespace: "test-namespace",
 				},

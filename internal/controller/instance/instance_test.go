@@ -20,9 +20,9 @@ import (
 	"context"
 	"testing"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -313,7 +313,7 @@ func TestObserve_EmptyExternalName_SuppressesTerminalWrite(t *testing.T) {
 	assert.True(t, reason.IsTerminal(err))
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, resp)
 	require.Len(t, managedInstance.Status.Conditions, 1)
-	assert.Equal(t, xpv1.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
 }
 
 // TestObserve_ExternalNameSet_SuppressesTerminalWriteAfterNotFound
@@ -347,7 +347,7 @@ func TestObserve_ExternalNameSet_SuppressesTerminalWriteAfterNotFound(t *testing
 	assert.True(t, reason.IsTerminal(err))
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, resp)
 	require.Len(t, managedInstance.Status.Conditions, 1)
-	assert.Equal(t, xpv1.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
 }
 
 func TestDriftSpec_ArgocdConfigMapComparesOnlyUserKeys(t *testing.T) {
@@ -613,7 +613,7 @@ func TestObserve_GetInstanceErr(t *testing.T) {
 	resp, err := e.Observe(ctx, &managedInstance)
 	require.Error(t, err)
 	assert.Equal(t, managed.ExternalObservation{}, resp)
-	assert.Equal(t, xpv1.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
 }
 
 func TestObserve_ExportInstanceErr(t *testing.T) {
@@ -635,7 +635,7 @@ func TestObserve_ExportInstanceErr(t *testing.T) {
 	resp, err := e.Observe(ctx, &managedInstance)
 	require.Error(t, err)
 	assert.Equal(t, managed.ExternalObservation{}, resp)
-	assert.Equal(t, xpv1.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.ReasonReconcileError, managedInstance.Status.Conditions[0].Reason)
 }
 
 func TestObserve_HealthStatusNotHealthy(t *testing.T) {
@@ -662,7 +662,7 @@ func TestObserve_HealthStatusNotHealthy(t *testing.T) {
 
 	_, err := e.Observe(ctx, &managedInstance)
 	require.NoError(t, err)
-	assert.Equal(t, xpv1.Unavailable().Reason, managedInstance.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.Unavailable().Reason, managedInstance.Status.Conditions[0].Reason)
 }
 
 func TestObserve_HealthStatusHealthy(t *testing.T) {
@@ -689,7 +689,7 @@ func TestObserve_HealthStatusHealthy(t *testing.T) {
 
 	_, err := e.Observe(ctx, &managedInstance)
 	require.NoError(t, err)
-	assert.Equal(t, xpv1.Available().Reason, managedInstance.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.Available().Reason, managedInstance.Status.Conditions[0].Reason)
 }
 
 func TestObserve_InstanceUpToDate(t *testing.T) {
