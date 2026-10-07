@@ -19,7 +19,7 @@ package v1alpha1
 import (
 	"reflect"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -106,7 +106,7 @@ type KargoInstanceParameters struct {
 	// does not delete it from the Akuity platform.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="kargoSecretRef.name and kargoSecretRef.namespace are required"
-	KargoSecretRef *xpv1.SecretReference `json:"kargoSecretRef,omitempty"`
+	KargoSecretRef *xpv2.SecretReference `json:"kargoSecretRef,omitempty"`
 
 	// KargoRepoCredentialSecretRefs registers repository credentials
 	// with the Kargo gateway. Each entry's SecretRef points at a
@@ -235,15 +235,15 @@ type KargoInstanceObservation struct {
 
 // A KargoInstanceSpec defines the desired state of a Kargo instance.
 type KargoInstanceSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       KargoInstanceParameters `json:"forProvider"`
+	xpv2.ClusterManagedResourceSpec `json:",inline"`
+	ForProvider                     KargoInstanceParameters `json:"forProvider"`
 }
 
 // A KargoInstanceStatus represents the observed state of a Kargo
 // instance.
 type KargoInstanceStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          KargoInstanceObservation `json:"atProvider,omitempty"`
+	xpv2.ManagedResourceStatus `json:",inline"`
+	AtProvider                 KargoInstanceObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -279,7 +279,3 @@ var (
 	KargoInstanceKindAPIVersion   = KargoInstanceKind + "." + SchemeGroupVersion.String()
 	KargoInstanceGroupVersionKind = SchemeGroupVersion.WithKind(KargoInstanceKind)
 )
-
-func init() {
-	SchemeBuilder.Register(&KargoInstance{}, &KargoInstanceList{})
-}

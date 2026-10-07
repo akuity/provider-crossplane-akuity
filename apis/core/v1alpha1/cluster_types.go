@@ -19,7 +19,7 @@ package v1alpha1
 import (
 	"reflect"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -67,7 +67,7 @@ type ClusterParameters struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	// KubeConfigSecretRef references a Secret containing a kubeconfig
 	// used to apply agent manifests to the managed cluster.
-	KubeConfigSecretRef xpv1.SecretReference `json:"kubeconfigSecretRef,omitempty"`
+	KubeConfigSecretRef xpv2.SecretReference `json:"kubeconfigSecretRef,omitempty"`
 	// EnableInClusterKubeConfig uses the provider pod's in-cluster
 	// configuration when the managed cluster is the provider cluster.
 	EnableInClusterKubeConfig bool `json:"enableInClusterKubeconfig,omitempty"`
@@ -157,14 +157,14 @@ type ClusterObservationAgentHealthStatus struct {
 
 // A ClusterSpec defines the desired state of a Cluster.
 type ClusterSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       ClusterParameters `json:"forProvider"`
+	xpv2.ClusterManagedResourceSpec `json:",inline"`
+	ForProvider                     ClusterParameters `json:"forProvider"`
 }
 
 // A ClusterStatus represents the observed state of a Cluster.
 type ClusterStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          ClusterObservation `json:"atProvider,omitempty"`
+	xpv2.ManagedResourceStatus `json:",inline"`
+	AtProvider                 ClusterObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -200,7 +200,3 @@ var (
 	ClusterKindAPIVersion   = ClusterKind + "." + SchemeGroupVersion.String()
 	ClusterGroupVersionKind = SchemeGroupVersion.WithKind(ClusterKind)
 )
-
-func init() {
-	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
-}

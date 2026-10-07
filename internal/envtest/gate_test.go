@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/gate"
@@ -32,6 +31,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/customresourcesgate"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -135,6 +135,6 @@ func requireReconciled(ctx context.Context, t *testing.T, c client.Client, mg re
 		if err := c.Get(ctx, client.ObjectKeyFromObject(mg), mg); err != nil {
 			return false
 		}
-		return mg.GetCondition(xpv1.TypeSynced).Status != corev1.ConditionUnknown
+		return mg.GetCondition(xpv2.TypeSynced).Status != corev1.ConditionUnknown
 	}, 30*time.Second, 200*time.Millisecond, "%T was not reconciled", mg)
 }

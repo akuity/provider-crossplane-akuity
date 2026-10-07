@@ -21,9 +21,9 @@ import (
 	"testing"
 	"time"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,7 +117,7 @@ func TestCreate_NoKubeConfig(t *testing.T) {
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{}
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(nil).Times(1)
@@ -132,7 +132,7 @@ func TestCreate_ApplyClusterErr(t *testing.T) {
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{}
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(errors.New("fake")).Times(1)
@@ -147,7 +147,7 @@ func TestCreate_WithKubeConfig_GetClusterManifestsErr(t *testing.T) {
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{}
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(nil).Times(1)
@@ -174,7 +174,7 @@ func TestCreate_WithKubeConfig_GetClusterManifestsNotReconciledRetryable(t *test
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{}
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 	managedCluster.Spec.ForProvider.RemoveAgentResourcesOnDestroy = false
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
@@ -226,7 +226,7 @@ func TestCreate_GetClusterKubeClientRestConfig(t *testing.T) {
 
 	managedCluster := fixtures.CrossplaneManagedCluster
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{
 		Name:      "kubeconfig",
 		Namespace: "default",
 	}
@@ -421,7 +421,7 @@ func TestDelete_RemoveAgentResourcesOnDestroy_GetClusterManifestsErr(t *testing.
 	}
 	managedCluster.Spec.ForProvider.RemoveAgentResourcesOnDestroy = true
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
-	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv1.SecretReference{
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{
 		Name:      "kubeconfig",
 		Namespace: "default",
 	}
@@ -593,7 +593,7 @@ func TestObserve_GetClusterGenericErrPropagates(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, managed.ExternalObservation{}, resp)
 	require.NotEmpty(t, managedCluster.Status.Conditions)
-	assert.Equal(t, xpv1.ReasonReconcileError, managedCluster.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.ReasonReconcileError, managedCluster.Status.Conditions[0].Reason)
 }
 
 func TestObserve_HealthStatusNotHealthy(t *testing.T) {
@@ -619,7 +619,7 @@ func TestObserve_HealthStatusNotHealthy(t *testing.T) {
 
 	_, err := e.Observe(ctx, &managedCluster)
 	require.NoError(t, err)
-	assert.Equal(t, xpv1.Unavailable().Reason, managedCluster.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.Unavailable().Reason, managedCluster.Status.Conditions[0].Reason)
 }
 
 func TestObserve_HealthStatusHealthy(t *testing.T) {
@@ -645,7 +645,7 @@ func TestObserve_HealthStatusHealthy(t *testing.T) {
 
 	_, err := e.Observe(ctx, &managedCluster)
 	require.NoError(t, err)
-	assert.Equal(t, xpv1.Available().Reason, managedCluster.Status.Conditions[0].Reason)
+	assert.Equal(t, xpv2.Available().Reason, managedCluster.Status.Conditions[0].Reason)
 }
 
 func TestObserve_ClusterUpToDate(t *testing.T) {

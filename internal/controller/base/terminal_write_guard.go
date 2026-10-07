@@ -24,9 +24,9 @@ import (
 	"hash"
 	"sync"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -179,7 +179,7 @@ func (g *TerminalWriteGuard) Suppress(mg resource.Managed, key TerminalWriteKey)
 		return managed.ExternalObservation{}, nil, false
 	}
 	g.mu.Unlock()
-	mg.SetConditions(xpv1.ReconcileError(err))
+	mg.SetConditions(xpv2.ReconcileError(err))
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, err, true
 }
 

@@ -19,7 +19,7 @@ package v1alpha1
 import (
 	"reflect"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -92,7 +92,7 @@ type InstanceParameters struct {
 	// platform.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="argocdSecretRef.name and argocdSecretRef.namespace are required"
-	ArgoCDSecretRef *xpv1.SecretReference `json:"argocdSecretRef,omitempty"`
+	ArgoCDSecretRef *xpv2.SecretReference `json:"argocdSecretRef,omitempty"`
 
 	// ArgoCDNotificationsSecretRef references a namespaced Secret
 	// whose data is sent verbatim as the argocd-notifications-secret
@@ -101,7 +101,7 @@ type InstanceParameters struct {
 	// the Akuity platform.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="argocdNotificationsSecretRef.name and argocdNotificationsSecretRef.namespace are required"
-	ArgoCDNotificationsSecretRef *xpv1.SecretReference `json:"argocdNotificationsSecretRef,omitempty"`
+	ArgoCDNotificationsSecretRef *xpv2.SecretReference `json:"argocdNotificationsSecretRef,omitempty"`
 
 	// ArgoCDImageUpdaterSecretRef references a namespaced Secret whose
 	// data is sent verbatim as the argocd-image-updater-secret payload
@@ -110,7 +110,7 @@ type InstanceParameters struct {
 	// the Akuity platform.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="argocdImageUpdaterSecretRef.name and argocdImageUpdaterSecretRef.namespace are required"
-	ArgoCDImageUpdaterSecretRef *xpv1.SecretReference `json:"argocdImageUpdaterSecretRef,omitempty"`
+	ArgoCDImageUpdaterSecretRef *xpv2.SecretReference `json:"argocdImageUpdaterSecretRef,omitempty"`
 
 	// ApplicationSetSecretRef references a namespaced Secret whose data
 	// is sent verbatim as the argocd-application-set-secret payload
@@ -119,7 +119,7 @@ type InstanceParameters struct {
 	// the Akuity platform.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && size(self.name) > 0 && has(self.__namespace__) && size(self.__namespace__) > 0",message="applicationSetSecretRef.name and applicationSetSecretRef.namespace are required"
-	ApplicationSetSecretRef *xpv1.SecretReference `json:"applicationSetSecretRef,omitempty"`
+	ApplicationSetSecretRef *xpv2.SecretReference `json:"applicationSetSecretRef,omitempty"`
 
 	// RepoCredentialSecretRefs registers scoped repository credentials
 	// with the Akuity gateway. Each entry's Name (which must match
@@ -180,14 +180,14 @@ type InstanceObservation struct {
 
 // An InstanceSpec defines the desired state of an Instance.
 type InstanceSpec struct {
-	xpv1.ResourceSpec `json:",inline"`
-	ForProvider       InstanceParameters `json:"forProvider"`
+	xpv2.ClusterManagedResourceSpec `json:",inline"`
+	ForProvider                     InstanceParameters `json:"forProvider"`
 }
 
 // An InstanceStatus represents the observed state of an Instance.
 type InstanceStatus struct {
-	xpv1.ResourceStatus `json:",inline"`
-	AtProvider          InstanceObservation `json:"atProvider,omitempty"`
+	xpv2.ManagedResourceStatus `json:",inline"`
+	AtProvider                 InstanceObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -223,7 +223,3 @@ var (
 	InstanceKindAPIVersion   = InstanceKind + "." + SchemeGroupVersion.String()
 	InstanceGroupVersionKind = SchemeGroupVersion.WithKind(InstanceKind)
 )
-
-func init() {
-	SchemeBuilder.Register(&Instance{}, &InstanceList{})
-}
