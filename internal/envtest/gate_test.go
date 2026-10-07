@@ -85,6 +85,7 @@ func TestSetupGated_StartsOnlyInstalledKinds(t *testing.T) {
 		GlobalRateLimiter:       ratelimiter.NewGlobal(10),
 		Features:                &feature.Flags{},
 		Gate:                    new(gate.Gate[schema.GroupVersionKind]),
+		Groups:                  akuity.Groups,
 	}
 	require.NoError(t, customresourcesgate.Setup(mgr, o))
 	require.NoError(t, akuity.SetupGated(mgr, o))
