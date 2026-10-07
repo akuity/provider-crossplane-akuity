@@ -10,10 +10,12 @@ PLATFORMS ?= linux_amd64 linux_arm64
 # GOLANGCILINT_VERSION env var. Export so recursive make invocations
 # (e.g. build/makelib/golang.mk declares the same variable with `?=`)
 # honour this pin consistently.
-GOLANGCILINT_VERSION := 2.11.4
+GOLANGCILINT_VERSION := 2.14.0
 export GOLANGCILINT_VERSION
 GO_LINT_ARGS := --timeout=10m
-CROSSPLANE_CLI_VERSION = v2.2.0
+CROSSPLANE_CLI_VERSION = v2.5.0
+# Crossplane core release the dev target installs (helm chart version).
+CROSSPLANE_VERSION = v2.4.2
 
 # ====================================================================================
 # Setup Output
@@ -87,14 +89,14 @@ test-integration: $(KIND) $(KUBECTL) $(UP) $(HELM)
 	@$(OK) integration tests passed
 
 # Version of the kube-apiserver + etcd binaries to fetch via setup-envtest.
-ENVTEST_K8S_VERSION ?= 1.35.x
+ENVTEST_K8S_VERSION ?= 1.37.x
 
 # Install setup-envtest + the kube binaries it manages, then run the
 # envtest-gated tests. Keeps envtest out of the default `go test ./...`
 # (which must work without network + without binaries on disk).
 test-envtest:
 	@$(INFO) installing setup-envtest + k8s $(ENVTEST_K8S_VERSION) binaries
-	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.23
+	@go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.25
 	@KUBEBUILDER_ASSETS="$$($$(go env GOPATH)/bin/setup-envtest use -p path $(ENVTEST_K8S_VERSION))" \
 		go test -tags=envtest -v -count=1 ./internal/... || $(FAIL)
 	@$(OK) envtest suite passed
@@ -133,8 +135,8 @@ dev: $(KIND) $(KUBECTL) $(HELM)
 	@$(INFO) Installing Crossplane
 	@$(HELM) repo add crossplane-stable https://charts.crossplane.io/stable
 	@$(HELM) repo update
-	# Trim the leading "v" from the Crossplane CLI version for helm install.
-	@$(HELM) install crossplane --namespace crossplane-system --create-namespace crossplane-stable/crossplane --version $(patsubst v%,%,$(CROSSPLANE_CLI_VERSION))
+	# Trim the leading "v" from the Crossplane version for helm install.
+	@$(HELM) install crossplane --namespace crossplane-system --create-namespace crossplane-stable/crossplane --version $(patsubst v%,%,$(CROSSPLANE_VERSION))
 	@$(INFO) Waiting for Crossplane to be ready
 	@$(INFO) Installing Provider Akuity CRDs
 	@$(KUBECTL) apply -R -f package/crds
