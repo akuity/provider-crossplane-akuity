@@ -286,12 +286,12 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.KargoAgentGroupVersionKind),
-		managed.WithTypedExternalConnector[*v1alpha1.KargoAgent](conn),
-		managed.WithLogger(logger),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(recorder),
-		managed.WithManagementPolicies(),
+		base.ReconcilerOptions(o, logger, recorder, managed.WithTypedExternalConnector[*v1alpha1.KargoAgent](conn))...,
 	)
+
+	if err := base.AddStateMetrics(mgr, o, &v1alpha1.KargoAgentList{}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
