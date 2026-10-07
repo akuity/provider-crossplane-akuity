@@ -196,6 +196,8 @@ spec:
                                   enabled:
                                     type: boolean
                                 type: object
+                              appsetNewGitFileGlobbingEnabled:
+                                type: boolean
                               appsetPlugins:
                                 items:
                                   properties:
@@ -246,13 +248,64 @@ spec:
                                     type: boolean
                                   autoUpgradeDisabled:
                                     type: boolean
+                                  autoscalerConfig:
+                                    properties:
+                                      applicationController:
+                                        properties:
+                                          resourceMaximum:
+                                            properties:
+                                              cpu:
+                                                type: string
+                                              mem:
+                                                type: string
+                                            type: object
+                                          resourceMinimum:
+                                            properties:
+                                              cpu:
+                                                type: string
+                                              mem:
+                                                type: string
+                                            type: object
+                                        type: object
+                                      repoServer:
+                                        properties:
+                                          replicaMaximum:
+                                            format: int32
+                                            type: integer
+                                          replicaMinimum:
+                                            format: int32
+                                            type: integer
+                                          resourceMaximum:
+                                            properties:
+                                              cpu:
+                                                type: string
+                                              mem:
+                                                type: string
+                                            type: object
+                                          resourceMinimum:
+                                            properties:
+                                              cpu:
+                                                type: string
+                                              mem:
+                                                type: string
+                                            type: object
+                                        type: object
+                                    type: object
+                                  connectivity:
+                                    type: string
+                                  customCaBundle:
+                                    type: string
                                   kustomization:
                                     type: string
                                   redisTunneling:
                                     type: boolean
                                   serverSideDiffEnabled:
                                     type: boolean
+                                  size:
+                                    type: string
                                 type: object
+                              connectivity:
+                                type: string
                               crossplaneExtension:
                                 properties:
                                   resources:
@@ -508,11 +561,22 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                              mcpServer:
+                                properties:
+                                  enabled:
+                                    type: boolean
+                                required:
+                                - enabled
+                                type: object
                               metricsIngressPasswordHash:
                                 type: string
                               metricsIngressUsername:
                                 type: string
                               multiClusterK8sDashboardEnabled:
+                                type: boolean
+                              pinnedAgentVersion:
+                                type: string
+                              preferControlPlaneRepoServer:
                                 type: boolean
                               privilegedNotificationCluster:
                                 type: string
@@ -623,6 +687,10 @@ spec:
                                 type: string
                               syncHistoryExtensionEnabled:
                                 type: boolean
+                              terminationProtectionEnabled:
+                                type: boolean
+                              terminationProtectionNotes:
+                                type: string
                             type: object
                           version:
                             type: string
@@ -842,6 +910,8 @@ spec:
                                   type: array
                               type: object
                             preserveFileMode:
+                              type: boolean
+                            provideGitCreds:
                               type: boolean
                             version:
                               type: string
@@ -1182,6 +1252,8 @@ spec:
                                   enabled:
                                     type: boolean
                                 type: object
+                              appsetNewGitFileGlobbingEnabled:
+                                type: boolean
                               appsetPlugins:
                                 items:
                                   properties:
@@ -1232,13 +1304,64 @@ spec:
                                     type: boolean
                                   autoUpgradeDisabled:
                                     type: boolean
+                                  autoscalerConfig:
+                                    properties:
+                                      applicationController:
+                                        properties:
+                                          resourceMaximum:
+                                            properties:
+                                              cpu:
+                                                type: string
+                                              mem:
+                                                type: string
+                                            type: object
+                                          resourceMinimum:
+                                            properties:
+                                              cpu:
+                                                type: string
+                                              mem:
+                                                type: string
+                                            type: object
+                                        type: object
+                                      repoServer:
+                                        properties:
+                                          replicaMaximum:
+                                            format: int32
+                                            type: integer
+                                          replicaMinimum:
+                                            format: int32
+                                            type: integer
+                                          resourceMaximum:
+                                            properties:
+                                              cpu:
+                                                type: string
+                                              mem:
+                                                type: string
+                                            type: object
+                                          resourceMinimum:
+                                            properties:
+                                              cpu:
+                                                type: string
+                                              mem:
+                                                type: string
+                                            type: object
+                                        type: object
+                                    type: object
+                                  connectivity:
+                                    type: string
+                                  customCaBundle:
+                                    type: string
                                   kustomization:
                                     type: string
                                   redisTunneling:
                                     type: boolean
                                   serverSideDiffEnabled:
                                     type: boolean
+                                  size:
+                                    type: string
                                 type: object
+                              connectivity:
+                                type: string
                               crossplaneExtension:
                                 properties:
                                   resources:
@@ -1494,11 +1617,22 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                              mcpServer:
+                                properties:
+                                  enabled:
+                                    type: boolean
+                                required:
+                                - enabled
+                                type: object
                               metricsIngressPasswordHash:
                                 type: string
                               metricsIngressUsername:
                                 type: string
                               multiClusterK8sDashboardEnabled:
+                                type: boolean
+                              pinnedAgentVersion:
+                                type: string
+                              preferControlPlaneRepoServer:
                                 type: boolean
                               privilegedNotificationCluster:
                                 type: string
@@ -1609,6 +1743,10 @@ spec:
                                 type: string
                               syncHistoryExtensionEnabled:
                                 type: boolean
+                              terminationProtectionEnabled:
+                                type: boolean
+                              terminationProtectionNotes:
+                                type: string
                             type: object
                           version:
                             type: string
@@ -1738,6 +1876,8 @@ spec:
                                   type: array
                               type: object
                             preserveFileMode:
+                              type: boolean
+                            provideGitCreds:
                               type: boolean
                             version:
                               type: string
