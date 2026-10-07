@@ -154,6 +154,8 @@ spec:
                               ipv6Only:
                                 type: boolean
                             type: object
+                          connectivity:
+                            type: string
                           customAgentSizeConfig:
                             properties:
                               applicationController:
@@ -174,6 +176,8 @@ spec:
                                     type: integer
                                 type: object
                             type: object
+                          customCaBundle:
+                            type: string
                           datadogAnnotationsEnabled:
                             type: boolean
                           directClusterSpec:
@@ -220,6 +224,8 @@ spec:
                             type: string
                           targetVersion:
                             type: string
+                          useLocalRepoCreds:
+                            type: boolean
                         type: object
                       description:
                         type: string
@@ -497,6 +503,8 @@ spec:
                               ipv6Only:
                                 type: boolean
                             type: object
+                          connectivity:
+                            type: string
                           customAgentSizeConfig:
                             properties:
                               applicationController:
@@ -517,6 +525,8 @@ spec:
                                     type: integer
                                 type: object
                             type: object
+                          customCaBundle:
+                            type: string
                           datadogAnnotationsEnabled:
                             type: boolean
                           directClusterSpec:
@@ -563,6 +573,8 @@ spec:
                             type: string
                           targetVersion:
                             type: string
+                          useLocalRepoCreds:
+                            type: boolean
                         type: object
                       description:
                         type: string
