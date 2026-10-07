@@ -134,8 +134,8 @@ func generateClusterCustomSizeKustomization(cfg *generated.ClusterCustomAgentSiz
 func parseKustomizationObject(s string) (map[string]interface{}, error) {
 	if strings.TrimSpace(s) == "" {
 		return map[string]interface{}{
-			"apiVersion": "kustomize.config.k8s.io/v1beta1",
-			"kind":       "Kustomization",
+			apiVersionKey: "kustomize.config.k8s.io/v1beta1",
+			kindKey:       "Kustomization",
 		}, nil
 	}
 	var top map[string]interface{}
@@ -145,11 +145,11 @@ func parseKustomizationObject(s string) (map[string]interface{}, error) {
 	if top == nil {
 		top = map[string]interface{}{}
 	}
-	if _, ok := top["apiVersion"]; !ok {
-		top["apiVersion"] = "kustomize.config.k8s.io/v1beta1"
+	if _, ok := top[apiVersionKey]; !ok {
+		top[apiVersionKey] = "kustomize.config.k8s.io/v1beta1"
 	}
-	if _, ok := top["kind"]; !ok {
-		top["kind"] = "Kustomization"
+	if _, ok := top[kindKey]; !ok {
+		top[kindKey] = "Kustomization"
 	}
 	return top, nil
 }
@@ -171,7 +171,7 @@ func patchTargetDeploymentName(patch map[string]interface{}) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	if target["kind"] != "Deployment" {
+	if target[kindKey] != "Deployment" {
 		return "", false
 	}
 	name, ok := target["name"].(string)
@@ -231,8 +231,8 @@ func validateCustomResources(path, mem, cpu string) error {
 
 func deploymentResourcePatch(name, container, mem, cpu string) map[string]interface{} {
 	patch := map[string]interface{}{
-		"apiVersion": "apps/v1",
-		"kind":       "Deployment",
+		apiVersionKey: "apps/v1",
+		kindKey:       "Deployment",
 		"metadata": map[string]interface{}{
 			"name": name,
 		},
@@ -261,8 +261,8 @@ func deploymentResourcePatch(name, container, mem, cpu string) map[string]interf
 	return map[string]interface{}{
 		"patch": string(patchYAML),
 		"target": map[string]interface{}{
-			"kind": "Deployment",
-			"name": name,
+			kindKey: "Deployment",
+			"name":  name,
 		},
 	}
 }

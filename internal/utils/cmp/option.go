@@ -40,7 +40,7 @@ func isZeroValue(x any) bool { //nolint:gocyclo
 	}
 	v := reflect.ValueOf(x)
 	switch v.Kind() { //nolint:exhaustive
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		if v.IsNil() {
 			return true
 		}

@@ -753,7 +753,7 @@ func isEmptyKustomization(s string) (bool, error) {
 		return true, nil
 	}
 	for k := range v {
-		if k == "apiVersion" || k == "kind" {
+		if k == apiVersionKey || k == kindKey {
 			continue
 		}
 		// Any other key represents user-set Kustomization content.
