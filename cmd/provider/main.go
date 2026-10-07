@@ -17,11 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/pkg/errors"
+	authv1 "k8s.io/api/authorization/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -29,8 +34,10 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/gate"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/customresourcesgate"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis"
 	akuity "github.com/akuityio/provider-crossplane-akuity/internal/controller"
@@ -78,6 +85,7 @@ func main() {
 	})
 	kingpin.FatalIfError(err, "Cannot create controller manager")
 	kingpin.FatalIfError(apis.AddToScheme(mgr.GetScheme()), "Cannot add Akuity APIs to scheme")
+	kingpin.FatalIfError(apiextensionsv1.AddToScheme(mgr.GetScheme()), "Cannot add api-extensions APIs to scheme")
 
 	o := controller.Options{
 		Logger:                  log,
@@ -87,6 +95,37 @@ func main() {
 		Features:                &feature.Flags{},
 	}
 
-	kingpin.FatalIfError(akuity.Setup(mgr, o), "Cannot setup Akuity controllers")
+	canSafeStart, err := canWatchCRD(context.Background(), mgr)
+	kingpin.FatalIfError(err, "SafeStart precheck failed")
+	if canSafeStart {
+		o.Gate = new(gate.Gate[schema.GroupVersionKind])
+		kingpin.FatalIfError(customresourcesgate.Setup(mgr, o), "Cannot setup CRD gate")
+		kingpin.FatalIfError(akuity.SetupGated(mgr, o), "Cannot setup Akuity controllers")
+	} else {
+		log.Info("Provider has missing RBAC permissions for watching CRDs, controller SafeStart capability will be disabled")
+		kingpin.FatalIfError(akuity.Setup(mgr, o), "Cannot setup Akuity controllers")
+	}
 	kingpin.FatalIfError(mgr.Start(ctrl.SetupSignalHandler()), "Cannot start controller manager")
+}
+
+// canWatchCRD reports whether the provider can get, list and watch CRDs.
+func canWatchCRD(ctx context.Context, mgr ctrl.Manager) (bool, error) {
+	for _, verb := range []string{"get", "list", "watch"} {
+		sar := &authv1.SelfSubjectAccessReview{
+			Spec: authv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authv1.ResourceAttributes{
+					Group:    apiextensionsv1.GroupName,
+					Resource: "customresourcedefinitions",
+					Verb:     verb,
+				},
+			},
+		}
+		if err := mgr.GetClient().Create(ctx, sar); err != nil {
+			return false, errors.Wrapf(err, "cannot check %s permission on CustomResourceDefinitions", verb)
+		}
+		if !sar.Status.Allowed {
+			return false, nil
+		}
+	}
+	return true, nil
 }
