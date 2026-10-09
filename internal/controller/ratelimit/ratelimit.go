@@ -1,19 +1,18 @@
-// Package ratelimit builds the workqueue rate limiter used by every Akuity
-// controller. It combines two behaviors:
+// Package ratelimit builds the global rate limiter shared by every Akuity
+// controller. It is a token bucket that caps the total rate of reconciles
+// across the provider process, the back-pressure against the Akuity API.
 //
-//  1. A global token bucket that caps the total rate of reconciles across all
-//     controllers in the provider process. This is the back-pressure against
-//     the Akuity API.
-//  2. A per-item exponential backoff so a single persistently-failing managed
-//     resource does not hot-loop against the API.
-//
-// The limiter returned by ForAkuity is installed into every managed reconciler
-// via controller-runtime's controller.Options.RateLimiter field.
+// The limiter is passed to crossplane-runtime's rate-limited reconciler
+// wrapper, which asks it for a delay before every reconcile. It must not
+// carry a per-item component: a per-item limiter answers with a non-zero
+// delay on its first call, the wrapper turns that into RequeueAfter, and
+// controller-runtime then forgets the workqueue's own exponential backoff.
+// The result is a persistently failing resource that retries every few
+// seconds instead of backing off. Per-item exponential backoff already
+// comes from the workqueue limiter that controller.Options installs.
 package ratelimit
 
 import (
-	"time"
-
 	"golang.org/x/time/rate"
 	"k8s.io/client-go/util/workqueue"
 
@@ -24,30 +23,17 @@ import (
 const (
 	DefaultRPS        = 10
 	DefaultBurstRatio = 10 // burst = rps * BurstRatio
-	DefaultBaseDelay  = 1 * time.Second
-	DefaultMaxDelay   = 60 * time.Second
 )
 
-// ForAkuity returns a workqueue rate limiter for Akuity managed reconcilers.
+// ForAkuity returns the global token bucket for Akuity managed reconcilers.
 // rps bounds the steady-state reconcile rate across all controllers sharing
 // this limiter. Caller passes the same instance to every controller so the
-// budget is shared.
-//
-// Passing rps <= 0 falls back to DefaultRPS. The per-item exponential backoff
-// runs from DefaultBaseDelay to DefaultMaxDelay regardless of rps.
-//
-// The return type matches crossplane-runtime's ratelimiter.RateLimiter
-// (workqueue.TypedRateLimiter[string]) so the result can be passed directly
-// to controller.Options.GlobalRateLimiter.
+// budget is shared. Passing rps <= 0 falls back to DefaultRPS.
 func ForAkuity(rps int) ratelimiter.RateLimiter {
 	if rps <= 0 {
 		rps = DefaultRPS
 	}
-	global := &workqueue.TypedBucketRateLimiter[string]{
+	return &workqueue.TypedBucketRateLimiter[string]{
 		Limiter: rate.NewLimiter(rate.Limit(rps), rps*DefaultBurstRatio),
 	}
-	perItem := workqueue.NewTypedItemExponentialFailureRateLimiter[string](
-		DefaultBaseDelay, DefaultMaxDelay,
-	)
-	return workqueue.NewTypedMaxOfRateLimiter[string](perItem, global)
 }
