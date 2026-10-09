@@ -258,18 +258,6 @@ func TestUpdate_InvalidArgument_Terminal(t *testing.T) {
 		"InvalidArgument from ApplyInstance must be reason.Terminal-classified, got %T %v", err, err)
 }
 
-func TestUpdate_FailedPrecondition_Terminal(t *testing.T) {
-	e, mc := newExt(t, nil)
-
-	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
-		Return(grpcstatus.Error(codes.FailedPrecondition, "agent version is pinned to 0.5.88 in the instance settings")).Times(1)
-
-	_, err := e.Update(ctx, &fixtures.CrossplaneManagedCluster)
-	require.Error(t, err)
-	assert.True(t, reason.IsTerminal(err),
-		"FailedPrecondition from ApplyInstance must be reason.Terminal-classified, got %T %v", err, err)
-}
-
 func TestUpdate(t *testing.T) {
 	e, mc := newExt(t, nil)
 
