@@ -86,3 +86,10 @@ func TestClassifyManifestInstallError_OtherwiseTerminal(t *testing.T) {
 	require.Error(t, got)
 	assert.True(t, reason.IsTerminal(got))
 }
+
+func TestClassifyApplyError_FailedPreconditionWrapsAsTerminal(t *testing.T) {
+	got := reason.ClassifyApplyError(status.Error(codes.FailedPrecondition,
+		"agent version is pinned to 0.5.88 in the instance settings, unpin it to change agent versions"))
+	require.Error(t, got)
+	assert.True(t, reason.IsTerminal(got))
+}

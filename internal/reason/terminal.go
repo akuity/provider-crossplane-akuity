@@ -61,7 +61,11 @@ func ClassifyApplyError(err error) error {
 	if !ok {
 		return err
 	}
-	if s.Code() == codes.InvalidArgument || s.Code() == codes.PermissionDenied {
+	// FailedPrecondition is the platform's answer when a Cluster or
+	// KargoAgent targetVersion conflicts with the instance's
+	// pinnedAgentVersion. Retrying the same payload never converges;
+	// the user must change the spec or unpin the instance.
+	if s.Code() == codes.InvalidArgument || s.Code() == codes.PermissionDenied || s.Code() == codes.FailedPrecondition {
 		return AsTerminal(err)
 	}
 	return err
