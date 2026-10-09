@@ -92,6 +92,7 @@ type KargoInstanceSpec struct {
 	PromoControllerEnabled     *bool                    `json:"promoControllerEnabled,omitempty"`
 	Secrets                    SecretsManagementConfig  `json:"secrets,omitempty"`
 	ArgocdUi                   *KargoArgoCDUIConfig     `json:"argocdUi,omitempty"`
+	PinnedAgentVersion         *string                  `json:"pinnedAgentVersion,omitempty"`
 }
 
 type KargoArgoCDUIConfig struct {

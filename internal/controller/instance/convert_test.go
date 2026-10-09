@@ -71,6 +71,7 @@ func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 		MetricsIngressUsername:        ptr.To("metrics-user"),
 		MetricsIngressPasswordHash:    ptr.To("metrics-hash"),
 		PrivilegedNotificationCluster: ptr.To("notifications"),
+		PinnedAgentVersion:            ptr.To("0.5.88"),
 		ClusterAddonsExtension: &crossplanetypes.ClusterAddonsExtension{
 			Enabled:          ptr.To(true),
 			AllowedUsernames: []string{"alice"},
@@ -97,6 +98,7 @@ func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 	assert.Equal(t, ptr.To("metrics-user"), wire.MetricsIngressUsername)
 	assert.Equal(t, ptr.To("metrics-hash"), wire.MetricsIngressPasswordHash)
 	assert.Equal(t, ptr.To("notifications"), wire.PrivilegedNotificationCluster)
+	assert.Equal(t, ptr.To("0.5.88"), wire.PinnedAgentVersion)
 	require.NotNil(t, wire.ClusterAddonsExtension)
 	assert.Equal(t, ptr.To(true), wire.ClusterAddonsExtension.Enabled)
 	assert.Equal(t, []string{"alice"}, wire.ClusterAddonsExtension.AllowedUsernames)
