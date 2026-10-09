@@ -93,3 +93,13 @@ func TestClassifyApplyError_FailedPreconditionWrapsAsTerminal(t *testing.T) {
 	require.Error(t, got)
 	assert.True(t, reason.IsTerminal(got))
 }
+
+// Only the agent-version pin conflict is known to be a user-fixable
+// precondition. The platform also answers FailedPrecondition for
+// transient states such as "Resource is still in use", which must keep
+// retrying rather than being cached as a terminal write.
+func TestClassifyApplyError_OtherFailedPreconditionPassesThrough(t *testing.T) {
+	got := reason.ClassifyApplyError(status.Error(codes.FailedPrecondition, "Resource is still in use"))
+	require.Error(t, got)
+	assert.False(t, reason.IsTerminal(got))
+}

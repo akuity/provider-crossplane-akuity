@@ -61,11 +61,17 @@ func ClassifyApplyError(err error) error {
 	if !ok {
 		return err
 	}
-	// FailedPrecondition is the platform's answer when a Cluster or
-	// KargoAgent targetVersion conflicts with the instance's
-	// pinnedAgentVersion. Retrying the same payload never converges;
-	// the user must change the spec or unpin the instance.
-	if s.Code() == codes.InvalidArgument || s.Code() == codes.PermissionDenied || s.Code() == codes.FailedPrecondition {
+	if s.Code() == codes.InvalidArgument || s.Code() == codes.PermissionDenied {
+		return AsTerminal(err)
+	}
+	// FailedPrecondition is only known to be user-fixable for the agent
+	// version pin conflict ("agent version is pinned to X in the instance
+	// settings"), raised when a Cluster or KargoAgent targetVersion
+	// disagrees with the instance's pinnedAgentVersion. Retrying that
+	// payload never converges until the spec or the pin changes. The
+	// platform also uses the same code for transient states such as
+	// "Resource is still in use", so anything else keeps retrying.
+	if s.Code() == codes.FailedPrecondition && strings.Contains(s.Message(), "is pinned to") {
 		return AsTerminal(err)
 	}
 	return err
