@@ -31,6 +31,7 @@ spec:
 | `spec.forProvider.kargo.subdomain` | Akuity-managed subdomain. |
 | `spec.forProvider.kargo.oidcConfig` | OIDC and Dex settings. Prefer `dexConfigSecretRef` for secret data. |
 | `spec.forProvider.kargo.kargoInstanceSpec` | Instance features such as allow list, default shard agent, AI, GC, and global namespaces. |
+| `spec.forProvider.kargo.kargoInstanceSpec.pinnedAgentVersion` | Pin every self-hosted Kargo agent of the instance to one agent version (bare semver, for example `0.5.88`). Omit for no opinion, set `""` to clear a pin. Akuity-managed agents are not pinned. |
 | `spec.forProvider.kargoConfigMap` | Managed keys for `kargo-cm`. |
 | `spec.forProvider.kargoSecretRef` | Secret data sent as `kargo-secret`. |
 | `spec.forProvider.kargoRepoCredentialSecretRefs` | Kargo repository credentials from Kubernetes Secret refs. |
@@ -49,6 +50,10 @@ spec:
 `kargoConfigMap` is forwarded to the platform without a provider-side key allow-list. Current platform-documented keys include `adminAccountEnabled` and `adminAccountTokenTtl`; newer platform fields can be used without waiting for a provider CRD release.
 
 Known Kargo API aliases such as `admin_account_token_ttl` are canonicalized to lowerCamel before apply. The provider also clears the alternate known spelling in the same apply to avoid duplicate-field platform merge state. Removing `kargoConfigMap` from the managed resource stops managing those keys, but does not clear platform-side values.
+
+## Agent Version Pin
+
+While a Kargo instance is pinned through `kargoInstanceSpec.pinnedAgentVersion`, the platform rejects a `KargoAgent` whose `data.targetVersion` differs from the pin. Omit `targetVersion` on `KargoAgent` managed resources of a pinned instance, or keep it equal to the pin. Requires an Akuity Platform release from October 2026 or later.
 
 ## Examples
 

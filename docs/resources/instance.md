@@ -51,4 +51,12 @@ ConfigMap fields are key-owned and additive. See [Secrets and ConfigMaps](../gui
 
 For `argocdSshKnownHostsConfigMap.ssh_known_hosts`, keep the Akuity Platform default known_hosts entries and append custom hosts. The platform-observed value is visible at `status.atProvider.argocdSshKnownHostsConfigMap.ssh_known_hosts`.
 
+`argocd.spec.instanceSpec.pinnedAgentVersion` pins every cluster of the instance to one agent version. Use the bare agent version (`0.5.88`), not `v0.5.88`. Three states matter:
+
+- Omitted: no opinion. A pin set in the Akuity Platform UI or by another tool is left alone and never copied into the Crossplane spec.
+- Set: enforced. If the platform value drifts, the provider re-applies the pinned version.
+- Empty string (`pinnedAgentVersion: ""`): clears the pin. Agents stay on their current version.
+
+While an instance is pinned, the platform rejects a `Cluster` whose `data.targetVersion` differs from the pin. Omit `targetVersion` on `Cluster` managed resources of a pinned instance, or keep it equal to the pin. Requires an Akuity Platform release from October 2026 or later.
+
 For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).
