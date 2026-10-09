@@ -458,3 +458,35 @@ var (
 	_ = meta.GetExternalName
 	_ = gomock.Any
 )
+
+// TestBuildApplyInstanceRequest_PinnedAgentVersionWire locks the JSON
+// path the platform's apply handler reads (spec.instanceSpec) and the
+// nil-vs-empty distinction: nil omits the key so the stored pin is kept,
+// "" is sent so the platform unpins.
+func TestBuildApplyInstanceRequest_PinnedAgentVersionWire(t *testing.T) {
+	cases := []struct {
+		name    string
+		pin     *string
+		present bool
+		value   string
+	}{
+		{"omitted keeps stored pin", nil, false, ""},
+		{"explicit empty unpins", ptr.To(""), true, ""},
+		{"pinned", ptr.To("0.5.88"), true, "0.5.88"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mr := *fixtures.CrossplaneManagedInstance.DeepCopy()
+			mr.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = tc.pin
+			req, err := BuildApplyInstanceRequest(mr, resolvedInstanceSecrets{})
+			require.NoError(t, err)
+			spec, _ := req.GetArgocd().AsMap()["spec"].(map[string]interface{})
+			instanceSpec, _ := spec["instanceSpec"].(map[string]interface{})
+			got, ok := instanceSpec["pinnedAgentVersion"]
+			assert.Equal(t, tc.present, ok)
+			if tc.present {
+				assert.Equal(t, tc.value, got)
+			}
+		})
+	}
+}

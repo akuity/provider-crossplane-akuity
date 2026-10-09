@@ -36,6 +36,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
@@ -788,4 +789,49 @@ func TestObserve_GenericErrPropagates(t *testing.T) {
 	_, err := e.Observe(context.Background(), ki)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+// TestObserve_PinnedAgentVersion_DriftAgainstExport mirrors the Instance
+// cases on the Kargo side, where the observed spec is rebuilt from the
+// Export payload at spec.kargoInstanceSpec.pinnedAgentVersion.
+func TestObserve_PinnedAgentVersion_DriftAgainstExport(t *testing.T) {
+	cases := []struct {
+		name     string
+		desired  *string
+		exported map[string]interface{}
+		upToDate bool
+	}{
+		{"pinned matches export", ptr.To("0.5.88"), map[string]interface{}{"pinnedAgentVersion": "0.5.88"}, true},
+		{"pinned but export unpinned", ptr.To("0.5.88"), map[string]interface{}{}, false},
+		{"explicit empty against pinned export", ptr.To(""), map[string]interface{}{"pinnedAgentVersion": "0.5.98"}, false},
+		{"explicit empty against unpinned export", ptr.To(""), map[string]interface{}{}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, mc := newExt(t)
+			ki := newKI()
+			ki.Spec.ForProvider.Kargo.KargoInstanceSpec.PinnedAgentVersion = tc.desired
+			meta.SetExternalName(ki, "ki")
+			mc.EXPECT().GetKargoInstance(gomock.Any(), "ki").Return(&kargov1.KargoInstance{
+				Id:           "id-1",
+				Name:         "ki",
+				Version:      "v1.0.0",
+				HealthStatus: &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+			}, nil).Times(1)
+			mc.EXPECT().ExportKargoInstance(gomock.Any(), "id-1", "ws-cached").
+				Return(&kargov1.ExportKargoInstanceResponse{
+					Kargo: mustKargoStruct(t, map[string]interface{}{
+						"version":           "v1.0.0",
+						"kargoInstanceSpec": tc.exported,
+					}),
+				}, nil).Times(1)
+
+			obs, err := e.Observe(context.Background(), ki)
+			require.NoError(t, err)
+			assert.Equal(t, tc.upToDate, obs.ResourceUpToDate)
+			if tc.upToDate && tc.desired != nil && *tc.desired != "" {
+				assert.Equal(t, tc.desired, ki.Status.AtProvider.Kargo.KargoInstanceSpec.PinnedAgentVersion)
+			}
+		})
+	}
 }
