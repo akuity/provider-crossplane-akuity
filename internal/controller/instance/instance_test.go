@@ -717,7 +717,10 @@ func TestObserve_InstanceUpToDate(t *testing.T) {
 func TestObserve_InstanceNotUpToDate(t *testing.T) {
 	e, mc := newExt(t)
 
-	managedInstance := fixtures.CrossplaneManagedInstance
+	// DeepCopy: ArgoCD is a pointer shared with every other test through
+	// the package fixture; mutating it in place would leak the new
+	// description into tests that run later in the file.
+	managedInstance := *fixtures.CrossplaneManagedInstance.DeepCopy()
 	managedInstance.ObjectMeta = metav1.ObjectMeta{
 		Annotations: map[string]string{
 			"crossplane.io/external-name": fixtures.InstanceName,
