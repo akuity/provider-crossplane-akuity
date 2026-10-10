@@ -44,7 +44,7 @@ For Akuity-managed agents, set `akuityManaged: true` and `remoteArgocd` to the r
 
 For self-hosted agents, set `akuityManaged: false`, provide the self-managed Argo CD connection details, and use agent versions such as `0.5.88` without a leading `v`. Autoscaler bounds are intended for `size: auto`.
 
-If the parent `KargoInstance` sets `pinnedAgentVersion`, leave `targetVersion` unset or equal to the pin for self-hosted agents.
+If the parent `KargoInstance` sets an agent version pin (`pinnedAgentVersion`), leave the agent target version (`targetVersion`) unset or equal to the pin for self-hosted agents. An unset `targetVersion` follows the pin automatically; any other value is rejected and the managed resource reports `Synced=False`, retrying with backoff, until the spec is corrected. Akuity-managed agents always run the latest agent and are not pinned.
 
 For custom fixed controller resources on a self-hosted agent, set `kargoAgentSpec.data.size: custom` with `customAgentSizeConfig.kargoController`. `custom` is a provider-side convenience: the provider sends platform size `large` and generated `kustomization` patches for `Deployment/kargo-controller-<agent-name>`. Do not combine `custom` with `autoscalerConfig`, and do not use it with `akuityManaged: true`.
 
