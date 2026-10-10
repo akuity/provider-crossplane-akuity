@@ -803,3 +803,33 @@ func TestObserve_PinnedAgentVersion_Drift(t *testing.T) {
 		})
 	}
 }
+
+// TestDriftSpec_NilPresence_OmittedPinAdoptsObservedPin covers the
+// fallback when the live Get of the managed resource fails and presence
+// projection is unavailable: an omitted pin must still read as no
+// opinion, or Apply (which omits the key) could never close the drift.
+// An explicit "" or value keeps its meaning.
+func TestDriftSpec_NilPresence_OmittedPinAdoptsObservedPin(t *testing.T) {
+	cases := []struct {
+		name     string
+		desired  *string
+		upToDate bool
+	}{
+		{"omitted adopts server pin", nil, true},
+		{"explicit empty still clears", ptr.To(""), false},
+		{"other value still enforces", ptr.To("0.5.88"), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			desired := *fixtures.CrossplaneManagedInstance.Spec.ForProvider.DeepCopy()
+			observed := *fixtures.CrossplaneManagedInstance.Spec.ForProvider.DeepCopy()
+			desired.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = tc.desired
+			observed.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = ptr.To("0.5.98")
+
+			spec := driftSpec() // Presence stays nil: full comparison.
+			ok, err := spec.UpToDate(ctx, &desired, &observed)
+			require.NoError(t, err)
+			assert.Equal(t, tc.upToDate, ok)
+		})
+	}
+}

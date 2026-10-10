@@ -835,3 +835,30 @@ func TestObserve_PinnedAgentVersion_DriftAgainstExport(t *testing.T) {
 		})
 	}
 }
+
+// TestDriftSpec_NilPresence_OmittedPinAdoptsObservedPin mirrors the
+// Instance case: without presence projection an omitted pin must still
+// read as no opinion, while "" and a value keep their meaning.
+func TestDriftSpec_NilPresence_OmittedPinAdoptsObservedPin(t *testing.T) {
+	cases := []struct {
+		name     string
+		desired  *string
+		upToDate bool
+	}{
+		{"omitted adopts server pin", nil, true},
+		{"explicit empty still clears", ptr.To(""), false},
+		{"other value still enforces", ptr.To("0.5.88"), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			desired := newKI().Spec.ForProvider
+			observed := newKI().Spec.ForProvider
+			desired.Kargo.KargoInstanceSpec.PinnedAgentVersion = tc.desired
+			observed.Kargo.KargoInstanceSpec.PinnedAgentVersion = ptr.To("0.5.98")
+
+			ok, err := driftSpec().UpToDate(context.Background(), &desired, &observed)
+			require.NoError(t, err)
+			assert.Equal(t, tc.upToDate, ok)
+		})
+	}
+}
