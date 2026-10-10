@@ -306,6 +306,7 @@ func InstanceArgoCDSpec(instanceSpec *argocdv1.InstanceSpec) (crossplanetypes.In
 		PrivilegedNotificationCluster:   instanceSpec.PrivilegedNotificationCluster,
 		ClusterAddonsExtension:          ClusterAddonsExtension(instanceSpec.GetClusterAddonsExtension()),
 		ManifestGeneration:              ManifestGeneration(instanceSpec.GetManifestGeneration()),
+		PinnedAgentVersion:              instanceSpec.PinnedAgentVersion,
 	}, nil
 }
 

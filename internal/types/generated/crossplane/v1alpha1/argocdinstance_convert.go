@@ -823,6 +823,7 @@ func InstanceSpecSpecToAPI(in *InstanceSpec) *akuitytypes.InstanceSpec {
 	out.PrivilegedNotificationCluster = in.PrivilegedNotificationCluster
 	out.ClusterAddonsExtension = ClusterAddonsExtensionSpecToAPI(in.ClusterAddonsExtension)
 	out.ManifestGeneration = ManifestGenerationSpecToAPI(in.ManifestGeneration)
+	out.PinnedAgentVersion = in.PinnedAgentVersion
 	return out
 }
 
@@ -897,6 +898,7 @@ func InstanceSpecAPIToSpec(in *akuitytypes.InstanceSpec) *InstanceSpec {
 	out.PrivilegedNotificationCluster = in.PrivilegedNotificationCluster
 	out.ClusterAddonsExtension = ClusterAddonsExtensionAPIToSpec(in.ClusterAddonsExtension)
 	out.ManifestGeneration = ManifestGenerationAPIToSpec(in.ManifestGeneration)
+	out.PinnedAgentVersion = in.PinnedAgentVersion
 	return out
 }
 

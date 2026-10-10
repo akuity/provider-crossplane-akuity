@@ -148,6 +148,7 @@ func KargoInstanceSpecSpecToAPI(in *KargoInstanceSpec) *akuitytypes.KargoInstanc
 	out.PromoControllerEnabled = in.PromoControllerEnabled
 	out.Secrets = *SecretsManagementConfigSpecToAPI(&in.Secrets)
 	out.ArgocdUi = KargoArgoCDUIConfigSpecToAPI(in.ArgocdUi)
+	out.PinnedAgentVersion = in.PinnedAgentVersion
 	return out
 }
 
@@ -173,6 +174,7 @@ func KargoInstanceSpecAPIToSpec(in *akuitytypes.KargoInstanceSpec) *KargoInstanc
 	out.PromoControllerEnabled = in.PromoControllerEnabled
 	out.Secrets = *SecretsManagementConfigAPIToSpec(&in.Secrets)
 	out.ArgocdUi = KargoArgoCDUIConfigAPIToSpec(in.ArgocdUi)
+	out.PinnedAgentVersion = in.PinnedAgentVersion
 	return out
 }
 

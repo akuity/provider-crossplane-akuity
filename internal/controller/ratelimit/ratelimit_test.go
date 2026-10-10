@@ -17,26 +17,14 @@ func TestForAkuity_FallsBackToDefaultWhenNonPositive(t *testing.T) {
 	_ = rl.When(item)
 }
 
-func TestForAkuity_ExponentialBackoffAdvancesOnRepeatedFailure(t *testing.T) {
+// The global limiter must answer zero while the bucket has tokens. Any
+// per-item delay here is turned into RequeueAfter by the rate-limited
+// reconciler wrapper, which resets the workqueue's exponential backoff
+// and makes a persistently failing resource retry every few seconds.
+func TestForAkuity_NoPerItemDelayWhileBucketHasTokens(t *testing.T) {
 	rl := ratelimit.ForAkuity(100)
 
-	first := rl.When(item)
-	second := rl.When(item)
-	third := rl.When(item)
-
-	// Per-item exponential backoff must grow monotonically across failures.
-	// The global token bucket alone would return ~constant delays; the
-	// assertion below fails if the per-item limiter is missing.
-	assert.GreaterOrEqual(t, second, first)
-	assert.GreaterOrEqual(t, third, second)
-}
-
-func TestForAkuity_ForgetResetsPerItemBackoff(t *testing.T) {
-	rl := ratelimit.ForAkuity(100)
-
-	_ = rl.When(item)
-	_ = rl.When(item)
-	rl.Forget(item)
-	after := rl.When(item)
-	assert.LessOrEqual(t, after, ratelimit.DefaultBaseDelay*2)
+	for i := 0; i < 5; i++ {
+		assert.Zero(t, rl.When(item), "call %d", i)
+	}
 }

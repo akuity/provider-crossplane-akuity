@@ -429,6 +429,15 @@ func normalizeInstanceParameters(managedInstance, actualInstance *v1alpha1.Insta
 			managedInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled = actualInstance.ArgoCD.Spec.InstanceSpec.MultiClusterK8SDashboardEnabled
 		}
 
+		// An omitted pin is no opinion. Presence projection already
+		// drops it when the live Get of the managed resource succeeds;
+		// inherit the observed pin here so a failed Get cannot turn an
+		// omitted pin into a drift that Apply never closes, since Apply
+		// omits the key and the platform keeps its stored pin.
+		if managedInstance.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion == nil {
+			managedInstance.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = actualInstance.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion
+		}
+
 		// Only one of Fqdn and Subdomain should be set. If both are
 		// present, adopt the platform's canonical pair.
 		if managedInstance.ArgoCD.Spec.InstanceSpec.Fqdn != "" && managedInstance.ArgoCD.Spec.InstanceSpec.Subdomain != "" {

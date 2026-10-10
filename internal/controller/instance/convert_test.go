@@ -71,6 +71,7 @@ func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 		MetricsIngressUsername:        ptr.To("metrics-user"),
 		MetricsIngressPasswordHash:    ptr.To("metrics-hash"),
 		PrivilegedNotificationCluster: ptr.To("notifications"),
+		PinnedAgentVersion:            ptr.To("0.5.88"),
 		ClusterAddonsExtension: &crossplanetypes.ClusterAddonsExtension{
 			Enabled:          ptr.To(true),
 			AllowedUsernames: []string{"alice"},
@@ -97,6 +98,7 @@ func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 	assert.Equal(t, ptr.To("metrics-user"), wire.MetricsIngressUsername)
 	assert.Equal(t, ptr.To("metrics-hash"), wire.MetricsIngressPasswordHash)
 	assert.Equal(t, ptr.To("notifications"), wire.PrivilegedNotificationCluster)
+	assert.Equal(t, ptr.To("0.5.88"), wire.PinnedAgentVersion)
 	require.NotNil(t, wire.ClusterAddonsExtension)
 	assert.Equal(t, ptr.To(true), wire.ClusterAddonsExtension.Enabled)
 	assert.Equal(t, []string{"alice"}, wire.ClusterAddonsExtension.AllowedUsernames)
@@ -456,3 +458,35 @@ var (
 	_ = meta.GetExternalName
 	_ = gomock.Any
 )
+
+// TestBuildApplyInstanceRequest_PinnedAgentVersionWire locks the JSON
+// path the platform's apply handler reads (spec.instanceSpec) and the
+// nil-vs-empty distinction: nil omits the key so the stored pin is kept,
+// "" is sent so the platform unpins.
+func TestBuildApplyInstanceRequest_PinnedAgentVersionWire(t *testing.T) {
+	cases := []struct {
+		name    string
+		pin     *string
+		present bool
+		value   string
+	}{
+		{"omitted keeps stored pin", nil, false, ""},
+		{"explicit empty unpins", ptr.To(""), true, ""},
+		{"pinned", ptr.To("0.5.88"), true, "0.5.88"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mr := *fixtures.CrossplaneManagedInstance.DeepCopy()
+			mr.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = tc.pin
+			req, err := BuildApplyInstanceRequest(mr, resolvedInstanceSecrets{})
+			require.NoError(t, err)
+			spec, _ := req.GetArgocd().AsMap()["spec"].(map[string]interface{})
+			instanceSpec, _ := spec["instanceSpec"].(map[string]interface{})
+			got, ok := instanceSpec["pinnedAgentVersion"]
+			assert.Equal(t, tc.present, ok)
+			if tc.present {
+				assert.Equal(t, tc.value, got)
+			}
+		})
+	}
+}

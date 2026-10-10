@@ -142,6 +142,15 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 				desired.Kargo.KargoInstanceSpec.AkuityIntelligence =
 					observed.Kargo.KargoInstanceSpec.AkuityIntelligence
 			}
+			// An omitted pin is no opinion. Presence projection already
+			// drops it when the live Get of the managed resource
+			// succeeds; inherit the observed pin so a failed Get cannot
+			// turn it into a drift that Apply never closes, since Apply
+			// omits the key and the platform keeps its stored pin.
+			if desired.Kargo.KargoInstanceSpec.PinnedAgentVersion == nil {
+				desired.Kargo.KargoInstanceSpec.PinnedAgentVersion =
+					observed.Kargo.KargoInstanceSpec.PinnedAgentVersion
+			}
 			// GcConfig is server-retained: once a value has been Applied,
 			// the gateway keeps it even after the CR clears the field.
 			// Without this inherit the drift compare would see

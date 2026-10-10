@@ -287,6 +287,7 @@ type InstanceSpec struct {
 	PrivilegedNotificationCluster   *string                         `json:"privilegedNotificationCluster,omitempty"`
 	ClusterAddonsExtension          *ClusterAddonsExtension         `json:"clusterAddonsExtension,omitempty"`
 	ManifestGeneration              *ManifestGeneration             `json:"manifestGeneration,omitempty"`
+	PinnedAgentVersion              *string                         `json:"pinnedAgentVersion,omitempty"`
 }
 
 // +kubebuilder:object:generate=true

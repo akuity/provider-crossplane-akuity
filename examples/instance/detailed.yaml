@@ -12,6 +12,9 @@ spec:
         version: "v3.3.8-ak.87"
         instanceSpec:
           declarativeManagementEnabled: false
+          # Pin every cluster agent of this instance. Bare semver, no "v".
+          # Omit to leave a UI-set pin alone; set "" to clear a pin.
+          pinnedAgentVersion: "0.5.88"
           backendIpAllowListEnabled: true
           ipAllowList:
             - description: "dummy entry2"

@@ -42,6 +42,21 @@ func (m *MockOrganizationServiceGatewayClient) EXPECT() *MockOrganizationService
 	return m.recorder
 }
 
+// AddPrivateLinkAccount mocks base method.
+func (m *MockOrganizationServiceGatewayClient) AddPrivateLinkAccount(arg0 context.Context, arg1 *organizationv1.AddPrivateLinkAccountRequest) (*organizationv1.AddPrivateLinkAccountResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddPrivateLinkAccount", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.AddPrivateLinkAccountResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddPrivateLinkAccount indicates an expected call of AddPrivateLinkAccount.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) AddPrivateLinkAccount(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddPrivateLinkAccount", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).AddPrivateLinkAccount), arg0, arg1)
+}
+
 // AddTeamMember mocks base method.
 func (m *MockOrganizationServiceGatewayClient) AddTeamMember(arg0 context.Context, arg1 *organizationv1.AddTeamMemberRequest) (*organizationv1.AddTeamMemberResponse, error) {
 	m.ctrl.T.Helper()
@@ -70,6 +85,21 @@ func (m *MockOrganizationServiceGatewayClient) AddWorkspaceMember(arg0 context.C
 func (mr *MockOrganizationServiceGatewayClientMockRecorder) AddWorkspaceMember(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddWorkspaceMember", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).AddWorkspaceMember), arg0, arg1)
+}
+
+// BeginMCPServerOAuth mocks base method.
+func (m *MockOrganizationServiceGatewayClient) BeginMCPServerOAuth(arg0 context.Context, arg1 *organizationv1.BeginMCPServerOAuthRequest) (*organizationv1.BeginMCPServerOAuthResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BeginMCPServerOAuth", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.BeginMCPServerOAuthResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BeginMCPServerOAuth indicates an expected call of BeginMCPServerOAuth.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) BeginMCPServerOAuth(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginMCPServerOAuth", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).BeginMCPServerOAuth), arg0, arg1)
 }
 
 // BillingCheckout mocks base method.
@@ -282,6 +312,21 @@ func (mr *MockOrganizationServiceGatewayClientMockRecorder) DeleteAIConversation
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIConversation", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).DeleteAIConversation), arg0, arg1)
 }
 
+// DeleteAIConversations mocks base method.
+func (m *MockOrganizationServiceGatewayClient) DeleteAIConversations(arg0 context.Context, arg1 *organizationv1.DeleteAIConversationsRequest) (*organizationv1.DeleteAIConversationsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAIConversations", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.DeleteAIConversationsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAIConversations indicates an expected call of DeleteAIConversations.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) DeleteAIConversations(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIConversations", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).DeleteAIConversations), arg0, arg1)
+}
+
 // DeleteCustomRole mocks base method.
 func (m *MockOrganizationServiceGatewayClient) DeleteCustomRole(arg0 context.Context, arg1 *organizationv1.DeleteCustomRoleRequest) (*organizationv1.DeleteCustomRoleResponse, error) {
 	m.ctrl.T.Helper()
@@ -415,6 +460,21 @@ func (m *MockOrganizationServiceGatewayClient) DeleteWorkspaceCustomRole(arg0 co
 func (mr *MockOrganizationServiceGatewayClientMockRecorder) DeleteWorkspaceCustomRole(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceCustomRole", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).DeleteWorkspaceCustomRole), arg0, arg1)
+}
+
+// DiscoverMCPServerTools mocks base method.
+func (m *MockOrganizationServiceGatewayClient) DiscoverMCPServerTools(arg0 context.Context, arg1 *organizationv1.DiscoverMCPServerToolsRequest) (*organizationv1.DiscoverMCPServerToolsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DiscoverMCPServerTools", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.DiscoverMCPServerToolsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DiscoverMCPServerTools indicates an expected call of DiscoverMCPServerTools.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) DiscoverMCPServerTools(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscoverMCPServerTools", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).DiscoverMCPServerTools), arg0, arg1)
 }
 
 // EnsureSSOConfiguration mocks base method.
@@ -841,6 +901,21 @@ func (mr *MockOrganizationServiceGatewayClientMockRecorder) GetKubernetesSummary
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKubernetesSummary", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).GetKubernetesSummary), arg0, arg1)
 }
 
+// GetMCPServer mocks base method.
+func (m *MockOrganizationServiceGatewayClient) GetMCPServer(arg0 context.Context, arg1 *organizationv1.GetMCPServerRequest) (*organizationv1.GetMCPServerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPServer", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.GetMCPServerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPServer indicates an expected call of GetMCPServer.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) GetMCPServer(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServer", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).GetMCPServer), arg0, arg1)
+}
+
 // GetNotificationConfig mocks base method.
 func (m *MockOrganizationServiceGatewayClient) GetNotificationConfig(arg0 context.Context, arg1 *organizationv1.GetNotificationConfigRequest) (*organizationv1.GetNotificationConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -1034,6 +1109,21 @@ func (m *MockOrganizationServiceGatewayClient) GetWorkspaceMember(arg0 context.C
 func (mr *MockOrganizationServiceGatewayClientMockRecorder) GetWorkspaceMember(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceMember", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).GetWorkspaceMember), arg0, arg1)
+}
+
+// InstallMCPServer mocks base method.
+func (m *MockOrganizationServiceGatewayClient) InstallMCPServer(arg0 context.Context, arg1 *organizationv1.InstallMCPServerRequest) (*organizationv1.InstallMCPServerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InstallMCPServer", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.InstallMCPServerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InstallMCPServer indicates an expected call of InstallMCPServer.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) InstallMCPServer(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstallMCPServer", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).InstallMCPServer), arg0, arg1)
 }
 
 // InviteMembers mocks base method.
@@ -1475,6 +1565,51 @@ func (mr *MockOrganizationServiceGatewayClientMockRecorder) ListKubernetesTimeli
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListKubernetesTimelineResources", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).ListKubernetesTimelineResources), arg0, arg1)
 }
 
+// ListMCPServers mocks base method.
+func (m *MockOrganizationServiceGatewayClient) ListMCPServers(arg0 context.Context, arg1 *organizationv1.ListMCPServersRequest) (*organizationv1.ListMCPServersResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListMCPServers", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.ListMCPServersResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListMCPServers indicates an expected call of ListMCPServers.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) ListMCPServers(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMCPServers", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).ListMCPServers), arg0, arg1)
+}
+
+// ListMCPTools mocks base method.
+func (m *MockOrganizationServiceGatewayClient) ListMCPTools(arg0 context.Context, arg1 *organizationv1.ListMCPToolsRequest) (*organizationv1.ListMCPToolsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListMCPTools", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.ListMCPToolsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListMCPTools indicates an expected call of ListMCPTools.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) ListMCPTools(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMCPTools", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).ListMCPTools), arg0, arg1)
+}
+
+// ListManagedMCPServers mocks base method.
+func (m *MockOrganizationServiceGatewayClient) ListManagedMCPServers(arg0 context.Context, arg1 *organizationv1.ListManagedMCPServersRequest) (*organizationv1.ListManagedMCPServersResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedMCPServers", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.ListManagedMCPServersResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedMCPServers indicates an expected call of ListManagedMCPServers.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) ListManagedMCPServers(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedMCPServers", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).ListManagedMCPServers), arg0, arg1)
+}
+
 // ListNotificationConfigs mocks base method.
 func (m *MockOrganizationServiceGatewayClient) ListNotificationConfigs(arg0 context.Context, arg1 *organizationv1.ListNotificationConfigsRequest) (*organizationv1.ListNotificationConfigsResponse, error) {
 	m.ctrl.T.Helper()
@@ -1578,6 +1713,21 @@ func (m *MockOrganizationServiceGatewayClient) ListOrganizationMembersAndInvitee
 func (mr *MockOrganizationServiceGatewayClientMockRecorder) ListOrganizationMembersAndInvitees(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationMembersAndInvitees", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).ListOrganizationMembersAndInvitees), arg0, arg1)
+}
+
+// ListPrivateLinkAccounts mocks base method.
+func (m *MockOrganizationServiceGatewayClient) ListPrivateLinkAccounts(arg0 context.Context, arg1 *organizationv1.ListPrivateLinkAccountsRequest) (*organizationv1.ListPrivateLinkAccountsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPrivateLinkAccounts", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.ListPrivateLinkAccountsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPrivateLinkAccounts indicates an expected call of ListPrivateLinkAccounts.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) ListPrivateLinkAccounts(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPrivateLinkAccounts", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).ListPrivateLinkAccounts), arg0, arg1)
 }
 
 // ListTeamMembers mocks base method.
@@ -1745,6 +1895,21 @@ func (mr *MockOrganizationServiceGatewayClientMockRecorder) RemoveOrganizationMe
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveOrganizationMember", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).RemoveOrganizationMember), arg0, arg1)
 }
 
+// RemovePrivateLinkAccount mocks base method.
+func (m *MockOrganizationServiceGatewayClient) RemovePrivateLinkAccount(arg0 context.Context, arg1 *organizationv1.RemovePrivateLinkAccountRequest) (*organizationv1.RemovePrivateLinkAccountResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemovePrivateLinkAccount", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.RemovePrivateLinkAccountResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemovePrivateLinkAccount indicates an expected call of RemovePrivateLinkAccount.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) RemovePrivateLinkAccount(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemovePrivateLinkAccount", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).RemovePrivateLinkAccount), arg0, arg1)
+}
+
 // RemoveTeamMember mocks base method.
 func (m *MockOrganizationServiceGatewayClient) RemoveTeamMember(arg0 context.Context, arg1 *organizationv1.RemoveTeamMemberRequest) (*organizationv1.RemoveTeamMemberResponse, error) {
 	m.ctrl.T.Helper()
@@ -1878,6 +2043,21 @@ func (m *MockOrganizationServiceGatewayClient) SuspendAIConversation(arg0 contex
 func (mr *MockOrganizationServiceGatewayClientMockRecorder) SuspendAIConversation(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SuspendAIConversation", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).SuspendAIConversation), arg0, arg1)
+}
+
+// UninstallMCPServer mocks base method.
+func (m *MockOrganizationServiceGatewayClient) UninstallMCPServer(arg0 context.Context, arg1 *organizationv1.UninstallMCPServerRequest) (*organizationv1.UninstallMCPServerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UninstallMCPServer", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.UninstallMCPServerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UninstallMCPServer indicates an expected call of UninstallMCPServer.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) UninstallMCPServer(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UninstallMCPServer", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).UninstallMCPServer), arg0, arg1)
 }
 
 // UninviteOrganizationMember mocks base method.
@@ -2015,6 +2195,21 @@ func (mr *MockOrganizationServiceGatewayClientMockRecorder) UpdateKargoInstances
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateKargoInstancesQuota", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).UpdateKargoInstancesQuota), arg0, arg1)
 }
 
+// UpdateMCPServer mocks base method.
+func (m *MockOrganizationServiceGatewayClient) UpdateMCPServer(arg0 context.Context, arg1 *organizationv1.UpdateMCPServerRequest) (*organizationv1.UpdateMCPServerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMCPServer", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.UpdateMCPServerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateMCPServer indicates an expected call of UpdateMCPServer.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) UpdateMCPServer(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMCPServer", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).UpdateMCPServer), arg0, arg1)
+}
+
 // UpdateNotificationConfig mocks base method.
 func (m *MockOrganizationServiceGatewayClient) UpdateNotificationConfig(arg0 context.Context, arg1 *organizationv1.UpdateNotificationConfigRequest) (*organizationv1.UpdateNotificationConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -2073,6 +2268,21 @@ func (m *MockOrganizationServiceGatewayClient) UpdateOrganizationMemberRole(arg0
 func (mr *MockOrganizationServiceGatewayClientMockRecorder) UpdateOrganizationMemberRole(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationMemberRole", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).UpdateOrganizationMemberRole), arg0, arg1)
+}
+
+// UpdateScheduledTaskStatuses mocks base method.
+func (m *MockOrganizationServiceGatewayClient) UpdateScheduledTaskStatuses(arg0 context.Context, arg1 *organizationv1.UpdateScheduledTaskStatusesRequest) (*organizationv1.UpdateScheduledTaskStatusesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateScheduledTaskStatuses", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.UpdateScheduledTaskStatusesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateScheduledTaskStatuses indicates an expected call of UpdateScheduledTaskStatuses.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) UpdateScheduledTaskStatuses(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateScheduledTaskStatuses", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).UpdateScheduledTaskStatuses), arg0, arg1)
 }
 
 // UpdateSubscription mocks base method.
