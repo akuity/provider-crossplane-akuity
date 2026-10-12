@@ -312,6 +312,9 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		return managed.ExternalObservation{}, err
 	}
 	mg.Spec.ForProvider.KargoInstanceID = instanceID
+	if err := e.resolveRemoteArgocd(ctx, mg); err != nil {
+		return managed.ExternalObservation{}, err
+	}
 	terminalFP := mg.Spec.ForProvider
 	if terminalFP.Workspace == "" {
 		terminalFP.Workspace = e.resolveWorkspaceFromParent(ctx, mg)
@@ -410,6 +413,9 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
 		return err
 	}
 	mg.Spec.ForProvider.KargoInstanceID = instanceID
+	if err := e.resolveRemoteArgocd(ctx, mg); err != nil {
+		return err
+	}
 	// ApplyKargoInstance is workspace-scoped at the HTTP gateway
 	// (`/orgs/{org}/workspaces/{workspace_id}/kargo/instances/{id}/apply`);
 	// an unset WorkspaceId on the request substitutes empty into the
@@ -708,6 +714,38 @@ func (e *external) resolveKargoInstanceID(ctx context.Context, mg *v1alpha1.Karg
 		return "", fmt.Errorf("could not resolve KargoInstance %q on Akuity API: %w", ki.Spec.ForProvider.Name, err)
 	}
 	return remote.GetId(), nil
+}
+
+// resolveRemoteArgocd fills kargoAgentSpec.data.remoteArgocd with the
+// Akuity ID of the Instance referenced by RemoteArgocdRef. An explicit
+// remoteArgocd is left untouched, the same precedence KargoInstanceID
+// has over KargoInstanceRef.
+func (e *external) resolveRemoteArgocd(ctx context.Context, mg *v1alpha1.KargoAgent) error {
+	data := &mg.Spec.ForProvider.KargoAgentSpec.Data
+	ref := mg.Spec.ForProvider.RemoteArgocdRef
+	if data.RemoteArgocd != "" || ref == nil || ref.Name == "" {
+		return nil
+	}
+
+	instance := &v1alpha1.Instance{}
+	key := k8stypes.NamespacedName{Name: ref.Name, Namespace: mg.GetNamespace()}
+	if err := e.Kube.Get(ctx, key, instance); err != nil {
+		return fmt.Errorf("could not resolve RemoteArgocdRef %s/%s: %w", key.Namespace, key.Name, err)
+	}
+	if instance.Status.AtProvider.ID != "" {
+		data.RemoteArgocd = instance.Status.AtProvider.ID
+		return nil
+	}
+	// Bootstrapping fallback: resolve by name via the Akuity API.
+	remote, err := e.Client.GetInstance(ctx, instance.Spec.ForProvider.Name)
+	if err != nil {
+		return fmt.Errorf("could not resolve Instance %q on Akuity API: %w", instance.Spec.ForProvider.Name, err)
+	}
+	if remote.GetId() == "" {
+		return fmt.Errorf("instance %q has no Akuity ID yet", instance.Spec.ForProvider.Name)
+	}
+	data.RemoteArgocd = remote.GetId()
+	return nil
 }
 
 // isConnectedAgentDeleteError recognises the Akuity API error surface

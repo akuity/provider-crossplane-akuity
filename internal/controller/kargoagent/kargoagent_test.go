@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
@@ -688,4 +689,83 @@ func TestObserve_GenericErrPropagates(t *testing.T) {
 	_, err := e.Observe(context.Background(), a)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func newExtWithInstance(t *testing.T, instance *v1alpha1.Instance) (*external, *mockclient.MockClient) {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.SchemeBuilder.AddToScheme(scheme))
+	kube := fake.NewClientBuilder().WithScheme(scheme)
+	if instance != nil {
+		kube = kube.WithObjects(instance)
+	}
+	e, mc := newExt(t)
+	e.Kube = kube.Build()
+	return e, mc
+}
+
+func newArgocdInstance(statusID string) *v1alpha1.Instance {
+	i := &v1alpha1.Instance{ObjectMeta: metav1.ObjectMeta{Name: "argocd", Namespace: "ns"}}
+	i.Spec.ForProvider.Name = "argocd-name"
+	i.Status.AtProvider.ID = statusID
+	return i
+}
+
+func TestResolveRemoteArgocd_NoRefLeavesRemoteArgocdEmpty(t *testing.T) {
+	e, _ := newExtWithInstance(t, nil)
+	a := newAgent()
+	require.NoError(t, e.resolveRemoteArgocd(context.Background(), a))
+	assert.Empty(t, a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
+}
+
+func TestResolveRemoteArgocd_ExplicitRemoteArgocdWinsOverRef(t *testing.T) {
+	e, _ := newExtWithInstance(t, newArgocdInstance("status-id"))
+	a := newAgent()
+	a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd = "explicit-id"
+	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
+	require.NoError(t, e.resolveRemoteArgocd(context.Background(), a))
+	assert.Equal(t, "explicit-id", a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
+}
+
+func TestResolveRemoteArgocd_RefResolvesFromInstanceStatus(t *testing.T) {
+	e, _ := newExtWithInstance(t, newArgocdInstance("status-id"))
+	a := newAgent()
+	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
+	require.NoError(t, e.resolveRemoteArgocd(context.Background(), a))
+	assert.Equal(t, "status-id", a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
+}
+
+func TestResolveRemoteArgocd_RefFallsBackToAkuityAPI(t *testing.T) {
+	e, mc := newExtWithInstance(t, newArgocdInstance(""))
+	mc.EXPECT().GetInstance(gomock.Any(), "argocd-name").Return(&argocdv1.Instance{Id: "api-id"}, nil)
+	a := newAgent()
+	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
+	require.NoError(t, e.resolveRemoteArgocd(context.Background(), a))
+	assert.Equal(t, "api-id", a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
+}
+
+func TestResolveRemoteArgocd_MissingInstanceFails(t *testing.T) {
+	e, _ := newExtWithInstance(t, nil)
+	a := newAgent()
+	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
+	require.Error(t, e.resolveRemoteArgocd(context.Background(), a))
+	assert.Empty(t, a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
+}
+
+func TestResolveRemoteArgocd_AkuityAPIErrorFails(t *testing.T) {
+	e, mc := newExtWithInstance(t, newArgocdInstance(""))
+	mc.EXPECT().GetInstance(gomock.Any(), "argocd-name").Return(nil, errors.New("boom"))
+	a := newAgent()
+	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
+	require.Error(t, e.resolveRemoteArgocd(context.Background(), a))
+	assert.Empty(t, a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
+}
+
+func TestResolveRemoteArgocd_InstanceWithoutAkuityIDFails(t *testing.T) {
+	e, mc := newExtWithInstance(t, newArgocdInstance(""))
+	mc.EXPECT().GetInstance(gomock.Any(), "argocd-name").Return(&argocdv1.Instance{}, nil)
+	a := newAgent()
+	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
+	require.Error(t, e.resolveRemoteArgocd(context.Background(), a))
+	assert.Empty(t, a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
 }

@@ -31,6 +31,7 @@ import (
 // +kubebuilder:validation:XValidation:rule="has(self.kargoInstanceId) || has(self.kargoInstanceRef)",message="kargoInstanceId or kargoInstanceRef must be set"
 // +kubebuilder:validation:XValidation:rule="(!has(oldSelf.kargoInstanceId) || (has(self.kargoInstanceId) && self.kargoInstanceId == oldSelf.kargoInstanceId)) && (!has(oldSelf.kargoInstanceRef) || (has(self.kargoInstanceRef) && self.kargoInstanceRef.name == oldSelf.kargoInstanceRef.name))",message="kargoInstanceId/kargoInstanceRef are immutable"
 // +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name",message="name is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.remoteArgocdRef) || (has(self.remoteArgocdRef) && self.remoteArgocdRef.name == oldSelf.remoteArgocdRef.name)",message="remoteArgocdRef is immutable"
 // kubeConfigSecretRef is a non-pointer SecretRef with json:omitempty,
 // but encoding/json never omits a zero struct. has(self.kubeconfigSecretRef)
 // therefore returns true even when the user never set it. Treat the
@@ -92,6 +93,14 @@ type KargoAgentParameters struct {
 	// clusterSpec alongside hoisted k8s/Crossplane identity fields.
 	// +optional
 	KargoAgentSpec crossplanetypes.KargoAgentSpec `json:"kargoAgentSpec,omitempty"`
+
+	// RemoteArgocdRef references an Instance whose Akuity Argo CD
+	// instance ID fills kargoAgentSpec.data.remoteArgocd, so an
+	// Akuity-managed agent can use an Argo CD instance managed in the
+	// same cluster. kargoAgentSpec.data.remoteArgocd is used when both
+	// are set.
+	// +optional
+	RemoteArgocdRef *LocalReference `json:"remoteArgocdRef,omitempty"`
 
 	// KubeConfigSecretRef is a reference to a Kubernetes Secret
 	// containing a kubeconfig under the "kubeconfig" key. Used to

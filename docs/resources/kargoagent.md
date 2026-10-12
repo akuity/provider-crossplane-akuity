@@ -28,6 +28,7 @@ spec:
 | `spec.forProvider.name` | Agent name. Immutable after create. |
 | `spec.forProvider.namespace` | Namespace where the agent is installed. |
 | `spec.forProvider.kargoAgentSpec` | Agent payload for description, size, mode, autoscaling, remote Argo CD, and install customizations. |
+| `spec.forProvider.remoteArgocdRef.name` | References an `Instance` managed by Crossplane. Fills `kargoAgentSpec.data.remoteArgocd` with its Akuity Argo CD instance ID. Immutable once set. |
 | `spec.forProvider.kubeconfigSecretRef` | Secret containing a kubeconfig under the `kubeconfig` key. |
 | `spec.forProvider.enableInClusterKubeconfig` | Use provider pod in-cluster config to install manifests. |
 | `spec.forProvider.removeAgentResourcesOnDestroy` | Remove installed agent manifests during delete. |
@@ -40,7 +41,7 @@ spec:
 
 ## Akuity-Managed And Self-Hosted Agents
 
-For Akuity-managed agents, set `akuityManaged: true` and `remoteArgocd` to the resolved Akuity Argo CD instance ID from `Instance.status.atProvider.id`, not the Crossplane `Instance` managed resource name. Do not set self-hosted customization fields such as `size`, `targetVersion`, `kustomization`, `argocdNamespace`, `selfManagedArgocdUrl`, `allowedJobSa`, or `autoscalerConfig`; the platform owns or rejects those fields for Akuity-managed agents.
+For Akuity-managed agents, set `akuityManaged: true` and either `remoteArgocdRef` to an `Instance` managed by Crossplane, or `kargoAgentSpec.data.remoteArgocd` to the Akuity Argo CD instance ID from `Instance.status.atProvider.id`, not the Crossplane `Instance` managed resource name. `remoteArgocd` wins when both are set. Do not set self-hosted customization fields such as `size`, `targetVersion`, `kustomization`, `argocdNamespace`, `selfManagedArgocdUrl`, `allowedJobSa`, or `autoscalerConfig`; the platform owns or rejects those fields for Akuity-managed agents.
 
 For self-hosted agents, set `akuityManaged: false`, provide the self-managed Argo CD connection details, and use agent versions such as `0.5.88` without a leading `v`. Autoscaler bounds are intended for `size: auto`.
 

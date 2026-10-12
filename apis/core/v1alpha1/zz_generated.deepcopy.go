@@ -755,6 +755,11 @@ func (in *KargoAgentParameters) DeepCopyInto(out *KargoAgentParameters) {
 		}
 	}
 	in.KargoAgentSpec.DeepCopyInto(&out.KargoAgentSpec)
+	if in.RemoteArgocdRef != nil {
+		in, out := &in.RemoteArgocdRef, &out.RemoteArgocdRef
+		*out = new(LocalReference)
+		**out = **in
+	}
 	out.KubeConfigSecretRef = in.KubeConfigSecretRef
 }
 
