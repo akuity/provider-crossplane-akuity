@@ -155,9 +155,10 @@ deploys the locally built package and waits for it to become healthy.
 
 ### Testing
 
-- `make test` — unit, converter round-trip, drift-helper, and reason-classifier suites.
-- `make test-envtest` — boots a real Kubernetes apiserver via `envtest` and validates the generated CRD CEL rules end-to-end (instance-id vs instance-ref, immutability, at-least-one). Requires the `envtest` assets managed by `setup-envtest`; the Makefile target installs them on first run.
-- `make lint` — golangci-lint (v2.14.0 pin).
+- `make test` - unit, converter round-trip, drift-helper, and reason-classifier suites.
+- `make test-envtest` - boots a real Kubernetes apiserver via `envtest` and validates the generated CRD CEL rules end-to-end (instance-id vs instance-ref, immutability, at-least-one). Requires the `envtest` assets managed by `setup-envtest`; the Makefile target installs them on first run.
+- `make example-lint` - validates the manifests under `examples/` (except `examples/provider/`) against the CRDs with kubectl-validate, including the create-time CEL rules.
+- `make lint` - golangci-lint (v2.14.0 pin).
 
 ## Report a Bug
 
