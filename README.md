@@ -146,6 +146,13 @@ started with `make dev` and start it again to include your changes:
 
 `make run`
 
+To run the provider in-cluster as a Crossplane package built from your working tree instead:
+
+`make local-deploy`
+
+It builds the provider package, creates (or reuses) the `local-dev` Kind cluster, installs Crossplane,
+deploys the locally built package and waits for it to become healthy.
+
 ### Testing
 
 - `make test` — unit, converter round-trip, drift-helper, and reason-classifier suites.

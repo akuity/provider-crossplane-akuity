@@ -14,7 +14,8 @@ GOLANGCILINT_VERSION := 2.14.0
 export GOLANGCILINT_VERSION
 GO_LINT_ARGS := --timeout=10m
 CROSSPLANE_CLI_VERSION = v2.5.0
-# Crossplane core release the dev target installs (helm chart version).
+# Crossplane core release the dev and local-deploy targets install (helm
+# chart version).
 CROSSPLANE_VERSION = v2.4.2
 
 # ====================================================================================
@@ -147,7 +148,19 @@ dev-clean: $(KIND) $(KUBECTL)
 	@$(INFO) Deleting kind cluster
 	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
 
-.PHONY: submodules fallthrough test-integration run dev dev-clean
+# ====================================================================================
+# End to End Testing
+CROSSPLANE_NAMESPACE = crossplane-system
+-include build/makelib/local.xpkg.mk
+-include build/makelib/controlplane.mk
+
+local-deploy: build controlplane.up local.xpkg.deploy.provider.$(PROJECT_NAME)
+	@$(INFO) running locally built provider
+	@$(KUBECTL) wait provider.pkg $(PROJECT_NAME) --for condition=Healthy --timeout 5m
+	@$(KUBECTL) -n crossplane-system wait --for=condition=Available deployment --all --timeout=5m
+	@$(OK) running locally built provider
+
+.PHONY: submodules fallthrough test-integration run dev dev-clean local-deploy
 
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
