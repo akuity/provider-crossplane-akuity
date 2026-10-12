@@ -37,6 +37,7 @@ GO111MODULE = on
 # ====================================================================================
 # Setup Kubernetes tools
 
+UPTEST_VERSION = v2.2.0
 KUBECTL_VALIDATE_VERSION ?= v0.0.4
 -include build/makelib/k8s_tools.mk
 
@@ -80,15 +81,6 @@ format: $(GOLANGCILINT)
 	@$(INFO) golangci-lint --fix
 	@$(GOLANGCILINT) run --fix $(GO_LINT_ARGS) || true
 	@$(OK) format
-
-# integration tests
-e2e.run: test-integration
-
-# Run integration tests.
-test-integration: $(KIND) $(KUBECTL) $(UP) $(HELM)
-	@$(INFO) running integration tests using kind $(KIND_VERSION)
-	@KIND_NODE_IMAGE_TAG=${KIND_NODE_IMAGE_TAG} $(ROOT_DIR)/cluster/local/integration_tests.sh || $(FAIL)
-	@$(OK) integration tests passed
 
 # Version of the kube-apiserver + etcd binaries to fetch via setup-envtest.
 ENVTEST_K8S_VERSION ?= 1.37.x
@@ -155,11 +147,56 @@ CROSSPLANE_NAMESPACE = crossplane-system
 -include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 
+# This target requires the following environment variables to be set:
+# - UPTEST_EXAMPLE_LIST, a comma-separated list of examples to test. Never
+#   include examples/provider: its ProviderConfig would replace the one
+#   cluster/test/setup.sh creates.
+#   To ensure the proper functioning of the end-to-end test resource pre-deletion hook, it is crucial to arrange your resources appropriately.
+#   You can check the basic implementation here: https://github.com/crossplane/uptest/blob/main/internal/templates/03-delete.yaml.tmpl.
+# - UPTEST_CLOUD_CREDENTIALS, the Akuity API key as JSON:
+#   {"apiKeyId":"...","apiKeySecret":"..."}
+# - UPTEST_AKUITY_ORGANIZATION_ID, the Akuity organization ID of that API key.
+# - UPTEST_AKUITY_SERVER_URL (optional), the Akuity API URL, e.g.
+#   https://eu.akuity.cloud for the EU region. Defaults to https://akuity.cloud.
+# - UPTEST_DATASOURCE_PATH, a YAML datasource (see
+#   https://github.com/crossplane/uptest#injecting-dynamic-values-and-datasource)
+#   defining akuity_workspace: the Akuity workspace name or ID that the
+#   examples/kargo/kargoagent examples and their KargoInstances use.
+uptest: $(UPTEST) $(KUBECTL) $(CHAINSAW) $(CROSSPLANE_CLI)
+	@$(INFO) running automated tests
+	@KUBECTL=$(KUBECTL) CHAINSAW=$(CHAINSAW) CROSSPLANE_CLI=$(CROSSPLANE_CLI) CROSSPLANE_NAMESPACE=$(CROSSPLANE_NAMESPACE) $(UPTEST) e2e "${UPTEST_EXAMPLE_LIST}" --data-source="${UPTEST_DATASOURCE_PATH}" --setup-script=cluster/test/setup.sh --default-conditions="Ready,Synced" || $(FAIL)
+	@$(OK) running automated tests
+
 local-deploy: build controlplane.up local.xpkg.deploy.provider.$(PROJECT_NAME)
 	@$(INFO) running locally built provider
 	@$(KUBECTL) wait provider.pkg $(PROJECT_NAME) --for condition=Healthy --timeout 5m
 	@$(KUBECTL) -n crossplane-system wait --for=condition=Available deployment --all --timeout=5m
 	@$(OK) running locally built provider
+
+# Second Kind cluster that the Cluster and self-hosted KargoAgent examples
+# install their agents into through the crossplane-system/workload-kubeconfig
+# Secret. The agents also install cluster-scoped resources such as CRDs, so
+# run those examples one per uptest run.
+WORKLOAD_CLUSTER_NAME ?= $(KIND_CLUSTER_NAME)-workload
+WORKLOAD_KUBECONFIG := $(WORK_DIR)/$(WORKLOAD_CLUSTER_NAME).kubeconfig
+
+workload.up: $(KIND) $(KUBECTL)
+	@$(INFO) setting up workload cluster $(WORKLOAD_CLUSTER_NAME)
+	@mkdir -p $(WORK_DIR)
+	@$(KIND) get kubeconfig --name $(WORKLOAD_CLUSTER_NAME) >/dev/null 2>&1 || $(KIND) create cluster --name=$(WORKLOAD_CLUSTER_NAME) --kubeconfig $(WORKLOAD_KUBECONFIG)
+	@$(KIND) get kubeconfig --internal --name $(WORKLOAD_CLUSTER_NAME) | \
+		$(KUBECTL) -n $(CROSSPLANE_NAMESPACE) create secret generic workload-kubeconfig --from-file=kubeconfig=/dev/stdin --dry-run=client -o yaml | \
+		$(KUBECTL) apply -f -
+	@$(OK) setting up workload cluster $(WORKLOAD_CLUSTER_NAME)
+
+workload.down: $(KIND)
+	@$(INFO) deleting workload cluster $(WORKLOAD_CLUSTER_NAME)
+	@$(KIND) delete cluster --name=$(WORKLOAD_CLUSTER_NAME) --kubeconfig $(WORKLOAD_KUBECONFIG)
+	@$(OK) deleting workload cluster $(WORKLOAD_CLUSTER_NAME)
+
+controlplane.down: workload.down
+
+e2e: local-deploy workload.up uptest
 
 KUBECTL_VALIDATE := $(TOOLS_HOST_DIR)/kubectl-validate-$(KUBECTL_VALIDATE_VERSION)
 
@@ -201,7 +238,7 @@ example-lint: $(KUBECTL_VALIDATE)
 	rm -rf "$$tmpdir"; \
 	[ "$$failed" -eq 0 ] && $(OK) linted example manifests || $(FAIL)
 
-.PHONY: submodules fallthrough test-integration run dev dev-clean local-deploy example-lint
+.PHONY: submodules fallthrough run dev dev-clean uptest local-deploy workload.up workload.down example-lint
 
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
