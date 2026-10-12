@@ -136,6 +136,29 @@ func TestCreate_ApplyClusterErr(t *testing.T) {
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(errors.New("fake")).Times(1)
+	// ApplyInstance can stamp the platform row and still fail, so the
+	// row is rolled back.
+	mc.EXPECT().DeleteCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(nil).Times(1)
+
+	resp, err := e.Create(ctx, &managedCluster)
+	require.Error(t, err)
+	assert.Equal(t, managed.ExternalCreation{}, resp)
+}
+
+func TestCreate_WithKubeConfig_ApplyClusterErrSkipsManifestStrip(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
+
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
+		Return(errors.New("fake")).Times(1)
+	// Nothing is installed yet, so the rollback deletes the platform row
+	// without fetching manifests to strip.
+	mc.EXPECT().DeleteCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(nil).Times(1)
 
 	resp, err := e.Create(ctx, &managedCluster)
 	require.Error(t, err)

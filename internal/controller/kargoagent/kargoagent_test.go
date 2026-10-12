@@ -284,6 +284,38 @@ func TestCreate_Apply(t *testing.T) {
 	require.Len(t, capturedReq.GetAgents(), 1, "narrow-merge: only Agents populated, sibling fields left for KargoInstance MR")
 }
 
+// TestCreate_ApplyErrorRollsBackAgent covers ApplyKargoInstance stamping
+// the agent row and still returning an error: Create must delete the row
+// so the retried Create installs the manifests, and must not try to strip
+// manifests that were never installed.
+func TestCreate_ApplyErrorRollsBackAgent(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.EnableInClusterKubeConfig = true
+	a.Spec.ForProvider.RemoveAgentResourcesOnDestroy = true
+
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(status.Error(codes.Internal, "An internal error has occurred")).Times(1)
+	mc.EXPECT().DeleteKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(nil).Times(1)
+
+	_, err := e.Create(context.Background(), a)
+	require.Error(t, err)
+	assert.Empty(t, meta.GetExternalName(a))
+}
+
+// TestCreate_ResolveErrorSkipsRollback covers a failure before
+// ApplyKargoInstance is called: there is no platform row to roll back.
+func TestCreate_ResolveErrorSkipsRollback(t *testing.T) {
+	e, _ := newExtWithInstance(t, nil)
+	a := newAgent()
+	a.Spec.ForProvider.KargoInstanceID = ""
+	a.Spec.ForProvider.KargoInstanceRef = &v1alpha1.LocalReference{Name: "missing"}
+
+	_, err := e.Create(context.Background(), a)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not resolve KargoInstanceRef")
+}
+
 func TestCreate_ManifestFetchFailedPreconditionRetryable(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()

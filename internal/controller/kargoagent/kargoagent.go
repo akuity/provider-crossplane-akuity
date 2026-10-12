@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"strings"
 
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -401,20 +402,36 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	}, nil
 }
 
-// apply routes both Create and Update through ApplyKargoInstance with
-// only the Agents slice populated. The backend narrow-merges into the
-// parent KargoInstance: sibling fields (Kargo envelope, Projects,
-// Warehouses, Stages, RepoCredentials, etc.) are untouched so this MR
-// coexists with a KargoInstance MR owning those. Same pattern Cluster
-// uses against ApplyInstance (cluster/convert.go BuildApplyInstanceRequest).
+// apply routes Update through ApplyKargoInstance with only the Agents
+// slice populated; Create calls it directly so it can roll back a
+// failure. The backend narrow-merges into the parent KargoInstance:
+// sibling fields (Kargo envelope, Projects, Warehouses, Stages,
+// RepoCredentials, etc.) are untouched so this MR coexists with a
+// KargoInstance MR owning those. Same pattern Cluster uses against
+// ApplyInstance (cluster/convert.go BuildApplyInstanceRequest).
 func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
-	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
+	req, key, err := e.buildApplyRequest(ctx, mg)
 	if err != nil {
 		return err
 	}
+	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
+		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	e.ClearTerminalWrite(key)
+	return nil
+}
+
+// buildApplyRequest resolves the parent Kargo instance, the remote Argo CD
+// and the workspace, then builds the ApplyKargoInstance request together with
+// its terminal-write key.
+func (e *external) buildApplyRequest(ctx context.Context, mg *v1alpha1.KargoAgent) (*kargov1.ApplyKargoInstanceRequest, base.TerminalWriteKey, error) {
+	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
+	if err != nil {
+		return nil, base.TerminalWriteKey{}, err
+	}
 	mg.Spec.ForProvider.KargoInstanceID = instanceID
 	if err := e.resolveRemoteArgocd(ctx, mg); err != nil {
-		return err
+		return nil, base.TerminalWriteKey{}, err
 	}
 	// ApplyKargoInstance is workspace-scoped at the HTTP gateway
 	// (`/orgs/{org}/workspaces/{workspace_id}/kargo/instances/{id}/apply`);
@@ -428,24 +445,32 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
 	}
 	key, err := e.kargoAgentTerminalWriteKey(ctx, mg, mg.Spec.ForProvider)
 	if err != nil {
-		return err
+		return nil, base.TerminalWriteKey{}, err
 	}
 	req, err := BuildApplyKargoInstanceRequest(instanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+		return nil, base.TerminalWriteKey{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
-	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
-		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
-	}
-	e.ClearTerminalWrite(key)
-	return nil
+	return req, key, nil
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalCreation, error) {
 	defer base.PropagateObservedGeneration(mg)
-	if err := e.apply(ctx, mg); err != nil {
+	req, key, err := e.buildApplyRequest(ctx, mg)
+	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
+	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
+		// ApplyKargoInstance can stamp the agent row and still return an
+		// error (seen as Internal while the parent Kargo instance is
+		// provisioning). The next Observe would then find the agent and
+		// never re-run Create, so the manifests below would never be
+		// installed. Roll the row back so the retried Create starts
+		// clean; nothing is installed yet, hence no kubeconfig target.
+		e.rollbackCreatedAgent(ctx, mg, kube.TargetKubeConfig{}, "apply")
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	e.ClearTerminalWrite(key)
 
 	// ApplyKargoInstance has now stamped the agent row on the parent
 	// KargoInstance. Any failure between here and SetExternalName must
