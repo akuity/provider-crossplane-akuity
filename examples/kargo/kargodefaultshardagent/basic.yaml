@@ -1,5 +1,36 @@
 ---
 apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoInstance
+metadata:
+  name: my-kargo-default-shard-instance
+spec:
+  forProvider:
+    name: my-kargo-default-shard-instance
+    kargo:
+      description: "My Kargo instance."
+      version: "v1.10.1-ak.0"
+  providerConfigRef:
+    name: akuity
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoAgent
+metadata:
+  name: my-kargo-shard-agent
+spec:
+  forProvider:
+    kargoInstanceRef:
+      name: "my-kargo-default-shard-instance"
+    name: "my-kargo-shard-agent"
+    # Installs the agent into the cluster that the kubeconfig in this Secret
+    # (key "kubeconfig") points at. make e2e creates it for a second Kind cluster.
+    kubeconfigSecretRef:
+      name: workload-kubeconfig
+      namespace: crossplane-system
+    removeAgentResourcesOnDestroy: true
+  providerConfigRef:
+    name: akuity
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
 kind: KargoDefaultShardAgent
 metadata:
   name: my-kargo-default-shard
@@ -9,7 +40,7 @@ spec:
     # KargoInstance MR in the same Crossplane cluster.
     # kargoInstanceId: "my-kargo-instance-id"
     kargoInstanceRef:
-      name: "my-kargo"
-    agentName: "shard-a"
+      name: "my-kargo-default-shard-instance"
+    agentName: "my-kargo-shard-agent"
   providerConfigRef:
     name: akuity

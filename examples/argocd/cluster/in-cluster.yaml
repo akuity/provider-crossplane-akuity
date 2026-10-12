@@ -1,4 +1,17 @@
 ---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Instance
+metadata:
+  name: management-cluster-instance
+spec:
+  forProvider:
+    name: management-cluster-instance
+    argocd:
+      spec:
+        version: "v3.3.8-ak.87"
+  providerConfigRef:
+    name: akuity
+---
 # Requires examples/provider/in-cluster-rbac.yaml applied first.
 apiVersion: core.akuity.crossplane.io/v1alpha1
 kind: Cluster
@@ -7,7 +20,7 @@ metadata:
 spec:
   forProvider:
     instanceRef:
-      name: "my-instance"
+      name: "management-cluster-instance"
     name: "management-cluster"
     namespace: "akuity"
     enableInClusterKubeconfig: true
