@@ -172,6 +172,7 @@ func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 				AdditionalVersions: []string{"v4.5.7"},
 			},
 		},
+		PinnedAgentVersion: ptr.To("0.5.88"),
 	}
 
 	result, err := observation.InstanceArgoCDSpec(spec)
@@ -221,6 +222,7 @@ func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 	assert.Equal(t, ptr.To("metrics-user"), result.MetricsIngressUsername)
 	assert.Equal(t, ptr.To("metrics-hash"), result.MetricsIngressPasswordHash)
 	assert.Equal(t, ptr.To("notifications"), result.PrivilegedNotificationCluster)
+	assert.Equal(t, ptr.To("0.5.88"), result.PinnedAgentVersion)
 	assert.Equal(t, &crossplanetypes.ClusterAddonsExtension{
 		Enabled:          ptr.To(true),
 		AllowedUsernames: []string{"alice"},
@@ -462,4 +464,14 @@ func TestParameters_NilDynamic(t *testing.T) {
 	argocdParameters := &argocdtypes.Parameters{Dynamic: nil}
 	crossplaneParameters := &crossplanetypes.Parameters{Dynamic: nil}
 	assert.Equal(t, crossplaneParameters, observation.Parameters(argocdParameters))
+}
+
+// TestInstanceArgoCDSpec_UnpinnedServerLeavesPinnedAgentVersionNil keeps the
+// observed side nil when the platform has no pin. The drift comparator
+// treats nil and "" as equal, and a nil here keeps status.atProvider free
+// of an empty key.
+func TestInstanceArgoCDSpec_UnpinnedServerLeavesPinnedAgentVersionNil(t *testing.T) {
+	result, err := observation.InstanceArgoCDSpec(&argocdv1.InstanceSpec{})
+	require.NoError(t, err)
+	assert.Nil(t, result.PinnedAgentVersion)
 }

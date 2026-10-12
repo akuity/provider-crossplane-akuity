@@ -514,6 +514,8 @@ spec:
                                 type: string
                               multiClusterK8sDashboardEnabled:
                                 type: boolean
+                              pinnedAgentVersion:
+                                type: string
                               privilegedNotificationCluster:
                                 type: string
                               repoServerDelegate:
@@ -1500,6 +1502,8 @@ spec:
                                 type: string
                               multiClusterK8sDashboardEnabled:
                                 type: boolean
+                              pinnedAgentVersion:
+                                type: string
                               privilegedNotificationCluster:
                                 type: string
                               repoServerDelegate:

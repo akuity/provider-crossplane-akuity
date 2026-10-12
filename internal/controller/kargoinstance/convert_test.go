@@ -870,3 +870,42 @@ func TestApiToSpec_NilInputDoesNotPanic(t *testing.T) {
 	assert.Empty(t, params.Kargo.Version)
 	assert.Nil(t, params.Kargo.OidcConfig)
 }
+
+// TestSpecToPB_PinnedAgentVersionOnWire locks the JSON path the platform's
+// PatchKargoInstance reads: spec.kargoInstanceSpec.pinnedAgentVersion. A nil
+// pointer must leave the key out so the stored pin is kept; an explicit empty
+// string must be sent so the platform unpins.
+func TestSpecToPB_PinnedAgentVersionOnWire(t *testing.T) {
+	cases := []struct {
+		name    string
+		pin     *string
+		present bool
+		value   string
+	}{
+		{"omitted keeps stored pin", nil, false, ""},
+		{"explicit empty unpins", ptr.To(""), true, ""},
+		{"pinned", ptr.To("0.5.88"), true, "0.5.88"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := v1alpha1.KargoInstanceParameters{
+				Name: "my-kargo",
+				Kargo: crossplanetypes.KargoSpec{
+					Version: "v1.4.0",
+					KargoInstanceSpec: crossplanetypes.KargoInstanceSpec{
+						PinnedAgentVersion: tc.pin,
+					},
+				},
+			}
+			pb, err := specToPB(in, nil)
+			require.NoError(t, err)
+			spec, _ := pb.AsMap()["spec"].(map[string]interface{})
+			kis, _ := spec["kargoInstanceSpec"].(map[string]interface{})
+			got, ok := kis["pinnedAgentVersion"]
+			assert.Equal(t, tc.present, ok)
+			if tc.present {
+				assert.Equal(t, tc.value, got)
+			}
+		})
+	}
+}

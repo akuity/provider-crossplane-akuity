@@ -86,3 +86,21 @@ func TestClassifyManifestInstallError_OtherwiseTerminal(t *testing.T) {
 	require.Error(t, got)
 	assert.True(t, reason.IsTerminal(got))
 }
+
+// A FailedPrecondition from Apply is never terminal. The agent version
+// pin conflict is the motivating case: it is cleared on the parent
+// Instance or KargoInstance, which the child's per-resource write guard
+// cannot observe, so caching it would leave the child Synced=False until
+// its spec changes or the process restarts. The platform also answers
+// FailedPrecondition for transient states such as "Resource is still in
+// use", which must keep retrying for the same reason.
+func TestClassifyApplyError_FailedPreconditionNotTerminal(t *testing.T) {
+	for _, msg := range []string{
+		"agent version is pinned to 0.5.88 in the instance settings, unpin it to change agent versions",
+		"Resource is still in use",
+	} {
+		got := reason.ClassifyApplyError(status.Error(codes.FailedPrecondition, msg))
+		require.Error(t, got, msg)
+		assert.False(t, reason.IsTerminal(got), msg)
+	}
+}

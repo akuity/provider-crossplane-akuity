@@ -51,6 +51,8 @@ spec:
       # Use either fqdn or subdomain, not both.
       # subdomain: "my-kargo"
       kargoInstanceSpec:
+        # Pin every self-hosted Kargo agent of this instance. Bare semver, no "v".
+        pinnedAgentVersion: "0.5.88"
         backendIpAllowListEnabled: true
         ipAllowList:
           - description: "office"

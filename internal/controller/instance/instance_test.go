@@ -29,6 +29,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
@@ -716,7 +717,10 @@ func TestObserve_InstanceUpToDate(t *testing.T) {
 func TestObserve_InstanceNotUpToDate(t *testing.T) {
 	e, mc := newExt(t)
 
-	managedInstance := fixtures.CrossplaneManagedInstance
+	// DeepCopy: ArgoCD is a pointer shared with every other test through
+	// the package fixture; mutating it in place would leak the new
+	// description into tests that run later in the file.
+	managedInstance := *fixtures.CrossplaneManagedInstance.DeepCopy()
 	managedInstance.ObjectMeta = metav1.ObjectMeta{
 		Annotations: map[string]string{
 			"crossplane.io/external-name": fixtures.InstanceName,
@@ -733,4 +737,99 @@ func TestObserve_InstanceNotUpToDate(t *testing.T) {
 	resp, err := e.Observe(ctx, &managedInstance)
 	require.NoError(t, err)
 	assert.Equal(t, managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: false}, resp)
+}
+
+func akuityInstanceWithPin(pin *string) *argocdv1.Instance {
+	inst := proto.Clone(fixtures.AkuityInstance).(*argocdv1.Instance)
+	inst.Spec.PinnedAgentVersion = pin
+	return inst
+}
+
+// TestObserve_PinnedAgentVersion_OmittedDoesNotAdoptOrFightServerPin:
+// a CR that never mentions the pin has no opinion. The provider must
+// report up to date against a UI-set pin and must not late-initialize
+// the value into spec, or it would revert a later UI unpin forever.
+func TestObserve_PinnedAgentVersion_OmittedDoesNotAdoptOrFightServerPin(t *testing.T) {
+	e, mc := newExt(t)
+	managedInstance := *fixtures.CrossplaneManagedInstance.DeepCopy()
+	managedInstance.ObjectMeta = metav1.ObjectMeta{
+		Annotations: map[string]string{"crossplane.io/external-name": fixtures.InstanceName},
+	}
+
+	mc.EXPECT().GetInstance(ctx, fixtures.InstanceName).
+		Return(akuityInstanceWithPin(ptr.To("0.5.98")), nil).Times(1)
+	mc.EXPECT().ExportInstance(ctx, fixtures.InstanceName).
+		Return(&argocdv1.ExportInstanceResponse{}, nil).Times(1)
+
+	resp, err := e.Observe(ctx, &managedInstance)
+	require.NoError(t, err)
+	assert.True(t, resp.ResourceUpToDate)
+	assert.Nil(t, managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion)
+	assert.Equal(t, ptr.To("0.5.98"), managedInstance.Status.AtProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion)
+}
+
+// TestObserve_PinnedAgentVersion_Drift covers the user intents: enforce a
+// pin, notice a missing or different pin, clear a pin, and confirm a clear.
+func TestObserve_PinnedAgentVersion_Drift(t *testing.T) {
+	cases := []struct {
+		name     string
+		desired  *string
+		observed *string
+		upToDate bool
+	}{
+		{"pinned matches server", ptr.To("0.5.88"), ptr.To("0.5.88"), true},
+		{"pinned but server unpinned", ptr.To("0.5.88"), nil, false},
+		{"pinned but server on other version", ptr.To("0.5.88"), ptr.To("0.5.98"), false},
+		{"explicit empty against pinned server", ptr.To(""), ptr.To("0.5.98"), false},
+		{"explicit empty against unpinned server", ptr.To(""), nil, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, mc := newExt(t)
+			managedInstance := *fixtures.CrossplaneManagedInstance.DeepCopy()
+			managedInstance.ObjectMeta = metav1.ObjectMeta{
+				Annotations: map[string]string{"crossplane.io/external-name": fixtures.InstanceName},
+			}
+			managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = tc.desired
+
+			mc.EXPECT().GetInstance(ctx, fixtures.InstanceName).
+				Return(akuityInstanceWithPin(tc.observed), nil).Times(1)
+			mc.EXPECT().ExportInstance(ctx, fixtures.InstanceName).
+				Return(&argocdv1.ExportInstanceResponse{}, nil).Times(1)
+
+			resp, err := e.Observe(ctx, &managedInstance)
+			require.NoError(t, err)
+			assert.Equal(t, tc.upToDate, resp.ResourceUpToDate)
+		})
+	}
+}
+
+// TestDriftSpec_NilPresence_OmittedPinAdoptsObservedPin covers the
+// fallback when the live Get of the managed resource fails and presence
+// projection is unavailable: an omitted pin must still read as no
+// opinion, or Apply (which omits the key) could never close the drift.
+// An explicit "" or value keeps its meaning.
+func TestDriftSpec_NilPresence_OmittedPinAdoptsObservedPin(t *testing.T) {
+	cases := []struct {
+		name     string
+		desired  *string
+		upToDate bool
+	}{
+		{"omitted adopts server pin", nil, true},
+		{"explicit empty still clears", ptr.To(""), false},
+		{"other value still enforces", ptr.To("0.5.88"), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			desired := *fixtures.CrossplaneManagedInstance.Spec.ForProvider.DeepCopy()
+			observed := *fixtures.CrossplaneManagedInstance.Spec.ForProvider.DeepCopy()
+			desired.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = tc.desired
+			observed.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = ptr.To("0.5.98")
+
+			spec := driftSpec() // Presence stays nil: full comparison.
+			ok, err := spec.UpToDate(ctx, &desired, &observed)
+			require.NoError(t, err)
+			assert.Equal(t, tc.upToDate, ok)
+		})
+	}
 }

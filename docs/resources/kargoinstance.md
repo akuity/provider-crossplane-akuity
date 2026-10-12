@@ -31,6 +31,7 @@ spec:
 | `spec.forProvider.kargo.subdomain` | Akuity-managed subdomain. |
 | `spec.forProvider.kargo.oidcConfig` | OIDC and Dex settings. Prefer `dexConfigSecretRef` for secret data. |
 | `spec.forProvider.kargo.kargoInstanceSpec` | Instance features such as allow list, default shard agent, AI, GC, and global namespaces. |
+| `spec.forProvider.kargo.kargoInstanceSpec.pinnedAgentVersion` | Instance-level agent version pin for every self-hosted Kargo agent (bare semver, for example `0.5.88`). Omit for no opinion, set `""` to clear a pin. Akuity-managed agents are not pinned. See [Agent Version Pin](#agent-version-pin). |
 | `spec.forProvider.kargoConfigMap` | Managed keys for `kargo-cm`. |
 | `spec.forProvider.kargoSecretRef` | Secret data sent as `kargo-secret`. |
 | `spec.forProvider.kargoRepoCredentialSecretRefs` | Kargo repository credentials from Kubernetes Secret refs. |
@@ -49,6 +50,14 @@ spec:
 `kargoConfigMap` is forwarded to the platform without a provider-side key allow-list. Current platform-documented keys include `adminAccountEnabled` and `adminAccountTokenTtl`; newer platform fields can be used without waiting for a provider CRD release.
 
 Known Kargo API aliases such as `admin_account_token_ttl` are canonicalized to lowerCamel before apply. The provider also clears the alternate known spelling in the same apply to avoid duplicate-field platform merge state. Removing `kargoConfigMap` from the managed resource stops managing those keys, but does not clear platform-side values.
+
+## Agent Version Pin
+
+`kargoInstanceSpec.pinnedAgentVersion` has the same three states as the Argo CD [Instance](instance.md) pin: omitted is no opinion and leaves a pin set in the UI or by another tool alone, so upgrading the provider never changes an existing pin; a value is enforced; `""` clears the pin.
+
+While a Kargo instance is pinned, the platform rejects a `KargoAgent` whose agent target version (`data.targetVersion`) differs from the pin. Omit `targetVersion` on `KargoAgent` managed resources of a pinned instance, or keep it equal to the pin.
+
+Requires an Akuity Platform release from October 2026 or later. An older platform accepts the apply but silently drops the field, so the provider sees drift and re-applies on every poll interval. Do not set the field until the platform has been upgraded.
 
 ## Examples
 
