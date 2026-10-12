@@ -131,7 +131,8 @@ To run the Crossplane provider locally using a Kind cluster and apply the CRDs g
 
 `make dev`
 
-The above command should only be run once. It will error if a Kind cluster already exists.
+It creates (or reuses) the `local-dev` Kind cluster, installs Crossplane, applies the CRDs and
+runs the provider out-of-cluster. `make dev-clean` deletes the cluster again.
 
 If you need to make changes to the CRDs, you can regenerate them and apply them to the already
 running cluster:

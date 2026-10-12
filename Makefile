@@ -122,24 +122,13 @@ run: go.build
 	@# To see other arguments that can be provided, run the command with --help instead
 	$(GO_OUT_DIR)/provider --debug
 
-dev: $(KIND) $(KUBECTL) $(HELM)
-	@$(INFO) Creating kind cluster
-	@$(KIND) create cluster --name=$(PROJECT_NAME)-dev
-	@$(KUBECTL) cluster-info --context kind-$(PROJECT_NAME)-dev
-	@$(INFO) Installing Crossplane
-	@$(HELM) repo add crossplane-stable https://charts.crossplane.io/stable
-	@$(HELM) repo update
-	# Trim the leading "v" from the Crossplane version for helm install.
-	@$(HELM) install crossplane --namespace crossplane-system --create-namespace crossplane-stable/crossplane --version $(patsubst v%,%,$(CROSSPLANE_VERSION))
-	@$(INFO) Waiting for Crossplane to be ready
+dev: controlplane.up $(KUBECTL)
 	@$(INFO) Installing Provider Akuity CRDs
 	@$(KUBECTL) apply -R -f package/crds
 	@$(INFO) Starting Provider Akuity controllers
 	@$(GO) run cmd/provider/main.go --debug
 
-dev-clean: $(KIND) $(KUBECTL)
-	@$(INFO) Deleting kind cluster
-	@$(KIND) delete cluster --name=$(PROJECT_NAME)-dev
+dev-clean: controlplane.down
 
 # ====================================================================================
 # End to End Testing
