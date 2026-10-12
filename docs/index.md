@@ -16,12 +16,12 @@
 | Resource | Purpose | Examples |
 | --- | --- | --- |
 | [ProviderConfig](resources/providerconfig.md) | Akuity API authentication and organization routing. | [examples/provider](../examples/provider) |
-| [Instance](resources/instance.md) | Manages an Akuity Argo CD instance. | [examples/instance](../examples/instance) |
-| [Cluster](resources/cluster.md) | Attaches a Kubernetes cluster to an Argo CD instance. | [examples/cluster](../examples/cluster) |
-| [InstanceIpAllowList](resources/instanceipallowlist.md) | Owns the standalone Argo CD instance IP allow list. | [examples/instanceipallowlist](../examples/instanceipallowlist) |
-| [KargoInstance](resources/kargoinstance.md) | Manages an Akuity Kargo instance. | [examples/kargoinstance](../examples/kargoinstance) |
-| [KargoAgent](resources/kargoagent.md) | Manages a Kargo agent attached to a Kargo instance. | [examples/kargoagent](../examples/kargoagent) |
-| [KargoDefaultShardAgent](resources/kargodefaultshardagent.md) | Pins the default shard agent for a Kargo instance. | [examples/kargodefaultshardagent](../examples/kargodefaultshardagent) |
+| [Instance](resources/instance.md) | Manages an Akuity Argo CD instance. | [examples/argocd/instance](../examples/argocd/instance) |
+| [Cluster](resources/cluster.md) | Attaches a Kubernetes cluster to an Argo CD instance. | [examples/argocd/cluster](../examples/argocd/cluster) |
+| [InstanceIpAllowList](resources/instanceipallowlist.md) | Owns the standalone Argo CD instance IP allow list. | [examples/argocd/instanceipallowlist](../examples/argocd/instanceipallowlist) |
+| [KargoInstance](resources/kargoinstance.md) | Manages an Akuity Kargo instance. | [examples/kargo/kargoinstance](../examples/kargo/kargoinstance) |
+| [KargoAgent](resources/kargoagent.md) | Manages a Kargo agent attached to a Kargo instance. | [examples/kargo/kargoagent](../examples/kargo/kargoagent) |
+| [KargoDefaultShardAgent](resources/kargodefaultshardagent.md) | Pins the default shard agent for a Kargo instance. | [examples/kargo/kargodefaultshardagent](../examples/kargo/kargodefaultshardagent) |
 
 ## Crossplane Notes
 

@@ -175,14 +175,14 @@ $(KUBECTL_VALIDATE):
 #   - Operates on a tmpdir copy so source files are never mutated.
 #   - Replaces uptest template variables (e.g. ${Rand.RFC1123Subdomain}) with a valid
 #     placeholder; kubectl-validate rejects those tokens as malformed field values.
-#   - Skips examples/provider: it holds the provider install and credentials
-#     manifests, not managed resource examples.
 #   - Filters out non-Akuity YAML files by matching only the apiVersion: line against
 #     akuity.crossplane.io. Anchoring prevents false positives from description
 #     fields or comments that mention other providers.
 #   - Captures absolute paths for the binary and CRDs before cd-ing into tmpdir, and runs
 #     kubectl-validate from there so error output shows short relative paths.
-#   - Iterates one example directory at a time so failures are reported per kind.
+#   - Iterates the examples/argocd and examples/kargo kind directories one at a time so
+#     failures are reported per kind. examples/provider is not linted: it holds the
+#     provider install and credentials manifests, not managed resource examples.
 example-lint: $(KUBECTL_VALIDATE)
 	@$(INFO) linting example manifests; \
 	failed=0; \
@@ -190,11 +190,10 @@ example-lint: $(KUBECTL_VALIDATE)
 	crdsdir=$$(pwd)/package/crds; \
 	kv=$$(realpath "$(KUBECTL_VALIDATE)"); \
 	cp -r examples/. "$$tmpdir/"; \
-	rm -rf "$$tmpdir/provider"; \
 	find "$$tmpdir" -name "*.yaml" | xargs perl -pi -e 's/\$$\{Rand\.[^}]*\}/uptest/g'; \
 	find "$$tmpdir" -name "*.yaml" | while read f; do grep -q '^apiVersion:.*akuity\.crossplane\.io' "$$f" || rm -f "$$f"; done; \
-	for dir in examples/*/; do \
-		group=$$(basename "$$dir"); \
+	for dir in examples/argocd/*/ examples/kargo/*/; do \
+		group=$${dir#examples/}; group=$${group%/}; \
 		[ -d "$$tmpdir/$$group" ] || continue; \
 		$(INFO) linting $$dir; \
 		(cd "$$tmpdir" && "$$kv" "$$group" --local-crds "$$crdsdir") && $(OK) linted $$dir || { $(WARN) failed to lint $$dir; failed=1; }; \

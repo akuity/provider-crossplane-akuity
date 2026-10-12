@@ -50,11 +50,11 @@ For custom fixed controller resources on a self-hosted agent, set `kargoAgentSpe
 
 ## Examples
 
-- [Basic agent](../../examples/kargoagent/basic.yaml)
-- [Detailed agent](../../examples/kargoagent/detailed.yaml)
-- [Autoscaled agent](../../examples/kargoagent/autoscaler.yaml)
-- [Custom agent size](../../examples/kargoagent/custom-agent-size.yaml)
-- [Akuity-managed agent](../../examples/kargoagent/akuity-managed.yaml)
-- [Self-hosted agent](../../examples/kargoagent/self-hosted.yaml)
+- [Basic agent](../../examples/kargo/kargoagent/basic.yaml)
+- [Detailed agent](../../examples/kargo/kargoagent/detailed.yaml)
+- [Autoscaled agent](../../examples/kargo/kargoagent/autoscaler.yaml)
+- [Custom agent size](../../examples/kargo/kargoagent/custom-agent-size.yaml)
+- [Akuity-managed agent](../../examples/kargo/kargoagent/akuity-managed.yaml)
+- [Self-hosted agent](../../examples/kargo/kargoagent/self-hosted.yaml)
 
 For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

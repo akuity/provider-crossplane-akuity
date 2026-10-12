@@ -64,7 +64,7 @@ spec:
         project: "test"
         compatibility:
           ipv6Only: false
-        # Use examples/cluster/auto-agent-size.yaml when you want
+        # Use examples/argocd/cluster/auto-agent-size.yaml when you want
         # autoscalerConfig to be continuously reconciled.
     # Use the example Kubernetes Secret above to pass a kubeconfig to the
     # provider.

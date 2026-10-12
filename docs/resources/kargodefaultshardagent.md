@@ -32,6 +32,6 @@ The controller caches the resolved Kargo instance ID in status so delete can cle
 
 ## Examples
 
-- [Basic default shard agent](../../examples/kargodefaultshardagent/basic.yaml)
+- [Basic default shard agent](../../examples/kargo/kargodefaultshardagent/basic.yaml)
 
 For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

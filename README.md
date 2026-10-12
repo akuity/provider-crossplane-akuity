@@ -42,7 +42,7 @@ kubectl apply -f examples/provider/config.yaml
 Create an Argo CD instance:
 
 ```shell
-kubectl apply -f examples/instance/basic.yaml
+kubectl apply -f examples/argocd/instance/basic.yaml
 kubectl get instances.core.akuity.crossplane.io
 ```
 
@@ -53,12 +53,12 @@ All managed resources are cluster-scoped and live in
 
 | Resource | Purpose | Examples |
 | --- | --- | --- |
-| `Instance` | Akuity Argo CD instance. | [examples/instance](./examples/instance) |
-| `Cluster` | Kubernetes cluster attached to an Argo CD instance. | [examples/cluster](./examples/cluster) |
-| `InstanceIpAllowList` | Standalone Argo CD instance IP allow list. | [examples/instanceipallowlist](./examples/instanceipallowlist) |
-| `KargoInstance` | Akuity Kargo instance. | [examples/kargoinstance](./examples/kargoinstance) |
-| `KargoAgent` | Kargo agent attached to a Kargo instance. | [examples/kargoagent](./examples/kargoagent) |
-| `KargoDefaultShardAgent` | Default shard agent binding for a Kargo instance. | [examples/kargodefaultshardagent](./examples/kargodefaultshardagent) |
+| `Instance` | Akuity Argo CD instance. | [examples/argocd/instance](./examples/argocd/instance) |
+| `Cluster` | Kubernetes cluster attached to an Argo CD instance. | [examples/argocd/cluster](./examples/argocd/cluster) |
+| `InstanceIpAllowList` | Standalone Argo CD instance IP allow list. | [examples/argocd/instanceipallowlist](./examples/argocd/instanceipallowlist) |
+| `KargoInstance` | Akuity Kargo instance. | [examples/kargo/kargoinstance](./examples/kargo/kargoinstance) |
+| `KargoAgent` | Kargo agent attached to a Kargo instance. | [examples/kargo/kargoagent](./examples/kargo/kargoagent) |
+| `KargoDefaultShardAgent` | Default shard agent binding for a Kargo instance. | [examples/kargo/kargodefaultshardagent](./examples/kargo/kargodefaultshardagent) |
 
 For the full CRD schema, use
 [doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

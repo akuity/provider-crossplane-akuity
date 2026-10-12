@@ -96,7 +96,7 @@ kubectl get providerconfig.akuity.crossplane.io akuity
 Start with a basic Argo CD instance:
 
 ```shell
-kubectl apply -f examples/instance/basic.yaml
+kubectl apply -f examples/argocd/instance/basic.yaml
 kubectl get instances.core.akuity.crossplane.io
 kubectl describe instance.core.akuity.crossplane.io my-instance
 ```
@@ -115,7 +115,7 @@ customer-managed ServiceAccount bound out-of-band and point the provider
 runtime at it with `deploymentTemplate.spec.template.spec.serviceAccountName`.
 This avoids binding permissions to Crossplane's generated, revision-specific
 provider ServiceAccount names during upgrades. See
-[In-cluster agent install RBAC](../../examples/cluster/in-cluster-rbac.yaml)
+[In-cluster agent install RBAC](../../examples/provider/in-cluster-rbac.yaml)
 for the required ServiceAccount, ClusterRole, ClusterRoleBinding, and
 `DeploymentRuntimeConfig` pattern. Reference that runtime config from the
 Provider with `spec.runtimeConfigRef.name: akuity-in-cluster`. Without this

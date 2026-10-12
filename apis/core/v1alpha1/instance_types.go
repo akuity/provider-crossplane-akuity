@@ -51,7 +51,7 @@ type InstanceParameters struct {
 	Workspace string `json:"workspace,omitempty"`
 
 	// ArgoCDConfigMap sets options in the argocd-cm ConfigMap.
-	// Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
+	// Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/argocd/instance/detailed.yaml
 	// for required keys when using this option.
 	ArgoCDConfigMap map[string]string `json:"argocdConfigMap,omitempty"`
 
@@ -72,7 +72,7 @@ type InstanceParameters struct {
 
 	// ArgoCDSSHKnownHostsConfigMap sets options in the
 	// argocd-ssh-known-hosts-cm ConfigMap.
-	// Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
+	// Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/argocd/instance/detailed.yaml
 	// for required entries when using this option.
 	ArgoCDSSHKnownHostsConfigMap map[string]string `json:"argocdSshKnownHostsConfigMap,omitempty"`
 
