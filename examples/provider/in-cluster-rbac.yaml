@@ -10,75 +10,10 @@ kind: ClusterRole
 metadata:
   name: provider-crossplane-akuity-in-cluster
 rules:
-  # Baseline provider permissions. These mirror the rules Crossplane normally
-  # grants to the generated ProviderRevision ServiceAccount. When this
-  # DeploymentRuntimeConfig points the pod at this customer-managed
-  # ServiceAccount, the generated binding no longer covers the running pod.
-  # Without these rules the controller cannot watch its managed resources,
-  # read ProviderConfigs, read credential Secrets, or hold the leader-election
-  # Lease.
-  - apiGroups:
-      - core.akuity.crossplane.io
-    resources:
-      - clusters
-      - clusters/status
-      - instanceipallowlists
-      - instanceipallowlists/status
-      - instances
-      - instances/status
-      - kargoagents
-      - kargoagents/status
-      - kargodefaultshardagents
-      - kargodefaultshardagents/status
-      - kargoinstances
-      - kargoinstances/status
-    verbs:
-      - get
-      - list
-      - watch
-      - update
-      - patch
-      - create
-  - apiGroups:
-      - akuity.crossplane.io
-    resources:
-      - providerconfigs
-      - providerconfigs/status
-      - providerconfigusages
-      - providerconfigusages/status
-    verbs:
-      - get
-      - list
-      - watch
-      - update
-      - patch
-      - create
-  - apiGroups:
-      - core.akuity.crossplane.io
-      - akuity.crossplane.io
-    resources:
-      - "*/finalizers"
-    verbs:
-      - update
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - secrets
-    verbs:
-      - "*"
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
-      - "*"
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - "*"
+  # Only what installing and removing the agent manifests needs. Crossplane's
+  # RBAC manager binds the provider system ClusterRole (its own CRDs, Secrets,
+  # ConfigMaps, events and Leases) to whatever ServiceAccount the provider
+  # Deployment runs as, this one included, so those rules are not repeated here.
   # Agent manifest apply/teardown uses server-side apply and foreground delete.
   - apiGroups:
       - ""
