@@ -287,7 +287,12 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.KargoAgentGroupVersionKind),
-		base.ReconcilerOptions(o, logger, recorder, managed.WithTypedExternalConnector[*v1alpha1.KargoAgent](conn))...,
+		base.ReconcilerOptions(o, logger, recorder,
+			managed.WithTypedExternalConnector[*v1alpha1.KargoAgent](conn),
+			managed.WithInitializers(base.SpecNameAsExternalName(mgr.GetClient(), func(mg *v1alpha1.KargoAgent) string {
+				return mg.Spec.ForProvider.Name
+			})),
+		)...,
 	)
 
 	if err := base.AddStateMetrics(mgr, o, &v1alpha1.KargoAgentList{}); err != nil {
@@ -313,8 +318,12 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		return managed.ExternalObservation{}, err
 	}
 	mg.Spec.ForProvider.KargoInstanceID = instanceID
-	if err := e.resolveRemoteArgocd(ctx, mg); err != nil {
-		return managed.ExternalObservation{}, err
+	// Deletion needs only the Kargo instance and the agent name. Resolving
+	// remoteArgocdRef would block it once the referenced Instance is gone.
+	if !meta.WasDeleted(mg) {
+		if err := e.resolveRemoteArgocd(ctx, mg); err != nil {
+			return managed.ExternalObservation{}, err
+		}
 	}
 	terminalFP := mg.Spec.ForProvider
 	if terminalFP.Workspace == "" {
@@ -322,7 +331,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	}
 
 	// Short-circuit on a cached terminal write before any gateway
-	// round-trip. With Crossplane's NameAsExternalName initializer the
+	// round-trip. With the SpecNameAsExternalName initializer the
 	// external-name is stamped before the first Create runs, so a bad-
 	// input rejection on Create would otherwise loop
 	// GetKargoInstanceAgent->NotFound->Create->reject at controller-
@@ -460,6 +469,10 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
+	rollback, err := e.createRollback(ctx, mg)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
 	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
 		// ApplyKargoInstance can stamp the agent row and still return an
 		// error (seen as Internal while the parent Kargo instance is
@@ -467,7 +480,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 		// never re-run Create, so the manifests below would never be
 		// installed. Roll the row back so the retried Create starts
 		// clean; nothing is installed yet, hence no kubeconfig target.
-		e.rollbackCreatedAgent(ctx, mg, kube.TargetKubeConfig{}, "apply")
+		rollback(kube.TargetKubeConfig{}, "apply")
 		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 	e.ClearTerminalWrite(key)
@@ -485,7 +498,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 	// or recreate to re-land on the managed cluster.
 	if target := targetKubeConfig(mg.Spec.ForProvider); target.HasKubeConfig() {
 		if err := e.installAgentManifests(ctx, mg, target, false); err != nil {
-			e.rollbackCreatedAgent(ctx, mg, target, "install-manifests")
+			rollback(target, "install-manifests")
 			// Classify install failure as terminal so the next Observe
 			// short-circuits via the suppress site instead of
 			// hot-looping ApplyKargoInstance + rollback every poll. The
@@ -502,6 +515,29 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 	return managed.ExternalCreation{}, nil
+}
+
+// createRollback returns the rollback Create runs when a step fails. Only
+// an agent this attempt adds is rolled back: one that already existed
+// before the apply is not Create's to delete, so its rollback is a no-op.
+func (e *external) createRollback(ctx context.Context, mg *v1alpha1.KargoAgent) (func(target kube.TargetKubeConfig, stage string), error) {
+	_, err := e.Client.GetKargoInstanceAgent(ctx, mg.Spec.ForProvider.KargoInstanceID, mg.Spec.ForProvider.Name)
+	switch {
+	case err == nil:
+		return func(_ kube.TargetKubeConfig, stage string) {
+			e.Logger.Debug("kargo agent existed before create; skipping rollback",
+				"stage", stage,
+				"kargoInstanceID", mg.Spec.ForProvider.KargoInstanceID,
+				"agentName", mg.Spec.ForProvider.Name,
+			)
+		}, nil
+	case reason.IsNotFound(err):
+		return func(target kube.TargetKubeConfig, stage string) {
+			e.rollbackCreatedAgent(ctx, mg, target, stage)
+		}, nil
+	default:
+		return nil, fmt.Errorf("could not check whether kargo agent %s exists: %w", mg.Spec.ForProvider.Name, err)
+	}
 }
 
 // rollbackCreatedAgent removes the agent row from the parent

@@ -89,9 +89,9 @@ func BuildApplyKargoInstanceRequest(kargoInstanceID string, p v1alpha1.KargoAgen
 
 // apiToSpec rebuilds KargoAgentParameters from the
 // observed Akuity KargoAgent. Fields that the user owns locally
-// (KargoInstanceID / KargoInstanceRef / Workspace, plus the agent-install
-// kubeconfig trio that never round-trips through the Akuity gateway:
-// KubeConfigSecretRef / EnableInClusterKubeConfig /
+// (KargoInstanceID / KargoInstanceRef / RemoteArgocdRef / Workspace, plus
+// the agent-install kubeconfig trio that never round-trips through the
+// Akuity gateway: KubeConfigSecretRef / EnableInClusterKubeConfig /
 // RemoveAgentResourcesOnDestroy) are carried over from the managed
 // resource so drift detection compares apples to apples. Namespace /
 // Labels / Annotations live inside the proto Data sub-tree on the wire.
@@ -100,6 +100,7 @@ func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent)
 	out := v1alpha1.KargoAgentParameters{
 		KargoInstanceID:               desired.KargoInstanceID,
 		KargoInstanceRef:              desired.KargoInstanceRef,
+		RemoteArgocdRef:               desired.RemoteArgocdRef,
 		Name:                          agent.GetName(),
 		Namespace:                     data.GetNamespace(),
 		Workspace:                     desired.Workspace,
@@ -126,8 +127,8 @@ func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent)
 // KargoAgent that ExportKargoInstance returns inside its Agents slice.
 // Namespace / Labels / Annotations live on ObjectMeta in the wire
 // form (not on Data, as in the proto). Spec-only fields that the Akuity
-// API does not own (KargoInstanceID / KargoInstanceRef / Workspace,
-// plus the agent-install kubeconfig trio: KubeConfigSecretRef /
+// API does not own (KargoInstanceID / KargoInstanceRef / RemoteArgocdRef /
+// Workspace, plus the agent-install kubeconfig trio: KubeConfigSecretRef /
 // EnableInClusterKubeConfig / RemoveAgentResourcesOnDestroy) are
 // carried from desired so drift detection compares apples to apples.
 func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAgent) v1alpha1.KargoAgentParameters {
@@ -137,6 +138,7 @@ func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAg
 	out := v1alpha1.KargoAgentParameters{
 		KargoInstanceID:               desired.KargoInstanceID,
 		KargoInstanceRef:              desired.KargoInstanceRef,
+		RemoteArgocdRef:               desired.RemoteArgocdRef,
 		Name:                          wire.GetName(),
 		Namespace:                     wire.Namespace,
 		Workspace:                     desired.Workspace,

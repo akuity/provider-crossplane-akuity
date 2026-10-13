@@ -44,6 +44,7 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{
 		KargoInstanceID:  "ki-1",
 		KargoInstanceRef: &v1alpha1.LocalReference{Name: "kiref"},
+		RemoteArgocdRef:  &v1alpha1.LocalReference{Name: "argocd"},
 		Workspace:        "ws-1",
 		KubeConfigSecretRef: xpv2.SecretReference{
 			Name:      "customer-kcfg",
@@ -68,6 +69,7 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 	out := apiToSpec(desired, agent)
 	assert.Equal(t, "ki-1", out.KargoInstanceID)
 	assert.Equal(t, "kiref", out.KargoInstanceRef.Name)
+	assert.Equal(t, desired.RemoteArgocdRef, out.RemoteArgocdRef)
 	assert.Equal(t, "ws-1", out.Workspace)
 	assert.Equal(t, "agt", out.Name, "Name must come from API (immutable by CEL)")
 	assert.Equal(t, "kargo", out.Namespace, "Namespace is pulled from wire Data, not ObjectMeta")
@@ -246,6 +248,7 @@ func TestWireToSpec_NilReturnsZero(t *testing.T) {
 func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{
 		KargoInstanceID: "ki-1",
+		RemoteArgocdRef: &v1alpha1.LocalReference{Name: "argocd"},
 		Workspace:       "ws-1",
 		KubeConfigSecretRef: xpv2.SecretReference{
 			Name:      "customer-kcfg",
@@ -269,6 +272,7 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 
 	out := wireToSpec(desired, wire)
 	assert.Equal(t, "ki-1", out.KargoInstanceID)
+	assert.Equal(t, desired.RemoteArgocdRef, out.RemoteArgocdRef)
 	assert.Equal(t, "ws-1", out.Workspace)
 	assert.Equal(t, "agt", out.Name)
 	assert.Equal(t, "kargo", out.Namespace)

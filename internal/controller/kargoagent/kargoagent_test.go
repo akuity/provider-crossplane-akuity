@@ -266,10 +266,18 @@ func TestObserve_PodInheritMetadataDesiredTrueExportFalseDrifts(t *testing.T) {
 	assert.False(t, *a.Status.AtProvider.KargoAgentSpec.Data.PodInheritMetadata)
 }
 
+// expectAgentAbsent mocks the existence check Create runs before the
+// apply for an agent that does not exist yet.
+func expectAgentAbsent(mc *mockclient.MockClient) {
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
+		Return(nil, reason.AsNotFound(errors.New("no"))).Times(1)
+}
+
 func TestCreate_Apply(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
 
+	expectAgentAbsent(mc)
 	var capturedReq *kargov1.ApplyKargoInstanceRequest
 	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, req *kargov1.ApplyKargoInstanceRequest) error {
 		capturedReq = req
@@ -294,6 +302,7 @@ func TestCreate_ApplyErrorRollsBackAgent(t *testing.T) {
 	a.Spec.ForProvider.EnableInClusterKubeConfig = true
 	a.Spec.ForProvider.RemoveAgentResourcesOnDestroy = true
 
+	expectAgentAbsent(mc)
 	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
 		Return(status.Error(codes.Internal, "An internal error has occurred")).Times(1)
 	mc.EXPECT().DeleteKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(nil).Times(1)
@@ -301,6 +310,58 @@ func TestCreate_ApplyErrorRollsBackAgent(t *testing.T) {
 	_, err := e.Create(context.Background(), a)
 	require.Error(t, err)
 	assert.Empty(t, meta.GetExternalName(a))
+}
+
+// TestCreate_ApplyErrorKeepsExistingAgent covers Create running against
+// an agent that existed before the apply: the failed apply must not
+// delete it.
+func TestCreate_ApplyErrorKeepsExistingAgent(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
+		Return(&kargov1.KargoAgent{Id: "ag-1", Name: "agt"}, nil).Times(1)
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).
+		Return(status.Error(codes.InvalidArgument, "invalid agent")).Times(1)
+
+	_, err := e.Create(context.Background(), a)
+	require.Error(t, err)
+	assert.Empty(t, meta.GetExternalName(a))
+}
+
+// TestCreate_ManifestFetchErrorKeepsExistingAgent covers a failure after
+// the apply on an agent that existed before it: neither its row nor its
+// installed manifests may be removed.
+func TestCreate_ManifestFetchErrorKeepsExistingAgent(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+	a.Spec.ForProvider.EnableInClusterKubeConfig = true
+	a.Spec.ForProvider.RemoveAgentResourcesOnDestroy = true
+
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
+		Return(&kargov1.KargoAgent{Id: "ag-1", Name: "agt"}, nil).Times(1)
+	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	mc.EXPECT().GetKargoInstanceAgentManifests(gomock.Any(), "ki-1", "agt").
+		Return("", status.Error(codes.FailedPrecondition, "kargo agent has not yet been reconciled")).Times(1)
+
+	_, err := e.Create(context.Background(), a)
+	require.Error(t, err)
+	assert.Empty(t, meta.GetExternalName(a))
+}
+
+// TestCreate_ExistenceCheckErrorSkipsApply covers a failed existence
+// check: without it Create cannot tell whether a failure may be rolled
+// back, so it must not apply.
+func TestCreate_ExistenceCheckErrorSkipsApply(t *testing.T) {
+	e, mc := newExt(t)
+	a := newAgent()
+
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").
+		Return(nil, errors.New("boom")).Times(1)
+
+	_, err := e.Create(context.Background(), a)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
 }
 
 // TestCreate_ResolveErrorSkipsRollback covers a failure before
@@ -321,6 +382,7 @@ func TestCreate_ManifestFetchFailedPreconditionRetryable(t *testing.T) {
 	a := newAgent()
 	a.Spec.ForProvider.EnableInClusterKubeConfig = true
 
+	expectAgentAbsent(mc)
 	mc.EXPECT().ApplyKargoInstance(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	mc.EXPECT().GetKargoInstanceAgentManifests(gomock.Any(), "ki-1", "agt").
 		Return("", status.Error(codes.FailedPrecondition, "kargo agent has not yet been reconciled")).Times(1)
@@ -799,5 +861,59 @@ func TestResolveRemoteArgocd_InstanceWithoutAkuityIDFails(t *testing.T) {
 	a := newAgent()
 	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
 	require.Error(t, e.resolveRemoteArgocd(context.Background(), a))
+	assert.Empty(t, a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
+}
+
+// TestObserve_RemoteArgocdRefUpToDate: the reference is MR-local, so an
+// agent whose remoteArgocd matches the referenced Instance is up to date
+// instead of being reapplied every poll.
+func TestObserve_RemoteArgocdRefUpToDate(t *testing.T) {
+	e, mc := newExtWithInstance(t, newArgocdInstance("argocd-id"))
+	a := newAgent()
+	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:                   "ag-1",
+		Name:                 "agt",
+		Data:                 &kargov1.KargoAgentData{RemoteArgocd: "argocd-id"},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(&kargov1.ExportKargoInstanceResponse{
+			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]interface{}{
+				"size":         "small",
+				"remoteArgocd": "argocd-id",
+			})},
+		}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
+	assert.True(t, obs.ResourceUpToDate)
+}
+
+// TestObserve_DeletingSkipsRemoteArgocdRef: deleting an agent must not
+// depend on the referenced Instance, which may already be gone.
+func TestObserve_DeletingSkipsRemoteArgocdRef(t *testing.T) {
+	e, mc := newExtWithInstance(t, nil)
+	a := newAgent()
+	a.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd"}
+	now := metav1.Now()
+	a.SetDeletionTimestamp(&now)
+	meta.SetExternalName(a, "agt")
+	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
+		Id:                   "ag-1",
+		Name:                 "agt",
+		Data:                 &kargov1.KargoAgentData{},
+		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
+		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
+	}, nil).Times(1)
+	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
+		Return(&kargov1.ExportKargoInstanceResponse{}, nil).Times(1)
+
+	obs, err := e.Observe(context.Background(), a)
+	require.NoError(t, err)
+	assert.True(t, obs.ResourceExists)
 	assert.Empty(t, a.Spec.ForProvider.KargoAgentSpec.Data.RemoteArgocd)
 }

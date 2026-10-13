@@ -112,6 +112,13 @@ func exportedClusterWithDescription(t *testing.T, description string) *structpb.
 	return out
 }
 
+// expectClusterAbsent mocks the existence check Create runs before the
+// apply for a cluster that does not exist yet.
+func expectClusterAbsent(mc *mock_akuity_client.MockClient) {
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(nil, reason.AsNotFound(errors.New("not found"))).Times(1)
+}
+
 func TestCreate_NoKubeConfig(t *testing.T) {
 	e, mc := newExt(t, nil)
 
@@ -119,6 +126,7 @@ func TestCreate_NoKubeConfig(t *testing.T) {
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
 	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 
+	expectClusterAbsent(mc)
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(nil).Times(1)
 
@@ -134,6 +142,7 @@ func TestCreate_ApplyClusterErr(t *testing.T) {
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
 	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 
+	expectClusterAbsent(mc)
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(errors.New("fake")).Times(1)
 	// ApplyInstance can stamp the platform row and still fail, so the
@@ -146,6 +155,65 @@ func TestCreate_ApplyClusterErr(t *testing.T) {
 	assert.Equal(t, managed.ExternalCreation{}, resp)
 }
 
+// TestCreate_ApplyClusterErrKeepsExistingCluster covers Create running
+// against a cluster that existed before the apply: the failed apply must
+// not delete it.
+func TestCreate_ApplyClusterErrKeepsExistingCluster(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = false
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
+
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(&argocdv1.Cluster{Name: fixtures.ClusterName}, nil).Times(1)
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
+		Return(errors.New("fake")).Times(1)
+
+	resp, err := e.Create(ctx, &managedCluster)
+	require.Error(t, err)
+	assert.Equal(t, managed.ExternalCreation{}, resp)
+}
+
+// TestCreate_WithKubeConfig_GetClusterManifestsErrKeepsExistingCluster
+// covers a failure after the apply on a cluster that existed before it:
+// neither its row nor its installed manifests may be removed.
+func TestCreate_WithKubeConfig_GetClusterManifestsErrKeepsExistingCluster(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
+	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
+
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(&argocdv1.Cluster{Name: fixtures.ClusterName}, nil).Times(1)
+	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
+		Return(nil).Times(1)
+	mc.EXPECT().GetClusterManifests(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return("", errors.New("fake")).Times(1)
+
+	resp, err := e.Create(ctx, &managedCluster)
+	require.Error(t, err)
+	assert.Equal(t, managed.ExternalCreation{}, resp)
+}
+
+// TestCreate_GetClusterErrSkipsApply covers a failed existence check:
+// without it Create cannot tell whether a failure may be rolled back, so
+// it must not apply.
+func TestCreate_GetClusterErrSkipsApply(t *testing.T) {
+	e, mc := newExt(t, nil)
+
+	managedCluster := fixtures.CrossplaneManagedCluster
+
+	mc.EXPECT().GetCluster(ctx, fixtures.InstanceID, fixtures.ClusterName).
+		Return(nil, errors.New("boom")).Times(1)
+
+	resp, err := e.Create(ctx, &managedCluster)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+	assert.Equal(t, managed.ExternalCreation{}, resp)
+}
+
 func TestCreate_WithKubeConfig_ApplyClusterErrSkipsManifestStrip(t *testing.T) {
 	e, mc := newExt(t, nil)
 
@@ -153,6 +221,7 @@ func TestCreate_WithKubeConfig_ApplyClusterErrSkipsManifestStrip(t *testing.T) {
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
 	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 
+	expectClusterAbsent(mc)
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(errors.New("fake")).Times(1)
 	// Nothing is installed yet, so the rollback deletes the platform row
@@ -172,6 +241,7 @@ func TestCreate_WithKubeConfig_GetClusterManifestsErr(t *testing.T) {
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
 	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 
+	expectClusterAbsent(mc)
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(nil).Times(1)
 
@@ -200,6 +270,7 @@ func TestCreate_WithKubeConfig_GetClusterManifestsNotReconciledRetryable(t *test
 	managedCluster.Spec.ForProvider.KubeConfigSecretRef = xpv2.SecretReference{}
 	managedCluster.Spec.ForProvider.RemoveAgentResourcesOnDestroy = false
 
+	expectClusterAbsent(mc)
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(nil).Times(1)
 	mc.EXPECT().GetClusterManifests(ctx, fixtures.InstanceID, fixtures.ClusterName).
@@ -225,6 +296,7 @@ func TestCreate_WithKubeConfig_ApplyClusterManifestsErr(t *testing.T) {
 	}
 	managedCluster.Spec.ForProvider.EnableInClusterKubeConfig = true
 
+	expectClusterAbsent(mc)
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).
 		Return(nil).Times(1)
 
