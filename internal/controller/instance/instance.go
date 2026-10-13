@@ -28,13 +28,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 
@@ -71,12 +71,12 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.InstanceGroupVersionKind),
-		managed.WithTypedExternalConnector[*v1alpha1.Instance](conn),
-		managed.WithLogger(logger),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(recorder),
-		managed.WithManagementPolicies(),
+		base.ReconcilerOptions(o, logger, recorder, managed.WithTypedExternalConnector[*v1alpha1.Instance](conn))...,
 	)
+
+	if err := base.AddStateMetrics(mgr, o, &v1alpha1.InstanceList{}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -121,34 +121,34 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 		case base.GetProvisioning:
 			base.SetHealthCondition(mg, false)
 		case base.GetTerminal:
-			mg.SetConditions(xpv1.ReconcileError(err))
+			mg.SetConditions(xpv2.ReconcileError(err))
 		}
 		return obs, rerr
 	}
 
 	akuityExportedInstance, err := e.Client.ExportInstance(ctx, meta.GetExternalName(mg))
 	if err != nil {
-		mg.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv2.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 
 	actualInstance, err := observation.InstanceSpec(akuityInstance, akuityExportedInstance)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform instance spec from Akuity API to internal instance spec: %w", err)
-		mg.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv2.ReconcileError(err))
 		return managed.ExternalObservation{}, newErr
 	}
 	presence := base.ForProviderPresence(ctx, e.Kube, mg, v1alpha1.InstanceGroupVersionKind)
 
 	if err := lateInitializeInstance(&mg.Spec.ForProvider, akuityInstance, akuityExportedInstance); err != nil {
-		mg.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv2.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 
 	instanceObservation, err := observation.Instance(akuityInstance, akuityExportedInstance)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform instance from Akuity API to Crossplane instance observation: %w", err)
-		mg.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv2.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
@@ -186,7 +186,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 	if isUpToDate {
 		sec, serr := resolveInstanceSecrets(ctx, e.Kube, mg)
 		if serr != nil {
-			mg.SetConditions(xpv1.ReconcileError(serr))
+			mg.SetConditions(xpv2.ReconcileError(serr))
 			return managed.ExternalObservation{}, serr
 		}
 		if sec.Hash() != mg.Status.AtProvider.SecretHash {
@@ -210,7 +210,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Instance) (managed.
 	if isUpToDate && len(mg.Spec.ForProvider.Resources) > 0 {
 		ok, report, rerr := argocdResourcesUpToDate(mg.Spec.ForProvider.Resources, akuityExportedInstance)
 		if rerr != nil {
-			mg.SetConditions(xpv1.ReconcileError(rerr))
+			mg.SetConditions(xpv2.ReconcileError(rerr))
 			return managed.ExternalObservation{}, rerr
 		}
 		if !ok {

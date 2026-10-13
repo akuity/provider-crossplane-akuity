@@ -5,7 +5,7 @@ Copyright 2026 Akuity, Inc.
 
 package v1alpha1
 
-import xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+import xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
 // +kubebuilder:object:generate=true
 type Kargo struct {
@@ -32,7 +32,7 @@ type KargoOidcConfig struct {
 	// DexConfigSecret above. Removing this ref stops applying the
 	// platform-side Secret, but does not delete it from the Akuity
 	// platform.
-	DexConfigSecretRef    *xpv1.SecretReference      `json:"dexConfigSecretRef,omitempty"`
+	DexConfigSecretRef    *xpv2.SecretReference      `json:"dexConfigSecretRef,omitempty"`
 	IssuerURL             string                     `json:"issuerUrl,omitempty"`
 	ClientID              string                     `json:"clientId,omitempty"`
 	CliClientID           string                     `json:"cliClientId,omitempty"`

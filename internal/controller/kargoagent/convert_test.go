@@ -22,7 +22,7 @@ import (
 	"time"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -44,8 +44,9 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{
 		KargoInstanceID:  "ki-1",
 		KargoInstanceRef: &v1alpha1.LocalReference{Name: "kiref"},
+		RemoteArgocdRef:  &v1alpha1.LocalReference{Name: "argocd"},
 		Workspace:        "ws-1",
-		KubeConfigSecretRef: xpv1.SecretReference{
+		KubeConfigSecretRef: xpv2.SecretReference{
 			Name:      "customer-kcfg",
 			Namespace: "crossplane-system",
 		},
@@ -68,6 +69,7 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 	out := apiToSpec(desired, agent)
 	assert.Equal(t, "ki-1", out.KargoInstanceID)
 	assert.Equal(t, "kiref", out.KargoInstanceRef.Name)
+	assert.Equal(t, desired.RemoteArgocdRef, out.RemoteArgocdRef)
 	assert.Equal(t, "ws-1", out.Workspace)
 	assert.Equal(t, "agt", out.Name, "Name must come from API (immutable by CEL)")
 	assert.Equal(t, "kargo", out.Namespace, "Namespace is pulled from wire Data, not ObjectMeta")
@@ -246,8 +248,9 @@ func TestWireToSpec_NilReturnsZero(t *testing.T) {
 func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{
 		KargoInstanceID: "ki-1",
+		RemoteArgocdRef: &v1alpha1.LocalReference{Name: "argocd"},
 		Workspace:       "ws-1",
-		KubeConfigSecretRef: xpv1.SecretReference{
+		KubeConfigSecretRef: xpv2.SecretReference{
 			Name:      "customer-kcfg",
 			Namespace: "crossplane-system",
 		},
@@ -269,6 +272,7 @@ func TestWireToSpec_PullsMetadataFromObjectMeta(t *testing.T) {
 
 	out := wireToSpec(desired, wire)
 	assert.Equal(t, "ki-1", out.KargoInstanceID)
+	assert.Equal(t, desired.RemoteArgocdRef, out.RemoteArgocdRef)
 	assert.Equal(t, "ws-1", out.Workspace)
 	assert.Equal(t, "agt", out.Name)
 	assert.Equal(t, "kargo", out.Namespace)

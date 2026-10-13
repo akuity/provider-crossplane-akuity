@@ -2,10 +2,10 @@
 apiVersion: core.akuity.crossplane.io/v1alpha1
 kind: Instance
 metadata:
-  name: my-instance
+  name: my-instance-detailed
 spec:
   forProvider:
-    name: my-instance
+    name: my-instance-detailed
     argocd:
       spec:
         description: "My ArgoCD instance used for my project."
@@ -35,7 +35,8 @@ spec:
             - apiGroups: ["batch"]
               resources: ["jobs"]
               verbs: ["create"]
-          fqdn: "instance.example.com"
+          # Requires the Akuity custom domain feature.
+          # fqdn: "instance.example.com"
           multiClusterK8sDashboardEnabled: true
           akuityIntelligenceExtension:
             enabled: true

@@ -29,7 +29,7 @@ import (
 	"context"
 	"testing"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -401,7 +401,7 @@ func TestKargoAgent_KubeConfigSourcesMutuallyExclusive(t *testing.T) {
 			ForProvider: v1alpha1.KargoAgentParameters{
 				KargoInstanceID:           "ki-abc",
 				Name:                      "agent-a",
-				KubeConfigSecretRef:       xpv1.SecretReference{Name: "kc", Namespace: "default"},
+				KubeConfigSecretRef:       xpv2.SecretReference{Name: "kc", Namespace: "default"},
 				EnableInClusterKubeConfig: true,
 			},
 		},
@@ -416,7 +416,7 @@ func TestKargoAgent_KubeConfigSourcesMutuallyExclusive(t *testing.T) {
 			ForProvider: v1alpha1.KargoAgentParameters{
 				KargoInstanceID:     "ki-abc",
 				Name:                "agent-a",
-				KubeConfigSecretRef: xpv1.SecretReference{Name: "kc", Namespace: "default"},
+				KubeConfigSecretRef: xpv2.SecretReference{Name: "kc", Namespace: "default"},
 			},
 		},
 	}
@@ -636,4 +636,60 @@ func TestCluster_InstanceIDLateInitAllowed(t *testing.T) {
 	err := kube.Update(ctx, got)
 	require.Error(t, err, "apiserver must reject instanceId rename after lateInit stamp")
 	assert.Contains(t, err.Error(), "instanceId/instanceRef are immutable")
+}
+
+// TestKargoAgent_RemoteArgocdRefImmutable covers the UPDATE-time rule on
+// remoteArgocdRef. The controller stamps the resolved Argo CD instance ID
+// into kargoAgentSpec.data.remoteArgocd, which wins over the reference,
+// so a changed or removed reference would otherwise be silently ignored.
+func TestKargoAgent_RemoteArgocdRefImmutable(t *testing.T) {
+	ctx := context.Background()
+
+	immut := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-remote-argocd-ref-immut"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-a",
+				RemoteArgocdRef: &v1alpha1.LocalReference{Name: "argocd-a"},
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, immut))
+	t.Cleanup(func() { _ = kube.Delete(ctx, immut) })
+
+	got := &v1alpha1.KargoAgent{}
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(immut), got))
+	got.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd-b"}
+	err := kube.Update(ctx, got)
+	require.Error(t, err, "apiserver must reject a remoteArgocdRef change")
+	assert.Contains(t, err.Error(), "remoteArgocdRef is immutable")
+
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(immut), got))
+	got.Spec.ForProvider.RemoteArgocdRef = nil
+	err = kube.Update(ctx, got)
+	require.Error(t, err, "apiserver must reject removing remoteArgocdRef")
+	assert.Contains(t, err.Error(), "remoteArgocdRef is immutable")
+
+	// No-op update with the same reference must be accepted.
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(immut), got))
+	got.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd-a"}
+	require.NoError(t, kube.Update(ctx, got), "no-op update with matching remoteArgocdRef must be accepted")
+
+	// Adding a reference to an agent created without one must be allowed.
+	lateRef := &v1alpha1.KargoAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "ka-remote-argocd-ref-late"},
+		Spec: v1alpha1.KargoAgentSpec{
+			ForProvider: v1alpha1.KargoAgentParameters{
+				KargoInstanceID: "ki-abc",
+				Name:            "agent-b",
+			},
+		},
+	}
+	require.NoError(t, kube.Create(ctx, lateRef))
+	t.Cleanup(func() { _ = kube.Delete(ctx, lateRef) })
+
+	require.NoError(t, kube.Get(ctx, client.ObjectKeyFromObject(lateRef), got))
+	got.Spec.ForProvider.RemoteArgocdRef = &v1alpha1.LocalReference{Name: "argocd-a"}
+	require.NoError(t, kube.Update(ctx, got), "adding remoteArgocdRef when oldSelf had none must be allowed")
 }

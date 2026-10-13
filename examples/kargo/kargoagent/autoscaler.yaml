@@ -1,0 +1,45 @@
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoInstance
+metadata:
+  name: my-kargo-agent-auto-instance
+spec:
+  forProvider:
+    name: my-kargo-agent-auto-instance
+    kargo:
+      description: "My Kargo instance."
+      version: "v1.10.1-ak.0"
+  providerConfigRef:
+    name: akuity
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: KargoAgent
+metadata:
+  name: my-kargo-agent-auto
+spec:
+  forProvider:
+    kargoInstanceRef:
+      name: "my-kargo-agent-auto-instance"
+    name: "my-kargo-agent-auto"
+    namespace: "kargo"
+    kargoAgentSpec:
+      description: "Kargo agent with controller autoscaling bounds."
+      data:
+        size: "auto"
+        autoUpgradeDisabled: false
+        autoscalerConfig:
+          kargoController:
+            resourceMinimum:
+              cpu: "500m"
+              mem: "1Gi"
+            resourceMaximum:
+              cpu: "2000m"
+              mem: "4Gi"
+    # Installs the agent into the cluster that the kubeconfig in this Secret
+    # (key "kubeconfig") points at. make e2e creates it for a second Kind cluster.
+    kubeconfigSecretRef:
+      name: workload-kubeconfig
+      namespace: crossplane-system
+    removeAgentResourcesOnDestroy: true
+  providerConfigRef:
+    name: akuity

@@ -40,6 +40,22 @@ kubectl describe providerrevisions.pkg.crossplane.io
 
 The `Provider` object installs the CRDs and starts the controller runtime. The example also includes a `DeploymentRuntimeConfig` that enables `--debug`; remove it or remove the `runtimeConfigRef` for production defaults.
 
+### Runtime Flags
+
+The controller accepts the flags below through the `DeploymentRuntimeConfig` `args` list. `--enable-secret-cache` and `--leader-election` also read the `ENABLE_SECRET_CACHE` and `LEADER_ELECTION` environment variables.
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--debug` | off | Verbose provider and controller-runtime logging. |
+| `--poll` | `1m` | How often each managed resource is checked for drift. |
+| `--sync` | `1h` | How often every watched resource is re-listed from the API server. |
+| `--max-reconcile-rate` | `10` | Global reconciles per second, also used as per-controller concurrency. |
+| `--poll-state-metric` | `5s` | How often managed resource state metrics are recorded. |
+| `--enable-secret-cache` | `true` | Serve Secrets from the informer cache. Set to `false` on clusters with many Secrets to trade extra API calls for lower memory use. |
+| `--leader-election` | `false` | Use Lease-based leader election when running more than one replica. |
+
+The provider exposes Crossplane's managed resource metrics (`crossplane_managed_resource_*`) on the metrics port Crossplane configures for the package runtime. Only CRDs of the provider's own API groups are watched for the SafeStart gate, and the OpenAPI schema is stripped from cached CRDs to keep memory low on clusters with many CRDs.
+
 ## Create Credentials
 
 Create a JSON credentials file:
@@ -80,7 +96,7 @@ kubectl get providerconfig.akuity.crossplane.io akuity
 Start with a basic Argo CD instance:
 
 ```shell
-kubectl apply -f examples/instance/basic.yaml
+kubectl apply -f examples/argocd/instance/basic.yaml
 kubectl get instances.core.akuity.crossplane.io
 kubectl describe instance.core.akuity.crossplane.io my-instance
 ```
@@ -99,7 +115,7 @@ customer-managed ServiceAccount bound out-of-band and point the provider
 runtime at it with `deploymentTemplate.spec.template.spec.serviceAccountName`.
 This avoids binding permissions to Crossplane's generated, revision-specific
 provider ServiceAccount names during upgrades. See
-[In-cluster agent install RBAC](../../examples/cluster/in-cluster-rbac.yaml)
+[In-cluster agent install RBAC](../../examples/provider/in-cluster-rbac.yaml)
 for the required ServiceAccount, ClusterRole, ClusterRoleBinding, and
 `DeploymentRuntimeConfig` pattern. Reference that runtime config from the
 Provider with `spec.runtimeConfigRef.name: akuity-in-cluster`. Without this

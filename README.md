@@ -42,7 +42,7 @@ kubectl apply -f examples/provider/config.yaml
 Create an Argo CD instance:
 
 ```shell
-kubectl apply -f examples/instance/basic.yaml
+kubectl apply -f examples/argocd/instance/basic.yaml
 kubectl get instances.core.akuity.crossplane.io
 ```
 
@@ -53,12 +53,12 @@ All managed resources are cluster-scoped and live in
 
 | Resource | Purpose | Examples |
 | --- | --- | --- |
-| `Instance` | Akuity Argo CD instance. | [examples/instance](./examples/instance) |
-| `Cluster` | Kubernetes cluster attached to an Argo CD instance. | [examples/cluster](./examples/cluster) |
-| `InstanceIpAllowList` | Standalone Argo CD instance IP allow list. | [examples/instanceipallowlist](./examples/instanceipallowlist) |
-| `KargoInstance` | Akuity Kargo instance. | [examples/kargoinstance](./examples/kargoinstance) |
-| `KargoAgent` | Kargo agent attached to a Kargo instance. | [examples/kargoagent](./examples/kargoagent) |
-| `KargoDefaultShardAgent` | Default shard agent binding for a Kargo instance. | [examples/kargodefaultshardagent](./examples/kargodefaultshardagent) |
+| `Instance` | Akuity Argo CD instance. | [examples/argocd/instance](./examples/argocd/instance) |
+| `Cluster` | Kubernetes cluster attached to an Argo CD instance. | [examples/argocd/cluster](./examples/argocd/cluster) |
+| `InstanceIpAllowList` | Standalone Argo CD instance IP allow list. | [examples/argocd/instanceipallowlist](./examples/argocd/instanceipallowlist) |
+| `KargoInstance` | Akuity Kargo instance. | [examples/kargo/kargoinstance](./examples/kargo/kargoinstance) |
+| `KargoAgent` | Kargo agent attached to a Kargo instance. | [examples/kargo/kargoagent](./examples/kargo/kargoagent) |
+| `KargoDefaultShardAgent` | Default shard agent binding for a Kargo instance. | [examples/kargo/kargodefaultshardagent](./examples/kargo/kargodefaultshardagent) |
 
 For the full CRD schema, use
 [doc.crds.dev/github.com/akuity/provider-crossplane-akuity](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).
@@ -131,7 +131,8 @@ To run the Crossplane provider locally using a Kind cluster and apply the CRDs g
 
 `make dev`
 
-The above command should only be run once. It will error if a Kind cluster already exists.
+It creates (or reuses) the `local-dev` Kind cluster, installs Crossplane, applies the CRDs and
+runs the provider out-of-cluster. `make dev-clean` deletes the cluster again.
 
 If you need to make changes to the CRDs, you can regenerate them and apply them to the already
 running cluster:
@@ -146,11 +147,20 @@ started with `make dev` and start it again to include your changes:
 
 `make run`
 
+To run the provider in-cluster as a Crossplane package built from your working tree instead:
+
+`make local-deploy`
+
+It builds the provider package, creates (or reuses) the `local-dev` Kind cluster, installs Crossplane,
+deploys the locally built package and waits for it to become healthy.
+
 ### Testing
 
-- `make test` — unit, converter round-trip, drift-helper, and reason-classifier suites.
-- `make test-envtest` — boots a real Kubernetes apiserver via `envtest` and validates the generated CRD CEL rules end-to-end (instance-id vs instance-ref, immutability, at-least-one). Requires the `envtest` assets managed by `setup-envtest`; the Makefile target installs them on first run.
-- `make lint` — golangci-lint (v2.11.4 pin).
+- `make test` - unit, converter round-trip, drift-helper, and reason-classifier suites.
+- `make test-envtest` - boots a real Kubernetes apiserver via `envtest` and validates the generated CRD CEL rules end-to-end (instance-id vs instance-ref, immutability, at-least-one). Requires the `envtest` assets managed by `setup-envtest`; the Makefile target installs them on first run.
+- `make example-lint` - validates the manifests under `examples/` (except `examples/provider/`) against the CRDs with kubectl-validate, including the create-time CEL rules.
+- `make lint` - golangci-lint (v2.14.0 pin).
+- `make e2e` - runs `make local-deploy` and `make workload.up`, then [uptest](https://github.com/crossplane/uptest) against real Akuity Platform resources. Set `UPTEST_EXAMPLE_LIST` (comma-separated example files, never `examples/provider/`), `UPTEST_CLOUD_CREDENTIALS` (`{"apiKeyId":"...","apiKeySecret":"..."}`) and `UPTEST_AKUITY_ORGANIZATION_ID`, plus `UPTEST_DATASOURCE_PATH` pointing at a YAML file with `akuity_workspace: <workspace name or ID>` (used by the KargoAgent examples); optionally `UPTEST_AKUITY_SERVER_URL` (e.g. `https://eu.akuity.cloud`). `cluster/test/setup.sh` turns them into the `default` and `akuity` ProviderConfigs and runs the provider as the ServiceAccount from `examples/provider/in-cluster-rbac.yaml`, so `examples/argocd/cluster/in-cluster.yaml` can install its agent. `make workload.up` creates a second Kind cluster (`local-dev-workload`) and stores its kubeconfig in the `crossplane-system/workload-kubeconfig` Secret, which the other Cluster examples and the self-hosted KargoAgent examples install their agents into. Agents also install cluster-scoped resources such as CRDs, so run each agent-installing example in its own uptest run. Run `make uptest` alone to retest on an already deployed cluster; `make controlplane.down` deletes both clusters.
 
 ## Report a Bug
 

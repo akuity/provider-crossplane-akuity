@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: kargoagents.core.akuity.crossplane.io
 spec:
   group: core.akuity.crossplane.io
@@ -226,6 +226,21 @@ spec:
                     description: Namespace in the managed cluster where the agent
                       is installed.
                     type: string
+                  remoteArgocdRef:
+                    description: |-
+                      RemoteArgocdRef references an Instance whose Akuity Argo CD
+                      instance ID fills kargoAgentSpec.data.remoteArgocd, so an
+                      Akuity-managed agent can use an Argo CD instance managed in the
+                      same cluster. kargoAgentSpec.data.remoteArgocd is used when both
+                      are set.
+                    properties:
+                      name:
+                        description: Name is the referenced object's name. Required.
+                        minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
                   removeAgentResourcesOnDestroy:
                     description: |-
                       RemoveAgentResourcesOnDestroy removes the agent manifests from
@@ -252,6 +267,9 @@ spec:
                     oldSelf.kargoInstanceRef.name))
                 - message: name is immutable
                   rule: self.name == oldSelf.name
+                - message: remoteArgocdRef is immutable
+                  rule: '!has(oldSelf.remoteArgocdRef) || (has(self.remoteArgocdRef)
+                    && self.remoteArgocdRef.name == oldSelf.remoteArgocdRef.name)'
                 - message: 'kubeConfigSecretRef and enableInClusterKubeConfig are
                     mutually exclusive: set at most one'
                   rule: '!(has(self.kubeconfigSecretRef) && size(self.kubeconfigSecretRef.name)
@@ -503,6 +521,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              lastHandledReconcileAt:
+                description: |-
+                  LastHandledReconcileAt holds the value of the most recent
+                  reconcile-requested-at annotation token that the controller has
+                  processed. Users can compare this to the annotation to determine
+                  whether a reconcile request has been handled.
+                type: string
               observedGeneration:
                 description: |-
                   ObservedGeneration is the latest metadata.generation

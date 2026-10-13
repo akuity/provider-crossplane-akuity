@@ -2,7 +2,7 @@
 
 `Instance.spec.forProvider.configManagementPlugins` manages Argo CD Config Management Plugins v2 for an Akuity Argo CD instance.
 
-Use [examples/instance/config-management-plugins.yaml](../../examples/instance/config-management-plugins.yaml) as the focused example, or [examples/instance/detailed.yaml](../../examples/instance/detailed.yaml) for a broader instance configuration.
+Use [examples/argocd/instance/config-management-plugins.yaml](../../examples/argocd/instance/config-management-plugins.yaml) as the focused example, or [examples/argocd/instance/detailed.yaml](../../examples/argocd/instance/detailed.yaml) for a broader instance configuration.
 
 ## Take Over Existing Plugins
 

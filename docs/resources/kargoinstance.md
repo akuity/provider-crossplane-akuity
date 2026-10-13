@@ -61,9 +61,9 @@ Requires an Akuity Platform release from October 2026 or later. An older platfor
 
 ## Examples
 
-- [Basic Kargo instance](../../examples/kargoinstance/basic.yaml)
-- [Detailed Kargo instance](../../examples/kargoinstance/detailed.yaml)
-- [Declarative Kargo resources](../../examples/kargoinstance/resources.yaml)
-- [OIDC with Secret refs](../../examples/kargoinstance/oidc-secret-ref.yaml)
+- [Basic Kargo instance](../../examples/kargo/kargoinstance/basic.yaml)
+- [Detailed Kargo instance](../../examples/kargo/kargoinstance/detailed.yaml)
+- [Declarative Kargo resources](../../examples/kargo/kargoinstance/resources.yaml)
+- [OIDC with Secret refs](../../examples/kargo/kargoinstance/oidc-secret-ref.yaml)
 
 For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).

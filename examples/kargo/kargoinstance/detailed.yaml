@@ -40,16 +40,17 @@
 apiVersion: core.akuity.crossplane.io/v1alpha1
 kind: KargoInstance
 metadata:
-  name: my-kargo
+  name: my-kargo-detailed
 spec:
   forProvider:
-    name: my-kargo
+    name: my-kargo-detailed
     kargo:
       description: "My Kargo instance used for my project."
       version: "v1.10.1-ak.0"
-      fqdn: "kargo.example.com"
+      # Requires the Akuity custom domain feature.
       # Use either fqdn or subdomain, not both.
-      # subdomain: "my-kargo"
+      # fqdn: "kargo.example.com"
+      # subdomain: "my-kargo-detailed"
       kargoInstanceSpec:
         # Pin every self-hosted Kargo agent of this instance. Bare semver, no "v".
         pinnedAgentVersion: "0.5.88"

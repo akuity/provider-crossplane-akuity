@@ -25,7 +25,7 @@ import (
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -98,7 +98,7 @@ func resolveInstanceSecrets(ctx context.Context, kube client.Client, mg *v1alpha
 	fp := mg.Spec.ForProvider
 
 	singletons := []struct {
-		ref   *xpv1.SecretReference
+		ref   *xpv2.SecretReference
 		out   *secrets.ResolvedSecret
 		label string
 	}{

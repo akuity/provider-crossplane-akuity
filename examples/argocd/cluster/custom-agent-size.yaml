@@ -1,12 +1,25 @@
 ---
 apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Instance
+metadata:
+  name: my-cluster-custom-instance
+spec:
+  forProvider:
+    name: my-cluster-custom-instance
+    argocd:
+      spec:
+        version: "v3.3.8-ak.87"
+  providerConfigRef:
+    name: akuity
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
 kind: Cluster
 metadata:
   name: my-cluster-custom
 spec:
   forProvider:
     instanceRef:
-      name: "my-instance"
+      name: "my-cluster-custom-instance"
     name: "my-cluster-custom"
     namespace: "akuity"
     labels:
@@ -29,5 +42,11 @@ spec:
             cpu: "750m"
             mem: "1Gi"
             replicas: 3
+    # Installs the agent into the cluster that the kubeconfig in this Secret
+    # (key "kubeconfig") points at. make e2e creates it for a second Kind cluster.
+    kubeconfigSecretRef:
+      name: workload-kubeconfig
+      namespace: crossplane-system
+    removeAgentResourcesOnDestroy: true
   providerConfigRef:
     name: akuity

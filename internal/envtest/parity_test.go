@@ -33,7 +33,7 @@ import (
 	"fmt"
 	"testing"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -69,7 +69,7 @@ func TestInstance_RepoCredentialExplicitNamesMustMatchRegex(t *testing.T) {
 				ArgoCD: minimalArgoCD(),
 				RepoCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
 					Name:      "github-prod",
-					SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "gh-prod"},
+					SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "gh-prod"},
 				}},
 			},
 		},
@@ -86,7 +86,7 @@ func TestInstance_RepoCredentialExplicitNamesMustMatchRegex(t *testing.T) {
 				ArgoCD: minimalArgoCD(),
 				RepoTemplateCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
 					Name:      "tmpl",
-					SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "tmpl"},
+					SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "tmpl"},
 				}},
 			},
 		},
@@ -114,7 +114,7 @@ func TestInstance_RepoCredentialExplicitNamesMustMatchRegex(t *testing.T) {
 						ArgoCD: minimalArgoCD(),
 						RepoCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
 							Name:      tc.name,
-							SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "gh-prod"},
+							SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "gh-prod"},
 						}},
 					},
 				},
@@ -133,10 +133,10 @@ func TestInstance_RepoCredentialExplicitNamesMustMatchRegex(t *testing.T) {
 				ArgoCD: minimalArgoCD(),
 				RepoCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
 					Name:      "repo-github-prod",
-					SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "gh-prod"},
+					SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "gh-prod"},
 				}},
 				RepoTemplateCredentialSecretRefs: []v1alpha1.NamedSecretReference{{
-					SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "repo-templates"},
+					SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "repo-templates"},
 				}},
 			},
 		},
@@ -203,7 +203,7 @@ func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 						DexConfigSecret: map[string]crossplanetypes.Value{
 							"client-secret": {Value: strPtr("inline-secret")},
 						},
-						DexConfigSecretRef: &xpv1.SecretReference{Namespace: "akuity", Name: "dex-creds"},
+						DexConfigSecretRef: &xpv2.SecretReference{Namespace: "akuity", Name: "dex-creds"},
 					},
 				},
 			},
@@ -222,7 +222,7 @@ func TestKargoInstance_DexMutualExclusion(t *testing.T) {
 					Description: "envtest",
 					Version:     "v1.4.0",
 					OidcConfig: &crossplanetypes.KargoOidcConfig{
-						DexConfigSecretRef: &xpv1.SecretReference{Namespace: "akuity", Name: "dex-creds"},
+						DexConfigSecretRef: &xpv2.SecretReference{Namespace: "akuity", Name: "dex-creds"},
 					},
 				},
 			},
@@ -305,7 +305,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 				Kargo: minimalKargoSpec(),
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "repo-github"},
+						SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "repo-github"},
 					},
 					ProjectNamespace: "platform",
 					CredType:         "git",
@@ -324,7 +324,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 				Kargo: minimalKargoSpec(),
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+						SecretRef: xpv2.SecretReference{Namespace: "platform", Name: "repo-github"},
 					},
 					ProjectNamespace: "platform",
 				}},
@@ -342,7 +342,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 				Kargo: minimalKargoSpec(),
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
-						SecretRef: xpv1.SecretReference{Namespace: "platform", Name: "repo-github"},
+						SecretRef: xpv2.SecretReference{Namespace: "platform", Name: "repo-github"},
 					},
 					CredType: "git",
 				}},
@@ -362,7 +362,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
 						Name:      "repo-github",
-						SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "k8s-secret"},
+						SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "k8s-secret"},
 					},
 					ProjectNamespace: "platform",
 					CredType:         "oci", // not in enum
@@ -383,7 +383,7 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 				KargoRepoCredentialSecretRefs: []v1alpha1.KargoRepoCredentialSecretRef{{
 					NamedSecretReference: v1alpha1.NamedSecretReference{
 						Name:      "Bad_Name",
-						SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "k8s-secret"},
+						SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "k8s-secret"},
 					},
 					ProjectNamespace: "platform",
 					CredType:         "git",
@@ -405,14 +405,14 @@ func TestKargoInstance_RepoCredentialSecretRefs(t *testing.T) {
 					{
 						NamedSecretReference: v1alpha1.NamedSecretReference{
 							Name:      "repo-github",
-							SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "a"},
+							SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "a"},
 						},
 						ProjectNamespace: "platform",
 						CredType:         "git",
 					},
 					{
 						NamedSecretReference: v1alpha1.NamedSecretReference{
-							SecretRef: xpv1.SecretReference{Namespace: "akuity", Name: "repo-github"},
+							SecretRef: xpv2.SecretReference{Namespace: "akuity", Name: "repo-github"},
 						},
 						ProjectNamespace: "platform",
 						CredType:         "git",

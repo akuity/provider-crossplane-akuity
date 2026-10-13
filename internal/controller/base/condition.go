@@ -17,8 +17,8 @@ limitations under the License.
 package base
 
 import (
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 )
 
 // SetHealthCondition writes Available or Unavailable based on the
@@ -28,8 +28,8 @@ import (
 // controller's Observe otherwise repeats.
 func SetHealthCondition(mg resource.LegacyManaged, healthy bool) { //nolint:staticcheck // cluster-scoped MRs are intentional
 	if healthy {
-		mg.SetConditions(xpv1.Available())
+		mg.SetConditions(xpv2.Available())
 		return
 	}
-	mg.SetConditions(xpv1.Unavailable())
+	mg.SetConditions(xpv2.Unavailable())
 }

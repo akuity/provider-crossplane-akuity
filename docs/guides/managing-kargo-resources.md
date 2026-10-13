@@ -2,7 +2,7 @@
 
 `KargoInstance.spec.forProvider.resources` can send declarative Kargo child resources with the instance apply request. This is useful when the Crossplane resource should bootstrap Projects, Warehouses, Stages, and promotion tasks alongside the Kargo instance.
 
-Use [examples/kargoinstance/resources.yaml](../../examples/kargoinstance/resources.yaml) as the focused example.
+Use [examples/kargo/kargoinstance/resources.yaml](../../examples/kargo/kargoinstance/resources.yaml) as the focused example.
 
 ## Supported Resources
 

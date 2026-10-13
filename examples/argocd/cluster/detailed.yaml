@@ -2,24 +2,37 @@
 # apiVersion: v1
 # kind: Secret
 # metadata:
-#   name: kubeconfig
-#   namespace: default
+#   name: workload-kubeconfig
+#   namespace: crossplane-system
 # type: Opaque
 # data:
 #   kubeconfig: REPLACE_ME_WITH_BASE64_ENCODED_KUBECONFIG
 ---
 apiVersion: core.akuity.crossplane.io/v1alpha1
+kind: Instance
+metadata:
+  name: my-cluster-detailed-instance
+spec:
+  forProvider:
+    name: my-cluster-detailed-instance
+    argocd:
+      spec:
+        version: "v3.3.8-ak.87"
+  providerConfigRef:
+    name: akuity
+---
+apiVersion: core.akuity.crossplane.io/v1alpha1
 kind: Cluster
 metadata:
-  name: my-cluster
+  name: my-cluster-detailed
 spec:
   forProvider:
     # The instance ID can be hardcoded or determined from an Instance resource
     # on the same cluster.
     # instanceId: "my-instance-id"
     instanceRef:
-      name: "my-instance"
-    name: "my-cluster"
+      name: "my-cluster-detailed-instance"
+    name: "my-cluster-detailed"
     namespace: "my-namespace"
     labels:
       test-label: "true"
@@ -27,7 +40,7 @@ spec:
       test-annotation: "false"
     clusterSpec:
       namespaceScoped: true
-      description: "The my-cluster cluster contains ArgoCD Applications for my project."
+      description: "The my-cluster-detailed cluster contains ArgoCD Applications for my project."
       data:
         size: "small"
         autoUpgradeDisabled: true
@@ -57,20 +70,22 @@ spec:
               name: argocd-repo-server
         eksAddonEnabled: true
         datadogAnnotationsEnabled: true
-        managedClusterConfig:
-          secretName: "secretName"
-          secretKey: "secretKey"
+        # Manage a different cluster than the one the agent runs in,
+        # using the kubeconfig stored in this Secret in the agent namespace.
+        # managedClusterConfig:
+        #   secretName: "my-managed-cluster-kubeconfig"
+        #   secretKey: "kubeconfig"
         multiClusterK8sDashboardEnabled: true
         project: "test"
         compatibility:
           ipv6Only: false
-        # Use examples/cluster/auto-agent-size.yaml when you want
+        # Use examples/argocd/cluster/auto-agent-size.yaml when you want
         # autoscalerConfig to be continuously reconciled.
-    # Use the example Kubernetes Secret above to pass a kubeconfig to the
-    # provider.
-    # kubeconfigSecretRef:
-    #   name: kubeconfig
-    #   namespace: default
-    removeAgentResourcesOnDestroy: false
+    # Installs the agent into the cluster that the kubeconfig in the Secret
+    # above points at. make e2e creates it for a second Kind cluster.
+    kubeconfigSecretRef:
+      name: workload-kubeconfig
+      namespace: crossplane-system
+    removeAgentResourcesOnDestroy: true
   providerConfigRef:
     name: akuity

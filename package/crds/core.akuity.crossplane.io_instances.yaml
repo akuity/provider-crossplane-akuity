@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: instances.core.akuity.crossplane.io
 spec:
   group: core.akuity.crossplane.io
@@ -637,7 +637,7 @@ spec:
                       type: string
                     description: |-
                       ArgoCDConfigMap sets options in the argocd-cm ConfigMap.
-                      Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
+                      Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/argocd/instance/detailed.yaml
                       for required keys when using this option.
                     type: object
                   argocdImageUpdaterConfigMap:
@@ -743,7 +743,7 @@ spec:
                     description: |-
                       ArgoCDSSHKnownHostsConfigMap sets options in the
                       argocd-ssh-known-hosts-cm ConfigMap.
-                      Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/instance.yaml
+                      Refer to the example in github.com/akuity/provider-crossplane-akuity/examples/argocd/instance/detailed.yaml
                       for required entries when using this option.
                     type: object
                   argocdTlsCertsConfigMap:
@@ -1843,6 +1843,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              lastHandledReconcileAt:
+                description: |-
+                  LastHandledReconcileAt holds the value of the most recent
+                  reconcile-requested-at annotation token that the controller has
+                  processed. Users can compare this to the annotation to determine
+                  whether a reconcile request has been handled.
+                type: string
               observedGeneration:
                 description: |-
                   ObservedGeneration is the latest metadata.generation

@@ -26,13 +26,14 @@ import (
 	"fmt"
 	"strings"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -286,12 +287,17 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.KargoAgentGroupVersionKind),
-		managed.WithTypedExternalConnector[*v1alpha1.KargoAgent](conn),
-		managed.WithLogger(logger),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(recorder),
-		managed.WithManagementPolicies(),
+		base.ReconcilerOptions(o, logger, recorder,
+			managed.WithTypedExternalConnector[*v1alpha1.KargoAgent](conn),
+			managed.WithInitializers(base.SpecNameAsExternalName(mgr.GetClient(), func(mg *v1alpha1.KargoAgent) string {
+				return mg.Spec.ForProvider.Name
+			})),
+		)...,
 	)
+
+	if err := base.AddStateMetrics(mgr, o, &v1alpha1.KargoAgentList{}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -312,13 +318,20 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		return managed.ExternalObservation{}, err
 	}
 	mg.Spec.ForProvider.KargoInstanceID = instanceID
+	// Deletion needs only the Kargo instance and the agent name. Resolving
+	// remoteArgocdRef would block it once the referenced Instance is gone.
+	if !meta.WasDeleted(mg) {
+		if err := e.resolveRemoteArgocd(ctx, mg); err != nil {
+			return managed.ExternalObservation{}, err
+		}
+	}
 	terminalFP := mg.Spec.ForProvider
 	if terminalFP.Workspace == "" {
 		terminalFP.Workspace = e.resolveWorkspaceFromParent(ctx, mg)
 	}
 
 	// Short-circuit on a cached terminal write before any gateway
-	// round-trip. With Crossplane's NameAsExternalName initializer the
+	// round-trip. With the SpecNameAsExternalName initializer the
 	// external-name is stamped before the first Create runs, so a bad-
 	// input rejection on Create would otherwise loop
 	// GetKargoInstanceAgent->NotFound->Create->reject at controller-
@@ -343,7 +356,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 		case base.GetProvisioning:
 			base.SetHealthCondition(mg, false)
 		case base.GetTerminal:
-			mg.SetConditions(xpv1.ReconcileError(err))
+			mg.SetConditions(xpv2.ReconcileError(err))
 		}
 		return obs, rerr
 	}
@@ -365,7 +378,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	driftTarget := actual
 	statusSpec := actual.KargoAgentSpec
 	if exportAgent, found, xerr := e.exportedAgentSpec(ctx, mg, instanceID); xerr != nil {
-		mg.SetConditions(xpv1.ReconcileError(xerr))
+		mg.SetConditions(xpv2.ReconcileError(xerr))
 		return managed.ExternalObservation{}, xerr
 	} else if found {
 		driftTarget = exportAgent
@@ -398,18 +411,37 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.KargoAgent) (manage
 	}, nil
 }
 
-// apply routes both Create and Update through ApplyKargoInstance with
-// only the Agents slice populated. The backend narrow-merges into the
-// parent KargoInstance: sibling fields (Kargo envelope, Projects,
-// Warehouses, Stages, RepoCredentials, etc.) are untouched so this MR
-// coexists with a KargoInstance MR owning those. Same pattern Cluster
-// uses against ApplyInstance (cluster/convert.go BuildApplyInstanceRequest).
+// apply routes Update through ApplyKargoInstance with only the Agents
+// slice populated; Create calls it directly so it can roll back a
+// failure. The backend narrow-merges into the parent KargoInstance:
+// sibling fields (Kargo envelope, Projects, Warehouses, Stages,
+// RepoCredentials, etc.) are untouched so this MR coexists with a
+// KargoInstance MR owning those. Same pattern Cluster uses against
+// ApplyInstance (cluster/convert.go BuildApplyInstanceRequest).
 func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
-	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
+	req, key, err := e.buildApplyRequest(ctx, mg)
 	if err != nil {
 		return err
 	}
+	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
+		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	e.ClearTerminalWrite(key)
+	return nil
+}
+
+// buildApplyRequest resolves the parent Kargo instance, the remote Argo CD
+// and the workspace, then builds the ApplyKargoInstance request together with
+// its terminal-write key.
+func (e *external) buildApplyRequest(ctx context.Context, mg *v1alpha1.KargoAgent) (*kargov1.ApplyKargoInstanceRequest, base.TerminalWriteKey, error) {
+	instanceID, err := e.resolveKargoInstanceID(ctx, mg)
+	if err != nil {
+		return nil, base.TerminalWriteKey{}, err
+	}
 	mg.Spec.ForProvider.KargoInstanceID = instanceID
+	if err := e.resolveRemoteArgocd(ctx, mg); err != nil {
+		return nil, base.TerminalWriteKey{}, err
+	}
 	// ApplyKargoInstance is workspace-scoped at the HTTP gateway
 	// (`/orgs/{org}/workspaces/{workspace_id}/kargo/instances/{id}/apply`);
 	// an unset WorkspaceId on the request substitutes empty into the
@@ -422,24 +454,36 @@ func (e *external) apply(ctx context.Context, mg *v1alpha1.KargoAgent) error {
 	}
 	key, err := e.kargoAgentTerminalWriteKey(ctx, mg, mg.Spec.ForProvider)
 	if err != nil {
-		return err
+		return nil, base.TerminalWriteKey{}, err
 	}
 	req, err := BuildApplyKargoInstanceRequest(instanceID, mg.Spec.ForProvider)
 	if err != nil {
-		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+		return nil, base.TerminalWriteKey{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
-	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
-		return e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
-	}
-	e.ClearTerminalWrite(key)
-	return nil
+	return req, key, nil
 }
 
 func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed.ExternalCreation, error) {
 	defer base.PropagateObservedGeneration(mg)
-	if err := e.apply(ctx, mg); err != nil {
+	req, key, err := e.buildApplyRequest(ctx, mg)
+	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
+	rollback, err := e.createRollback(ctx, mg)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
+	if err := e.Client.ApplyKargoInstance(ctx, req); err != nil {
+		// ApplyKargoInstance can stamp the agent row and still return an
+		// error (seen as Internal while the parent Kargo instance is
+		// provisioning). The next Observe would then find the agent and
+		// never re-run Create, so the manifests below would never be
+		// installed. Roll the row back so the retried Create starts
+		// clean; nothing is installed yet, hence no kubeconfig target.
+		rollback(kube.TargetKubeConfig{}, "apply")
+		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
+	}
+	e.ClearTerminalWrite(key)
 
 	// ApplyKargoInstance has now stamped the agent row on the parent
 	// KargoInstance. Any failure between here and SetExternalName must
@@ -454,7 +498,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 	// or recreate to re-land on the managed cluster.
 	if target := targetKubeConfig(mg.Spec.ForProvider); target.HasKubeConfig() {
 		if err := e.installAgentManifests(ctx, mg, target, false); err != nil {
-			e.rollbackCreatedAgent(ctx, mg, target, "install-manifests")
+			rollback(target, "install-manifests")
 			// Classify install failure as terminal so the next Observe
 			// short-circuits via the suppress site instead of
 			// hot-looping ApplyKargoInstance + rollback every poll. The
@@ -471,6 +515,29 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.KargoAgent) (managed
 
 	meta.SetExternalName(mg, mg.Spec.ForProvider.Name)
 	return managed.ExternalCreation{}, nil
+}
+
+// createRollback returns the rollback Create runs when a step fails. Only
+// an agent this attempt adds is rolled back: one that already existed
+// before the apply is not Create's to delete, so its rollback is a no-op.
+func (e *external) createRollback(ctx context.Context, mg *v1alpha1.KargoAgent) (func(target kube.TargetKubeConfig, stage string), error) {
+	_, err := e.Client.GetKargoInstanceAgent(ctx, mg.Spec.ForProvider.KargoInstanceID, mg.Spec.ForProvider.Name)
+	switch {
+	case err == nil:
+		return func(_ kube.TargetKubeConfig, stage string) {
+			e.Logger.Debug("kargo agent existed before create; skipping rollback",
+				"stage", stage,
+				"kargoInstanceID", mg.Spec.ForProvider.KargoInstanceID,
+				"agentName", mg.Spec.ForProvider.Name,
+			)
+		}, nil
+	case reason.IsNotFound(err):
+		return func(target kube.TargetKubeConfig, stage string) {
+			e.rollbackCreatedAgent(ctx, mg, target, stage)
+		}, nil
+	default:
+		return nil, fmt.Errorf("could not check whether kargo agent %s exists: %w", mg.Spec.ForProvider.Name, err)
+	}
 }
 
 // rollbackCreatedAgent removes the agent row from the parent
@@ -708,6 +775,38 @@ func (e *external) resolveKargoInstanceID(ctx context.Context, mg *v1alpha1.Karg
 		return "", fmt.Errorf("could not resolve KargoInstance %q on Akuity API: %w", ki.Spec.ForProvider.Name, err)
 	}
 	return remote.GetId(), nil
+}
+
+// resolveRemoteArgocd fills kargoAgentSpec.data.remoteArgocd with the
+// Akuity ID of the Instance referenced by RemoteArgocdRef. An explicit
+// remoteArgocd is left untouched, the same precedence KargoInstanceID
+// has over KargoInstanceRef.
+func (e *external) resolveRemoteArgocd(ctx context.Context, mg *v1alpha1.KargoAgent) error {
+	data := &mg.Spec.ForProvider.KargoAgentSpec.Data
+	ref := mg.Spec.ForProvider.RemoteArgocdRef
+	if data.RemoteArgocd != "" || ref == nil || ref.Name == "" {
+		return nil
+	}
+
+	instance := &v1alpha1.Instance{}
+	key := k8stypes.NamespacedName{Name: ref.Name, Namespace: mg.GetNamespace()}
+	if err := e.Kube.Get(ctx, key, instance); err != nil {
+		return fmt.Errorf("could not resolve RemoteArgocdRef %s/%s: %w", key.Namespace, key.Name, err)
+	}
+	if instance.Status.AtProvider.ID != "" {
+		data.RemoteArgocd = instance.Status.AtProvider.ID
+		return nil
+	}
+	// Bootstrapping fallback: resolve by name via the Akuity API.
+	remote, err := e.Client.GetInstance(ctx, instance.Spec.ForProvider.Name)
+	if err != nil {
+		return fmt.Errorf("could not resolve Instance %q on Akuity API: %w", instance.Spec.ForProvider.Name, err)
+	}
+	if remote.GetId() == "" {
+		return fmt.Errorf("instance %q has no Akuity ID yet", instance.Spec.ForProvider.Name)
+	}
+	data.RemoteArgocd = remote.GetId()
+	return nil
 }
 
 // isConnectedAgentDeleteError recognises the Akuity API error surface

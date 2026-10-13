@@ -29,13 +29,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	sigsyaml "sigs.k8s.io/yaml"
 
-	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
@@ -71,12 +71,17 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.ClusterGroupVersionKind),
-		managed.WithTypedExternalConnector[*v1alpha1.Cluster](conn),
-		managed.WithLogger(logger),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(recorder),
-		managed.WithManagementPolicies(),
+		base.ReconcilerOptions(o, logger, recorder,
+			managed.WithTypedExternalConnector[*v1alpha1.Cluster](conn),
+			managed.WithInitializers(base.SpecNameAsExternalName(mgr.GetClient(), func(mg *v1alpha1.Cluster) string {
+				return mg.Spec.ForProvider.Name
+			})),
+		)...,
 	)
+
+	if err := base.AddStateMetrics(mgr, o, &v1alpha1.ClusterList{}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -100,7 +105,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	mg.Spec.ForProvider.InstanceID = instanceID
 
 	// Short-circuit on a cached terminal write before any gateway round-
-	// trip. With the NameAsExternalName initializer the external-name
+	// trip. With the SpecNameAsExternalName initializer the external-name
 	// is stamped before the first Create, so a Create that fails
 	// terminally (instance ID not found, malformed Kustomization, bad
 	// kubeconfig secret) would otherwise loop GetCluster->NotFound->
@@ -127,7 +132,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 		case base.GetProvisioning:
 			base.SetHealthCondition(mg, false)
 		case base.GetTerminal:
-			mg.SetConditions(xpv1.ReconcileError(err))
+			mg.SetConditions(xpv2.ReconcileError(err))
 		}
 		return obs, rerr
 	}
@@ -135,7 +140,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	actualCluster, err := APIToSpec(instanceID, mg.Spec.ForProvider, akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster from Akuity API: %w", err)
-		mg.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv2.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
@@ -144,7 +149,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	clusterObservation, err := observation.Cluster(akuityCluster)
 	if err != nil {
 		newErr := fmt.Errorf("could not transform cluster observation: %w", err)
-		mg.SetConditions(xpv1.ReconcileError(newErr))
+		mg.SetConditions(xpv2.ReconcileError(newErr))
 		return managed.ExternalObservation{}, newErr
 	}
 
@@ -158,7 +163,7 @@ func (e *external) Observe(ctx context.Context, mg *v1alpha1.Cluster) (managed.E
 	// cluster exists.
 	driftTarget, found, err := e.exportedClusterSpec(ctx, instanceID, meta.GetExternalName(mg), mg.Spec.ForProvider)
 	if err != nil {
-		mg.SetConditions(xpv1.ReconcileError(err))
+		mg.SetConditions(xpv2.ReconcileError(err))
 		return managed.ExternalObservation{}, err
 	}
 	if !found {
@@ -245,7 +250,17 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	if err != nil {
 		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(fmt.Errorf("%s: %w", errTransformCluster, err)))
 	}
+	rollback, err := e.createRollback(ctx, mg)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
 	if err := e.Client.ApplyInstance(ctx, req); err != nil {
+		// ApplyInstance can stamp the cluster row and still return an
+		// error. The next Observe would then find the cluster and never
+		// re-run Create, so the manifests below would never be installed.
+		// Roll the row back; nothing is installed yet, so skip the
+		// manifest strip (GetClusterManifests waits for reconciliation).
+		rollback("apply", false)
 		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 
@@ -257,7 +272,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	// reference Akuity client when applyInstance, reconciliation, or
 	// kubeconfig install fails on a fresh resource.
 	if err := e.syncMaintenanceMode(ctx, mg); err != nil {
-		e.rollbackCreatedCluster(ctx, mg, "syncMaintenanceMode")
+		rollback("syncMaintenanceMode", true)
 		return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyApplyError(err))
 	}
 	e.ClearTerminalWrite(key)
@@ -275,7 +290,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		e.Logger.Debug("Retrieving cluster manifests....")
 		clusterManifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err != nil {
-			e.rollbackCreatedCluster(ctx, mg, "get-manifests")
+			rollback("get-manifests", true)
 			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyManifestInstallError(fmt.Errorf("could not get cluster manifests to apply: %w", err)))
 		}
 
@@ -285,7 +300,7 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 		)
 		e.Logger.Debug(clusterManifests)
 		if err := e.applyClusterManifests(ctx, *mg, clusterManifests, false); err != nil {
-			e.rollbackCreatedCluster(ctx, mg, "apply-manifests")
+			rollback("apply-manifests", true)
 			return managed.ExternalCreation{}, e.RecordTerminalWrite(key, reason.ClassifyManifestInstallError(fmt.Errorf("could not apply cluster manifests: %w", err)))
 		}
 	}
@@ -294,16 +309,40 @@ func (e *external) Create(ctx context.Context, mg *v1alpha1.Cluster) (managed.Ex
 	return managed.ExternalCreation{}, nil
 }
 
-// rollbackCreatedCluster removes the just-stamped platform row (and
-// optionally the partially-installed manifests) when a Create-path step
-// fails after ApplyInstance succeeded. Errors during rollback are
+// createRollback returns the rollback Create runs when a step fails. Only
+// a cluster this attempt adds is rolled back: one that already existed
+// before the apply is not Create's to delete, so its rollback is a no-op.
+func (e *external) createRollback(ctx context.Context, mg *v1alpha1.Cluster) (func(stage string, stripManifests bool), error) {
+	_, err := e.Client.GetCluster(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
+	switch {
+	case err == nil:
+		return func(stage string, _ bool) {
+			e.Logger.Debug("cluster existed before create; skipping rollback",
+				"stage", stage,
+				"instanceID", mg.Spec.ForProvider.InstanceID,
+				"clusterName", mg.Spec.ForProvider.Name,
+			)
+		}, nil
+	case reason.IsNotFound(err):
+		return func(stage string, stripManifests bool) {
+			e.rollbackCreatedCluster(ctx, mg, stage, stripManifests)
+		}, nil
+	default:
+		return nil, fmt.Errorf("could not check whether cluster %s exists: %w", mg.Spec.ForProvider.Name, err)
+	}
+}
+
+// rollbackCreatedCluster removes the just-stamped platform row (and, with
+// stripManifests, the partially-installed manifests) when a Create-path
+// step fails, including ApplyInstance itself, which can stamp the row and
+// still return an error. Errors during rollback are
 // logged at info level rather than returned: the caller's original
 // failure is the user-visible error, and a rollback failure should not
 // mask it. The platform row is already orphaned at that point, so the
 // info log gives operators the breadcrumb without a second error
 // surface.
-func (e *external) rollbackCreatedCluster(ctx context.Context, mg *v1alpha1.Cluster, stage string) {
-	if mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
+func (e *external) rollbackCreatedCluster(ctx context.Context, mg *v1alpha1.Cluster, stage string, stripManifests bool) {
+	if stripManifests && mg.Spec.ForProvider.RemoveAgentResourcesOnDestroy &&
 		(mg.Spec.ForProvider.EnableInClusterKubeConfig || mg.Spec.ForProvider.KubeConfigSecretRef.Name != "") {
 		manifests, err := e.Client.GetClusterManifests(ctx, mg.Spec.ForProvider.InstanceID, mg.Spec.ForProvider.Name)
 		if err == nil {
@@ -753,7 +792,7 @@ func isEmptyKustomization(s string) (bool, error) {
 		return true, nil
 	}
 	for k := range v {
-		if k == "apiVersion" || k == "kind" {
+		if k == apiVersionKey || k == kindKey {
 			continue
 		}
 		// Any other key represents user-set Kustomization content.

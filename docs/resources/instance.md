@@ -40,10 +40,10 @@ Child resources are additive. Removing a child from the Crossplane spec stops ma
 
 ## Examples
 
-- [Basic instance](../../examples/instance/basic.yaml)
-- [Detailed instance](../../examples/instance/detailed.yaml)
-- [Config Management Plugins](../../examples/instance/config-management-plugins.yaml)
-- [Declarative Argo CD resources](../../examples/instance/declarative-resources.yaml)
+- [Basic instance](../../examples/argocd/instance/basic.yaml)
+- [Detailed instance](../../examples/argocd/instance/detailed.yaml)
+- [Config Management Plugins](../../examples/argocd/instance/config-management-plugins.yaml)
+- [Declarative Argo CD resources](../../examples/argocd/instance/declarative-resources.yaml)
 
 ## Notes
 

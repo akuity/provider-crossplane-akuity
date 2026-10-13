@@ -45,6 +45,7 @@ linters:
     goconst:
       min-len: 3
       min-occurrences: 5
+      ignore-tests: true
     gocritic:
       enabled-tags:
         - performance
@@ -68,6 +69,30 @@ linters:
   exclusions:
     generated: lax
     rules:
+      # Test fixtures repeat literal values by design.
+      - linters:
+          - goconst
+        path: internal/types/test/
+      # internal/types/generated/ is vendored from Akuity's out-of-tree
+      # generator. Its groupversion_info.go files carry no generated-code
+      # header and still use controller-runtime's deprecated scheme.Builder.
+      - linters:
+          - staticcheck
+        path: internal/types/generated/
+        text: 'SA1019: sigs.k8s.io/controller-runtime/pkg/scheme.Builder'
+      # ClusterObservation keeps its deprecated flat fields populated for
+      # backward compatibility until the next API version bump; the
+      # observation code and its test fill them on purpose.
+      - linters:
+          - staticcheck
+        path: internal/types/observation/cluster(_test)?\.go
+        text: 'SA1019: .*ClusterObservation\)\.\w+ is deprecated'
+      # The Akuity API still serves these deprecated top-level Cluster
+      # fields, and the fixture mirrors a real response.
+      - linters:
+          - staticcheck
+        path: internal/types/test/fixtures/cluster\.go
+        text: 'SA1019: .*argocd/v1\.Cluster\)\.\w+ is deprecated'
       - linters:
           - dupl
           - errcheck

@@ -40,7 +40,7 @@ customer-managed ServiceAccount that has permission to apply the generated
 agent resources in the same cluster. Do not bind permissions to Crossplane's
 generated ProviderRevision ServiceAccount names, because those names rotate
 during provider upgrades. See
-[In-cluster agent install RBAC](../../examples/cluster/in-cluster-rbac.yaml)
+[In-cluster agent install RBAC](../../examples/provider/in-cluster-rbac.yaml)
 and set the Provider's `spec.runtimeConfigRef.name` to `akuity-in-cluster`.
 Without this RBAC, `Cluster` create fails with Kubernetes `Forbidden` errors
 and the managed resource remains `Synced=False`.
@@ -59,11 +59,11 @@ For custom fixed resources, set `clusterSpec.data.size: custom` with `customAgen
 
 ## Examples
 
-- [Basic cluster](../../examples/cluster/basic.yaml)
-- [Detailed cluster](../../examples/cluster/detailed.yaml)
-- [Auto agent size](../../examples/cluster/auto-agent-size.yaml)
-- [Custom agent size](../../examples/cluster/custom-agent-size.yaml)
-- [In-cluster agent install](../../examples/cluster/in-cluster.yaml)
-- [In-cluster agent install RBAC](../../examples/cluster/in-cluster-rbac.yaml)
+- [Basic cluster](../../examples/argocd/cluster/basic.yaml)
+- [Detailed cluster](../../examples/argocd/cluster/detailed.yaml)
+- [Auto agent size](../../examples/argocd/cluster/auto-agent-size.yaml)
+- [Custom agent size](../../examples/argocd/cluster/custom-agent-size.yaml)
+- [In-cluster agent install](../../examples/argocd/cluster/in-cluster.yaml)
+- [In-cluster agent install RBAC](../../examples/provider/in-cluster-rbac.yaml)
 
 For the full schema, use [doc.crds.dev](https://doc.crds.dev/github.com/akuity/provider-crossplane-akuity).
