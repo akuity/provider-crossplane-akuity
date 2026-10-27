@@ -9,3 +9,10 @@ updates:
       day: "sunday"
     commit-message:
       prefix: "chore(deps):"
+  - package-ecosystem: "docker"
+    directory: "/cluster/images/provider-crossplane-akuity"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+    commit-message:
+      prefix: "chore(deps):"
