@@ -1331,11 +1331,6 @@ func (in *InstanceSpec) DeepCopyInto(out *InstanceSpec) {
 		*out = new(AppSetDelegate)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.AssistantExtensionEnabled != nil {
-		in, out := &in.AssistantExtensionEnabled, &out.AssistantExtensionEnabled
-		*out = new(bool)
-		**out = **in
-	}
 	if in.AppsetPolicy != nil {
 		in, out := &in.AppsetPolicy, &out.AppsetPolicy
 		*out = new(AppsetPolicy)

@@ -284,7 +284,6 @@ func InstanceArgoCDSpec(instanceSpec *argocdv1.InstanceSpec) (crossplanetypes.In
 		CrossplaneExtension:             CrossplaneExtension(instanceSpec.GetCrossplaneExtension()),
 		ImageUpdaterDelegate:            ImageUpdaterDelegate(instanceSpec.GetImageUpdaterDelegate()),
 		AppSetDelegate:                  AppSetDelegate(instanceSpec.GetAppSetDelegate()),
-		AssistantExtensionEnabled:       ptr.To(instanceSpec.GetAssistantExtensionEnabled()),
 		AppsetPolicy:                    AppsetPolicy(instanceSpec.GetAppsetPolicy()),
 		HostAliases:                     HostAliases(instanceSpec.GetHostAliases()),
 		AgentPermissionsRules:           AgentPermissionsRules(instanceSpec.GetAgentPermissionsRules()),

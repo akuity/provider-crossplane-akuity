@@ -219,8 +219,6 @@ spec:
                                 type: object
                               appsetProgressiveSyncsEnabled:
                                 type: boolean
-                              assistantExtensionEnabled:
-                                type: boolean
                               auditExtensionEnabled:
                                 type: boolean
                               backendIpAllowListEnabled:
@@ -1206,8 +1204,6 @@ spec:
                                     type: string
                                 type: object
                               appsetProgressiveSyncsEnabled:
-                                type: boolean
-                              assistantExtensionEnabled:
                                 type: boolean
                               auditExtensionEnabled:
                                 type: boolean
