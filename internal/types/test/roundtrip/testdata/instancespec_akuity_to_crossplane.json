@@ -49,7 +49,6 @@
       "clusterName": "test-cluster"
     }
   },
-  "assistantExtensionEnabled": true,
   "appsetPolicy": {
     "policy": "policy",
     "overridePolicy": true

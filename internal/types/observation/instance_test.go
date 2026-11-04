@@ -17,6 +17,7 @@ limitations under the License.
 package observation_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -24,6 +25,7 @@ import (
 	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 	"k8s.io/utils/ptr"
 
@@ -117,6 +119,24 @@ func TestInstanceArgoCDSpec(t *testing.T) {
 	result, err := observation.InstanceArgoCDSpec(fixtures.ArgocdInstanceSpec)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.CrossplaneInstanceSpec, result)
+}
+
+func TestInstanceArgoCDSpec_IgnoresLegacyAssistant(t *testing.T) {
+	for _, legacyValue := range []string{"true", "false"} {
+		t.Run(legacyValue, func(t *testing.T) {
+			wire := &argocdv1.InstanceSpec{}
+			require.NoError(t, protojson.Unmarshal([]byte(`{"assistantExtensionEnabled":`+legacyValue+`,"auditExtensionEnabled":true}`), wire))
+
+			observed, err := observation.InstanceArgoCDSpec(wire)
+			require.NoError(t, err)
+			require.Equal(t, ptr.To(true), observed.AuditExtensionEnabled)
+			encoded, err := json.Marshal(observed)
+			require.NoError(t, err)
+			var fields map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(encoded, &fields))
+			require.NotContains(t, fields, "assistantExtensionEnabled")
+		})
+	}
 }
 
 func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {

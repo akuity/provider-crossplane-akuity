@@ -781,7 +781,6 @@ func InstanceSpecSpecToAPI(in *InstanceSpec) *akuitytypes.InstanceSpec {
 	out.CrossplaneExtension = CrossplaneExtensionSpecToAPI(in.CrossplaneExtension)
 	out.ImageUpdaterDelegate = ImageUpdaterDelegateSpecToAPI(in.ImageUpdaterDelegate)
 	out.AppSetDelegate = AppSetDelegateSpecToAPI(in.AppSetDelegate)
-	out.AssistantExtensionEnabled = in.AssistantExtensionEnabled
 	out.AppsetPolicy = AppsetPolicySpecToAPI(in.AppsetPolicy)
 	if in.HostAliases != nil {
 		out.HostAliases = make([]*akuitytypes.HostAliases, 0, len(in.HostAliases))
@@ -856,7 +855,6 @@ func InstanceSpecAPIToSpec(in *akuitytypes.InstanceSpec) *InstanceSpec {
 	out.CrossplaneExtension = CrossplaneExtensionAPIToSpec(in.CrossplaneExtension)
 	out.ImageUpdaterDelegate = ImageUpdaterDelegateAPIToSpec(in.ImageUpdaterDelegate)
 	out.AppSetDelegate = AppSetDelegateAPIToSpec(in.AppSetDelegate)
-	out.AssistantExtensionEnabled = in.AssistantExtensionEnabled
 	out.AppsetPolicy = AppsetPolicyAPIToSpec(in.AppsetPolicy)
 	if in.HostAliases != nil {
 		out.HostAliases = make([]*HostAliases, 0, len(in.HostAliases))

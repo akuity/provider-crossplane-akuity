@@ -690,21 +690,6 @@ func (mr *MockOrganizationServiceGatewayClientMockRecorder) GetKubeVisionUsageTo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKubeVisionUsageToCSV", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).GetKubeVisionUsageToCSV), arg0, arg1)
 }
 
-// GetKubernetesAssistantSuggestion mocks base method.
-func (m *MockOrganizationServiceGatewayClient) GetKubernetesAssistantSuggestion(arg0 context.Context, arg1 *organizationv1.GetKubernetesAssistantSuggestionRequest) (*organizationv1.GetKubernetesAssistantSuggestionResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetKubernetesAssistantSuggestion", arg0, arg1)
-	ret0, _ := ret[0].(*organizationv1.GetKubernetesAssistantSuggestionResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetKubernetesAssistantSuggestion indicates an expected call of GetKubernetesAssistantSuggestion.
-func (mr *MockOrganizationServiceGatewayClientMockRecorder) GetKubernetesAssistantSuggestion(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKubernetesAssistantSuggestion", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).GetKubernetesAssistantSuggestion), arg0, arg1)
-}
-
 // GetKubernetesClusterDetail mocks base method.
 func (m *MockOrganizationServiceGatewayClient) GetKubernetesClusterDetail(arg0 context.Context, arg1 *organizationv1.GetKubernetesClusterDetailRequest) (*organizationv1.GetKubernetesClusterDetailResponse, error) {
 	m.ctrl.T.Helper()
@@ -1049,6 +1034,21 @@ func (m *MockOrganizationServiceGatewayClient) GetTeamOIDCMap(arg0 context.Conte
 func (mr *MockOrganizationServiceGatewayClientMockRecorder) GetTeamOIDCMap(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTeamOIDCMap", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).GetTeamOIDCMap), arg0, arg1)
+}
+
+// GetUserMFAFactors mocks base method.
+func (m *MockOrganizationServiceGatewayClient) GetUserMFAFactors(arg0 context.Context, arg1 *organizationv1.GetUserMFAFactorsRequest) (*organizationv1.GetUserMFAFactorsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserMFAFactors", arg0, arg1)
+	ret0, _ := ret[0].(*organizationv1.GetUserMFAFactorsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserMFAFactors indicates an expected call of GetUserMFAFactors.
+func (mr *MockOrganizationServiceGatewayClientMockRecorder) GetUserMFAFactors(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserMFAFactors", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).GetUserMFAFactors), arg0, arg1)
 }
 
 // GetUserRoleInOrganization mocks base method.
@@ -1968,21 +1968,6 @@ func (m *MockOrganizationServiceGatewayClient) ResolveIncidents(arg0 context.Con
 func (mr *MockOrganizationServiceGatewayClientMockRecorder) ResolveIncidents(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveIncidents", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).ResolveIncidents), arg0, arg1)
-}
-
-// ResolveKubernetesAssistantConversation mocks base method.
-func (m *MockOrganizationServiceGatewayClient) ResolveKubernetesAssistantConversation(arg0 context.Context, arg1 *organizationv1.ResolveKubernetesAssistantConversationRequest) (*organizationv1.ResolveKubernetesAssistantConversationResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ResolveKubernetesAssistantConversation", arg0, arg1)
-	ret0, _ := ret[0].(*organizationv1.ResolveKubernetesAssistantConversationResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ResolveKubernetesAssistantConversation indicates an expected call of ResolveKubernetesAssistantConversation.
-func (mr *MockOrganizationServiceGatewayClientMockRecorder) ResolveKubernetesAssistantConversation(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveKubernetesAssistantConversation", reflect.TypeOf((*MockOrganizationServiceGatewayClient)(nil).ResolveKubernetesAssistantConversation), arg0, arg1)
 }
 
 // SetAIToolApprovalStatus mocks base method.

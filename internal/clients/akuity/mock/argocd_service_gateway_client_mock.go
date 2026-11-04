@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	logsv1 "github.com/akuity/api-client-go/pkg/api/gen/types/logs/v1"
 	gomock "go.uber.org/mock/gomock"
 	httpbody "google.golang.org/genproto/googleapis/api/httpbody"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -299,21 +300,6 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) ExportInstanceStream(arg0,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportInstanceStream", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ExportInstanceStream), arg0, arg1)
 }
 
-// GetAIAssistantUsageStats mocks base method.
-func (m *MockArgoCDServiceGatewayClient) GetAIAssistantUsageStats(arg0 context.Context, arg1 *argocdv1.GetAIAssistantUsageStatsRequest) (*argocdv1.GetAIAssistantUsageStatsResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIAssistantUsageStats", arg0, arg1)
-	ret0, _ := ret[0].(*argocdv1.GetAIAssistantUsageStatsResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAIAssistantUsageStats indicates an expected call of GetAIAssistantUsageStats.
-func (mr *MockArgoCDServiceGatewayClientMockRecorder) GetAIAssistantUsageStats(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAssistantUsageStats", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).GetAIAssistantUsageStats), arg0, arg1)
-}
-
 // GetApplicationDeploymentStats mocks base method.
 func (m *MockArgoCDServiceGatewayClient) GetApplicationDeploymentStats(arg0 context.Context, arg1 *argocdv1.GetApplicationDeploymentStatsRequest) (*argocdv1.GetApplicationDeploymentStatsResponse, error) {
 	m.ctrl.T.Helper()
@@ -387,6 +373,21 @@ func (m *MockArgoCDServiceGatewayClient) GetInstanceAddonRepo(arg0 context.Conte
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) GetInstanceAddonRepo(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceAddonRepo", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).GetInstanceAddonRepo), arg0, arg1)
+}
+
+// GetInstanceAdmissionPolicies mocks base method.
+func (m *MockArgoCDServiceGatewayClient) GetInstanceAdmissionPolicies(arg0 context.Context, arg1 *argocdv1.GetInstanceAdmissionPoliciesRequest) (*argocdv1.GetInstanceAdmissionPoliciesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInstanceAdmissionPolicies", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.GetInstanceAdmissionPoliciesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetInstanceAdmissionPolicies indicates an expected call of GetInstanceAdmissionPolicies.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) GetInstanceAdmissionPolicies(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceAdmissionPolicies", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).GetInstanceAdmissionPolicies), arg0, arg1)
 }
 
 // GetInstanceAppsetSecret mocks base method.
@@ -480,6 +481,22 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) GetInstanceClusterManifest
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceClusterManifests", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).GetInstanceClusterManifests), arg0, arg1)
 }
 
+// GetInstanceComponentLogs mocks base method.
+func (m *MockArgoCDServiceGatewayClient) GetInstanceComponentLogs(arg0 context.Context, arg1 *logsv1.GetInstanceComponentLogsRequest) (<-chan *logsv1.GetInstanceComponentLogsResponse, <-chan error, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInstanceComponentLogs", arg0, arg1)
+	ret0, _ := ret[0].(<-chan *logsv1.GetInstanceComponentLogsResponse)
+	ret1, _ := ret[1].(<-chan error)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetInstanceComponentLogs indicates an expected call of GetInstanceComponentLogs.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) GetInstanceComponentLogs(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceComponentLogs", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).GetInstanceComponentLogs), arg0, arg1)
+}
+
 // GetInstanceConfigManagementPlugins mocks base method.
 func (m *MockArgoCDServiceGatewayClient) GetInstanceConfigManagementPlugins(arg0 context.Context, arg1 *argocdv1.GetInstanceConfigManagementPluginsRequest) (*argocdv1.GetInstanceConfigManagementPluginsResponse, error) {
 	m.ctrl.T.Helper()
@@ -553,6 +570,21 @@ func (m *MockArgoCDServiceGatewayClient) GetInstanceResourceCustomizations(arg0 
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) GetInstanceResourceCustomizations(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceResourceCustomizations", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).GetInstanceResourceCustomizations), arg0, arg1)
+}
+
+// GetInstanceRunbooks mocks base method.
+func (m *MockArgoCDServiceGatewayClient) GetInstanceRunbooks(arg0 context.Context, arg1 *argocdv1.GetInstanceRunbooksRequest) (*argocdv1.GetInstanceRunbooksResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInstanceRunbooks", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.GetInstanceRunbooksResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetInstanceRunbooks indicates an expected call of GetInstanceRunbooks.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) GetInstanceRunbooks(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceRunbooks", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).GetInstanceRunbooks), arg0, arg1)
 }
 
 // GetInstanceUIExtensions mocks base method.
@@ -690,6 +722,21 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) ListInstanceClusters(arg0,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListInstanceClusters", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ListInstanceClusters), arg0, arg1)
 }
 
+// ListInstanceComponents mocks base method.
+func (m *MockArgoCDServiceGatewayClient) ListInstanceComponents(arg0 context.Context, arg1 *logsv1.ListInstanceComponentsRequest) (*logsv1.ListInstanceComponentsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListInstanceComponents", arg0, arg1)
+	ret0, _ := ret[0].(*logsv1.ListInstanceComponentsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListInstanceComponents indicates an expected call of ListInstanceComponents.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) ListInstanceComponents(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListInstanceComponents", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).ListInstanceComponents), arg0, arg1)
+}
+
 // ListInstanceManagedSecrets mocks base method.
 func (m *MockArgoCDServiceGatewayClient) ListInstanceManagedSecrets(arg0 context.Context, arg1 *argocdv1.ListInstanceManagedSecretsRequest) (*argocdv1.ListInstanceManagedSecretsResponse, error) {
 	m.ctrl.T.Helper()
@@ -793,6 +840,21 @@ func (m *MockArgoCDServiceGatewayClient) PatchInstanceAppsetSecret(arg0 context.
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) PatchInstanceAppsetSecret(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchInstanceAppsetSecret", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).PatchInstanceAppsetSecret), arg0, arg1)
+}
+
+// PatchInstanceCluster mocks base method.
+func (m *MockArgoCDServiceGatewayClient) PatchInstanceCluster(arg0 context.Context, arg1 *argocdv1.PatchInstanceClusterRequest) (*argocdv1.PatchInstanceClusterResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PatchInstanceCluster", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.PatchInstanceClusterResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PatchInstanceCluster indicates an expected call of PatchInstanceCluster.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) PatchInstanceCluster(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchInstanceCluster", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).PatchInstanceCluster), arg0, arg1)
 }
 
 // PatchInstanceImageUpdaterSecret mocks base method.
@@ -1020,6 +1082,21 @@ func (mr *MockArgoCDServiceGatewayClientMockRecorder) UpdateInstanceAddon(arg0, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstanceAddon", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).UpdateInstanceAddon), arg0, arg1)
 }
 
+// UpdateInstanceAdmissionPolicies mocks base method.
+func (m *MockArgoCDServiceGatewayClient) UpdateInstanceAdmissionPolicies(arg0 context.Context, arg1 *argocdv1.UpdateInstanceAdmissionPoliciesRequest) (*argocdv1.UpdateInstanceAdmissionPoliciesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateInstanceAdmissionPolicies", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.UpdateInstanceAdmissionPoliciesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateInstanceAdmissionPolicies indicates an expected call of UpdateInstanceAdmissionPolicies.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) UpdateInstanceAdmissionPolicies(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstanceAdmissionPolicies", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).UpdateInstanceAdmissionPolicies), arg0, arg1)
+}
+
 // UpdateInstanceCSS mocks base method.
 func (m *MockArgoCDServiceGatewayClient) UpdateInstanceCSS(arg0 context.Context, arg1 *argocdv1.UpdateInstanceCSSRequest) (*argocdv1.UpdateInstanceCSSResponse, error) {
 	m.ctrl.T.Helper()
@@ -1168,6 +1245,21 @@ func (m *MockArgoCDServiceGatewayClient) UpdateInstanceResourceCustomizations(ar
 func (mr *MockArgoCDServiceGatewayClientMockRecorder) UpdateInstanceResourceCustomizations(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstanceResourceCustomizations", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).UpdateInstanceResourceCustomizations), arg0, arg1)
+}
+
+// UpdateInstanceRunbooks mocks base method.
+func (m *MockArgoCDServiceGatewayClient) UpdateInstanceRunbooks(arg0 context.Context, arg1 *argocdv1.UpdateInstanceRunbooksRequest) (*argocdv1.UpdateInstanceRunbooksResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateInstanceRunbooks", arg0, arg1)
+	ret0, _ := ret[0].(*argocdv1.UpdateInstanceRunbooksResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateInstanceRunbooks indicates an expected call of UpdateInstanceRunbooks.
+func (mr *MockArgoCDServiceGatewayClientMockRecorder) UpdateInstanceRunbooks(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstanceRunbooks", reflect.TypeOf((*MockArgoCDServiceGatewayClient)(nil).UpdateInstanceRunbooks), arg0, arg1)
 }
 
 // UpdateInstanceUIExtensions mocks base method.

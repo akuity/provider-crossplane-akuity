@@ -70,8 +70,8 @@ For the full CRD schema, use
   [package/crossplane.yaml](./package/crossplane.yaml).
 - The provider declares the `safe-start` capability (Crossplane 2.x); 1.x
   cores ignore it as a no-op.
-- `v1alpha1` manifests authored against earlier provider releases continue to
-  work without edits.
+- `v1alpha1` manifests remain supported. Check the upgrade notes below for
+  retired settings to remove from older manifests.
 
 ## Provider Behavior
 
@@ -102,6 +102,15 @@ For the full CRD schema, use
 - Reapplying existing v1alpha1 `Instance`, `Cluster`, `KargoInstance`,
   `KargoAgent`, `KargoDefaultShardAgent`, and `InstanceIpAllowList` manifests
   is sufficient; no schema changes affect the upgrade path.
+
+## Legacy AI Assistant removal
+
+The retired `spec.forProvider.argocd.spec.instanceSpec.assistantExtensionEnabled`
+setting has been removed from the `Instance` CRD and is no longer reported in
+`status.atProvider`. Remove it from managed resource manifests before upgrading.
+The provider ignores this field when older platform versions return it; other
+extension settings continue to be managed normally. Existing instances do not
+need to be recreated.
 
 ## Local Development
 

@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	logsv1 "github.com/akuity/api-client-go/pkg/api/gen/types/logs/v1"
 	gomock "go.uber.org/mock/gomock"
 	httpbody "google.golang.org/genproto/googleapis/api/httpbody"
 )
@@ -178,6 +179,21 @@ func (mr *MockKargoServiceGatewayClientMockRecorder) GetKargoInstance(arg0, arg1
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstance", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).GetKargoInstance), arg0, arg1)
 }
 
+// GetKargoInstanceAdmissionPolicies mocks base method.
+func (m *MockKargoServiceGatewayClient) GetKargoInstanceAdmissionPolicies(arg0 context.Context, arg1 *kargov1.GetKargoInstanceAdmissionPoliciesRequest) (*kargov1.GetKargoInstanceAdmissionPoliciesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKargoInstanceAdmissionPolicies", arg0, arg1)
+	ret0, _ := ret[0].(*kargov1.GetKargoInstanceAdmissionPoliciesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetKargoInstanceAdmissionPolicies indicates an expected call of GetKargoInstanceAdmissionPolicies.
+func (mr *MockKargoServiceGatewayClientMockRecorder) GetKargoInstanceAdmissionPolicies(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceAdmissionPolicies", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).GetKargoInstanceAdmissionPolicies), arg0, arg1)
+}
+
 // GetKargoInstanceAgent mocks base method.
 func (m *MockKargoServiceGatewayClient) GetKargoInstanceAgent(arg0 context.Context, arg1 *kargov1.GetKargoInstanceAgentRequest) (*kargov1.GetKargoInstanceAgentResponse, error) {
 	m.ctrl.T.Helper()
@@ -207,6 +223,22 @@ func (m *MockKargoServiceGatewayClient) GetKargoInstanceAgentManifests(arg0 cont
 func (mr *MockKargoServiceGatewayClientMockRecorder) GetKargoInstanceAgentManifests(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceAgentManifests", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).GetKargoInstanceAgentManifests), arg0, arg1)
+}
+
+// GetKargoInstanceComponentLogs mocks base method.
+func (m *MockKargoServiceGatewayClient) GetKargoInstanceComponentLogs(arg0 context.Context, arg1 *logsv1.GetInstanceComponentLogsRequest) (<-chan *logsv1.GetInstanceComponentLogsResponse, <-chan error, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetKargoInstanceComponentLogs", arg0, arg1)
+	ret0, _ := ret[0].(<-chan *logsv1.GetInstanceComponentLogsResponse)
+	ret1, _ := ret[1].(<-chan error)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetKargoInstanceComponentLogs indicates an expected call of GetKargoInstanceComponentLogs.
+func (mr *MockKargoServiceGatewayClientMockRecorder) GetKargoInstanceComponentLogs(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKargoInstanceComponentLogs", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).GetKargoInstanceComponentLogs), arg0, arg1)
 }
 
 // GetPromotionBreakdown mocks base method.
@@ -299,6 +331,21 @@ func (mr *MockKargoServiceGatewayClientMockRecorder) ListKargoInstanceAgents(arg
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListKargoInstanceAgents", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).ListKargoInstanceAgents), arg0, arg1)
 }
 
+// ListKargoInstanceComponents mocks base method.
+func (m *MockKargoServiceGatewayClient) ListKargoInstanceComponents(arg0 context.Context, arg1 *logsv1.ListInstanceComponentsRequest) (*logsv1.ListInstanceComponentsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListKargoInstanceComponents", arg0, arg1)
+	ret0, _ := ret[0].(*logsv1.ListInstanceComponentsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListKargoInstanceComponents indicates an expected call of ListKargoInstanceComponents.
+func (mr *MockKargoServiceGatewayClientMockRecorder) ListKargoInstanceComponents(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListKargoInstanceComponents", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).ListKargoInstanceComponents), arg0, arg1)
+}
+
 // ListKargoInstances mocks base method.
 func (m *MockKargoServiceGatewayClient) ListKargoInstances(arg0 context.Context, arg1 *kargov1.ListKargoInstancesRequest) (*kargov1.ListKargoInstancesResponse, error) {
 	m.ctrl.T.Helper()
@@ -387,6 +434,21 @@ func (m *MockKargoServiceGatewayClient) UpdateInstanceAgentVersion(arg0 context.
 func (mr *MockKargoServiceGatewayClientMockRecorder) UpdateInstanceAgentVersion(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInstanceAgentVersion", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).UpdateInstanceAgentVersion), arg0, arg1)
+}
+
+// UpdateKargoInstanceAdmissionPolicies mocks base method.
+func (m *MockKargoServiceGatewayClient) UpdateKargoInstanceAdmissionPolicies(arg0 context.Context, arg1 *kargov1.UpdateKargoInstanceAdmissionPoliciesRequest) (*kargov1.UpdateKargoInstanceAdmissionPoliciesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateKargoInstanceAdmissionPolicies", arg0, arg1)
+	ret0, _ := ret[0].(*kargov1.UpdateKargoInstanceAdmissionPoliciesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateKargoInstanceAdmissionPolicies indicates an expected call of UpdateKargoInstanceAdmissionPolicies.
+func (mr *MockKargoServiceGatewayClientMockRecorder) UpdateKargoInstanceAdmissionPolicies(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateKargoInstanceAdmissionPolicies", reflect.TypeOf((*MockKargoServiceGatewayClient)(nil).UpdateKargoInstanceAdmissionPolicies), arg0, arg1)
 }
 
 // UpdateKargoInstanceAgent mocks base method.
