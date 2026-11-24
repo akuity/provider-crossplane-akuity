@@ -146,6 +146,8 @@ spec:
                                     type: object
                                 type: object
                             type: object
+                          connectivity:
+                            type: string
                           customAgentSizeConfig:
                             properties:
                               kargoController:
@@ -156,6 +158,8 @@ spec:
                                     type: string
                                 type: object
                             type: object
+                          customCaBundle:
+                            type: string
                           kustomization:
                             type: string
                           maintenanceMode:
@@ -425,6 +429,8 @@ spec:
                                     type: object
                                 type: object
                             type: object
+                          connectivity:
+                            type: string
                           customAgentSizeConfig:
                             properties:
                               kargoController:
@@ -435,6 +441,8 @@ spec:
                                     type: string
                                 type: object
                             type: object
+                          customCaBundle:
+                            type: string
                           kustomization:
                             type: string
                           maintenanceMode:

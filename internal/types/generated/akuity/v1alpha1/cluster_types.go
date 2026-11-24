@@ -25,6 +25,8 @@ type ClusterSize string
 
 type DirectClusterType string
 
+type Connectivity string
+
 //+kubebuilder:object:root=true
 
 // ClusterList contains a list of Cluster
@@ -108,4 +110,7 @@ type ClusterData struct {
 	ServerSideDiffEnabled           *bool                               `json:"serverSideDiffEnabled,omitempty"`
 	MaintenanceModeExpiry           *metav1.Time                        `json:"maintenanceModeExpiry,omitempty"`
 	PodInheritMetadata              *bool                               `json:"podInheritMetadata,omitempty"`
+	UseLocalRepoCreds               *bool                               `json:"useLocalRepoCreds,omitempty"`
+	Connectivity                    Connectivity                        `json:"connectivity,omitempty"`
+	CustomCaBundle                  string                              `json:"customCaBundle,omitempty"`
 }

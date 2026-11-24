@@ -25,6 +25,7 @@ type PluginSpec struct {
 	Discover         *Discover   `json:"discover,omitempty"`
 	Parameters       *Parameters `json:"parameters,omitempty"`
 	PreserveFileMode *bool       `json:"preserveFileMode,omitempty"`
+	ProvideGitCreds  *bool       `json:"provideGitCreds,omitempty"`
 }
 
 // +kubebuilder:object:generate=true

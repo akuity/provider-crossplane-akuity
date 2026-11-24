@@ -55,5 +55,7 @@ type KargoAgentData struct {
 	MaintenanceModeExpiry *string                          `json:"maintenanceModeExpiry,omitempty"`
 	PodInheritMetadata    *bool                            `json:"podInheritMetadata,omitempty"`
 	AutoscalerConfig      *KargoAutoscalerConfig           `json:"autoscalerConfig,omitempty"`
+	Connectivity          Connectivity                     `json:"connectivity,omitempty"`
+	CustomCaBundle        string                           `json:"customCaBundle,omitempty"`
 	CustomAgentSizeConfig *KargoAgentCustomAgentSizeConfig `json:"customAgentSizeConfig,omitempty"`
 }
