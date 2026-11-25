@@ -4,7 +4,7 @@ PROJECT_NAME := provider-crossplane-akuity
 PROJECT_REPO := github.com/akuityio/$(PROJECT_NAME)
 
 PLATFORMS ?= linux_amd64 linux_arm64
--include build/makelib/common.mk
+include build/makelib/common.mk
 
 # The version used here must match .github/workflows/ci.yml's
 # GOLANGCILINT_VERSION env var. Export so recursive make invocations
@@ -21,7 +21,7 @@ CROSSPLANE_VERSION = v2.4.2
 # ====================================================================================
 # Setup Output
 
--include build/makelib/output.mk
+include build/makelib/output.mk
 
 # ====================================================================================
 # Setup Go
@@ -32,20 +32,20 @@ GO_STATIC_PACKAGES = $(GO_PROJECT)/cmd/provider
 GO_LDFLAGS += -X $(GO_PROJECT)/internal/version.Version=$(VERSION)
 GO_SUBDIRS += cmd internal apis
 GO111MODULE = on
--include build/makelib/golang.mk
+include build/makelib/golang.mk
 
 # ====================================================================================
 # Setup Kubernetes tools
 
 UPTEST_VERSION = v2.2.0
 KUBECTL_VALIDATE_VERSION ?= v0.0.4
--include build/makelib/k8s_tools.mk
+include build/makelib/k8s_tools.mk
 
 # ====================================================================================
 # Setup Images
 
 IMAGES = provider-crossplane-akuity
--include build/makelib/imagelight.mk
+include build/makelib/imagelight.mk
 
 # ====================================================================================
 # Setup XPKG
@@ -55,15 +55,11 @@ XPKG_REG_ORGS ?= xpkg.upbound.io/crossplane
 # inferred.
 XPKG_REG_ORGS_NO_PROMOTE ?= xpkg.upbound.io/crossplane
 XPKGS = provider-crossplane-akuity
--include build/makelib/xpkg.mk
+include build/makelib/xpkg.mk
 
 # NOTE(hasheddan): we force image building to happen prior to xpkg build so that
 # we ensure image is present in daemon.
 xpkg.build.provider-crossplane-akuity: do.build.images
-
-fallthrough: submodules
-	@echo Initial setup complete. Running make again . . .
-	@make
 
 # internal/types/generated/ carries vendored types, converters, and
 # glue helpers produced out-of-tree. This repo is a pure consumer;
@@ -95,15 +91,10 @@ test-envtest:
 		go test -tags=envtest -v -count=1 ./internal/... || $(FAIL)
 	@$(OK) envtest suite passed
 
-# Update the submodules, such as the common build scripts.
-submodules:
-	@git submodule sync
-	@git submodule update --init --recursive
-
-# NOTE(hasheddan): the build submodule currently overrides XDG_CACHE_HOME in
+# NOTE(hasheddan): the build make files currently override XDG_CACHE_HOME in
 # order to force the Helm 3 to use the .work/helm directory. This causes Go on
 # Linux machines to use that directory as the build cache as well. We should
-# adjust this behavior in the build submodule because it is also causing Linux
+# adjust this behavior in the build make files because it is also causing Linux
 # users to duplicate their build cache, but for now we just make it easier to
 # identify its location in CI so that we cache between builds.
 go.cachedir:
@@ -133,8 +124,8 @@ dev-clean: controlplane.down
 # ====================================================================================
 # End to End Testing
 CROSSPLANE_NAMESPACE = crossplane-system
--include build/makelib/local.xpkg.mk
--include build/makelib/controlplane.mk
+include build/makelib/local.xpkg.mk
+include build/makelib/controlplane.mk
 
 # This target requires the following environment variables to be set:
 # - UPTEST_EXAMPLE_LIST, a comma-separated list of examples to test. Never
@@ -227,11 +218,10 @@ example-lint: $(KUBECTL_VALIDATE)
 	rm -rf "$$tmpdir"; \
 	[ "$$failed" -eq 0 ] && $(OK) linted example manifests || $(FAIL)
 
-.PHONY: submodules fallthrough run dev dev-clean uptest local-deploy workload.up workload.down example-lint
+.PHONY: run dev dev-clean uptest local-deploy workload.up workload.down example-lint
 
 define CROSSPLANE_MAKE_HELP
 Crossplane Targets:
-    submodules            Update the submodules, such as the common build scripts.
     run                   Run crossplane locally, out-of-cluster. Useful for development.
 
 endef

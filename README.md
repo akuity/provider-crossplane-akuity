@@ -119,13 +119,6 @@ need to be recreated.
 For general Crossplane getting started guides, installation, deployment, and administration, see
 the Crossplane [Documentation](https://crossplane.io/docs).
 
-### Initialize Git Submodules
-
-Crossplane provides a build submodule that is used for most of the Makefile targets. To initialize the
-submodule run:
-
-`git submodule update --init`
-
 ### Generating the Akuity resource CRDs
 
 To generate the CRDs used by Crossplane for Akuity resources:
