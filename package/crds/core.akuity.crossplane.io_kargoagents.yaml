@@ -160,6 +160,21 @@ spec:
                             type: object
                           customCaBundle:
                             type: string
+                          federation:
+                            properties:
+                              enabled:
+                                type: boolean
+                              issuer:
+                                type: string
+                              jwks:
+                                type: string
+                              jwksUrl:
+                                type: string
+                              promotionServiceAccounts:
+                                items:
+                                  type: string
+                                type: array
+                            type: object
                           kustomization:
                             type: string
                           maintenanceMode:
@@ -443,6 +458,21 @@ spec:
                             type: object
                           customCaBundle:
                             type: string
+                          federation:
+                            properties:
+                              enabled:
+                                type: boolean
+                              issuer:
+                                type: string
+                              jwks:
+                                type: string
+                              jwksUrl:
+                                type: string
+                              promotionServiceAccounts:
+                                items:
+                                  type: string
+                                type: array
+                            type: object
                           kustomization:
                             type: string
                           maintenanceMode:
