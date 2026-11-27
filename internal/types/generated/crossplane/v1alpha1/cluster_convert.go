@@ -76,6 +76,7 @@ func ClusterDataSpecToAPI(in *ClusterData) *akuitytypes.ClusterData {
 	out.UseLocalRepoCreds = in.UseLocalRepoCreds
 	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
 	out.CustomCaBundle = in.CustomCaBundle
+	out.Federation = ClusterFederationSpecToAPI(in.Federation)
 	return out
 }
 
@@ -107,6 +108,33 @@ func ClusterDataAPIToSpec(in *akuitytypes.ClusterData) *ClusterData {
 	out.UseLocalRepoCreds = in.UseLocalRepoCreds
 	out.Connectivity = Connectivity(in.Connectivity)
 	out.CustomCaBundle = in.CustomCaBundle
+	out.Federation = ClusterFederationAPIToSpec(in.Federation)
+	return out
+}
+
+// ClusterFederationSpecToAPI converts the curated ClusterFederation into the Akuity API ClusterFederation wire type.
+func ClusterFederationSpecToAPI(in *ClusterFederation) *akuitytypes.ClusterFederation {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.ClusterFederation{}
+	out.Enabled = in.Enabled
+	out.Issuer = in.Issuer
+	out.Jwks = in.Jwks
+	out.JwksUrl = in.JwksUrl
+	return out
+}
+
+// ClusterFederationAPIToSpec converts the Akuity API ClusterFederation wire type back into the curated ClusterFederation.
+func ClusterFederationAPIToSpec(in *akuitytypes.ClusterFederation) *ClusterFederation {
+	if in == nil {
+		return nil
+	}
+	out := &ClusterFederation{}
+	out.Enabled = in.Enabled
+	out.Issuer = in.Issuer
+	out.Jwks = in.Jwks
+	out.JwksUrl = in.JwksUrl
 	return out
 }
 

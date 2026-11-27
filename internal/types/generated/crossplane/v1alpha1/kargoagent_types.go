@@ -55,7 +55,17 @@ type KargoAgentData struct {
 	MaintenanceModeExpiry *string                          `json:"maintenanceModeExpiry,omitempty"`
 	PodInheritMetadata    *bool                            `json:"podInheritMetadata,omitempty"`
 	AutoscalerConfig      *KargoAutoscalerConfig           `json:"autoscalerConfig,omitempty"`
+	CustomAgentSizeConfig *KargoAgentCustomAgentSizeConfig `json:"customAgentSizeConfig,omitempty"`
 	Connectivity          Connectivity                     `json:"connectivity,omitempty"`
 	CustomCaBundle        string                           `json:"customCaBundle,omitempty"`
-	CustomAgentSizeConfig *KargoAgentCustomAgentSizeConfig `json:"customAgentSizeConfig,omitempty"`
+	Federation            *KargoAgentFederation            `json:"federation,omitempty"`
+}
+
+// +kubebuilder:object:generate=true
+type KargoAgentFederation struct {
+	Enabled                  *bool    `json:"enabled,omitempty"`
+	Issuer                   string   `json:"issuer,omitempty"`
+	Jwks                     string   `json:"jwks,omitempty"`
+	JwksUrl                  string   `json:"jwksUrl,omitempty"`
+	PromotionServiceAccounts []string `json:"promotionServiceAccounts,omitempty"`
 }

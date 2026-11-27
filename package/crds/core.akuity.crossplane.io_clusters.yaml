@@ -197,6 +197,17 @@ spec:
                             type: object
                           eksAddonEnabled:
                             type: boolean
+                          federation:
+                            properties:
+                              enabled:
+                                type: boolean
+                              issuer:
+                                type: string
+                              jwks:
+                                type: string
+                              jwksUrl:
+                                type: string
+                            type: object
                           kustomization:
                             type: string
                           maintenanceMode:
@@ -546,6 +557,17 @@ spec:
                             type: object
                           eksAddonEnabled:
                             type: boolean
+                          federation:
+                            properties:
+                              enabled:
+                                type: boolean
+                              issuer:
+                                type: string
+                              jwks:
+                                type: string
+                              jwksUrl:
+                                type: string
+                            type: object
                           kustomization:
                             type: string
                           maintenanceMode:

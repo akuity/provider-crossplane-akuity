@@ -29,6 +29,7 @@ func KargoAgentDataSpecToAPI(in *KargoAgentData) *akuitytypes.KargoAgentData {
 	out.AutoscalerConfig = KargoAutoscalerConfigSpecToAPI(in.AutoscalerConfig)
 	out.Connectivity = akuitytypes.Connectivity(in.Connectivity)
 	out.CustomCaBundle = in.CustomCaBundle
+	out.Federation = KargoAgentFederationSpecToAPI(in.Federation)
 	return out
 }
 
@@ -53,6 +54,35 @@ func KargoAgentDataAPIToSpec(in *akuitytypes.KargoAgentData) *KargoAgentData {
 	out.AutoscalerConfig = KargoAutoscalerConfigAPIToSpec(in.AutoscalerConfig)
 	out.Connectivity = Connectivity(in.Connectivity)
 	out.CustomCaBundle = in.CustomCaBundle
+	out.Federation = KargoAgentFederationAPIToSpec(in.Federation)
+	return out
+}
+
+// KargoAgentFederationSpecToAPI converts the curated KargoAgentFederation into the Akuity API KargoAgentFederation wire type.
+func KargoAgentFederationSpecToAPI(in *KargoAgentFederation) *akuitytypes.KargoAgentFederation {
+	if in == nil {
+		return nil
+	}
+	out := &akuitytypes.KargoAgentFederation{}
+	out.Enabled = in.Enabled
+	out.Issuer = in.Issuer
+	out.Jwks = in.Jwks
+	out.JwksUrl = in.JwksUrl
+	out.PromotionServiceAccounts = in.PromotionServiceAccounts
+	return out
+}
+
+// KargoAgentFederationAPIToSpec converts the Akuity API KargoAgentFederation wire type back into the curated KargoAgentFederation.
+func KargoAgentFederationAPIToSpec(in *akuitytypes.KargoAgentFederation) *KargoAgentFederation {
+	if in == nil {
+		return nil
+	}
+	out := &KargoAgentFederation{}
+	out.Enabled = in.Enabled
+	out.Issuer = in.Issuer
+	out.Jwks = in.Jwks
+	out.JwksUrl = in.JwksUrl
+	out.PromotionServiceAccounts = in.PromotionServiceAccounts
 	return out
 }
 
