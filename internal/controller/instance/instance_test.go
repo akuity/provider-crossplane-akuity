@@ -31,11 +31,9 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
-
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
@@ -430,7 +428,7 @@ func TestNormalizeInstanceParameters_DisabledBucketRateLimitingAdoptsServerScala
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
-							Enabled:    ptr.To(false),
+							Enabled:    new(false),
 							BucketSize: 500,
 							BucketQps:  50,
 						},
@@ -456,7 +454,7 @@ func TestNormalizeInstanceParameters_EnabledBucketRateLimitingKeepsUserScalars(t
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
-							Enabled:    ptr.To(true),
+							Enabled:    new(true),
 							BucketSize: 200,
 							BucketQps:  50,
 						},
@@ -471,7 +469,7 @@ func TestNormalizeInstanceParameters_EnabledBucketRateLimitingKeepsUserScalars(t
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
-							Enabled:    ptr.To(true),
+							Enabled:    new(true),
 							BucketSize: 500,
 							BucketQps:  50,
 						},
@@ -495,7 +493,7 @@ func TestNormalizeInstanceParameters_DisabledItemRateLimitingAdoptsServerScalars
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-							Enabled:         ptr.To(false),
+							Enabled:         new(false),
 							FailureCooldown: 30,
 							BaseDelay:       2,
 							MaxDelay:        60,
@@ -512,7 +510,7 @@ func TestNormalizeInstanceParameters_DisabledItemRateLimitingAdoptsServerScalars
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-							Enabled:         ptr.To(false),
+							Enabled:         new(false),
 							FailureCooldown: 10000,
 							BaseDelay:       1,
 							MaxDelay:        1000,
@@ -542,7 +540,7 @@ func TestNormalizeInstanceParameters_EnabledItemRateLimitingKeepsUserScalars(t *
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-							Enabled:         ptr.To(true),
+							Enabled:         new(true),
 							FailureCooldown: 30,
 							BaseDelay:       2,
 							MaxDelay:        60,
@@ -559,7 +557,7 @@ func TestNormalizeInstanceParameters_EnabledItemRateLimitingKeepsUserScalars(t *
 				InstanceSpec: crossplanetypes.InstanceSpec{
 					AppReconciliationsRateLimiting: &crossplanetypes.AppReconciliationsRateLimiting{
 						ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-							Enabled:         ptr.To(true),
+							Enabled:         new(true),
 							FailureCooldown: 30,
 							BaseDelay:       2,
 							MaxDelay:        60,
@@ -757,7 +755,7 @@ func TestObserve_PinnedAgentVersion_OmittedDoesNotAdoptOrFightServerPin(t *testi
 	}
 
 	mc.EXPECT().GetInstance(ctx, fixtures.InstanceName).
-		Return(akuityInstanceWithPin(ptr.To("0.5.98")), nil).Times(1)
+		Return(akuityInstanceWithPin(new("0.5.98")), nil).Times(1)
 	mc.EXPECT().ExportInstance(ctx, fixtures.InstanceName).
 		Return(&argocdv1.ExportInstanceResponse{}, nil).Times(1)
 
@@ -765,7 +763,7 @@ func TestObserve_PinnedAgentVersion_OmittedDoesNotAdoptOrFightServerPin(t *testi
 	require.NoError(t, err)
 	assert.True(t, resp.ResourceUpToDate)
 	assert.Nil(t, managedInstance.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion)
-	assert.Equal(t, ptr.To("0.5.98"), managedInstance.Status.AtProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion)
+	assert.Equal(t, new("0.5.98"), managedInstance.Status.AtProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion)
 }
 
 // TestObserve_PinnedAgentVersion_Drift covers the user intents: enforce a
@@ -777,11 +775,11 @@ func TestObserve_PinnedAgentVersion_Drift(t *testing.T) {
 		observed *string
 		upToDate bool
 	}{
-		{"pinned matches server", ptr.To("0.5.88"), ptr.To("0.5.88"), true},
-		{"pinned but server unpinned", ptr.To("0.5.88"), nil, false},
-		{"pinned but server on other version", ptr.To("0.5.88"), ptr.To("0.5.98"), false},
-		{"explicit empty against pinned server", ptr.To(""), ptr.To("0.5.98"), false},
-		{"explicit empty against unpinned server", ptr.To(""), nil, true},
+		{"pinned matches server", new("0.5.88"), new("0.5.88"), true},
+		{"pinned but server unpinned", new("0.5.88"), nil, false},
+		{"pinned but server on other version", new("0.5.88"), new("0.5.98"), false},
+		{"explicit empty against pinned server", new(""), new("0.5.98"), false},
+		{"explicit empty against unpinned server", new(""), nil, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -816,15 +814,15 @@ func TestDriftSpec_NilPresence_OmittedPinAdoptsObservedPin(t *testing.T) {
 		upToDate bool
 	}{
 		{"omitted adopts server pin", nil, true},
-		{"explicit empty still clears", ptr.To(""), false},
-		{"other value still enforces", ptr.To("0.5.88"), false},
+		{"explicit empty still clears", new(""), false},
+		{"other value still enforces", new("0.5.88"), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			desired := *fixtures.CrossplaneManagedInstance.Spec.ForProvider.DeepCopy()
 			observed := *fixtures.CrossplaneManagedInstance.Spec.ForProvider.DeepCopy()
 			desired.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = tc.desired
-			observed.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = ptr.To("0.5.98")
+			observed.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = new("0.5.98")
 
 			spec := driftSpec() // Presence stays nil: full comparison.
 			ok, err := spec.UpToDate(ctx, &desired, &observed)

@@ -46,8 +46,7 @@ func isZeroValue(x any) bool { //nolint:gocyclo
 		}
 		if v.Elem().Kind() == reflect.Struct {
 			allZero := true
-			for i := 0; i < v.Elem().NumField(); i++ {
-				field := v.Elem().Field(i)
+			for _, field := range v.Elem().Fields() {
 				if !isZeroValue(field.Interface()) {
 					allZero = false
 					break
@@ -62,8 +61,8 @@ func isZeroValue(x any) bool { //nolint:gocyclo
 	case reflect.Slice, reflect.Map, reflect.Chan:
 		return v.IsNil() || v.Len() == 0
 	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			if !isZeroValue(v.Field(i).Interface()) {
+		for _, field := range v.Fields() {
+			if !isZeroValue(field.Interface()) {
 				return false
 			}
 		}

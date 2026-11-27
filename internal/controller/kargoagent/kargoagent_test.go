@@ -20,10 +20,6 @@ import (
 	"context"
 	"testing"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
-	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
@@ -38,6 +34,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
+	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mockclient "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
@@ -74,13 +74,13 @@ func newExt(t *testing.T) (*external, *mockclient.MockClient) {
 	return &external{ExternalClient: base.ExternalClient{Client: mc, Logger: logging.NewNopLogger()}}, mc
 }
 
-func mustKargoAgentStruct(t *testing.T, data map[string]interface{}) *structpb.Struct {
+func mustKargoAgentStruct(t *testing.T, data map[string]any) *structpb.Struct {
 	t.Helper()
-	pb, err := structpb.NewStruct(map[string]interface{}{
+	pb, err := structpb.NewStruct(map[string]any{
 		"apiVersion": "kargo.akuity.io/v1alpha1",
 		"kind":       "KargoAgent",
-		"metadata":   map[string]interface{}{"name": "agt"},
-		"spec": map[string]interface{}{
+		"metadata":   map[string]any{"name": "agt"},
+		"spec": map[string]any{
 			"data": data,
 		},
 	})
@@ -157,7 +157,7 @@ func TestObserve_PodInheritMetadataPropagatesToAtProvider(t *testing.T) {
 		Id:   "ag-1",
 		Name: "agt",
 		Data: &kargov1.KargoAgentData{
-			PodInheritMetadata: boolPtr(true),
+			PodInheritMetadata: new(true),
 		},
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
 		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
@@ -175,7 +175,7 @@ func TestObserve_PodInheritMetadataPropagatesToAtProvider(t *testing.T) {
 func TestObserve_ExportedSpecPropagatesToAtProvider(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
-	a.Spec.ForProvider.KargoAgentSpec.Data.PodInheritMetadata = boolPtr(true)
+	a.Spec.ForProvider.KargoAgentSpec.Data.PodInheritMetadata = new(true)
 	a.Spec.ForProvider.KargoAgentSpec.Data.AutoscalerConfig = &crossplanetypes.KargoAutoscalerConfig{
 		KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
 			ResourceMinimum: &crossplanetypes.KargoResources{Cpu: "100m", Mem: "256Mi"},
@@ -187,20 +187,20 @@ func TestObserve_ExportedSpecPropagatesToAtProvider(t *testing.T) {
 		Id:   "ag-1",
 		Name: "agt",
 		Data: &kargov1.KargoAgentData{
-			PodInheritMetadata: boolPtr(true),
+			PodInheritMetadata: new(true),
 		},
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
 		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}, nil).Times(1)
 	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
 		Return(&kargov1.ExportKargoInstanceResponse{
-			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]interface{}{
+			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]any{
 				"size":               "small",
 				"podInheritMetadata": true,
-				"autoscalerConfig": map[string]interface{}{
-					"kargoController": map[string]interface{}{
-						"resourceMinimum": map[string]interface{}{"cpu": "100m", "mem": "256Mi"},
-						"resourceMaximum": map[string]interface{}{"cpu": "1", "mem": "1Gi"},
+				"autoscalerConfig": map[string]any{
+					"kargoController": map[string]any{
+						"resourceMinimum": map[string]any{"cpu": "100m", "mem": "256Mi"},
+						"resourceMaximum": map[string]any{"cpu": "1", "mem": "1Gi"},
 					},
 				},
 			})},
@@ -239,20 +239,20 @@ func TestObserve_ExportFailureFallsBackToGet(t *testing.T) {
 func TestObserve_PodInheritMetadataDesiredTrueExportFalseDrifts(t *testing.T) {
 	e, mc := newExt(t)
 	a := newAgent()
-	a.Spec.ForProvider.KargoAgentSpec.Data.PodInheritMetadata = boolPtr(true)
+	a.Spec.ForProvider.KargoAgentSpec.Data.PodInheritMetadata = new(true)
 	meta.SetExternalName(a, "agt")
 	mc.EXPECT().GetKargoInstanceAgent(gomock.Any(), "ki-1", "agt").Return(&kargov1.KargoAgent{
 		Id:   "ag-1",
 		Name: "agt",
 		Data: &kargov1.KargoAgentData{
-			PodInheritMetadata: boolPtr(false),
+			PodInheritMetadata: new(false),
 		},
 		ReconciliationStatus: &reconv1.Status{Code: reconv1.StatusCode_STATUS_CODE_SUCCESSFUL},
 		HealthStatus:         &health.Status{Code: health.StatusCode_STATUS_CODE_HEALTHY},
 	}, nil).Times(1)
 	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
 		Return(&kargov1.ExportKargoInstanceResponse{
-			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]interface{}{
+			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]any{
 				"size":               "small",
 				"podInheritMetadata": false,
 			})},
@@ -599,7 +599,7 @@ func TestDriftSpec_CustomKargoAgentSizeProjectsToLarge(t *testing.T) {
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
 				Size:          crossplanetypes.KargoAgentSize("custom"),
-				AkuityManaged: boolPtr(false),
+				AkuityManaged: new(false),
 				CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
 					KargoController: &crossplanetypes.KargoResources{
 						Cpu: "1000m",
@@ -616,7 +616,7 @@ func TestDriftSpec_CustomKargoAgentSizeProjectsToLarge(t *testing.T) {
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
 				Size:          crossplanetypes.KargoAgentSize("large"),
-				AkuityManaged: boolPtr(false),
+				AkuityManaged: new(false),
 				Kustomization: kustomization,
 			},
 		},
@@ -632,7 +632,7 @@ func TestDriftSpec_PodInheritMetadataDesiredNilAdoptsObserved(t *testing.T) {
 	observed := v1alpha1.KargoAgentParameters{
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
-				PodInheritMetadata: boolPtr(true),
+				PodInheritMetadata: new(true),
 			},
 		},
 	}
@@ -647,14 +647,14 @@ func TestDriftSpec_PodInheritMetadataDesiredSetDoesNotAdoptObserved(t *testing.T
 	desired := v1alpha1.KargoAgentParameters{
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
-				PodInheritMetadata: boolPtr(true),
+				PodInheritMetadata: new(true),
 			},
 		},
 	}
 	observed := v1alpha1.KargoAgentParameters{
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
-				PodInheritMetadata: boolPtr(false),
+				PodInheritMetadata: new(false),
 			},
 		},
 	}
@@ -671,10 +671,10 @@ func TestDriftSpec_AbsorbsAkuityManagedClampedFields(t *testing.T) {
 	desired := v1alpha1.KargoAgentParameters{
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
-				AkuityManaged:         boolPtr(true),
+				AkuityManaged:         new(true),
 				ArgocdNamespace:       "argocd2",
 				TargetVersion:         "0.5.87",
-				MaintenanceMode:       boolPtr(true),
+				MaintenanceMode:       new(true),
 				MaintenanceModeExpiry: &expiry,
 			},
 		},
@@ -682,10 +682,10 @@ func TestDriftSpec_AbsorbsAkuityManagedClampedFields(t *testing.T) {
 	observed := v1alpha1.KargoAgentParameters{
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
-				AkuityManaged:         boolPtr(true),
+				AkuityManaged:         new(true),
 				ArgocdNamespace:       "",
 				TargetVersion:         "0.5.88",
-				MaintenanceMode:       boolPtr(false),
+				MaintenanceMode:       new(false),
 				MaintenanceModeExpiry: nil,
 			},
 		},
@@ -708,7 +708,7 @@ func TestDriftSpec_SelfManagedKeepsArgocdNamespaceAndTargetVersion(t *testing.T)
 	desired := v1alpha1.KargoAgentParameters{
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
-				AkuityManaged:   boolPtr(false),
+				AkuityManaged:   new(false),
 				ArgocdNamespace: "argocd2",
 				TargetVersion:   "0.5.87",
 			},
@@ -717,7 +717,7 @@ func TestDriftSpec_SelfManagedKeepsArgocdNamespaceAndTargetVersion(t *testing.T)
 	observed := v1alpha1.KargoAgentParameters{
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
-				AkuityManaged:   boolPtr(false),
+				AkuityManaged:   new(false),
 				ArgocdNamespace: "argocd",
 				TargetVersion:   "0.5.88",
 			},
@@ -881,7 +881,7 @@ func TestObserve_RemoteArgocdRefUpToDate(t *testing.T) {
 	}, nil).Times(1)
 	mc.EXPECT().ExportKargoInstance(gomock.Any(), "ki-1", "").
 		Return(&kargov1.ExportKargoInstanceResponse{
-			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]interface{}{
+			Agents: []*structpb.Struct{mustKargoAgentStruct(t, map[string]any{
 				"size":         "small",
 				"remoteArgocd": "argocd-id",
 			})},

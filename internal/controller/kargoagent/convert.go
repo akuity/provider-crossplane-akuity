@@ -19,12 +19,11 @@ package kargoagent
 import (
 	"fmt"
 
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -118,7 +117,7 @@ func apiToSpec(desired v1alpha1.KargoAgentParameters, agent *kargov1.KargoAgent)
 		out.KargoAgentSpec.Data = *d
 	}
 	if data != nil && out.KargoAgentSpec.Data.AkuityManaged == nil {
-		out.KargoAgentSpec.Data.AkuityManaged = ptr.To(data.GetAkuityManaged())
+		out.KargoAgentSpec.Data.AkuityManaged = new(data.GetAkuityManaged())
 	}
 	return out
 }
@@ -155,7 +154,7 @@ func wireToSpec(desired v1alpha1.KargoAgentParameters, wire *akuitytypes.KargoAg
 	if out.KargoAgentSpec.Data.AkuityManaged == nil &&
 		desired.KargoAgentSpec.Data.AkuityManaged != nil &&
 		!*desired.KargoAgentSpec.Data.AkuityManaged {
-		out.KargoAgentSpec.Data.AkuityManaged = ptr.To(false)
+		out.KargoAgentSpec.Data.AkuityManaged = new(false)
 	}
 	if len(out.Labels) == 0 {
 		out.Labels = nil

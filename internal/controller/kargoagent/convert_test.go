@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +28,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
@@ -62,7 +62,7 @@ func TestApiToSpec_CarriesSpecOnlyFields(t *testing.T) {
 			Namespace:           "kargo",
 			Labels:              map[string]string{"team": "platform"},
 			Annotations:         map[string]string{"note": "x"},
-			AutoUpgradeDisabled: boolPtr(true),
+			AutoUpgradeDisabled: new(true),
 		},
 	}
 
@@ -118,7 +118,7 @@ func TestSpecToAPI_ProjectsCustomKargoAgentSize(t *testing.T) {
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
 				Size:          crossplanetypes.KargoAgentSize("custom"),
-				AkuityManaged: boolPtr(false),
+				AkuityManaged: new(false),
 				CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
 					KargoController: &crossplanetypes.KargoResources{
 						Cpu: "1000m",
@@ -181,7 +181,7 @@ func TestSpecToAPI_RejectsInvalidCustomKargoAgentSize(t *testing.T) {
 			KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 				Data: crossplanetypes.KargoAgentData{
 					Size:          crossplanetypes.KargoAgentSize("custom"),
-					AkuityManaged: boolPtr(true),
+					AkuityManaged: new(true),
 					CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
 						KargoController: &crossplanetypes.KargoResources{Cpu: "1000m", Mem: "2Gi"},
 					},
@@ -201,7 +201,7 @@ func TestSpecToAPI_RejectsConflictingCustomKargoAgentKustomization(t *testing.T)
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
 				Size:          crossplanetypes.KargoAgentSize("custom"),
-				AkuityManaged: boolPtr(false),
+				AkuityManaged: new(false),
 				CustomAgentSizeConfig: &crossplanetypes.KargoAgentCustomAgentSizeConfig{
 					KargoController: &crossplanetypes.KargoResources{Cpu: "1000m", Mem: "2Gi"},
 				},
@@ -292,7 +292,7 @@ func TestWireToSpec_PreservesDesiredAkuityManagedFalseWhenWireOmitsIt(t *testing
 	desired := v1alpha1.KargoAgentParameters{
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
-				AkuityManaged: boolPtr(false),
+				AkuityManaged: new(false),
 			},
 		},
 	}
@@ -357,7 +357,7 @@ func TestSpecToAPI_PropagatesPodInheritMetadata(t *testing.T) {
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
 				Size:               crossplanetypes.KargoAgentSize("small"),
-				PodInheritMetadata: boolPtr(true),
+				PodInheritMetadata: new(true),
 			},
 		},
 	}
@@ -375,17 +375,17 @@ func TestSpecToAPI_PropagatesAllCurrentGeneratedAgentDataFields(t *testing.T) {
 		KargoAgentSpec: crossplanetypes.KargoAgentSpec{
 			Data: crossplanetypes.KargoAgentData{
 				Size:                  crossplanetypes.KargoAgentSize("medium"),
-				AutoUpgradeDisabled:   boolPtr(true),
+				AutoUpgradeDisabled:   new(true),
 				TargetVersion:         "v1.2.3",
 				Kustomization:         "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n",
 				RemoteArgocd:          "remote",
-				AkuityManaged:         boolPtr(true),
+				AkuityManaged:         new(true),
 				ArgocdNamespace:       "argocd",
 				SelfManagedArgocdUrl:  "https://argocd.example.com",
 				AllowedJobSa:          []string{"jobs/default"},
-				MaintenanceMode:       boolPtr(true),
+				MaintenanceMode:       new(true),
 				MaintenanceModeExpiry: &expiry,
-				PodInheritMetadata:    boolPtr(true),
+				PodInheritMetadata:    new(true),
 				AutoscalerConfig: &crossplanetypes.KargoAutoscalerConfig{
 					KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
 						ResourceMinimum: &crossplanetypes.KargoResources{Cpu: "100m", Mem: "256Mi"},
@@ -400,18 +400,18 @@ func TestSpecToAPI_PropagatesAllCurrentGeneratedAgentDataFields(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, akuitytypes.KargoAgentSize("medium"), wire.Spec.Data.Size)
-	assert.Equal(t, boolPtr(true), wire.Spec.Data.AutoUpgradeDisabled)
+	assert.Equal(t, new(true), wire.Spec.Data.AutoUpgradeDisabled)
 	assert.Equal(t, "v1.2.3", wire.Spec.Data.TargetVersion)
 	assert.NotEmpty(t, wire.Spec.Data.Kustomization.Raw)
 	assert.Equal(t, "remote", wire.Spec.Data.RemoteArgocd)
-	assert.Equal(t, boolPtr(true), wire.Spec.Data.AkuityManaged)
+	assert.Equal(t, new(true), wire.Spec.Data.AkuityManaged)
 	assert.Equal(t, "argocd", wire.Spec.Data.ArgocdNamespace)
 	assert.Equal(t, "https://argocd.example.com", wire.Spec.Data.SelfManagedArgocdUrl)
 	assert.Equal(t, []string{"jobs/default"}, wire.Spec.Data.AllowedJobSa)
-	assert.Equal(t, boolPtr(true), wire.Spec.Data.MaintenanceMode)
+	assert.Equal(t, new(true), wire.Spec.Data.MaintenanceMode)
 	require.NotNil(t, wire.Spec.Data.MaintenanceModeExpiry)
 	assert.Equal(t, expiry, wire.Spec.Data.MaintenanceModeExpiry.Time.UTC().Format(time.RFC3339))
-	assert.Equal(t, boolPtr(true), wire.Spec.Data.PodInheritMetadata)
+	assert.Equal(t, new(true), wire.Spec.Data.PodInheritMetadata)
 	require.NotNil(t, wire.Spec.Data.AutoscalerConfig)
 	require.NotNil(t, wire.Spec.Data.AutoscalerConfig.KargoController)
 	assert.Equal(t, &akuitytypes.KargoResources{Cpu: "100m", Mem: "256Mi"}, wire.Spec.Data.AutoscalerConfig.KargoController.ResourceMinimum)
@@ -468,7 +468,7 @@ func TestConvertAgentData_PropagatesSize(t *testing.T) {
 }
 
 func TestConvertAgentData_PropagatesPodInheritMetadata(t *testing.T) {
-	pb := &kargov1.KargoAgentData{PodInheritMetadata: boolPtr(true)}
+	pb := &kargov1.KargoAgentData{PodInheritMetadata: new(true)}
 	out := convertAgentData(pb)
 	require.NotNil(t, out)
 	require.NotNil(t, out.PodInheritMetadata)
@@ -484,7 +484,7 @@ func TestConvertAgentData_PropagatesAllCurrentGeneratedAgentDataFields(t *testin
 	expiry := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	pb := &kargov1.KargoAgentData{
 		Size:                  KargoAgentSizeProto("medium"),
-		AutoUpgradeDisabled:   boolPtr(true),
+		AutoUpgradeDisabled:   new(true),
 		TargetVersion:         "v1.2.3",
 		Kustomization:         kustomization,
 		RemoteArgocd:          "remote",
@@ -492,9 +492,9 @@ func TestConvertAgentData_PropagatesAllCurrentGeneratedAgentDataFields(t *testin
 		ArgocdNamespace:       "argocd",
 		SelfManagedArgocdUrl:  "https://argocd.example.com",
 		AllowedJobSa:          []string{"jobs/default"},
-		MaintenanceMode:       boolPtr(true),
+		MaintenanceMode:       new(true),
 		MaintenanceModeExpiry: timestamppb.New(expiry),
-		PodInheritMetadata:    boolPtr(true),
+		PodInheritMetadata:    new(true),
 		AutoscalerConfig: &kargov1.KargoAutoscalerConfig{
 			KargoController: &kargov1.KargoControllerAutoScalingConfig{
 				ResourceMinimum: &kargov1.KargoResources{Cpu: "100m", Mem: "256Mi"},
@@ -507,21 +507,21 @@ func TestConvertAgentData_PropagatesAllCurrentGeneratedAgentDataFields(t *testin
 	require.NotNil(t, out)
 
 	assert.NotEmpty(t, out.Size)
-	assert.Equal(t, boolPtr(true), out.AutoUpgradeDisabled)
+	assert.Equal(t, new(true), out.AutoUpgradeDisabled)
 	assert.Equal(t, "v1.2.3", out.TargetVersion)
 	assert.Contains(t, out.Kustomization, "apiVersion: kustomize.config.k8s.io/v1beta1")
 	assert.Contains(t, out.Kustomization, "kind: Kustomization")
 	assert.Equal(t, "remote", out.RemoteArgocd)
-	assert.Equal(t, boolPtr(true), out.AkuityManaged)
+	assert.Equal(t, new(true), out.AkuityManaged)
 	assert.Equal(t, "argocd", out.ArgocdNamespace)
 	assert.Equal(t, "https://argocd.example.com", out.SelfManagedArgocdUrl)
 	assert.Equal(t, []string{"jobs/default"}, out.AllowedJobSa)
-	assert.Equal(t, boolPtr(true), out.MaintenanceMode)
+	assert.Equal(t, new(true), out.MaintenanceMode)
 	require.NotNil(t, out.MaintenanceModeExpiry)
 	actualExpiry, err := time.Parse(time.RFC3339, *out.MaintenanceModeExpiry)
 	require.NoError(t, err)
 	assert.True(t, actualExpiry.Equal(expiry), "expiry should preserve the same instant")
-	assert.Equal(t, boolPtr(true), out.PodInheritMetadata)
+	assert.Equal(t, new(true), out.PodInheritMetadata)
 	assert.Equal(t, &crossplanetypes.KargoAutoscalerConfig{
 		KargoController: &crossplanetypes.KargoControllerAutoScalingConfig{
 			ResourceMinimum: &crossplanetypes.KargoResources{Cpu: "100m", Mem: "256Mi"},
@@ -563,8 +563,6 @@ func KargoAgentSizeProto(s string) kargov1.KargoAgentSize {
 		return kargov1.KargoAgentSize_KARGO_AGENT_SIZE_UNSPECIFIED
 	}
 }
-
-func boolPtr(b bool) *bool { return &b }
 
 type errString string
 

@@ -274,7 +274,7 @@ type KargoInstanceList struct {
 
 // KargoInstance type metadata.
 var (
-	KargoInstanceKind             = reflect.TypeOf(KargoInstance{}).Name()
+	KargoInstanceKind             = reflect.TypeFor[KargoInstance]().Name()
 	KargoInstanceGroupKind        = schema.GroupKind{Group: Group, Kind: KargoInstanceKind}.String()
 	KargoInstanceKindAPIVersion   = KargoInstanceKind + "." + SchemeGroupVersion.String()
 	KargoInstanceGroupVersionKind = SchemeGroupVersion.WithKind(KargoInstanceKind)

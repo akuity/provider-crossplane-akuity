@@ -17,9 +17,8 @@ limitations under the License.
 package observation
 
 import (
-	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
-
 	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 )
 
 // KargoAgent projects the Kargo-plane agent response into the

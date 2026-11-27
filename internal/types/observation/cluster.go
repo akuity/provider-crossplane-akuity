@@ -20,11 +20,10 @@ import (
 	"maps"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"k8s.io/utils/ptr"
-
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
@@ -186,14 +185,14 @@ func compatibility(in *argocdv1.ClusterCompatibility) *crossplanetypes.ClusterCo
 	if in == nil {
 		return nil
 	}
-	return &crossplanetypes.ClusterCompatibility{Ipv6Only: ptr.To(in.GetIpv6Only())}
+	return &crossplanetypes.ClusterCompatibility{Ipv6Only: new(in.GetIpv6Only())}
 }
 
 func argocdNotificationsSettings(in *argocdv1.ClusterArgoCDNotificationsSettings) *crossplanetypes.ClusterArgoCDNotificationsSettings {
 	if in == nil {
 		return nil
 	}
-	return &crossplanetypes.ClusterArgoCDNotificationsSettings{InClusterSettings: ptr.To(in.GetInClusterSettings())}
+	return &crossplanetypes.ClusterArgoCDNotificationsSettings{InClusterSettings: new(in.GetInClusterSettings())}
 }
 
 func timestampPtrToStringPtr(t *timestamppb.Timestamp) *string {

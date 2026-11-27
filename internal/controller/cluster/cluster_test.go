@@ -31,16 +31,14 @@ import (
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubectl/pkg/scheme"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
-	"google.golang.org/protobuf/types/known/structpb"
-
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mock_akuity_client "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
@@ -375,9 +373,9 @@ func TestUpdate_MaintenanceModeSetCallsSetEndpoint(t *testing.T) {
 	e, mc := newExt(t, nil)
 
 	managedCluster := fixtures.CrossplaneManagedCluster
-	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = new(true)
 	expiryStr := "2027-01-15T03:30:00Z"
-	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To(expiryStr)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = new(expiryStr)
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
 	mc.EXPECT().
@@ -403,7 +401,7 @@ func TestUpdate_MaintenanceModeFlipCallsSetEndpoint(t *testing.T) {
 	e, mc := newExt(t, nil)
 
 	managedCluster := fixtures.CrossplaneManagedCluster
-	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(false)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = new(false)
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
 	mc.EXPECT().
@@ -444,9 +442,9 @@ func TestUpdate_MaintenanceModeAlreadyAppliedSkipsRPC(t *testing.T) {
 	e, mc := newExt(t, nil)
 
 	managedCluster := fixtures.CrossplaneManagedCluster
-	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(false)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = new(false)
 	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = nil
-	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(false)
+	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceMode = new(false)
 	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceModeExpiry = nil
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
@@ -465,10 +463,10 @@ func TestUpdate_MaintenanceModeExpiryDriftFiresRPC(t *testing.T) {
 	e, mc := newExt(t, nil)
 
 	managedCluster := fixtures.CrossplaneManagedCluster
-	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
-	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To("2099-01-01T00:00:00Z")
-	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
-	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To("2098-01-01T00:00:00Z")
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = new(true)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = new("2099-01-01T00:00:00Z")
+	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceMode = new(true)
+	managedCluster.Status.AtProvider.ClusterSpec.Data.MaintenanceModeExpiry = new("2098-01-01T00:00:00Z")
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
 	mc.EXPECT().
@@ -486,8 +484,8 @@ func TestUpdate_MaintenanceModeBadExpiryFails(t *testing.T) {
 	e, mc := newExt(t, nil)
 
 	managedCluster := fixtures.CrossplaneManagedCluster
-	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
-	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To("not-a-timestamp")
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceMode = new(true)
+	managedCluster.Spec.ForProvider.ClusterSpec.Data.MaintenanceModeExpiry = new("not-a-timestamp")
 
 	mc.EXPECT().ApplyInstance(ctx, gomock.Any()).Return(nil).Times(1)
 	// SetClusterMaintenanceMode must NOT be called when expiry parsing fails.

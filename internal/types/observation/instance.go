@@ -20,10 +20,9 @@ import (
 	"fmt"
 	"strconv"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"google.golang.org/protobuf/types/known/structpb"
-	"k8s.io/utils/ptr"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	argocdtypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/argocd/v1alpha1"
@@ -273,14 +272,14 @@ func InstanceArgoCDSpec(instanceSpec *argocdv1.InstanceSpec) (crossplanetypes.In
 	return crossplanetypes.InstanceSpec{
 		IpAllowList:                     IPAllowList(instanceSpec.GetIpAllowList()),
 		Subdomain:                       instanceSpec.GetSubdomain(),
-		DeclarativeManagementEnabled:    ptr.To(instanceSpec.GetDeclarativeManagementEnabled()),
+		DeclarativeManagementEnabled:    new(instanceSpec.GetDeclarativeManagementEnabled()),
 		Extensions:                      ArgoCDExtensionInstallEntries(instanceSpec.GetExtensions()),
 		ClusterCustomizationDefaults:    clusterCustomization,
-		ImageUpdaterEnabled:             ptr.To(instanceSpec.GetImageUpdaterEnabled()),
-		BackendIpAllowListEnabled:       ptr.To(instanceSpec.GetBackendIpAllowListEnabled()),
+		ImageUpdaterEnabled:             new(instanceSpec.GetImageUpdaterEnabled()),
+		BackendIpAllowListEnabled:       new(instanceSpec.GetBackendIpAllowListEnabled()),
 		RepoServerDelegate:              RepoServerDelegate(instanceSpec.GetRepoServerDelegate()),
-		AuditExtensionEnabled:           ptr.To(instanceSpec.GetAuditExtensionEnabled()),
-		SyncHistoryExtensionEnabled:     ptr.To(instanceSpec.GetSyncHistoryExtensionEnabled()),
+		AuditExtensionEnabled:           new(instanceSpec.GetAuditExtensionEnabled()),
+		SyncHistoryExtensionEnabled:     new(instanceSpec.GetSyncHistoryExtensionEnabled()),
 		CrossplaneExtension:             CrossplaneExtension(instanceSpec.GetCrossplaneExtension()),
 		ImageUpdaterDelegate:            ImageUpdaterDelegate(instanceSpec.GetImageUpdaterDelegate()),
 		AppSetDelegate:                  AppSetDelegate(instanceSpec.GetAppSetDelegate()),
@@ -288,14 +287,14 @@ func InstanceArgoCDSpec(instanceSpec *argocdv1.InstanceSpec) (crossplanetypes.In
 		HostAliases:                     HostAliases(instanceSpec.GetHostAliases()),
 		AgentPermissionsRules:           AgentPermissionsRules(instanceSpec.GetAgentPermissionsRules()),
 		Fqdn:                            instanceSpec.GetFqdn(),
-		MultiClusterK8SDashboardEnabled: ptr.To(instanceSpec.GetMultiClusterK8SDashboardEnabled()),
+		MultiClusterK8SDashboardEnabled: new(instanceSpec.GetMultiClusterK8SDashboardEnabled()),
 		AkuityIntelligenceExtension:     AkuityIntelligenceExtension(instanceSpec.GetAkuityIntelligenceExtension()),
 		ImageUpdaterVersion:             instanceSpec.GetImageUpdaterVersion(),
 		CustomDeprecatedApis:            CustomDeprecatedApis(instanceSpec.GetCustomDeprecatedApis()),
 		KubeVisionConfig:                KubeVisionConfig(instanceSpec.GetKubeVisionConfig()),
 		AppInAnyNamespaceConfig:         AppInAnyNamespaceConfig(instanceSpec.GetAppInAnyNamespaceConfig()),
 		Basepath:                        instanceSpec.GetBasepath(),
-		AppsetProgressiveSyncsEnabled:   ptr.To(instanceSpec.GetAppsetProgressiveSyncsEnabled()),
+		AppsetProgressiveSyncsEnabled:   new(instanceSpec.GetAppsetProgressiveSyncsEnabled()),
 		Secrets:                         SecretsManagementConfig(instanceSpec.GetSecrets()),
 		AppsetPlugins:                   AppsetPlugins(instanceSpec.GetAppsetPlugins()),
 		ApplicationSetExtension:         ApplicationSetExtension(instanceSpec.GetApplicationSetExtension()),
@@ -352,11 +351,11 @@ func ClusterCustomization(clusterCustomization *argocdv1.ClusterCustomization) (
 		return nil, err
 	}
 	return &crossplanetypes.ClusterCustomization{
-		AutoUpgradeDisabled:   ptr.To(clusterCustomization.GetAutoUpgradeDisabled()),
+		AutoUpgradeDisabled:   new(clusterCustomization.GetAutoUpgradeDisabled()),
 		Kustomization:         string(kustomizationYAML),
-		AppReplication:        ptr.To(clusterCustomization.GetAppReplication()),
-		RedisTunneling:        ptr.To(clusterCustomization.GetRedisTunneling()),
-		ServerSideDiffEnabled: ptr.To(clusterCustomization.GetServerSideDiffEnabled()),
+		AppReplication:        new(clusterCustomization.GetAppReplication()),
+		RedisTunneling:        new(clusterCustomization.GetRedisTunneling()),
+		ServerSideDiffEnabled: new(clusterCustomization.GetServerSideDiffEnabled()),
 	}, nil
 }
 
@@ -435,7 +434,7 @@ func ClusterAddonsExtension(in *argocdv1.ClusterAddonsExtension) *crossplanetype
 		return nil
 	}
 	return &crossplanetypes.ClusterAddonsExtension{
-		Enabled:          ptr.To(in.GetEnabled()),
+		Enabled:          new(in.GetEnabled()),
 		AllowedUsernames: in.GetAllowedUsernames(),
 		AllowedGroups:    in.GetAllowedGroups(),
 	}
@@ -468,7 +467,7 @@ func RepoServerDelegate(d *argocdv1.RepoServerDelegate) *crossplanetypes.RepoSer
 		return nil
 	}
 	return &crossplanetypes.RepoServerDelegate{
-		ControlPlane: ptr.To(d.GetControlPlane()),
+		ControlPlane: new(d.GetControlPlane()),
 		ManagedCluster: &crossplanetypes.ManagedCluster{
 			ClusterName: d.GetManagedCluster().GetClusterName(),
 		},
@@ -493,7 +492,7 @@ func ImageUpdaterDelegate(d *argocdv1.ImageUpdaterDelegate) *crossplanetypes.Ima
 		return nil
 	}
 	return &crossplanetypes.ImageUpdaterDelegate{
-		ControlPlane: ptr.To(d.GetControlPlane()),
+		ControlPlane: new(d.GetControlPlane()),
 		ManagedCluster: &crossplanetypes.ManagedCluster{
 			ClusterName: d.GetManagedCluster().GetClusterName(),
 		},
@@ -519,7 +518,7 @@ func AppsetPolicy(p *argocdv1.AppsetPolicy) *crossplanetypes.AppsetPolicy {
 	}
 	return &crossplanetypes.AppsetPolicy{
 		Policy:         p.GetPolicy(),
-		OverridePolicy: ptr.To(p.GetOverridePolicy()),
+		OverridePolicy: new(p.GetOverridePolicy()),
 	}
 }
 
@@ -563,10 +562,10 @@ func AkuityIntelligenceExtension(in *argocdv1.AkuityIntelligenceExtension) *cros
 		return nil
 	}
 	return &crossplanetypes.AkuityIntelligenceExtension{
-		Enabled:                  ptr.To(in.GetEnabled()),
+		Enabled:                  new(in.GetEnabled()),
 		AllowedUsernames:         in.GetAllowedUsernames(),
 		AllowedGroups:            in.GetAllowedGroups(),
-		AiSupportEngineerEnabled: ptr.To(in.GetAiSupportEngineerEnabled()),
+		AiSupportEngineerEnabled: new(in.GetAiSupportEngineerEnabled()),
 		ModelVersion:             in.GetModelVersion(),
 	}
 }
@@ -595,7 +594,7 @@ func KubeVisionConfig(in *argocdv1.KubeVisionConfig) *crossplanetypes.KubeVision
 	}
 	return &crossplanetypes.KubeVisionConfig{
 		CveScanConfig: &crossplanetypes.CveScanConfig{
-			ScanEnabled:    ptr.To(in.GetCveScanConfig().GetScanEnabled()),
+			ScanEnabled:    new(in.GetCveScanConfig().GetScanEnabled()),
 			RescanInterval: in.GetCveScanConfig().GetRescanInterval(),
 		},
 	}
@@ -607,7 +606,7 @@ func AppInAnyNamespaceConfig(in *argocdv1.AppInAnyNamespaceConfig) *crossplanety
 		return nil
 	}
 	return &crossplanetypes.AppInAnyNamespaceConfig{
-		Enabled: ptr.To(in.GetEnabled()),
+		Enabled: new(in.GetEnabled()),
 	}
 }
 
@@ -634,7 +633,7 @@ func ApplicationSetExtension(in *argocdv1.ApplicationSetExtension) *crossplanety
 		return nil
 	}
 	return &crossplanetypes.ApplicationSetExtension{
-		Enabled: ptr.To(in.GetEnabled()),
+		Enabled: new(in.GetEnabled()),
 	}
 }
 
@@ -648,7 +647,7 @@ func AppReconciliationsRateLimiting(in *argocdv1.AppReconciliationsRateLimiting)
 	if in.GetBucketRateLimiting() != nil {
 		bucket := in.GetBucketRateLimiting()
 		rl.BucketRateLimiting = &crossplanetypes.BucketRateLimiting{
-			Enabled:    ptr.To(bucket.GetEnabled()),
+			Enabled:    new(bucket.GetEnabled()),
 			BucketSize: bucket.GetBucketSize(),
 			BucketQps:  bucket.GetBucketQps(),
 		}
@@ -657,7 +656,7 @@ func AppReconciliationsRateLimiting(in *argocdv1.AppReconciliationsRateLimiting)
 	if in.GetItemRateLimiting() != nil {
 		item := in.GetItemRateLimiting()
 		rl.ItemRateLimiting = &crossplanetypes.ItemRateLimiting{
-			Enabled:         ptr.To(item.GetEnabled()),
+			Enabled:         new(item.GetEnabled()),
 			FailureCooldown: item.GetFailureCooldown(),
 			BaseDelay:       item.GetBaseDelay(),
 			MaxDelay:        item.GetMaxDelay(),

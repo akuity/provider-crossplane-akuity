@@ -1,10 +1,7 @@
 package fixtures
 
 import (
-	"k8s.io/utils/ptr"
-
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
@@ -49,7 +46,7 @@ var (
 
 	AkuityAppsetPolicy = &akuitytypes.AppsetPolicy{
 		Policy:         "policy",
-		OverridePolicy: ptr.To(true),
+		OverridePolicy: new(true),
 	}
 
 	ArgocdAppsetPolicy = &argocdv1.AppsetPolicy{
@@ -59,7 +56,7 @@ var (
 
 	CrossplaneAppsetPolicy = &crossplanetypes.AppsetPolicy{
 		Policy:         "policy",
-		OverridePolicy: ptr.To(true),
+		OverridePolicy: new(true),
 	}
 
 	AkuityAppSetDelegate = &akuitytypes.AppSetDelegate{
@@ -81,7 +78,7 @@ var (
 	}
 
 	AkuityImageUpdaterDelegate = &akuitytypes.ImageUpdaterDelegate{
-		ControlPlane: ptr.To(true),
+		ControlPlane: new(true),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -95,14 +92,14 @@ var (
 	}
 
 	CrossplaneImageUpdateDelegate = &crossplanetypes.ImageUpdaterDelegate{
-		ControlPlane: ptr.To(true),
+		ControlPlane: new(true),
 		ManagedCluster: &crossplanetypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
 	}
 
 	AkuityRepoServerDelegate = &akuitytypes.RepoServerDelegate{
-		ControlPlane: ptr.To(true),
+		ControlPlane: new(true),
 		ManagedCluster: &akuitytypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -116,7 +113,7 @@ var (
 	}
 
 	CrossplaneRepoServerDelegate = &crossplanetypes.RepoServerDelegate{
-		ControlPlane: ptr.To(true),
+		ControlPlane: new(true),
 		ManagedCluster: &crossplanetypes.ManagedCluster{
 			ClusterName: "test-cluster",
 		},
@@ -189,10 +186,10 @@ var (
 	}
 
 	AkuityClusterCustomization = &akuitytypes.ClusterCustomization{
-		AutoUpgradeDisabled: ptr.To(true),
+		AutoUpgradeDisabled: new(true),
 		Kustomization:       Kustomization,
-		AppReplication:      ptr.To(true),
-		RedisTunneling:      ptr.To(true),
+		AppReplication:      new(true),
+		RedisTunneling:      new(true),
 	}
 
 	ArgocdClusterCustomization = &argocdv1.ClusterCustomization{
@@ -203,18 +200,18 @@ var (
 	}
 
 	CrossplaneClusterCustomization = &crossplanetypes.ClusterCustomization{
-		AutoUpgradeDisabled:   ptr.To(true),
+		AutoUpgradeDisabled:   new(true),
 		Kustomization:         KustomizationYAML,
-		AppReplication:        ptr.To(true),
-		RedisTunneling:        ptr.To(true),
-		ServerSideDiffEnabled: ptr.To(false),
+		AppReplication:        new(true),
+		RedisTunneling:        new(true),
+		ServerSideDiffEnabled: new(false),
 	}
 
 	AkuityIntelligenceExtension = &akuitytypes.AkuityIntelligenceExtension{
-		Enabled:                  ptr.To(true),
+		Enabled:                  new(true),
 		AllowedGroups:            []string{"admin"},
 		AllowedUsernames:         []string{"admin"},
-		AiSupportEngineerEnabled: ptr.To(true),
+		AiSupportEngineerEnabled: new(true),
 		ModelVersion:             "gpt-4.1",
 	}
 
@@ -227,10 +224,10 @@ var (
 	}
 
 	CrossplaneIntelligenceExtension = &crossplanetypes.AkuityIntelligenceExtension{
-		Enabled:                  ptr.To(true),
+		Enabled:                  new(true),
 		AllowedGroups:            []string{"admin"},
 		AllowedUsernames:         []string{"admin"},
-		AiSupportEngineerEnabled: ptr.To(true),
+		AiSupportEngineerEnabled: new(true),
 		ModelVersion:             "gpt-4.1",
 	}
 
@@ -263,7 +260,7 @@ var (
 
 	AkuityKubeVisionConfig = &akuitytypes.KubeVisionConfig{
 		CveScanConfig: &akuitytypes.CveScanConfig{
-			ScanEnabled:    ptr.To(true),
+			ScanEnabled:    new(true),
 			RescanInterval: "",
 		},
 	}
@@ -277,13 +274,13 @@ var (
 
 	CrossplaneKubeVisionConfig = &crossplanetypes.KubeVisionConfig{
 		CveScanConfig: &crossplanetypes.CveScanConfig{
-			ScanEnabled:    ptr.To(true),
+			ScanEnabled:    new(true),
 			RescanInterval: "",
 		},
 	}
 
 	AkuityAppInAnyNamespaceConfig = &akuitytypes.AppInAnyNamespaceConfig{
-		Enabled: ptr.To(true),
+		Enabled: new(true),
 	}
 
 	ArgocdAppInAnyNamespaceConfig = &argocdv1.AppInAnyNamespaceConfig{
@@ -291,7 +288,7 @@ var (
 	}
 
 	CrossplaneAppInAnyNamespaceConfig = &crossplanetypes.AppInAnyNamespaceConfig{
-		Enabled: ptr.To(true),
+		Enabled: new(true),
 	}
 
 	AkuityAppsetPlugins = []*akuitytypes.AppsetPlugins{
@@ -340,7 +337,7 @@ var (
 	}
 
 	AkuityApplicationSetExtension = &akuitytypes.ApplicationSetExtension{
-		Enabled: ptr.To(true),
+		Enabled: new(true),
 	}
 
 	ArgocdApplicationSetExtension = &argocdv1.ApplicationSetExtension{
@@ -348,17 +345,17 @@ var (
 	}
 
 	CrossplaneApplicationSetExtension = &crossplanetypes.ApplicationSetExtension{
-		Enabled: ptr.To(true),
+		Enabled: new(true),
 	}
 
 	AkuityAppReconciliationsRateLimiting = &akuitytypes.AppReconciliationsRateLimiting{
 		BucketRateLimiting: &akuitytypes.BucketRateLimiting{
-			Enabled:    ptr.To(true),
+			Enabled:    new(true),
 			BucketSize: 5,
 			BucketQps:  10,
 		},
 		ItemRateLimiting: &akuitytypes.ItemRateLimiting{
-			Enabled:         ptr.To(true),
+			Enabled:         new(true),
 			FailureCooldown: 30,
 			BaseDelay:       1,
 			MaxDelay:        10,
@@ -383,12 +380,12 @@ var (
 
 	CrossplaneAppReconciliationsRateLimiting = &crossplanetypes.AppReconciliationsRateLimiting{
 		BucketRateLimiting: &crossplanetypes.BucketRateLimiting{
-			Enabled:    ptr.To(true),
+			Enabled:    new(true),
 			BucketSize: 5,
 			BucketQps:  10,
 		},
 		ItemRateLimiting: &crossplanetypes.ItemRateLimiting{
-			Enabled:         ptr.To(true),
+			Enabled:         new(true),
 			FailureCooldown: 30,
 			BaseDelay:       1,
 			MaxDelay:        10,
@@ -399,27 +396,27 @@ var (
 	AkuityInstanceSpec = akuitytypes.InstanceSpec{
 		IpAllowList:                     AkuityIpAllowList,
 		Subdomain:                       "example.com",
-		DeclarativeManagementEnabled:    ptr.To(true),
+		DeclarativeManagementEnabled:    new(true),
 		Extensions:                      AkuityInstallEntryList,
 		ClusterCustomizationDefaults:    AkuityClusterCustomization,
-		ImageUpdaterEnabled:             ptr.To(true),
-		BackendIpAllowListEnabled:       ptr.To(true),
+		ImageUpdaterEnabled:             new(true),
+		BackendIpAllowListEnabled:       new(true),
 		RepoServerDelegate:              AkuityRepoServerDelegate,
-		AuditExtensionEnabled:           ptr.To(true),
-		SyncHistoryExtensionEnabled:     ptr.To(true),
+		AuditExtensionEnabled:           new(true),
+		SyncHistoryExtensionEnabled:     new(true),
 		ImageUpdaterDelegate:            AkuityImageUpdaterDelegate,
 		AppSetDelegate:                  AkuityAppSetDelegate,
 		AppsetPolicy:                    AkuityAppsetPolicy,
 		HostAliases:                     AkuityHostAliasesList,
 		Fqdn:                            "",
-		MultiClusterK8SDashboardEnabled: ptr.To(true),
+		MultiClusterK8SDashboardEnabled: new(true),
 		AkuityIntelligenceExtension:     AkuityIntelligenceExtension,
 		ImageUpdaterVersion:             "",
 		CustomDeprecatedApis:            AkuityCustomDeprecatedApis,
 		KubeVisionConfig:                AkuityKubeVisionConfig,
 		AppInAnyNamespaceConfig:         AkuityAppInAnyNamespaceConfig,
 		Basepath:                        "",
-		AppsetProgressiveSyncsEnabled:   ptr.To(true),
+		AppsetProgressiveSyncsEnabled:   new(true),
 		AppsetPlugins:                   AkuityAppsetPlugins,
 		ApplicationSetExtension:         AkuityApplicationSetExtension,
 		AppReconciliationsRateLimiting:  AkuityAppReconciliationsRateLimiting,
@@ -458,13 +455,13 @@ var (
 		ClusterCustomizationDefaults:    CrossplaneClusterCustomization,
 		IpAllowList:                     CrossplaneIpAllowList,
 		Subdomain:                       "example.com",
-		DeclarativeManagementEnabled:    ptr.To(true),
+		DeclarativeManagementEnabled:    new(true),
 		Extensions:                      CrossplaneInstallEntryList,
-		ImageUpdaterEnabled:             ptr.To(true),
-		BackendIpAllowListEnabled:       ptr.To(true),
+		ImageUpdaterEnabled:             new(true),
+		BackendIpAllowListEnabled:       new(true),
 		RepoServerDelegate:              CrossplaneRepoServerDelegate,
-		AuditExtensionEnabled:           ptr.To(true),
-		SyncHistoryExtensionEnabled:     ptr.To(true),
+		AuditExtensionEnabled:           new(true),
+		SyncHistoryExtensionEnabled:     new(true),
 		ImageUpdaterDelegate:            CrossplaneImageUpdateDelegate,
 		AppSetDelegate:                  CrossplaneAppSetDelegate,
 		AppsetPolicy:                    CrossplaneAppsetPolicy,
@@ -476,7 +473,7 @@ var (
 		KubeVisionConfig:                CrossplaneKubeVisionConfig,
 		AppInAnyNamespaceConfig:         CrossplaneAppInAnyNamespaceConfig,
 		Basepath:                        "",
-		AppsetProgressiveSyncsEnabled:   ptr.To(true),
+		AppsetProgressiveSyncsEnabled:   new(true),
 		AppsetPlugins:                   CrossplaneAppsetPlugins,
 		ApplicationSetExtension:         CrossplaneApplicationSetExtension,
 		AppReconciliationsRateLimiting:  CrossplaneAppReconciliationsRateLimiting,

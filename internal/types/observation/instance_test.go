@@ -20,15 +20,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
-	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
-	"k8s.io/utils/ptr"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
+	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	argocdtypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/argocd/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
@@ -129,7 +128,7 @@ func TestInstanceArgoCDSpec_IgnoresLegacyAssistant(t *testing.T) {
 
 			observed, err := observation.InstanceArgoCDSpec(wire)
 			require.NoError(t, err)
-			require.Equal(t, ptr.To(true), observed.AuditExtensionEnabled)
+			require.Equal(t, new(true), observed.AuditExtensionEnabled)
 			encoded, err := json.Marshal(observed)
 			require.NoError(t, err)
 			var fields map[string]json.RawMessage
@@ -151,8 +150,8 @@ func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 						MatchLabels: map[string]string{"cluster": "prod"},
 						MatchExpressions: []*argocdv1.LabelSelectorRequirement{
 							{
-								Key:      ptr.To("env"),
-								Operator: ptr.To("In"),
+								Key:      new("env"),
+								Operator: new("In"),
 								Values:   []string{"prod", "stage"},
 							},
 						},
@@ -170,17 +169,17 @@ func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 					Secrets: &argocdv1.ObjectSelector{
 						MatchExpressions: []*argocdv1.LabelSelectorRequirement{
 							{
-								Key:      ptr.To("team"),
-								Operator: ptr.To("Exists"),
+								Key:      new("team"),
+								Operator: new("Exists"),
 							},
 						},
 					},
 				},
 			},
 		},
-		MetricsIngressUsername:        ptr.To("metrics-user"),
-		MetricsIngressPasswordHash:    ptr.To("metrics-hash"),
-		PrivilegedNotificationCluster: ptr.To("notifications"),
+		MetricsIngressUsername:        new("metrics-user"),
+		MetricsIngressPasswordHash:    new("metrics-hash"),
+		PrivilegedNotificationCluster: new("notifications"),
 		ClusterAddonsExtension: &argocdv1.ClusterAddonsExtension{
 			Enabled:          true,
 			AllowedUsernames: []string{"alice"},
@@ -192,18 +191,18 @@ func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 				AdditionalVersions: []string{"v4.5.7"},
 			},
 		},
-		PinnedAgentVersion: ptr.To("0.5.88"),
+		PinnedAgentVersion: new("0.5.88"),
 	}
 
 	result, err := observation.InstanceArgoCDSpec(spec)
 	require.NoError(t, err)
 
 	assert.Equal(t, &crossplanetypes.ClusterCustomization{
-		AutoUpgradeDisabled:   ptr.To(false),
+		AutoUpgradeDisabled:   new(false),
 		Kustomization:         "",
-		AppReplication:        ptr.To(false),
-		RedisTunneling:        ptr.To(false),
-		ServerSideDiffEnabled: ptr.To(true),
+		AppReplication:        new(false),
+		RedisTunneling:        new(false),
+		ServerSideDiffEnabled: new(true),
 	}, result.ClusterCustomizationDefaults)
 	assert.Equal(t, &crossplanetypes.SecretsManagementConfig{
 		Sources: []*crossplanetypes.ClusterSecretMapping{
@@ -212,8 +211,8 @@ func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 					MatchLabels: map[string]string{"cluster": "prod"},
 					MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
 						{
-							Key:      ptr.To("env"),
-							Operator: ptr.To("In"),
+							Key:      new("env"),
+							Operator: new("In"),
 							Values:   []string{"prod", "stage"},
 						},
 					},
@@ -231,20 +230,20 @@ func TestInstanceArgoCDSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 				Secrets: &crossplanetypes.ObjectSelector{
 					MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
 						{
-							Key:      ptr.To("team"),
-							Operator: ptr.To("Exists"),
+							Key:      new("team"),
+							Operator: new("Exists"),
 						},
 					},
 				},
 			},
 		},
 	}, result.Secrets)
-	assert.Equal(t, ptr.To("metrics-user"), result.MetricsIngressUsername)
-	assert.Equal(t, ptr.To("metrics-hash"), result.MetricsIngressPasswordHash)
-	assert.Equal(t, ptr.To("notifications"), result.PrivilegedNotificationCluster)
-	assert.Equal(t, ptr.To("0.5.88"), result.PinnedAgentVersion)
+	assert.Equal(t, new("metrics-user"), result.MetricsIngressUsername)
+	assert.Equal(t, new("metrics-hash"), result.MetricsIngressPasswordHash)
+	assert.Equal(t, new("notifications"), result.PrivilegedNotificationCluster)
+	assert.Equal(t, new("0.5.88"), result.PinnedAgentVersion)
 	assert.Equal(t, &crossplanetypes.ClusterAddonsExtension{
-		Enabled:          ptr.To(true),
+		Enabled:          new(true),
 		AllowedUsernames: []string{"alice"},
 		AllowedGroups:    []string{"admins"},
 	}, result.ClusterAddonsExtension)
@@ -340,15 +339,15 @@ func TestInstance(t *testing.T) {
 func TestInstance_RedactsMetricsIngressPasswordHash(t *testing.T) {
 	instance := &argocdv1.Instance{
 		Spec: &argocdv1.InstanceSpec{
-			MetricsIngressUsername:     ptr.To("metrics-user"),
-			MetricsIngressPasswordHash: ptr.To("metrics-hash"),
+			MetricsIngressUsername:     new("metrics-user"),
+			MetricsIngressPasswordHash: new("metrics-hash"),
 		},
 	}
 
 	result, err := observation.Instance(instance, &argocdv1.ExportInstanceResponse{})
 	require.NoError(t, err)
 
-	assert.Equal(t, ptr.To("metrics-user"), result.ArgoCD.Spec.InstanceSpec.MetricsIngressUsername)
+	assert.Equal(t, new("metrics-user"), result.ArgoCD.Spec.InstanceSpec.MetricsIngressUsername)
 	assert.Nil(t, result.ArgoCD.Spec.InstanceSpec.MetricsIngressPasswordHash)
 }
 
@@ -411,7 +410,7 @@ func TestParameters(t *testing.T) {
 				Name:           "param1",
 				Title:          "Parameter 1",
 				Tooltip:        "Tooltip 1",
-				Required:       ptr.To(true),
+				Required:       new(true),
 				ItemType:       "item1",
 				CollectionType: "collection1",
 				String_:        "string1",
@@ -422,7 +421,7 @@ func TestParameters(t *testing.T) {
 				Name:           "param2",
 				Title:          "Parameter 2",
 				Tooltip:        "Tooltip 2",
-				Required:       ptr.To(false),
+				Required:       new(false),
 				ItemType:       "item2",
 				CollectionType: "collection2",
 				String_:        "string2",
@@ -442,7 +441,7 @@ func TestParameters(t *testing.T) {
 				Name:           "param1",
 				Title:          "Parameter 1",
 				Tooltip:        "Tooltip 1",
-				Required:       ptr.To(true),
+				Required:       new(true),
 				ItemType:       "item1",
 				CollectionType: "collection1",
 				String_:        "string1",
@@ -453,7 +452,7 @@ func TestParameters(t *testing.T) {
 				Name:           "param2",
 				Title:          "Parameter 2",
 				Tooltip:        "Tooltip 2",
-				Required:       ptr.To(false),
+				Required:       new(false),
 				ItemType:       "item2",
 				CollectionType: "collection2",
 				String_:        "string2",

@@ -22,16 +22,15 @@ import (
 	"strings"
 	"time"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -97,14 +96,14 @@ func APIToSpec(instanceID string, managedCluster v1alpha1.ClusterParameters, clu
 		Annotations: annotations,
 		ClusterSpec: generated.ClusterSpec{
 			Description:     cluster.GetDescription(),
-			NamespaceScoped: ptr.To(cluster.GetData().GetNamespaceScoped()),
+			NamespaceScoped: new(cluster.GetData().GetNamespaceScoped()),
 			Data: generated.ClusterData{
 				Size:                            generated.ClusterSize(size),
-				AutoUpgradeDisabled:             ptr.To(cluster.GetData().GetAutoUpgradeDisabled()),
+				AutoUpgradeDisabled:             new(cluster.GetData().GetAutoUpgradeDisabled()),
 				Kustomization:                   string(kustomizationYAML),
-				AppReplication:                  ptr.To(cluster.GetData().GetAppReplication()),
+				AppReplication:                  new(cluster.GetData().GetAppReplication()),
 				TargetVersion:                   cluster.GetData().GetTargetVersion(),
-				RedisTunneling:                  ptr.To(cluster.GetData().GetRedisTunneling()),
+				RedisTunneling:                  new(cluster.GetData().GetRedisTunneling()),
 				DirectClusterSpec:               apiToDirectClusterSpec(cluster.GetData().GetDirectClusterSpec()),
 				DatadogAnnotationsEnabled:       cluster.GetData().DatadogAnnotationsEnabled, //nolint:all
 				EksAddonEnabled:                 cluster.GetData().EksAddonEnabled,           //nolint:all
@@ -419,7 +418,7 @@ func apiToCompatibility(in *argocdv1.ClusterCompatibility) *generated.ClusterCom
 		return nil
 	}
 	return &generated.ClusterCompatibility{
-		Ipv6Only: ptr.To(in.GetIpv6Only()),
+		Ipv6Only: new(in.GetIpv6Only()),
 	}
 }
 
@@ -434,6 +433,6 @@ func apiToArgocdNotificationsSettings(in *argocdv1.ClusterArgoCDNotificationsSet
 		return nil
 	}
 	return &generated.ClusterArgoCDNotificationsSettings{
-		InClusterSettings: ptr.To(in.GetInClusterSettings()),
+		InClusterSettings: new(in.GetInClusterSettings()),
 	}
 }

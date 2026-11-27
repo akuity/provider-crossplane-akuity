@@ -20,12 +20,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"k8s.io/utils/ptr"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	generated "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )
@@ -46,24 +45,24 @@ func TestSpecToAPI_PropagatesAllCurrentGeneratedClusterDataFields(t *testing.T) 
 	desired := fixtures.CrossplaneCluster
 	desired.ClusterSpec.Data.DirectClusterSpec = &generated.DirectClusterSpec{
 		ClusterType:     "kargo",
-		KargoInstanceId: ptr.To("kargo-instance"),
+		KargoInstanceId: new("kargo-instance"),
 	}
 	desired.ClusterSpec.Data.ArgocdNotificationsSettings = &generated.ClusterArgoCDNotificationsSettings{
-		InClusterSettings: ptr.To(true),
+		InClusterSettings: new(true),
 	}
-	desired.ClusterSpec.Data.ServerSideDiffEnabled = ptr.To(true)
-	desired.ClusterSpec.Data.MaintenanceMode = ptr.To(true)
-	desired.ClusterSpec.Data.MaintenanceModeExpiry = ptr.To("2026-04-26T12:00:00Z")
+	desired.ClusterSpec.Data.ServerSideDiffEnabled = new(true)
+	desired.ClusterSpec.Data.MaintenanceMode = new(true)
+	desired.ClusterSpec.Data.MaintenanceModeExpiry = new("2026-04-26T12:00:00Z")
 
 	wire, err := SpecToAPI(desired)
 	require.NoError(t, err)
 
 	require.NotNil(t, wire.Spec.Data.DirectClusterSpec)
 	assert.Equal(t, "kargo", string(wire.Spec.Data.DirectClusterSpec.ClusterType))
-	assert.Equal(t, ptr.To("kargo-instance"), wire.Spec.Data.DirectClusterSpec.KargoInstanceId)
+	assert.Equal(t, new("kargo-instance"), wire.Spec.Data.DirectClusterSpec.KargoInstanceId)
 	require.NotNil(t, wire.Spec.Data.ArgocdNotificationsSettings)
-	assert.Equal(t, ptr.To(true), wire.Spec.Data.ArgocdNotificationsSettings.InClusterSettings)
-	assert.Equal(t, ptr.To(true), wire.Spec.Data.ServerSideDiffEnabled)
+	assert.Equal(t, new(true), wire.Spec.Data.ArgocdNotificationsSettings.InClusterSettings)
+	assert.Equal(t, new(true), wire.Spec.Data.ServerSideDiffEnabled)
 	assert.Nil(t, wire.Spec.Data.MaintenanceMode)
 	assert.Nil(t, wire.Spec.Data.MaintenanceModeExpiry)
 }
@@ -190,20 +189,20 @@ func TestAPIToSpec_PropagatesAllCurrentGeneratedClusterDataFields(t *testing.T) 
 	apiCluster := proto.Clone(fixtures.ArgocdCluster).(*argocdv1.Cluster)
 	apiCluster.Data.DirectClusterSpec = &argocdv1.DirectClusterSpec{
 		ClusterType:     argocdv1.DirectClusterType_DIRECT_CLUSTER_TYPE_KARGO,
-		KargoInstanceId: ptr.To("kargo-instance"),
+		KargoInstanceId: new("kargo-instance"),
 	}
 	apiCluster.Data.ArgocdNotificationsSettings = &argocdv1.ClusterArgoCDNotificationsSettings{InClusterSettings: true}
-	apiCluster.Data.ServerSideDiffEnabled = ptr.To(true)
+	apiCluster.Data.ServerSideDiffEnabled = new(true)
 
 	actualCluster, err := APIToSpec(fixtures.InstanceID, fixtures.CrossplaneCluster, apiCluster)
 	require.NoError(t, err)
 
 	assert.Equal(t, &generated.DirectClusterSpec{
 		ClusterType:     "kargo",
-		KargoInstanceId: ptr.To("kargo-instance"),
+		KargoInstanceId: new("kargo-instance"),
 	}, actualCluster.ClusterSpec.Data.DirectClusterSpec)
 	assert.Equal(t, &generated.ClusterArgoCDNotificationsSettings{
-		InClusterSettings: ptr.To(true),
+		InClusterSettings: new(true),
 	}, actualCluster.ClusterSpec.Data.ArgocdNotificationsSettings)
-	assert.Equal(t, ptr.To(true), actualCluster.ClusterSpec.Data.ServerSideDiffEnabled)
+	assert.Equal(t, new(true), actualCluster.ClusterSpec.Data.ServerSideDiffEnabled)
 }

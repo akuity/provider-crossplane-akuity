@@ -20,12 +20,11 @@ import (
 	"testing"
 	"time"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"k8s.io/utils/ptr"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
@@ -71,7 +70,7 @@ func TestCluster(t *testing.T) {
 		},
 		ClusterSpec: crossplanetypes.ClusterSpec{
 			Description:     fixtures.ArgocdCluster.GetDescription(),
-			NamespaceScoped: ptr.To(fixtures.ArgocdCluster.GetData().GetNamespaceScoped()),
+			NamespaceScoped: new(fixtures.ArgocdCluster.GetData().GetNamespaceScoped()),
 			Data: crossplanetypes.ClusterData{
 				Size:                fixtures.CrossplaneCluster.ClusterSpec.Data.Size,
 				AutoUpgradeDisabled: fixtures.ArgocdCluster.GetData().AutoUpgradeDisabled,
@@ -95,24 +94,24 @@ func TestCluster_ClusterSpecMirrorIncludesAllClusterDataFields(t *testing.T) {
 		Description: "cluster with full data",
 		Data: &argocdv1.ClusterData{
 			Size:                argocdv1.ClusterSize_CLUSTER_SIZE_MEDIUM,
-			AutoUpgradeDisabled: ptr.To(true),
+			AutoUpgradeDisabled: new(true),
 			Kustomization:       fixtures.KustomizationPB,
-			AppReplication:      ptr.To(true),
+			AppReplication:      new(true),
 			TargetVersion:       "v1.2.3",
-			RedisTunneling:      ptr.To(true),
+			RedisTunneling:      new(true),
 			DirectClusterSpec: &argocdv1.DirectClusterSpec{
 				ClusterType:     argocdv1.DirectClusterType_DIRECT_CLUSTER_TYPE_KARGO,
-				KargoInstanceId: ptr.To("kargo-1"),
-				Server:          ptr.To("https://kubernetes.example.com"),
-				Organization:    ptr.To("org-1"),
-				Token:           ptr.To("token-1"),
-				CaData:          ptr.To("ca-1"),
+				KargoInstanceId: new("kargo-1"),
+				Server:          new("https://kubernetes.example.com"),
+				Organization:    new("org-1"),
+				Token:           new("token-1"),
+				CaData:          new("ca-1"),
 			},
-			DatadogAnnotationsEnabled:       ptr.To(true),
-			EksAddonEnabled:                 ptr.To(false),
+			DatadogAnnotationsEnabled:       new(true),
+			EksAddonEnabled:                 new(false),
 			ManagedClusterConfig:            &argocdv1.ManagedClusterConfig{SecretName: "cluster-secret", SecretKey: "kubeconfig"},
-			MaintenanceMode:                 ptr.To(true),
-			MultiClusterK8SDashboardEnabled: ptr.To(true),
+			MaintenanceMode:                 new(true),
+			MultiClusterK8SDashboardEnabled: new(true),
 			AutoscalerConfig: &argocdv1.AutoScalerConfig{
 				ApplicationController: &argocdv1.AppControllerAutoScalingConfig{
 					ResourceMinimum: &argocdv1.Resources{Cpu: "500m", Mem: "1Gi"},
@@ -128,9 +127,9 @@ func TestCluster_ClusterSpecMirrorIncludesAllClusterDataFields(t *testing.T) {
 			Project:                     "project-a",
 			Compatibility:               &argocdv1.ClusterCompatibility{Ipv6Only: true},
 			ArgocdNotificationsSettings: &argocdv1.ClusterArgoCDNotificationsSettings{InClusterSettings: true},
-			ServerSideDiffEnabled:       ptr.To(true),
+			ServerSideDiffEnabled:       new(true),
 			MaintenanceModeExpiry:       timestamppb.New(expiry),
-			PodInheritMetadata:          ptr.To(true),
+			PodInheritMetadata:          new(true),
 		},
 	}
 
@@ -139,24 +138,24 @@ func TestCluster_ClusterSpecMirrorIncludesAllClusterDataFields(t *testing.T) {
 
 	assert.Equal(t, crossplanetypes.ClusterData{
 		Size:                "medium",
-		AutoUpgradeDisabled: ptr.To(true),
+		AutoUpgradeDisabled: new(true),
 		Kustomization:       fixtures.KustomizationYAML,
-		AppReplication:      ptr.To(true),
+		AppReplication:      new(true),
 		TargetVersion:       "v1.2.3",
-		RedisTunneling:      ptr.To(true),
+		RedisTunneling:      new(true),
 		DirectClusterSpec: &crossplanetypes.DirectClusterSpec{
 			ClusterType:     "kargo",
-			KargoInstanceId: ptr.To("kargo-1"),
-			Server:          ptr.To("https://kubernetes.example.com"),
-			Organization:    ptr.To("org-1"),
-			Token:           ptr.To("token-1"),
-			CaData:          ptr.To("ca-1"),
+			KargoInstanceId: new("kargo-1"),
+			Server:          new("https://kubernetes.example.com"),
+			Organization:    new("org-1"),
+			Token:           new("token-1"),
+			CaData:          new("ca-1"),
 		},
-		DatadogAnnotationsEnabled:       ptr.To(true),
-		EksAddonEnabled:                 ptr.To(false),
+		DatadogAnnotationsEnabled:       new(true),
+		EksAddonEnabled:                 new(false),
 		ManagedClusterConfig:            &crossplanetypes.ManagedClusterConfig{SecretName: "cluster-secret", SecretKey: "kubeconfig"},
-		MaintenanceMode:                 ptr.To(true),
-		MultiClusterK8SDashboardEnabled: ptr.To(true),
+		MaintenanceMode:                 new(true),
+		MultiClusterK8SDashboardEnabled: new(true),
 		AutoscalerConfig: &crossplanetypes.AutoScalerConfig{
 			ApplicationController: &crossplanetypes.AppControllerAutoScalingConfig{
 				ResourceMinimum: &crossplanetypes.Resources{Cpu: "500m", Mem: "1Gi"},
@@ -170,11 +169,11 @@ func TestCluster_ClusterSpecMirrorIncludesAllClusterDataFields(t *testing.T) {
 			},
 		},
 		Project:                     "project-a",
-		Compatibility:               &crossplanetypes.ClusterCompatibility{Ipv6Only: ptr.To(true)},
-		ArgocdNotificationsSettings: &crossplanetypes.ClusterArgoCDNotificationsSettings{InClusterSettings: ptr.To(true)},
-		ServerSideDiffEnabled:       ptr.To(true),
-		MaintenanceModeExpiry:       ptr.To(expiry.Format(time.RFC3339)),
-		PodInheritMetadata:          ptr.To(true),
+		Compatibility:               &crossplanetypes.ClusterCompatibility{Ipv6Only: new(true)},
+		ArgocdNotificationsSettings: &crossplanetypes.ClusterArgoCDNotificationsSettings{InClusterSettings: new(true)},
+		ServerSideDiffEnabled:       new(true),
+		MaintenanceModeExpiry:       new(expiry.Format(time.RFC3339)),
+		PodInheritMetadata:          new(true),
 	}, actual.ClusterSpec.Data)
 }
 

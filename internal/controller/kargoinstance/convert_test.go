@@ -21,8 +21,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	secretsv1 "github.com/akuity/api-client-go/pkg/api/gen/types/secrets/v1"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,15 +28,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	secretsv1 "github.com/akuity/api-client-go/pkg/api/gen/types/secrets/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
-func mustRawMap(t *testing.T, obj map[string]interface{}) runtime.RawExtension {
+func mustRawMap(t *testing.T, obj map[string]any) runtime.RawExtension {
 	t.Helper()
 	b, err := json.Marshal(obj)
 	require.NoError(t, err)
@@ -172,7 +171,7 @@ func TestKubeSecretToPB_Populated(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pb)
 	m := pb.AsMap()
-	md, _ := m["metadata"].(map[string]interface{})
+	md, _ := m["metadata"].(map[string]any)
 	assert.Equal(t, "kargo-secret", md["name"])
 }
 
@@ -181,9 +180,9 @@ func TestBuildKargoConfigMapPB_Populated(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pb)
 	m := pb.AsMap()
-	md, _ := m["metadata"].(map[string]interface{})
+	md, _ := m["metadata"].(map[string]any)
 	assert.Equal(t, kargoCMKey, md["name"])
-	data, _ := m["data"].(map[string]interface{})
+	data, _ := m["data"].(map[string]any)
 	assert.Equal(t, "b", data["a"])
 }
 
@@ -191,7 +190,7 @@ func TestBuildKargoConfigMapPB_CanonicalizesKnownAliases(t *testing.T) {
 	pb, err := buildKargoConfigMapPB(map[string]string{"admin_account_token_ttl": "24h"})
 	require.NoError(t, err)
 	require.NotNil(t, pb)
-	data, _ := pb.AsMap()["data"].(map[string]interface{})
+	data, _ := pb.AsMap()["data"].(map[string]any)
 	assert.Equal(t, "24h", data["adminAccountTokenTtl"])
 	assert.Nil(t, data["admin_account_token_ttl"])
 }
@@ -200,7 +199,7 @@ func TestBuildKargoConfigMapPB_PreservesFutureKeys(t *testing.T) {
 	pb, err := buildKargoConfigMapPB(map[string]string{"futurePlatformKey": "value"})
 	require.NoError(t, err)
 	require.NotNil(t, pb)
-	data, _ := pb.AsMap()["data"].(map[string]interface{})
+	data, _ := pb.AsMap()["data"].(map[string]any)
 	assert.Equal(t, "value", data["futurePlatformKey"])
 }
 
@@ -285,11 +284,11 @@ func TestSpecToPB_InjectsResolvedDex(t *testing.T) {
 	require.NotNil(t, pb)
 
 	m := pb.AsMap()
-	spec, _ := m["spec"].(map[string]interface{})
-	oidc, _ := spec["oidcConfig"].(map[string]interface{})
-	dex, _ := oidc["dexConfigSecret"].(map[string]interface{})
+	spec, _ := m["spec"].(map[string]any)
+	oidc, _ := spec["oidcConfig"].(map[string]any)
+	dex, _ := oidc["dexConfigSecret"].(map[string]any)
 	require.NotNil(t, dex, "dexConfigSecret should be populated on the wire payload")
-	ghEntry, _ := dex["github-client-secret"].(map[string]interface{})
+	ghEntry, _ := dex["github-client-secret"].(map[string]any)
 	require.NotNil(t, ghEntry, "each entry must be wrapped as {value: ...}")
 	assert.Equal(t, "gh-xyz", ghEntry["value"])
 }
@@ -307,13 +306,13 @@ func TestSpecToPB_NoResolvedDexLeavesSpecAlone(t *testing.T) {
 	require.NotNil(t, pb)
 
 	m := pb.AsMap()
-	spec, _ := m["spec"].(map[string]interface{})
-	oidc, _ := spec["oidcConfig"].(map[string]interface{})
+	spec, _ := m["spec"].(map[string]any)
+	oidc, _ := spec["oidcConfig"].(map[string]any)
 	// The wire field lacks omitempty so the key always appears, but
 	// when neither ref nor inline map is set the value is nil/empty.
 	dex := oidc["dexConfigSecret"]
 	if dex != nil {
-		asMap, ok := dex.(map[string]interface{})
+		asMap, ok := dex.(map[string]any)
 		require.True(t, ok, "dexConfigSecret should be an object when present")
 		assert.Empty(t, asMap, "no ref + no inline => empty map on wire")
 	}
@@ -321,29 +320,29 @@ func TestSpecToPB_NoResolvedDexLeavesSpecAlone(t *testing.T) {
 
 func TestSplitKargoResources_Routing(t *testing.T) {
 	in := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "kargo.akuity.io/v1alpha1", "kind": "Project",
-			"metadata": map[string]interface{}{"name": "app"},
+			"metadata": map[string]any{"name": "app"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "kargo.akuity.io/v1alpha1", "kind": "Warehouse",
-			"metadata": map[string]interface{}{"name": "wh"},
+			"metadata": map[string]any{"name": "wh"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "kargo.akuity.io/v1alpha1", "kind": "Stage",
-			"metadata": map[string]interface{}{"name": "dev"},
+			"metadata": map[string]any{"name": "dev"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1", "kind": "AnalysisTemplate",
-			"metadata": map[string]interface{}{"name": "canary"},
+			"metadata": map[string]any{"name": "canary"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "kargo.akuity.io/v1alpha1", "kind": "PromotionTask",
-			"metadata": map[string]interface{}{"name": "prom"},
+			"metadata": map[string]any{"name": "prom"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "kargo.akuity.io/v1alpha1", "kind": "ClusterPromotionTask",
-			"metadata": map[string]interface{}{"name": "cprom"},
+			"metadata": map[string]any{"name": "cprom"},
 		}),
 	}
 	got, err := splitKargoResources(in)
@@ -364,11 +363,11 @@ func TestSplitKargoResources_Routing(t *testing.T) {
 // drift rather than the export-based child index.
 func TestSplitKargoResources_RejectsSecrets(t *testing.T) {
 	in := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "v1", "kind": "Secret",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":   "repo-github",
-				"labels": map[string]interface{}{kargoCredTypeLabel: "git"},
+				"labels": map[string]any{kargoCredTypeLabel: "git"},
 			},
 		}),
 	}
@@ -379,7 +378,7 @@ func TestSplitKargoResources_RejectsSecrets(t *testing.T) {
 
 func TestSplitKargoResources_RejectsUnsupportedKind(t *testing.T) {
 	in := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "batch/v1", "kind": "Job",
 		}),
 	}
@@ -655,11 +654,11 @@ func TestKargoRepoCredsToPB_ShapeAndLabels(t *testing.T) {
 	require.Len(t, pbs, 1, "entries with empty data are dropped")
 
 	m := pbs[0].AsMap()
-	md, _ := m["metadata"].(map[string]interface{})
+	md, _ := m["metadata"].(map[string]any)
 	require.NotNil(t, md)
 	assert.Equal(t, "repo-github", md["name"])
 	assert.Equal(t, "platform", md["namespace"])
-	labels, _ := md["labels"].(map[string]interface{})
+	labels, _ := md["labels"].(map[string]any)
 	require.NotNil(t, labels)
 	assert.Equal(t, "git", labels[kargoCredTypeLabel])
 }
@@ -781,8 +780,8 @@ func TestApiToSpec_PropagatesAllCurrentGeneratedNestedSpecFields(t *testing.T) {
 						Secrets: &secretsv1.ObjectSelector{
 							MatchExpressions: []*secretsv1.LabelSelectorRequirement{
 								{
-									Key:      ptr.To("sync"),
-									Operator: ptr.To("Exists"),
+									Key:      new("sync"),
+									Operator: new("Exists"),
 								},
 							},
 						},
@@ -797,20 +796,20 @@ func TestApiToSpec_PropagatesAllCurrentGeneratedNestedSpecFields(t *testing.T) {
 	require.NoError(t, err)
 	spec := params.Kargo.KargoInstanceSpec
 
-	assert.Equal(t, ptr.To(true), spec.BackendIpAllowListEnabled)
+	assert.Equal(t, new(true), spec.BackendIpAllowListEnabled)
 	assert.Equal(t, []*crossplanetypes.KargoIPAllowListEntry{
 		{Ip: "203.0.113.10", Description: "office"},
 	}, spec.IpAllowList)
 	require.NotNil(t, spec.AgentCustomizationDefaults)
-	assert.Equal(t, ptr.To(true), spec.AgentCustomizationDefaults.AutoUpgradeDisabled)
+	assert.Equal(t, new(true), spec.AgentCustomizationDefaults.AutoUpgradeDisabled)
 	assert.Contains(t, spec.AgentCustomizationDefaults.Kustomization, "apiVersion: kustomize.config.k8s.io/v1beta1")
 	assert.Contains(t, spec.AgentCustomizationDefaults.Kustomization, "kind: Kustomization")
 	assert.Equal(t, "shard-a", spec.DefaultShardAgent)
 	assert.Equal(t, []string{"creds"}, spec.GlobalCredentialsNs)
 	assert.Equal(t, []string{"service-accounts"}, spec.GlobalServiceAccountNs)
 	assert.Equal(t, &crossplanetypes.AkuityIntelligence{
-		AiSupportEngineerEnabled: ptr.To(true),
-		Enabled:                  ptr.To(true),
+		AiSupportEngineerEnabled: new(true),
+		Enabled:                  new(true),
 		AllowedUsernames:         []string{"alice"},
 		AllowedGroups:            []string{"admins"},
 		ModelVersion:             "gpt-4.1",
@@ -821,7 +820,7 @@ func TestApiToSpec_PropagatesAllCurrentGeneratedNestedSpecFields(t *testing.T) {
 		MinFreightDeletionAge:   40,
 		MinPromotionDeletionAge: 50,
 	}, spec.GcConfig)
-	assert.Equal(t, ptr.To(true), spec.PromoControllerEnabled)
+	assert.Equal(t, new(true), spec.PromoControllerEnabled)
 	assert.Equal(t, []*crossplanetypes.ClusterSecretMapping{
 		{
 			Clusters: &crossplanetypes.ObjectSelector{
@@ -830,14 +829,14 @@ func TestApiToSpec_PropagatesAllCurrentGeneratedNestedSpecFields(t *testing.T) {
 			Secrets: &crossplanetypes.ObjectSelector{
 				MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
 					{
-						Key:      ptr.To("sync"),
-						Operator: ptr.To("Exists"),
+						Key:      new("sync"),
+						Operator: new("Exists"),
 					},
 				},
 			},
 		},
 	}, spec.Secrets.Sources)
-	assert.Equal(t, &crossplanetypes.KargoArgoCDUIConfig{IdpGroupsMapping: ptr.To(true)}, spec.ArgocdUi)
+	assert.Equal(t, &crossplanetypes.KargoArgoCDUIConfig{IdpGroupsMapping: new(true)}, spec.ArgocdUi)
 }
 
 // TestApiToSpec_PopulatesOidcConfig verifies the OidcConfig bridge:
@@ -883,8 +882,8 @@ func TestSpecToPB_PinnedAgentVersionOnWire(t *testing.T) {
 		value   string
 	}{
 		{"omitted keeps stored pin", nil, false, ""},
-		{"explicit empty unpins", ptr.To(""), true, ""},
-		{"pinned", ptr.To("0.5.88"), true, "0.5.88"},
+		{"explicit empty unpins", new(""), true, ""},
+		{"pinned", new("0.5.88"), true, "0.5.88"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -899,8 +898,8 @@ func TestSpecToPB_PinnedAgentVersionOnWire(t *testing.T) {
 			}
 			pb, err := specToPB(in, nil)
 			require.NoError(t, err)
-			spec, _ := pb.AsMap()["spec"].(map[string]interface{})
-			kis, _ := spec["kargoInstanceSpec"].(map[string]interface{})
+			spec, _ := pb.AsMap()["spec"].(map[string]any)
+			kis, _ := spec["kargoInstanceSpec"].(map[string]any)
 			got, ok := kis["pinnedAgentVersion"]
 			assert.Equal(t, tc.present, ok)
 			if tc.present {

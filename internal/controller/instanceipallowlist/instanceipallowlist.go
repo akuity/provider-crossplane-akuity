@@ -26,16 +26,6 @@ import (
 	"context"
 	"fmt"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	"google.golang.org/protobuf/types/known/structpb"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	k8stypes "k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
-
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -43,14 +33,20 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
+	"google.golang.org/protobuf/types/known/structpb"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/akuityio/provider-crossplane-akuity/internal/event"
-
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
+	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 )
 
 // Setup registers the controller with the manager.

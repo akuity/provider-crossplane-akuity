@@ -19,10 +19,9 @@ package v1alpha1
 import (
 	"reflect"
 
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 )
 
 // A ProviderConfigSpec defines the desired state of a ProviderConfig.
@@ -74,7 +73,7 @@ type ProviderConfigList struct {
 
 // ProviderConfig type metadata.
 var (
-	ProviderConfigKind             = reflect.TypeOf(ProviderConfig{}).Name()
+	ProviderConfigKind             = reflect.TypeFor[ProviderConfig]().Name()
 	ProviderConfigGroupKind        = schema.GroupKind{Group: Group, Kind: ProviderConfigKind}.String()
 	ProviderConfigKindAPIVersion   = ProviderConfigKind + "." + SchemeGroupVersion.String()
 	ProviderConfigGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigKind)

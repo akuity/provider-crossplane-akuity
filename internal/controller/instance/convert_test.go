@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/stretchr/testify/assert"
@@ -23,22 +22,22 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
 	crossplanetypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/crossplane/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/test/fixtures"
 )
 
-func mustRawMap(t *testing.T, obj map[string]interface{}) runtime.RawExtension {
+func mustRawMap(t *testing.T, obj map[string]any) runtime.RawExtension {
 	t.Helper()
 	raw, err := json.Marshal(obj)
 	require.NoError(t, err)
 	return runtime.RawExtension{Raw: raw}
 }
 
-func mustStruct(t *testing.T, obj map[string]interface{}) *structpb.Struct {
+func mustStruct(t *testing.T, obj map[string]any) *structpb.Struct {
 	t.Helper()
 	pb, err := structpb.NewStruct(obj)
 	require.NoError(t, err)
@@ -49,7 +48,7 @@ func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 	spec := crossplanetypes.InstanceSpec{
 		ClusterCustomizationDefaults: &crossplanetypes.ClusterCustomization{
 			Kustomization:         "{}\n",
-			ServerSideDiffEnabled: ptr.To(true),
+			ServerSideDiffEnabled: new(true),
 		},
 		Secrets: &crossplanetypes.SecretsManagementConfig{
 			Sources: []*crossplanetypes.ClusterSecretMapping{
@@ -60,20 +59,20 @@ func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 					Secrets: &crossplanetypes.ObjectSelector{
 						MatchExpressions: []*crossplanetypes.LabelSelectorRequirement{
 							{
-								Key:      ptr.To("sync"),
-								Operator: ptr.To("Exists"),
+								Key:      new("sync"),
+								Operator: new("Exists"),
 							},
 						},
 					},
 				},
 			},
 		},
-		MetricsIngressUsername:        ptr.To("metrics-user"),
-		MetricsIngressPasswordHash:    ptr.To("metrics-hash"),
-		PrivilegedNotificationCluster: ptr.To("notifications"),
-		PinnedAgentVersion:            ptr.To("0.5.88"),
+		MetricsIngressUsername:        new("metrics-user"),
+		MetricsIngressPasswordHash:    new("metrics-hash"),
+		PrivilegedNotificationCluster: new("notifications"),
+		PinnedAgentVersion:            new("0.5.88"),
 		ClusterAddonsExtension: &crossplanetypes.ClusterAddonsExtension{
-			Enabled:          ptr.To(true),
+			Enabled:          new(true),
 			AllowedUsernames: []string{"alice"},
 			AllowedGroups:    []string{"admins"},
 		},
@@ -89,18 +88,18 @@ func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotNil(t, wire.ClusterCustomizationDefaults)
-	assert.Equal(t, ptr.To(true), wire.ClusterCustomizationDefaults.ServerSideDiffEnabled)
+	assert.Equal(t, new(true), wire.ClusterCustomizationDefaults.ServerSideDiffEnabled)
 	assert.NotEmpty(t, wire.ClusterCustomizationDefaults.Kustomization.Raw)
 	require.NotNil(t, wire.Secrets)
 	assert.Equal(t, map[string]string{"cluster": "prod"}, wire.Secrets.Sources[0].Clusters.MatchLabels)
-	assert.Equal(t, ptr.To("sync"), wire.Secrets.Sources[0].Secrets.MatchExpressions[0].Key)
-	assert.Equal(t, ptr.To("Exists"), wire.Secrets.Sources[0].Secrets.MatchExpressions[0].Operator)
-	assert.Equal(t, ptr.To("metrics-user"), wire.MetricsIngressUsername)
-	assert.Equal(t, ptr.To("metrics-hash"), wire.MetricsIngressPasswordHash)
-	assert.Equal(t, ptr.To("notifications"), wire.PrivilegedNotificationCluster)
-	assert.Equal(t, ptr.To("0.5.88"), wire.PinnedAgentVersion)
+	assert.Equal(t, new("sync"), wire.Secrets.Sources[0].Secrets.MatchExpressions[0].Key)
+	assert.Equal(t, new("Exists"), wire.Secrets.Sources[0].Secrets.MatchExpressions[0].Operator)
+	assert.Equal(t, new("metrics-user"), wire.MetricsIngressUsername)
+	assert.Equal(t, new("metrics-hash"), wire.MetricsIngressPasswordHash)
+	assert.Equal(t, new("notifications"), wire.PrivilegedNotificationCluster)
+	assert.Equal(t, new("0.5.88"), wire.PinnedAgentVersion)
 	require.NotNil(t, wire.ClusterAddonsExtension)
-	assert.Equal(t, ptr.To(true), wire.ClusterAddonsExtension.Enabled)
+	assert.Equal(t, new(true), wire.ClusterAddonsExtension.Enabled)
 	assert.Equal(t, []string{"alice"}, wire.ClusterAddonsExtension.AllowedUsernames)
 	assert.Equal(t, []string{"admins"}, wire.ClusterAddonsExtension.AllowedGroups)
 	require.NotNil(t, wire.ManifestGeneration)
@@ -116,17 +115,17 @@ func TestSpecToInstanceSpec_PropagatesAllCurrentGeneratedFields(t *testing.T) {
 // declarative children and they silently disappear from the platform.
 func TestSplitArgocdResources_Routing(t *testing.T) {
 	in := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": argocdAPIVersion, "kind": argocdKindApplication,
-			"metadata": map[string]interface{}{"name": "app1"},
+			"metadata": map[string]any{"name": "app1"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": argocdAPIVersion, "kind": argocdKindApplicationSet,
-			"metadata": map[string]interface{}{"name": "appset1"},
+			"metadata": map[string]any{"name": "appset1"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": argocdAPIVersion, "kind": argocdKindAppProject,
-			"metadata": map[string]interface{}{"name": "proj1"},
+			"metadata": map[string]any{"name": "proj1"},
 		}),
 	}
 	got, err := splitArgocdResources(in)
@@ -141,9 +140,9 @@ func TestSplitArgocdResources_Routing(t *testing.T) {
 // Plaintext credential data must use typed SecretRefs instead.
 func TestSplitArgocdResources_RejectsSecretsAsTerminal(t *testing.T) {
 	in := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "v1", "kind": "Secret",
-			"metadata": map[string]interface{}{"name": "repo-github"},
+			"metadata": map[string]any{"name": "repo-github"},
 		}),
 	}
 	_, err := splitArgocdResources(in)
@@ -154,9 +153,9 @@ func TestSplitArgocdResources_RejectsSecretsAsTerminal(t *testing.T) {
 
 func TestSplitArgocdResources_RejectsUnsupportedKind(t *testing.T) {
 	in := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "batch/v1", "kind": "Job",
-			"metadata": map[string]interface{}{"name": "job1"},
+			"metadata": map[string]any{"name": "job1"},
 		}),
 	}
 	_, err := splitArgocdResources(in)
@@ -198,11 +197,11 @@ func TestResolvedInstanceSecretsHashChangesOnSourceIdentity(t *testing.T) {
 // or divergent entry surfaces as drift.
 func TestArgocdResourcesUpToDate_Subset(t *testing.T) {
 	desired := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": argocdAPIVersion, "kind": argocdKindApplication,
-			"metadata": map[string]interface{}{"name": "guestbook"},
-			"spec": map[string]interface{}{
-				"source": map[string]interface{}{
+			"metadata": map[string]any{"name": "guestbook"},
+			"spec": map[string]any{
+				"source": map[string]any{
 					"repoURL":        "https://example.com/repo",
 					"targetRevision": "v1.0.0",
 				},
@@ -213,11 +212,11 @@ func TestArgocdResourcesUpToDate_Subset(t *testing.T) {
 	t.Run("subset match returns up-to-date", func(t *testing.T) {
 		exp := &argocdv1.ExportInstanceResponse{
 			Applications: []*structpb.Struct{
-				mustStruct(t, map[string]interface{}{
+				mustStruct(t, map[string]any{
 					"apiVersion": argocdAPIVersion, "kind": argocdKindApplication,
-					"metadata": map[string]interface{}{"name": "guestbook"},
-					"spec": map[string]interface{}{
-						"source": map[string]interface{}{
+					"metadata": map[string]any{"name": "guestbook"},
+					"spec": map[string]any{
+						"source": map[string]any{
 							"repoURL":        "https://example.com/repo",
 							"targetRevision": "v1.0.0",
 							"path":           "manifests", // server-side default; extra is fine
@@ -235,11 +234,11 @@ func TestArgocdResourcesUpToDate_Subset(t *testing.T) {
 	t.Run("targetRevision flip surfaces as drift", func(t *testing.T) {
 		exp := &argocdv1.ExportInstanceResponse{
 			Applications: []*structpb.Struct{
-				mustStruct(t, map[string]interface{}{
+				mustStruct(t, map[string]any{
 					"apiVersion": argocdAPIVersion, "kind": argocdKindApplication,
-					"metadata": map[string]interface{}{"name": "guestbook"},
-					"spec": map[string]interface{}{
-						"source": map[string]interface{}{
+					"metadata": map[string]any{"name": "guestbook"},
+					"spec": map[string]any{
+						"source": map[string]any{
 							"repoURL":        "https://example.com/repo",
 							"targetRevision": "v0.9.0", // diverged
 						},
@@ -272,9 +271,9 @@ func TestArgocdResourcesUpToDate_AdditiveUnset(t *testing.T) {
 	// has it. That's not drift on this side.
 	exp := &argocdv1.ExportInstanceResponse{
 		Applications: []*structpb.Struct{
-			mustStruct(t, map[string]interface{}{
+			mustStruct(t, map[string]any{
 				"apiVersion": argocdAPIVersion, "kind": argocdKindApplication,
-				"metadata": map[string]interface{}{"name": "leftover"},
+				"metadata": map[string]any{"name": "leftover"},
 			}),
 		},
 	}
@@ -297,11 +296,11 @@ func TestObserve_ResourcesDrift(t *testing.T) {
 		},
 	}
 	managedInstance.Spec.ForProvider.Resources = []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": argocdAPIVersion, "kind": argocdKindApplication,
-			"metadata": map[string]interface{}{"name": "guestbook"},
-			"spec": map[string]interface{}{
-				"source": map[string]interface{}{
+			"metadata": map[string]any{"name": "guestbook"},
+			"spec": map[string]any{
+				"source": map[string]any{
 					"repoURL":        "https://example.com/repo",
 					"targetRevision": "v1.0.0",
 				},
@@ -360,13 +359,13 @@ func TestObserve_ResourcesEmptyRoundTrip(t *testing.T) {
 func TestBuildApplyInstanceRequest_ResourcesWiring(t *testing.T) {
 	mr := *fixtures.CrossplaneManagedInstance.DeepCopy()
 	mr.Spec.ForProvider.Resources = []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": argocdAPIVersion, "kind": argocdKindApplication,
-			"metadata": map[string]interface{}{"name": "guestbook"},
+			"metadata": map[string]any{"name": "guestbook"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": argocdAPIVersion, "kind": argocdKindAppProject,
-			"metadata": map[string]interface{}{"name": "platform"},
+			"metadata": map[string]any{"name": "platform"},
 		}),
 	}
 	req, err := BuildApplyInstanceRequest(mr, resolvedInstanceSecrets{})
@@ -471,8 +470,8 @@ func TestBuildApplyInstanceRequest_PinnedAgentVersionWire(t *testing.T) {
 		value   string
 	}{
 		{"omitted keeps stored pin", nil, false, ""},
-		{"explicit empty unpins", ptr.To(""), true, ""},
-		{"pinned", ptr.To("0.5.88"), true, "0.5.88"},
+		{"explicit empty unpins", new(""), true, ""},
+		{"pinned", new("0.5.88"), true, "0.5.88"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -480,8 +479,8 @@ func TestBuildApplyInstanceRequest_PinnedAgentVersionWire(t *testing.T) {
 			mr.Spec.ForProvider.ArgoCD.Spec.InstanceSpec.PinnedAgentVersion = tc.pin
 			req, err := BuildApplyInstanceRequest(mr, resolvedInstanceSecrets{})
 			require.NoError(t, err)
-			spec, _ := req.GetArgocd().AsMap()["spec"].(map[string]interface{})
-			instanceSpec, _ := spec["instanceSpec"].(map[string]interface{})
+			spec, _ := req.GetArgocd().AsMap()["spec"].(map[string]any)
+			instanceSpec, _ := spec["instanceSpec"].(map[string]any)
 			got, ok := instanceSpec["pinnedAgentVersion"]
 			assert.Equal(t, tc.present, ok)
 			if tc.present {

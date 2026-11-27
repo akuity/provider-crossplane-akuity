@@ -20,9 +20,6 @@ import (
 	"context"
 	"testing"
 
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
-	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
@@ -36,9 +33,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	mockclient "github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity/mock"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
@@ -127,7 +126,7 @@ func TestObserve_ExportedKargoPropagatesToAtProvider(t *testing.T) {
 	}, nil).Times(1)
 	mc.EXPECT().ExportKargoInstance(gomock.Any(), "id-1", "ws-cached").
 		Return(&kargov1.ExportKargoInstanceResponse{
-			Kargo: mustKargoStruct(t, map[string]interface{}{
+			Kargo: mustKargoStruct(t, map[string]any{
 				"description": "from-export",
 				"version":     "v1.0.0",
 			}),
@@ -181,33 +180,33 @@ func TestDelete_CallsDelete(t *testing.T) {
 
 func mustCMStruct(t *testing.T, data map[string]string) *structpb.Struct {
 	t.Helper()
-	cmData := make(map[string]interface{}, len(data))
+	cmData := make(map[string]any, len(data))
 	for k, v := range data {
 		cmData[k] = v
 	}
-	pb, err := structpb.NewStruct(map[string]interface{}{
+	pb, err := structpb.NewStruct(map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "kargo-cm"},
+		"metadata":   map[string]any{"name": "kargo-cm"},
 		"data":       cmData,
 	})
 	require.NoError(t, err)
 	return pb
 }
 
-func mustKargoStruct(t *testing.T, spec map[string]interface{}) *structpb.Struct {
+func mustKargoStruct(t *testing.T, spec map[string]any) *structpb.Struct {
 	t.Helper()
-	pb, err := structpb.NewStruct(map[string]interface{}{
+	pb, err := structpb.NewStruct(map[string]any{
 		"apiVersion": "kargo.akuity.io/v1alpha1",
 		"kind":       "Kargo",
-		"metadata":   map[string]interface{}{"name": "ki"},
+		"metadata":   map[string]any{"name": "ki"},
 		"spec":       spec,
 	})
 	require.NoError(t, err)
 	return pb
 }
 
-func mustChildStruct(t *testing.T, obj map[string]interface{}) *structpb.Struct {
+func mustChildStruct(t *testing.T, obj map[string]any) *structpb.Struct {
 	t.Helper()
 	pb, err := structpb.NewStruct(obj)
 	require.NoError(t, err)
@@ -285,19 +284,19 @@ func TestKargoConfigMapUpToDate_SubsetBehavior(t *testing.T) {
 
 func TestKargoResourcesUpToDate_ProjectDescriptionExportGapUsesHash(t *testing.T) {
 	desired := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "kargo.akuity.io/v1alpha1",
 			"kind":       "Project",
-			"metadata":   map[string]interface{}{"name": "smoke-proj"},
-			"spec":       map[string]interface{}{"description": "smoke"},
+			"metadata":   map[string]any{"name": "smoke-proj"},
+			"spec":       map[string]any{"description": "smoke"},
 		}),
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "kargo.akuity.io/v1alpha1",
 			"kind":       "Warehouse",
-			"metadata":   map[string]interface{}{"name": "smoke-wh"},
-			"spec": map[string]interface{}{
-				"subscriptions": []interface{}{
-					map[string]interface{}{"image": map[string]interface{}{"repoURL": "ghcr.io/acme/app"}},
+			"metadata":   map[string]any{"name": "smoke-wh"},
+			"spec": map[string]any{
+				"subscriptions": []any{
+					map[string]any{"image": map[string]any{"repoURL": "ghcr.io/acme/app"}},
 				},
 			},
 		}),
@@ -307,20 +306,20 @@ func TestKargoResourcesUpToDate_ProjectDescriptionExportGapUsesHash(t *testing.T
 
 	exp := &kargov1.ExportKargoInstanceResponse{
 		Projects: []*structpb.Struct{
-			mustChildStruct(t, map[string]interface{}{
+			mustChildStruct(t, map[string]any{
 				"apiVersion": "kargo.akuity.io/v1alpha1",
 				"kind":       "Project",
-				"metadata":   map[string]interface{}{"name": "smoke-proj"},
+				"metadata":   map[string]any{"name": "smoke-proj"},
 			}),
 		},
 		Warehouses: []*structpb.Struct{
-			mustChildStruct(t, map[string]interface{}{
+			mustChildStruct(t, map[string]any{
 				"apiVersion": "kargo.akuity.io/v1alpha1",
 				"kind":       "Warehouse",
-				"metadata":   map[string]interface{}{"name": "smoke-wh"},
-				"spec": map[string]interface{}{
-					"subscriptions": []interface{}{
-						map[string]interface{}{"image": map[string]interface{}{"repoURL": "ghcr.io/acme/app"}},
+				"metadata":   map[string]any{"name": "smoke-wh"},
+				"spec": map[string]any{
+					"subscriptions": []any{
+						map[string]any{"image": map[string]any{"repoURL": "ghcr.io/acme/app"}},
 					},
 				},
 			}),
@@ -345,14 +344,14 @@ func TestKargoResourcesUpToDate_ProjectDescriptionExportGapUsesHash(t *testing.T
 
 func TestKargoResourcesUpToDate_ProjectDescriptionHashDoesNotMaskOtherDrift(t *testing.T) {
 	desired := []runtime.RawExtension{
-		mustRawMap(t, map[string]interface{}{
+		mustRawMap(t, map[string]any{
 			"apiVersion": "kargo.akuity.io/v1alpha1",
 			"kind":       "Project",
-			"metadata":   map[string]interface{}{"name": "smoke-proj"},
-			"spec": map[string]interface{}{
+			"metadata":   map[string]any{"name": "smoke-proj"},
+			"spec": map[string]any{
 				"description": "smoke",
-				"promotionPolicies": []interface{}{
-					map[string]interface{}{"stage": "prod"},
+				"promotionPolicies": []any{
+					map[string]any{"stage": "prod"},
 				},
 			},
 		}),
@@ -361,10 +360,10 @@ func TestKargoResourcesUpToDate_ProjectDescriptionHashDoesNotMaskOtherDrift(t *t
 	require.NoError(t, err)
 	exp := &kargov1.ExportKargoInstanceResponse{
 		Projects: []*structpb.Struct{
-			mustChildStruct(t, map[string]interface{}{
+			mustChildStruct(t, map[string]any{
 				"apiVersion": "kargo.akuity.io/v1alpha1",
 				"kind":       "Project",
-				"metadata":   map[string]interface{}{"name": "smoke-proj"},
+				"metadata":   map[string]any{"name": "smoke-proj"},
 			}),
 		},
 	}
@@ -447,7 +446,7 @@ func TestExtractKargoConfigMapData_ShapeGuards(t *testing.T) {
 	assert.Nil(t, got)
 	assert.False(t, present, "nil pb must report not-present so callers can defer drift")
 
-	pb, err := structpb.NewStruct(map[string]interface{}{
+	pb, err := structpb.NewStruct(map[string]any{
 		"apiVersion": "v1", "kind": "ConfigMap",
 	})
 	require.NoError(t, err)
@@ -456,7 +455,7 @@ func TestExtractKargoConfigMapData_ShapeGuards(t *testing.T) {
 	assert.Nil(t, got, "struct without data key is treated as not-present")
 	assert.False(t, present, "missing data sub-tree must report not-present")
 
-	pb, err = structpb.NewStruct(map[string]interface{}{
+	pb, err = structpb.NewStruct(map[string]any{
 		"data": "not-a-map",
 	})
 	require.NoError(t, err)
@@ -466,11 +465,11 @@ func TestExtractKargoConfigMapData_ShapeGuards(t *testing.T) {
 
 func TestKargoConfigMapUpToDate_CanonicalizesBoolValues(t *testing.T) {
 	desired := map[string]string{"adminAccountEnabled": "true"}
-	pb, err := structpb.NewStruct(map[string]interface{}{
+	pb, err := structpb.NewStruct(map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "kargo-cm"},
-		"data": map[string]interface{}{
+		"metadata":   map[string]any{"name": "kargo-cm"},
+		"data": map[string]any{
 			"adminAccountEnabled": true,
 		},
 	})
@@ -484,8 +483,8 @@ func TestKargoConfigMapUpToDate_CanonicalizesBoolValues(t *testing.T) {
 
 func TestKargoConfigMapUpToDate_CanonicalizesKnownAliases(t *testing.T) {
 	desired := map[string]string{"admin_account_token_ttl": "24h"}
-	pb, err := structpb.NewStruct(map[string]interface{}{
-		"data": map[string]interface{}{
+	pb, err := structpb.NewStruct(map[string]any{
+		"data": map[string]any{
 			"adminAccountTokenTtl": "24h",
 		},
 	})
@@ -798,13 +797,13 @@ func TestObserve_PinnedAgentVersion_DriftAgainstExport(t *testing.T) {
 	cases := []struct {
 		name     string
 		desired  *string
-		exported map[string]interface{}
+		exported map[string]any
 		upToDate bool
 	}{
-		{"pinned matches export", ptr.To("0.5.88"), map[string]interface{}{"pinnedAgentVersion": "0.5.88"}, true},
-		{"pinned but export unpinned", ptr.To("0.5.88"), map[string]interface{}{}, false},
-		{"explicit empty against pinned export", ptr.To(""), map[string]interface{}{"pinnedAgentVersion": "0.5.98"}, false},
-		{"explicit empty against unpinned export", ptr.To(""), map[string]interface{}{}, true},
+		{"pinned matches export", new("0.5.88"), map[string]any{"pinnedAgentVersion": "0.5.88"}, true},
+		{"pinned but export unpinned", new("0.5.88"), map[string]any{}, false},
+		{"explicit empty against pinned export", new(""), map[string]any{"pinnedAgentVersion": "0.5.98"}, false},
+		{"explicit empty against unpinned export", new(""), map[string]any{}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -820,7 +819,7 @@ func TestObserve_PinnedAgentVersion_DriftAgainstExport(t *testing.T) {
 			}, nil).Times(1)
 			mc.EXPECT().ExportKargoInstance(gomock.Any(), "id-1", "ws-cached").
 				Return(&kargov1.ExportKargoInstanceResponse{
-					Kargo: mustKargoStruct(t, map[string]interface{}{
+					Kargo: mustKargoStruct(t, map[string]any{
 						"version":           "v1.0.0",
 						"kargoInstanceSpec": tc.exported,
 					}),
@@ -846,15 +845,15 @@ func TestDriftSpec_NilPresence_OmittedPinAdoptsObservedPin(t *testing.T) {
 		upToDate bool
 	}{
 		{"omitted adopts server pin", nil, true},
-		{"explicit empty still clears", ptr.To(""), false},
-		{"other value still enforces", ptr.To("0.5.88"), false},
+		{"explicit empty still clears", new(""), false},
+		{"other value still enforces", new("0.5.88"), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			desired := newKI().Spec.ForProvider
 			observed := newKI().Spec.ForProvider
 			desired.Kargo.KargoInstanceSpec.PinnedAgentVersion = tc.desired
-			observed.Kargo.KargoInstanceSpec.PinnedAgentVersion = ptr.To("0.5.98")
+			observed.Kargo.KargoInstanceSpec.PinnedAgentVersion = new("0.5.98")
 
 			ok, err := driftSpec().UpToDate(context.Background(), &desired, &observed)
 			require.NoError(t, err)

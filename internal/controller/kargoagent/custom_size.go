@@ -79,7 +79,7 @@ func generateKargoAgentCustomSizeKustomization(name string, cfg *generated.Kargo
 	}
 	targetName := fmt.Sprintf("kargo-controller-%s", name)
 	for _, p := range userPatches {
-		patch, ok := p.(map[string]interface{})
+		patch, ok := p.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -90,7 +90,7 @@ func generateKargoAgentCustomSizeKustomization(name string, cfg *generated.Kargo
 			return "", fmt.Errorf("kustomization contains resource patches for %s, which conflicts with customAgentSizeConfig", targetName)
 		}
 	}
-	top["patches"] = append([]interface{}{
+	top["patches"] = append([]any{
 		kargoAgentDeploymentResourcePatch(targetName, cfg.KargoController.Mem, cfg.KargoController.Cpu),
 	}, userPatches...)
 
@@ -101,19 +101,19 @@ func generateKargoAgentCustomSizeKustomization(name string, cfg *generated.Kargo
 	return string(out), nil
 }
 
-func parseKargoAgentKustomizationObject(s string) (map[string]interface{}, error) {
+func parseKargoAgentKustomizationObject(s string) (map[string]any, error) {
 	if strings.TrimSpace(s) == "" {
-		return map[string]interface{}{
+		return map[string]any{
 			"apiVersion": "kustomize.config.k8s.io/v1beta1",
 			"kind":       "Kustomization",
 		}, nil
 	}
-	var top map[string]interface{}
+	var top map[string]any
 	if err := yaml.Unmarshal([]byte(s), &top); err != nil {
 		return nil, fmt.Errorf("failed to parse user kustomization: %w", err)
 	}
 	if top == nil {
-		top = map[string]interface{}{}
+		top = map[string]any{}
 	}
 	if _, ok := top["apiVersion"]; !ok {
 		top["apiVersion"] = "kustomize.config.k8s.io/v1beta1"
@@ -124,20 +124,20 @@ func parseKargoAgentKustomizationObject(s string) (map[string]interface{}, error
 	return top, nil
 }
 
-func kargoAgentKustomizationSlice(top map[string]interface{}, key string) ([]interface{}, error) {
+func kargoAgentKustomizationSlice(top map[string]any, key string) ([]any, error) {
 	raw, ok := top[key]
 	if !ok || raw == nil {
 		return nil, nil
 	}
-	items, ok := raw.([]interface{})
+	items, ok := raw.([]any)
 	if !ok {
 		return nil, fmt.Errorf("kustomization.%s must be a list", key)
 	}
 	return items, nil
 }
 
-func patchTargetDeploymentName(patch map[string]interface{}) string {
-	target, ok := patch["target"].(map[string]interface{})
+func patchTargetDeploymentName(patch map[string]any) string {
+	target, ok := patch["target"].(map[string]any)
 	if !ok || target["kind"] != "Deployment" {
 		return ""
 	}
@@ -145,12 +145,12 @@ func patchTargetDeploymentName(patch map[string]interface{}) string {
 	return name
 }
 
-func kargoAgentResourcePatch(patch map[string]interface{}) bool {
+func kargoAgentResourcePatch(patch map[string]any) bool {
 	patchContent, ok := patch["patch"].(string)
 	if !ok {
 		return false
 	}
-	var obj map[string]interface{}
+	var obj map[string]any
 	if err := yaml.Unmarshal([]byte(patchContent), &obj); err != nil {
 		return false
 	}
@@ -159,7 +159,7 @@ func kargoAgentResourcePatch(patch map[string]interface{}) bool {
 		return false
 	}
 	for _, c := range containers {
-		container, ok := c.(map[string]interface{})
+		container, ok := c.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -170,10 +170,10 @@ func kargoAgentResourcePatch(patch map[string]interface{}) bool {
 	return false
 }
 
-func nestedKargoAgentSlice(obj map[string]interface{}, keys ...string) ([]interface{}, bool) {
-	var cur interface{} = obj
+func nestedKargoAgentSlice(obj map[string]any, keys ...string) ([]any, bool) {
+	var cur any = obj
 	for _, key := range keys {
-		m, ok := cur.(map[string]interface{})
+		m, ok := cur.(map[string]any)
 		if !ok {
 			return nil, false
 		}
@@ -182,28 +182,28 @@ func nestedKargoAgentSlice(obj map[string]interface{}, keys ...string) ([]interf
 			return nil, false
 		}
 	}
-	out, ok := cur.([]interface{})
+	out, ok := cur.([]any)
 	return out, ok
 }
 
-func kargoAgentDeploymentResourcePatch(name, mem, cpu string) map[string]interface{} {
-	patch := map[string]interface{}{
+func kargoAgentDeploymentResourcePatch(name, mem, cpu string) map[string]any {
+	patch := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name": name,
 		},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{
 							"name": "controller",
-							"resources": map[string]interface{}{
-								"limits": map[string]interface{}{
+							"resources": map[string]any{
+								"limits": map[string]any{
 									"memory": mem,
 								},
-								"requests": map[string]interface{}{
+								"requests": map[string]any{
 									"cpu":    cpu,
 									"memory": mem,
 								},
@@ -215,9 +215,9 @@ func kargoAgentDeploymentResourcePatch(name, mem, cpu string) map[string]interfa
 		},
 	}
 	patchYAML, _ := yaml.Marshal(patch)
-	return map[string]interface{}{
+	return map[string]any{
 		"patch": string(patchYAML),
-		"target": map[string]interface{}{
+		"target": map[string]any{
 			"kind": "Deployment",
 			"name": name,
 		},

@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"strings"
 
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -39,13 +38,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	sigsyaml "sigs.k8s.io/yaml"
 
-	"github.com/akuityio/provider-crossplane-akuity/internal/event"
-
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/kube"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/types/observation"
@@ -104,8 +103,7 @@ func normalizeKargoAgentParameters(desired, observed *v1alpha1.KargoAgentParamet
 		return
 	}
 	absorbKargoAgentScalarDefaults(desired, observed)
-	desired.KargoAgentSpec.Data.AkuityManaged =
-		observed.KargoAgentSpec.Data.AkuityManaged
+	desired.KargoAgentSpec.Data.AkuityManaged = observed.KargoAgentSpec.Data.AkuityManaged
 	absorbServerClamps(desired, observed)
 	// Custom is a provider-side convenience. The platform stores it as
 	// a large agent plus generated Kustomize patches, so compare the
@@ -135,12 +133,10 @@ func absorbKargoAgentScalarDefaults(desired, observed *v1alpha1.KargoAgentParame
 		desired.KargoAgentSpec.Data.Size = observed.KargoAgentSpec.Data.Size
 	}
 	if desired.KargoAgentSpec.Data.ArgocdNamespace == "" {
-		desired.KargoAgentSpec.Data.ArgocdNamespace =
-			observed.KargoAgentSpec.Data.ArgocdNamespace
+		desired.KargoAgentSpec.Data.ArgocdNamespace = observed.KargoAgentSpec.Data.ArgocdNamespace
 	}
 	if desired.KargoAgentSpec.Data.TargetVersion == "" {
-		desired.KargoAgentSpec.Data.TargetVersion =
-			observed.KargoAgentSpec.Data.TargetVersion
+		desired.KargoAgentSpec.Data.TargetVersion = observed.KargoAgentSpec.Data.TargetVersion
 	}
 }
 
@@ -163,8 +159,7 @@ func absorbKargoAgentKustomizationRender(desired, observed *v1alpha1.KargoAgentP
 	) &&
 		desired.KargoAgentSpec.Data.Kustomization !=
 			observed.KargoAgentSpec.Data.Kustomization {
-		desired.KargoAgentSpec.Data.Kustomization =
-			observed.KargoAgentSpec.Data.Kustomization
+		desired.KargoAgentSpec.Data.Kustomization = observed.KargoAgentSpec.Data.Kustomization
 	}
 }
 
@@ -188,18 +183,14 @@ func knownKargoAgentSize(size string) bool {
 //     separate ManagedAgent reconciler force-rotates TargetVersion to the
 //     latest supported patch.
 func absorbServerClamps(desired, observed *v1alpha1.KargoAgentParameters) {
-	desired.KargoAgentSpec.Data.MaintenanceMode =
-		observed.KargoAgentSpec.Data.MaintenanceMode
-	desired.KargoAgentSpec.Data.MaintenanceModeExpiry =
-		observed.KargoAgentSpec.Data.MaintenanceModeExpiry
+	desired.KargoAgentSpec.Data.MaintenanceMode = observed.KargoAgentSpec.Data.MaintenanceMode
+	desired.KargoAgentSpec.Data.MaintenanceModeExpiry = observed.KargoAgentSpec.Data.MaintenanceModeExpiry
 	if observed.KargoAgentSpec.Data.AkuityManaged == nil ||
 		!*observed.KargoAgentSpec.Data.AkuityManaged {
 		return
 	}
-	desired.KargoAgentSpec.Data.ArgocdNamespace =
-		observed.KargoAgentSpec.Data.ArgocdNamespace
-	desired.KargoAgentSpec.Data.TargetVersion =
-		observed.KargoAgentSpec.Data.TargetVersion
+	desired.KargoAgentSpec.Data.ArgocdNamespace = observed.KargoAgentSpec.Data.ArgocdNamespace
+	desired.KargoAgentSpec.Data.TargetVersion = observed.KargoAgentSpec.Data.TargetVersion
 }
 
 func normalizePtrField[T any](desired, observed **T) {

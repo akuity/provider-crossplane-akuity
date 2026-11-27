@@ -13,10 +13,9 @@
 package ratelimit
 
 import (
+	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"golang.org/x/time/rate"
 	"k8s.io/client-go/util/workqueue"
-
-	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 )
 
 // Default rates. Conservative values, expected to be tuned against staging load.

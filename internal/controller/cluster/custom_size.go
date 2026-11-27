@@ -69,7 +69,7 @@ func generateClusterCustomSizeKustomization(cfg *generated.ClusterCustomAgentSiz
 		return "", err
 	}
 	for _, p := range userPatches {
-		patch, ok := p.(map[string]interface{})
+		patch, ok := p.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -85,7 +85,7 @@ func generateClusterCustomSizeKustomization(cfg *generated.ClusterCustomAgentSiz
 		}
 	}
 
-	customPatches := make([]interface{}, 0, 2)
+	customPatches := make([]any, 0, 2)
 	if cfg.ApplicationController != nil {
 		if err := validateCustomResources("applicationController", cfg.ApplicationController.Mem, cfg.ApplicationController.Cpu); err != nil {
 			return "", err
@@ -118,7 +118,7 @@ func generateClusterCustomSizeKustomization(cfg *generated.ClusterCustomAgentSiz
 		return "", err
 	}
 	if cfg.RepoServer != nil {
-		top["replicas"] = append([]interface{}{map[string]interface{}{
+		top["replicas"] = append([]any{map[string]any{
 			"name":  "argocd-repo-server",
 			"count": cfg.RepoServer.Replicas,
 		}}, userReplicas...)
@@ -131,19 +131,19 @@ func generateClusterCustomSizeKustomization(cfg *generated.ClusterCustomAgentSiz
 	return string(out), nil
 }
 
-func parseKustomizationObject(s string) (map[string]interface{}, error) {
+func parseKustomizationObject(s string) (map[string]any, error) {
 	if strings.TrimSpace(s) == "" {
-		return map[string]interface{}{
+		return map[string]any{
 			apiVersionKey: "kustomize.config.k8s.io/v1beta1",
 			kindKey:       "Kustomization",
 		}, nil
 	}
-	var top map[string]interface{}
+	var top map[string]any
 	if err := yaml.Unmarshal([]byte(s), &top); err != nil {
 		return nil, fmt.Errorf("failed to parse user kustomization: %w", err)
 	}
 	if top == nil {
-		top = map[string]interface{}{}
+		top = map[string]any{}
 	}
 	if _, ok := top[apiVersionKey]; !ok {
 		top[apiVersionKey] = "kustomize.config.k8s.io/v1beta1"
@@ -154,20 +154,20 @@ func parseKustomizationObject(s string) (map[string]interface{}, error) {
 	return top, nil
 }
 
-func kustomizationSlice(top map[string]interface{}, key string) ([]interface{}, error) {
+func kustomizationSlice(top map[string]any, key string) ([]any, error) {
 	raw, ok := top[key]
 	if !ok || raw == nil {
 		return nil, nil
 	}
-	items, ok := raw.([]interface{})
+	items, ok := raw.([]any)
 	if !ok {
 		return nil, fmt.Errorf("kustomization.%s must be a list", key)
 	}
 	return items, nil
 }
 
-func patchTargetDeploymentName(patch map[string]interface{}) (string, bool) {
-	target, ok := patch["target"].(map[string]interface{})
+func patchTargetDeploymentName(patch map[string]any) (string, bool) {
+	target, ok := patch["target"].(map[string]any)
 	if !ok {
 		return "", false
 	}
@@ -178,12 +178,12 @@ func patchTargetDeploymentName(patch map[string]interface{}) (string, bool) {
 	return name, ok
 }
 
-func isResourcePatch(patch map[string]interface{}) bool {
+func isResourcePatch(patch map[string]any) bool {
 	patchContent, ok := patch["patch"].(string)
 	if !ok {
 		return false
 	}
-	var obj map[string]interface{}
+	var obj map[string]any
 	if err := yaml.Unmarshal([]byte(patchContent), &obj); err != nil {
 		return false
 	}
@@ -192,7 +192,7 @@ func isResourcePatch(patch map[string]interface{}) bool {
 		return false
 	}
 	for _, c := range containers {
-		container, ok := c.(map[string]interface{})
+		container, ok := c.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -203,10 +203,10 @@ func isResourcePatch(patch map[string]interface{}) bool {
 	return false
 }
 
-func nestedSlice(obj map[string]interface{}, keys ...string) ([]interface{}, bool) {
-	var cur interface{} = obj
+func nestedSlice(obj map[string]any, keys ...string) ([]any, bool) {
+	var cur any = obj
 	for _, key := range keys {
-		m, ok := cur.(map[string]interface{})
+		m, ok := cur.(map[string]any)
 		if !ok {
 			return nil, false
 		}
@@ -215,7 +215,7 @@ func nestedSlice(obj map[string]interface{}, keys ...string) ([]interface{}, boo
 			return nil, false
 		}
 	}
-	out, ok := cur.([]interface{})
+	out, ok := cur.([]any)
 	return out, ok
 }
 
@@ -229,24 +229,24 @@ func validateCustomResources(path, mem, cpu string) error {
 	return nil
 }
 
-func deploymentResourcePatch(name, container, mem, cpu string) map[string]interface{} {
-	patch := map[string]interface{}{
+func deploymentResourcePatch(name, container, mem, cpu string) map[string]any {
+	patch := map[string]any{
 		apiVersionKey: "apps/v1",
 		kindKey:       "Deployment",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name": name,
 		},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{
 							"name": container,
-							"resources": map[string]interface{}{
-								"limits": map[string]interface{}{
+							"resources": map[string]any{
+								"limits": map[string]any{
 									"memory": mem,
 								},
-								"requests": map[string]interface{}{
+								"requests": map[string]any{
 									"cpu":    cpu,
 									"memory": mem,
 								},
@@ -258,9 +258,9 @@ func deploymentResourcePatch(name, container, mem, cpu string) map[string]interf
 		},
 	}
 	patchYAML, _ := yaml.Marshal(patch)
-	return map[string]interface{}{
+	return map[string]any{
 		"patch": string(patchYAML),
-		"target": map[string]interface{}{
+		"target": map[string]any{
 			kindKey: "Deployment",
 			"name":  name,
 		},

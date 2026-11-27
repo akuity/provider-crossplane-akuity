@@ -20,11 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +31,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
@@ -135,7 +136,7 @@ func resolveInstanceSecrets(ctx context.Context, kube client.Client, mg *v1alpha
 // instanceSecretToPB marshals a resolved singleton Secret into the
 // Kubernetes Secret structpb.Struct that the gateway expects. Returns
 // nil with no error when data is empty so callers can compose freely.
-func instanceSecretToPB(name string, data map[string]string, labels map[string]string) (*structpb.Struct, error) {
+func instanceSecretToPB(name string, data, labels map[string]string) (*structpb.Struct, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
@@ -535,7 +536,7 @@ func routeArgocdResource(out *argocdChildren, i int, raw runtime.RawExtension) e
 	if len(raw.Raw) == 0 {
 		return fmt.Errorf("resources[%d]: empty payload", i)
 	}
-	obj := map[string]interface{}{}
+	obj := map[string]any{}
 	if err := json.Unmarshal(raw.Raw, &obj); err != nil {
 		return fmt.Errorf("resources[%d]: invalid JSON: %w", i, err)
 	}
@@ -580,14 +581,13 @@ func argocdResourcesUpToDate(desired []runtime.RawExtension, exp *argocdv1.Expor
 	if err != nil {
 		return false, children.DriftReport{}, fmt.Errorf("resources: %w", err)
 	}
-	observedAll := make(map[children.Identity]map[string]interface{})
+	observedAll := make(map[children.Identity]map[string]any)
 	groups := [][]*structpb.Struct{
 		exp.GetApplications(),
 		exp.GetApplicationSets(),
 		exp.GetAppProjects(),
 	}
 	for _, group := range groups {
-		group := group
 		idx, err := children.IndexStructs(group)
 		if err != nil {
 			// Defer the failure to the Apply path rather than failing
@@ -595,9 +595,7 @@ func argocdResourcesUpToDate(desired []runtime.RawExtension, exp *argocdv1.Expor
 			//nolint:nilerr // Defer transient decode failures to Apply.
 			return true, children.DriftReport{}, nil
 		}
-		for k, v := range idx {
-			observedAll[k] = v
-		}
+		maps.Copy(observedAll, idx)
 	}
 	report := children.Compare(desiredIdx, observedAll)
 	return report.Empty(), report, nil

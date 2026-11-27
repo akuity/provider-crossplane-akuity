@@ -24,14 +24,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -48,13 +47,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/akuityio/provider-crossplane-akuity/internal/event"
-
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base"
 	"github.com/akuityio/provider-crossplane-akuity/internal/controller/base/children"
+	"github.com/akuityio/provider-crossplane-akuity/internal/event"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 	"github.com/akuityio/provider-crossplane-akuity/internal/secrets"
@@ -139,8 +139,7 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 				desired.Kargo.Subdomain = observed.Kargo.Subdomain
 			}
 			if desired.Kargo.KargoInstanceSpec.AkuityIntelligence == nil {
-				desired.Kargo.KargoInstanceSpec.AkuityIntelligence =
-					observed.Kargo.KargoInstanceSpec.AkuityIntelligence
+				desired.Kargo.KargoInstanceSpec.AkuityIntelligence = observed.Kargo.KargoInstanceSpec.AkuityIntelligence
 			}
 			// An omitted pin is no opinion. Presence projection already
 			// drops it when the live Get of the managed resource
@@ -148,8 +147,7 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 			// turn it into a drift that Apply never closes, since Apply
 			// omits the key and the platform keeps its stored pin.
 			if desired.Kargo.KargoInstanceSpec.PinnedAgentVersion == nil {
-				desired.Kargo.KargoInstanceSpec.PinnedAgentVersion =
-					observed.Kargo.KargoInstanceSpec.PinnedAgentVersion
+				desired.Kargo.KargoInstanceSpec.PinnedAgentVersion = observed.Kargo.KargoInstanceSpec.PinnedAgentVersion
 			}
 			// GcConfig is server-retained: once a value has been Applied,
 			// the gateway keeps it even after the CR clears the field.
@@ -158,8 +156,7 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 			// forever. User-set values still propagate because desired
 			// non-nil short-circuits this branch.
 			if desired.Kargo.KargoInstanceSpec.GcConfig == nil {
-				desired.Kargo.KargoInstanceSpec.GcConfig =
-					observed.Kargo.KargoInstanceSpec.GcConfig
+				desired.Kargo.KargoInstanceSpec.GcConfig = observed.Kargo.KargoInstanceSpec.GcConfig
 			}
 			// OidcConfig follows the same server-retained shape as
 			// GcConfig: once enabled, the gateway keeps issuer/client
@@ -179,8 +176,7 @@ func driftSpec() base.DriftSpec[v1alpha1.KargoInstanceParameters] {
 			// writes the agent ID server-side while KargoInstance desired
 			// is empty.
 			if desired.Kargo.KargoInstanceSpec.DefaultShardAgent == "" {
-				desired.Kargo.KargoInstanceSpec.DefaultShardAgent =
-					observed.Kargo.KargoInstanceSpec.DefaultShardAgent
+				desired.Kargo.KargoInstanceSpec.DefaultShardAgent = observed.Kargo.KargoInstanceSpec.DefaultShardAgent
 			}
 		},
 	}
@@ -784,7 +780,7 @@ func hashKargoResources(raw []runtime.RawExtension) (string, error) {
 	return hashKargoResourceIndex(idx)
 }
 
-func hashKargoResourceIndex(idx map[children.Identity]map[string]interface{}) (string, error) {
+func hashKargoResourceIndex(idx map[children.Identity]map[string]any) (string, error) {
 	if len(idx) == 0 {
 		return "", nil
 	}
@@ -827,7 +823,7 @@ func extractKargoConfigMapData(pb *structpb.Struct) (map[string]string, bool, er
 	if raw == nil {
 		return map[string]string{}, true, nil
 	}
-	obj, ok := raw.(map[string]interface{})
+	obj, ok := raw.(map[string]any)
 	if !ok {
 		return nil, false, fmt.Errorf("unexpected kargo_configmap.data shape: %T", raw)
 	}
@@ -869,7 +865,7 @@ func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportK
 	// Every ApplyKargoInstance-supported collection gets folded into
 	// a single observed index. Identity carries apiVersion+kind so
 	// cross-kind name collisions are impossible.
-	observedAll := make(map[children.Identity]map[string]interface{})
+	observedAll := make(map[children.Identity]map[string]any)
 	groups := [][]*structpb.Struct{
 		exp.GetProjects(),
 		exp.GetWarehouses(),
@@ -887,7 +883,6 @@ func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportK
 		exp.GetEventRouters(),
 	}
 	for _, group := range groups {
-		group := group
 		idx, err := children.IndexStructs(group)
 		if err != nil {
 			// Defer the failure to the Apply path rather than failing
@@ -895,9 +890,7 @@ func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportK
 			//nolint:nilerr // Defer transient decode failures to Apply.
 			return true, children.DriftReport{}, nil
 		}
-		for k, v := range idx {
-			observedAll[k] = v
-		}
+		maps.Copy(observedAll, idx)
 	}
 	report := children.Compare(desiredIdx, observedAll)
 	if !report.Empty() {
@@ -913,14 +906,12 @@ func kargoResourcesUpToDate(desired []runtime.RawExtension, exp *kargov1.ExportK
 	return report.Empty(), report, nil
 }
 
-func kargoProjectDescriptionOnlyDrift(desired, observed map[children.Identity]map[string]interface{}, report children.DriftReport) bool {
+func kargoProjectDescriptionOnlyDrift(desired, observed map[children.Identity]map[string]any, report children.DriftReport) bool {
 	if len(report.Missing) > 0 || len(report.Changed) == 0 {
 		return false
 	}
-	trimmed := make(map[children.Identity]map[string]interface{}, len(desired))
-	for k, v := range desired {
-		trimmed[k] = v
-	}
+	trimmed := make(map[children.Identity]map[string]any, len(desired))
+	maps.Copy(trimmed, desired)
 	for _, id := range report.Changed {
 		if id.APIVersion != kargoAPIVersion || id.Kind != kargoKindProject {
 			return false
@@ -934,14 +925,14 @@ func kargoProjectDescriptionOnlyDrift(desired, observed map[children.Identity]ma
 	return children.Compare(trimmed, observed).Empty()
 }
 
-func observedResource(observed map[children.Identity]map[string]interface{}, id children.Identity) (map[string]interface{}, bool) {
+func observedResource(observed map[children.Identity]map[string]any, id children.Identity) (map[string]any, bool) {
 	if obs, ok := observed[id]; ok {
 		return obs, true
 	}
 	if id.Namespace != "" {
 		return nil, false
 	}
-	var match map[string]interface{}
+	var match map[string]any
 	found := 0
 	for k, v := range observed {
 		if k.APIVersion == id.APIVersion && k.Kind == id.Kind && k.Name == id.Name {
@@ -955,18 +946,18 @@ func observedResource(observed map[children.Identity]map[string]interface{}, id 
 	return match, found == 1
 }
 
-func withoutProjectDescription(in map[string]interface{}) map[string]interface{} {
-	out, _ := cloneJSONValue(in).(map[string]interface{})
-	if spec, ok := out["spec"].(map[string]interface{}); ok {
+func withoutProjectDescription(in map[string]any) map[string]any {
+	out, _ := cloneJSONValue(in).(map[string]any)
+	if spec, ok := out["spec"].(map[string]any); ok {
 		delete(spec, "description")
 	}
 	return out
 }
 
-func hasJSONPath(in map[string]interface{}, path ...string) bool {
-	var cur interface{} = in
+func hasJSONPath(in map[string]any, path ...string) bool {
+	var cur any = in
 	for _, p := range path {
-		obj, ok := cur.(map[string]interface{})
+		obj, ok := cur.(map[string]any)
 		if !ok {
 			return false
 		}
@@ -978,16 +969,16 @@ func hasJSONPath(in map[string]interface{}, path ...string) bool {
 	return true
 }
 
-func cloneJSONValue(in interface{}) interface{} {
+func cloneJSONValue(in any) any {
 	switch v := in.(type) {
-	case map[string]interface{}:
-		out := make(map[string]interface{}, len(v))
+	case map[string]any:
+		out := make(map[string]any, len(v))
 		for k, child := range v {
 			out[k] = cloneJSONValue(child)
 		}
 		return out
-	case []interface{}:
-		out := make([]interface{}, len(v))
+	case []any:
+		out := make([]any, len(v))
 		for i := range v {
 			out[i] = cloneJSONValue(v[i])
 		}
@@ -1012,7 +1003,7 @@ func splitKargoResources(in []runtime.RawExtension) (kargoChildren, error) {
 		if len(raw.Raw) == 0 {
 			return out, fmt.Errorf("resources[%d]: empty payload", i)
 		}
-		obj := map[string]interface{}{}
+		obj := map[string]any{}
 		if err := json.Unmarshal(raw.Raw, &obj); err != nil {
 			return out, fmt.Errorf("resources[%d]: invalid JSON: %w", i, err)
 		}
@@ -1395,10 +1386,10 @@ func buildKargoConfigMapPB(data map[string]string) (*structpb.Struct, error) {
 	if err != nil {
 		return nil, err
 	}
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name": kargoCMKey,
 		},
 		"data": cmData,
@@ -1410,9 +1401,9 @@ func buildKargoConfigMapPB(data map[string]string) (*structpb.Struct, error) {
 	return pb, nil
 }
 
-func kargoConfigMapApplyData(data map[string]string) (map[string]interface{}, error) {
+func kargoConfigMapApplyData(data map[string]string) (map[string]any, error) {
 	canonicalValues := map[string]string{}
-	out := make(map[string]interface{}, len(data))
+	out := make(map[string]any, len(data))
 	for k, v := range data {
 		canonical, known := kargoConfigMapAliases[k]
 		if !known {
