@@ -218,7 +218,7 @@ type InstanceList struct {
 
 // Instance type metadata.
 var (
-	InstanceKind             = reflect.TypeOf(Instance{}).Name()
+	InstanceKind             = reflect.TypeFor[Instance]().Name()
 	InstanceGroupKind        = schema.GroupKind{Group: Group, Kind: InstanceKind}.String()
 	InstanceKindAPIVersion   = InstanceKind + "." + SchemeGroupVersion.String()
 	InstanceGroupVersionKind = SchemeGroupVersion.WithKind(InstanceKind)

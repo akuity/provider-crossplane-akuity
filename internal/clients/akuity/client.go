@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"google.golang.org/genproto/googleapis/api/httpbody"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/avast/retry-go/v4"
 
 	"github.com/akuity/api-client-go/pkg/api/gateway/accesscontrol"
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
@@ -22,7 +22,6 @@ import (
 	idv1 "github.com/akuity/api-client-go/pkg/api/gen/types/id/v1"
 	reconv1 "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	httpctx "github.com/akuity/grpc-gateway-client/pkg/http/context"
-
 	"github.com/akuityio/provider-crossplane-akuity/internal/reason"
 )
 
@@ -31,8 +30,8 @@ const (
 )
 
 type Client interface {
-	GetCluster(ctx context.Context, instanceID string, name string) (*argocdv1.Cluster, error)
-	GetClusterManifests(ctx context.Context, instanceID string, clusterName string) (string, error)
+	GetCluster(ctx context.Context, instanceID, name string) (*argocdv1.Cluster, error)
+	GetClusterManifests(ctx context.Context, instanceID, clusterName string) (string, error)
 	// GetClusterManifestsOnce fetches install manifests for a cluster
 	// without waiting for reconciliation. Callers are responsible for
 	// gating invocation on the cluster's ReconciliationStatus. Used by
@@ -40,7 +39,7 @@ type Client interface {
 	// surfaced via a controller-runtime requeue rather than a blocking
 	// API wait.
 	GetClusterManifestsOnce(ctx context.Context, instanceID, clusterID string) (string, error)
-	DeleteCluster(ctx context.Context, instanceID string, name string) error
+	DeleteCluster(ctx context.Context, instanceID, name string) error
 	// SetClusterMaintenanceMode targets the dedicated set-maintenance-mode
 	// gateway route. ApplyInstance does not propagate
 	// data.maintenanceMode or data.maintenanceModeExpiry, so those
@@ -209,7 +208,7 @@ func (c *workspaceIDCache) setKargoInstance(instanceID, workspaceID string) {
 // subset of the API surface (e.g. in legacy tests that exercise only
 // the Argo plane); the corresponding methods will then return a
 // descriptive error rather than panicking on a nil dispatch.
-func NewClient(organizationID string, apiKeyID string, apiKeySecret string, gatewayClient argocdv1.ArgoCDServiceGatewayClient, kargoGatewayClient kargov1.KargoServiceGatewayClient, orgGatewayClient orgcv1.OrganizationServiceGatewayClient) (Client, error) {
+func NewClient(organizationID, apiKeyID, apiKeySecret string, gatewayClient argocdv1.ArgoCDServiceGatewayClient, kargoGatewayClient kargov1.KargoServiceGatewayClient, orgGatewayClient orgcv1.OrganizationServiceGatewayClient) (Client, error) {
 	if organizationID == "" {
 		return client{}, errors.New("organization ID must not be empty")
 	}
@@ -366,7 +365,7 @@ func (c client) kargoWorkspaceIDForApply(ctx context.Context, req *kargov1.Apply
 	return c.resolveWorkspaceID(ctx, "")
 }
 
-func (c client) GetCluster(ctx context.Context, instanceID string, name string) (*argocdv1.Cluster, error) {
+func (c client) GetCluster(ctx context.Context, instanceID, name string) (*argocdv1.Cluster, error) {
 	workspaceID, err := c.argoWorkspaceIDForInstance(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -379,7 +378,6 @@ func (c client) GetCluster(ctx context.Context, instanceID string, name string) 
 		IdType:         idv1.Type_NAME,
 		Id:             name,
 	})
-
 	if err != nil {
 		// The Akuity API does not distinguish NotFound from PermissionDenied
 		// when reading organization-scoped clusters. See internal/reason/doc.go.
@@ -402,7 +400,7 @@ func (c client) GetCluster(ctx context.Context, instanceID string, name string) 
 	return resp.GetCluster(), nil
 }
 
-func (c client) GetClusterManifests(ctx context.Context, instanceID string, clusterName string) (string, error) {
+func (c client) GetClusterManifests(ctx context.Context, instanceID, clusterName string) (string, error) {
 	cluster, err := c.checkClusterReconciled(ctx, instanceID, clusterName)
 	if err != nil {
 		return "", err
@@ -419,7 +417,6 @@ func (c client) GetClusterManifests(ctx context.Context, instanceID string, clus
 		WorkspaceId:    workspaceID,
 		Id:             cluster.GetId(),
 	})
-
 	if err != nil {
 		return "", fmt.Errorf("could not get cluster manifests from Akuity API, error: %w", err)
 	}
@@ -445,7 +442,7 @@ func (c client) GetClusterManifestsOnce(ctx context.Context, instanceID, cluster
 	return getManifestsFromResponse(respChan, errChan)
 }
 
-func (c client) DeleteCluster(ctx context.Context, instanceID string, name string) error {
+func (c client) DeleteCluster(ctx context.Context, instanceID, name string) error {
 	cluster, err := c.GetCluster(ctx, instanceID, name)
 	if err != nil {
 		return fmt.Errorf("could not get cluster %s to delete, err: %w", name, err)
@@ -463,7 +460,6 @@ func (c client) DeleteCluster(ctx context.Context, instanceID string, name strin
 		WorkspaceId:    workspaceID,
 		Id:             cluster.GetId(),
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not delete cluster %s using Akuity API, error: %w", name, err)
 	}
@@ -509,7 +505,6 @@ func (c client) GetInstance(ctx context.Context, name string) (*argocdv1.Instanc
 		IdType:         idv1.Type_NAME,
 		Id:             name,
 	})
-
 	if err != nil {
 		if e, ok := status.FromError(err); ok {
 			if e.Code() == codes.NotFound {
@@ -583,7 +578,6 @@ func (c client) exportInstance(ctx context.Context, idType idv1.Type, id string)
 		IdType:         idType,
 		Id:             id,
 	})
-
 	if err != nil {
 		if e, ok := status.FromError(err); ok {
 			if e.Code() == codes.NotFound {
@@ -642,7 +636,6 @@ func (c client) DeleteInstance(ctx context.Context, name string) error {
 		Id:             instance.GetId(),
 		WorkspaceId:    workspaceID,
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not delete instance %s using Akuity API, error: %w", name, err)
 	}
@@ -650,7 +643,7 @@ func (c client) DeleteInstance(ctx context.Context, name string) error {
 	return nil
 }
 
-func (c client) checkClusterReconciled(ctx context.Context, instanceID string, clusterName string) (*argocdv1.Cluster, error) {
+func (c client) checkClusterReconciled(ctx context.Context, instanceID, clusterName string) (*argocdv1.Cluster, error) {
 	cluster, err := retry.DoWithData(
 		func() (*argocdv1.Cluster, error) {
 			c, err := c.GetCluster(ctx, instanceID, clusterName)
@@ -1084,14 +1077,14 @@ func clusterNotFoundOrReconciledError(err error) bool {
 }
 
 func getManifestsFromResponse(respChan <-chan *httpbody.HttpBody, errChan <-chan error) (string, error) {
-	var manifests string
+	var manifests strings.Builder
 	for {
 		select {
 		case dataChunk, ok := <-respChan:
 			if !ok {
 				respChan = nil
 			} else {
-				manifests += string(dataChunk.GetData())
+				manifests.WriteString(string(dataChunk.GetData()))
 			}
 
 		case serverErr, ok := <-errChan:
@@ -1107,5 +1100,5 @@ func getManifestsFromResponse(respChan <-chan *httpbody.HttpBody, errChan <-chan
 		}
 	}
 
-	return manifests, nil
+	return manifests.String(), nil
 }

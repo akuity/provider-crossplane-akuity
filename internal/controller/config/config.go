@@ -21,10 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	gwoption "github.com/akuity/api-client-go/pkg/api/gateway/option"
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
-	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/providerconfig"
@@ -34,6 +30,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	gwoption "github.com/akuity/api-client-go/pkg/api/gateway/option"
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	kargov1 "github.com/akuity/api-client-go/pkg/api/gen/kargo/v1"
+	orgcv1 "github.com/akuity/api-client-go/pkg/api/gen/organization/v1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
 	"github.com/akuityio/provider-crossplane-akuity/internal/event"

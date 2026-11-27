@@ -184,7 +184,7 @@ type KargoAgentList struct {
 
 // KargoAgent type metadata.
 var (
-	KargoAgentKind             = reflect.TypeOf(KargoAgent{}).Name()
+	KargoAgentKind             = reflect.TypeFor[KargoAgent]().Name()
 	KargoAgentGroupKind        = schema.GroupKind{Group: Group, Kind: KargoAgentKind}.String()
 	KargoAgentKindAPIVersion   = KargoAgentKind + "." + SchemeGroupVersion.String()
 	KargoAgentGroupVersionKind = SchemeGroupVersion.WithKind(KargoAgentKind)

@@ -20,9 +20,8 @@ limitations under the License.
 package event
 
 import (
-	ctrl "sigs.k8s.io/controller-runtime"
-
 	xpevent "github.com/crossplane/crossplane-runtime/v2/pkg/event"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // Recorder re-exports the crossplane-runtime event.Recorder type so

@@ -2,6 +2,7 @@ package children
 
 import (
 	"encoding/json"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,14 +11,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func rawOf(t *testing.T, obj map[string]interface{}) runtime.RawExtension {
+func rawOf(t *testing.T, obj map[string]any) runtime.RawExtension {
 	t.Helper()
 	b, err := json.Marshal(obj)
 	require.NoError(t, err)
 	return runtime.RawExtension{Raw: b}
 }
 
-func structOf(t *testing.T, obj map[string]interface{}) *structpb.Struct {
+func structOf(t *testing.T, obj map[string]any) *structpb.Struct {
 	t.Helper()
 	s, err := structpb.NewStruct(obj)
 	require.NoError(t, err)
@@ -32,10 +33,10 @@ func TestIndex_EmptyReturnsNil(t *testing.T) {
 
 func TestIndex_RejectsMissingName(t *testing.T) {
 	_, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{},
+			"metadata":   map[string]any{},
 		}),
 	})
 	require.Error(t, err)
@@ -44,15 +45,15 @@ func TestIndex_RejectsMissingName(t *testing.T) {
 
 func TestIndex_RejectsDuplicates(t *testing.T) {
 	_, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "dup"},
+			"metadata":   map[string]any{"name": "dup"},
 		}),
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "dup"},
+			"metadata":   map[string]any{"name": "dup"},
 		}),
 	})
 	require.Error(t, err)
@@ -65,16 +66,16 @@ func TestIndex_RejectsDuplicates(t *testing.T) {
 // fields can't masquerade as drift.
 func TestIndexStructs_StripsServerFields(t *testing.T) {
 	observed, err := IndexStructs([]*structpb.Struct{
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":            "app",
 				"resourceVersion": "12345",
 				"uid":             "abcd",
 			},
-			"spec":   map[string]interface{}{"project": "team-a"},
-			"status": map[string]interface{}{"sync": "Synced"},
+			"spec":   map[string]any{"project": "team-a"},
+			"status": map[string]any{"sync": "Synced"},
 		}),
 	})
 	require.NoError(t, err)
@@ -82,7 +83,7 @@ func TestIndexStructs_StripsServerFields(t *testing.T) {
 	id := Identity{APIVersion: "argoproj.io/v1alpha1", Kind: "Application", Name: "app"}
 	obj := observed[id]
 	require.NotNil(t, obj)
-	md, _ := obj["metadata"].(map[string]interface{})
+	md, _ := obj["metadata"].(map[string]any)
 	require.NotNil(t, md)
 	assert.NotContains(t, md, "resourceVersion")
 	assert.NotContains(t, md, "uid")
@@ -96,26 +97,26 @@ func TestIndexStructs_StripsServerFields(t *testing.T) {
 // reconcile for ArgoCD Applications.
 func TestCompare_SubsetDefaultsDoNotDrift(t *testing.T) {
 	desired, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app"},
-			"spec": map[string]interface{}{
-				"source": map[string]interface{}{"repoURL": "https://github.com/a", "path": "x"},
+			"metadata":   map[string]any{"name": "app"},
+			"spec": map[string]any{
+				"source": map[string]any{"repoURL": "https://github.com/a", "path": "x"},
 			},
 		}),
 	})
 	require.NoError(t, err)
 
 	observed, err := IndexStructs([]*structpb.Struct{
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app"},
-			"spec": map[string]interface{}{
-				"source":     map[string]interface{}{"repoURL": "https://github.com/a", "path": "x"},
+			"metadata":   map[string]any{"name": "app"},
+			"spec": map[string]any{
+				"source":     map[string]any{"repoURL": "https://github.com/a", "path": "x"},
 				"project":    "default",
-				"syncPolicy": map[string]interface{}{"automated": map[string]interface{}{"prune": false}},
+				"syncPolicy": map[string]any{"automated": map[string]any{"prune": false}},
 			},
 		}),
 	})
@@ -127,40 +128,40 @@ func TestCompare_SubsetDefaultsDoNotDrift(t *testing.T) {
 
 func TestCompare_AdditiveSemantics(t *testing.T) {
 	desired, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-			"metadata": map[string]interface{}{"name": "a"},
-			"spec":     map[string]interface{}{"replicas": float64(3)},
+			"metadata": map[string]any{"name": "a"},
+			"spec":     map[string]any{"replicas": float64(3)},
 		}),
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-			"metadata": map[string]interface{}{"name": "b"},
-			"spec":     map[string]interface{}{"replicas": float64(1)},
+			"metadata": map[string]any{"name": "b"},
+			"spec":     map[string]any{"replicas": float64(1)},
 		}),
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-			"metadata": map[string]interface{}{"name": "c"},
-			"spec":     map[string]interface{}{"replicas": float64(1)},
+			"metadata": map[string]any{"name": "c"},
+			"spec":     map[string]any{"replicas": float64(1)},
 		}),
 	})
 	require.NoError(t, err)
 
-	observedExact := func(t *testing.T) map[Identity]map[string]interface{} {
+	observedExact := func(t *testing.T) map[Identity]map[string]any {
 		o, err := IndexStructs([]*structpb.Struct{
-			structOf(t, map[string]interface{}{
+			structOf(t, map[string]any{
 				"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-				"metadata": map[string]interface{}{"name": "a"},
-				"spec":     map[string]interface{}{"replicas": float64(3)},
+				"metadata": map[string]any{"name": "a"},
+				"spec":     map[string]any{"replicas": float64(3)},
 			}),
-			structOf(t, map[string]interface{}{
+			structOf(t, map[string]any{
 				"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-				"metadata": map[string]interface{}{"name": "b"},
-				"spec":     map[string]interface{}{"replicas": float64(1)},
+				"metadata": map[string]any{"name": "b"},
+				"spec":     map[string]any{"replicas": float64(1)},
 			}),
-			structOf(t, map[string]interface{}{
+			structOf(t, map[string]any{
 				"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-				"metadata": map[string]interface{}{"name": "c"},
-				"spec":     map[string]interface{}{"replicas": float64(1)},
+				"metadata": map[string]any{"name": "c"},
+				"spec":     map[string]any{"replicas": float64(1)},
 			}),
 		})
 		require.NoError(t, err)
@@ -174,16 +175,14 @@ func TestCompare_AdditiveSemantics(t *testing.T) {
 	t.Run("extra observed entries ignored", func(t *testing.T) {
 		o := observedExact(t)
 		extra, err := IndexStructs([]*structpb.Struct{
-			structOf(t, map[string]interface{}{
+			structOf(t, map[string]any{
 				"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-				"metadata": map[string]interface{}{"name": "extra"},
-				"spec":     map[string]interface{}{"replicas": float64(99)},
+				"metadata": map[string]any{"name": "extra"},
+				"spec":     map[string]any{"replicas": float64(99)},
 			}),
 		})
 		require.NoError(t, err)
-		for k, v := range extra {
-			o[k] = v
-		}
+		maps.Copy(o, extra)
 		assert.True(t, Compare(desired, o).Empty(), "extra server-side children must not trigger drift")
 	})
 
@@ -198,20 +197,20 @@ func TestCompare_AdditiveSemantics(t *testing.T) {
 
 	t.Run("divergent desired path fires drift", func(t *testing.T) {
 		o, err := IndexStructs([]*structpb.Struct{
-			structOf(t, map[string]interface{}{
+			structOf(t, map[string]any{
 				"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-				"metadata": map[string]interface{}{"name": "a"},
-				"spec":     map[string]interface{}{"replicas": float64(5)}, // diverges from desired=3
+				"metadata": map[string]any{"name": "a"},
+				"spec":     map[string]any{"replicas": float64(5)}, // diverges from desired=3
 			}),
-			structOf(t, map[string]interface{}{
+			structOf(t, map[string]any{
 				"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-				"metadata": map[string]interface{}{"name": "b"},
-				"spec":     map[string]interface{}{"replicas": float64(1)},
+				"metadata": map[string]any{"name": "b"},
+				"spec":     map[string]any{"replicas": float64(1)},
 			}),
-			structOf(t, map[string]interface{}{
+			structOf(t, map[string]any{
 				"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-				"metadata": map[string]interface{}{"name": "c"},
-				"spec":     map[string]interface{}{"replicas": float64(1)},
+				"metadata": map[string]any{"name": "c"},
+				"spec":     map[string]any{"replicas": float64(1)},
 			}),
 		})
 		require.NoError(t, err)
@@ -224,9 +223,9 @@ func TestCompare_AdditiveSemantics(t *testing.T) {
 
 func TestCompare_EmptyDesired(t *testing.T) {
 	observed, err := IndexStructs([]*structpb.Struct{
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1", "kind": "Application",
-			"metadata": map[string]interface{}{"name": "a"},
+			"metadata": map[string]any{"name": "a"},
 		}),
 	})
 	require.NoError(t, err)
@@ -239,16 +238,16 @@ func TestCompare_EmptyDesired(t *testing.T) {
 // deserves a drift signal.
 func TestMatchesSubset_ArrayExactMatch(t *testing.T) {
 	assert.True(t, matchesSubset(
-		[]interface{}{"a", "b"},
-		[]interface{}{"a", "b"},
+		[]any{"a", "b"},
+		[]any{"a", "b"},
 	))
 	assert.False(t, matchesSubset(
-		[]interface{}{"a", "b"},
-		[]interface{}{"b", "a"}, // reordered
+		[]any{"a", "b"},
+		[]any{"b", "a"}, // reordered
 	))
 	assert.False(t, matchesSubset(
-		[]interface{}{"a"},
-		[]interface{}{"a", "b"}, // extra element
+		[]any{"a"},
+		[]any{"a", "b"}, // extra element
 	))
 }
 
@@ -259,24 +258,24 @@ func TestMatchesSubset_ArrayExactMatch(t *testing.T) {
 // must re-Apply.
 func TestCompare_FinalizerRemovedServerSideFiresDrift(t *testing.T) {
 	desired, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":       "app",
-				"finalizers": []interface{}{"resources-finalizer.argocd.argoproj.io"},
+				"finalizers": []any{"resources-finalizer.argocd.argoproj.io"},
 			},
-			"spec": map[string]interface{}{"project": "team"},
+			"spec": map[string]any{"project": "team"},
 		}),
 	})
 	require.NoError(t, err)
 
 	observed, err := IndexStructs([]*structpb.Struct{
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app"}, // finalizer dropped
-			"spec":       map[string]interface{}{"project": "team"},
+			"metadata":   map[string]any{"name": "app"}, // finalizer dropped
+			"spec":       map[string]any{"project": "team"},
 		}),
 	})
 	require.NoError(t, err)
@@ -290,13 +289,13 @@ func TestCompare_FinalizerRemovedServerSideFiresDrift(t *testing.T) {
 // lifecycle signals and must not be silently masked.
 func TestCompare_OwnerReferenceChangedServerSideFiresDrift(t *testing.T) {
 	desired, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "app",
-				"ownerReferences": []interface{}{
-					map[string]interface{}{"apiVersion": "v1", "kind": "Foo", "name": "bar", "uid": "u1"},
+				"ownerReferences": []any{
+					map[string]any{"apiVersion": "v1", "kind": "Foo", "name": "bar", "uid": "u1"},
 				},
 			},
 		}),
@@ -304,10 +303,10 @@ func TestCompare_OwnerReferenceChangedServerSideFiresDrift(t *testing.T) {
 	require.NoError(t, err)
 
 	observed, err := IndexStructs([]*structpb.Struct{
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app"},
+			"metadata":   map[string]any{"name": "app"},
 		}),
 	})
 	require.NoError(t, err)
@@ -322,21 +321,21 @@ func TestCompare_OwnerReferenceChangedServerSideFiresDrift(t *testing.T) {
 // (e.g. "default" or a project namespace set by the gateway).
 func TestCompare_NamespaceDefaulting(t *testing.T) {
 	desired, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app"},
-			"spec":       map[string]interface{}{"project": "team-a"},
+			"metadata":   map[string]any{"name": "app"},
+			"spec":       map[string]any{"project": "team-a"},
 		}),
 	})
 	require.NoError(t, err)
 
 	observed, err := IndexStructs([]*structpb.Struct{
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app", "namespace": "default"},
-			"spec":       map[string]interface{}{"project": "team-a"},
+			"metadata":   map[string]any{"name": "app", "namespace": "default"},
+			"spec":       map[string]any{"project": "team-a"},
 		}),
 	})
 	require.NoError(t, err)
@@ -353,24 +352,24 @@ func TestCompare_NamespaceDefaulting(t *testing.T) {
 // drift on the wrong twin.
 func TestCompare_NamespaceAmbiguityIsSafe(t *testing.T) {
 	desired, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app"},
+			"metadata":   map[string]any{"name": "app"},
 		}),
 	})
 	require.NoError(t, err)
 
 	observed, err := IndexStructs([]*structpb.Struct{
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app", "namespace": "default"},
+			"metadata":   map[string]any{"name": "app", "namespace": "default"},
 		}),
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app", "namespace": "staging"},
+			"metadata":   map[string]any{"name": "app", "namespace": "staging"},
 		}),
 	})
 	require.NoError(t, err)
@@ -393,13 +392,13 @@ func TestCompare_NamespaceAmbiguityIsSafe(t *testing.T) {
 // not accidentally.
 func TestMatchesSubset_ArrayAppendTrap(t *testing.T) {
 	desired, err := Index([]runtime.RawExtension{
-		rawOf(t, map[string]interface{}{
+		rawOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app"},
-			"spec": map[string]interface{}{
-				"containers": []interface{}{
-					map[string]interface{}{"name": "main", "image": "nginx"},
+			"metadata":   map[string]any{"name": "app"},
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{"name": "main", "image": "nginx"},
 				},
 			},
 		}),
@@ -407,14 +406,14 @@ func TestMatchesSubset_ArrayAppendTrap(t *testing.T) {
 	require.NoError(t, err)
 
 	observed, err := IndexStructs([]*structpb.Struct{
-		structOf(t, map[string]interface{}{
+		structOf(t, map[string]any{
 			"apiVersion": "argoproj.io/v1alpha1",
 			"kind":       "Application",
-			"metadata":   map[string]interface{}{"name": "app"},
-			"spec": map[string]interface{}{
-				"containers": []interface{}{
-					map[string]interface{}{"name": "main", "image": "nginx"},
-					map[string]interface{}{"name": "sidecar", "image": "defaulted"},
+			"metadata":   map[string]any{"name": "app"},
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{"name": "main", "image": "nginx"},
+					map[string]any{"name": "sidecar", "image": "defaulted"},
 				},
 			},
 		}),
@@ -430,21 +429,21 @@ func TestMatchesSubset_ArrayAppendTrap(t *testing.T) {
 // values under a shared path fire a mismatch even when surrounding
 // structure is equivalent.
 func TestMatchesSubset_NestedMapDivergence(t *testing.T) {
-	desired := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"source": map[string]interface{}{"path": "a"},
+	desired := map[string]any{
+		"spec": map[string]any{
+			"source": map[string]any{"path": "a"},
 		},
 	}
-	observedSame := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"source": map[string]interface{}{"path": "a", "repoURL": "https://x"},
+	observedSame := map[string]any{
+		"spec": map[string]any{
+			"source": map[string]any{"path": "a", "repoURL": "https://x"},
 		},
 	}
 	assert.True(t, matchesSubset(desired, observedSame), "extra nested field on observed is ignored")
 
-	observedDiff := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"source": map[string]interface{}{"path": "b"},
+	observedDiff := map[string]any{
+		"spec": map[string]any{
+			"source": map[string]any{"path": "b"},
 		},
 	}
 	assert.False(t, matchesSubset(desired, observedDiff), "divergent path fires mismatch")
@@ -461,57 +460,57 @@ func TestMatchesSubset_NestedMapDivergence(t *testing.T) {
 func TestMatchesSubset_EmptyValueAbsentEquivalence(t *testing.T) {
 	cases := []struct {
 		name     string
-		desired  map[string]interface{}
-		observed map[string]interface{}
+		desired  map[string]any
+		observed map[string]any
 		match    bool
 	}{
 		{
 			name: "desired empty map vs observed key absent",
-			desired: map[string]interface{}{
+			desired: map[string]any{
 				"apiVersion": "kargo.akuity.io/v1alpha1",
 				"kind":       "Project",
-				"metadata":   map[string]interface{}{"name": "p1"},
-				"spec":       map[string]interface{}{},
+				"metadata":   map[string]any{"name": "p1"},
+				"spec":       map[string]any{},
 			},
-			observed: map[string]interface{}{
+			observed: map[string]any{
 				"apiVersion": "kargo.akuity.io/v1alpha1",
 				"kind":       "Project",
-				"metadata":   map[string]interface{}{"name": "p1", "finalizers": []interface{}{"kargo.akuity.io/finalizer"}},
+				"metadata":   map[string]any{"name": "p1", "finalizers": []any{"kargo.akuity.io/finalizer"}},
 			},
 			match: true,
 		},
 		{
 			name: "desired empty list vs observed key absent",
-			desired: map[string]interface{}{
-				"spec": map[string]interface{}{"items": []interface{}{}},
+			desired: map[string]any{
+				"spec": map[string]any{"items": []any{}},
 			},
-			observed: map[string]interface{}{
-				"spec": map[string]interface{}{},
+			observed: map[string]any{
+				"spec": map[string]any{},
 			},
 			match: true,
 		},
 		{
 			name: "desired nil vs observed key absent",
-			desired: map[string]interface{}{
-				"spec": map[string]interface{}{"x": nil},
+			desired: map[string]any{
+				"spec": map[string]any{"x": nil},
 			},
-			observed: map[string]interface{}{
-				"spec": map[string]interface{}{},
+			observed: map[string]any{
+				"spec": map[string]any{},
 			},
 			match: true,
 		},
 		{
 			name: "desired non-empty map still requires presence",
-			desired: map[string]interface{}{
-				"spec": map[string]interface{}{"x": float64(1)},
+			desired: map[string]any{
+				"spec": map[string]any{"x": float64(1)},
 			},
-			observed: map[string]interface{}{},
+			observed: map[string]any{},
 			match:    false,
 		},
 		{
 			name: "desired all-empty values vs nil observed map",
-			desired: map[string]interface{}{
-				"top": map[string]interface{}{},
+			desired: map[string]any{
+				"top": map[string]any{},
 			},
 			observed: nil,
 			// nil observed of declared type map[string]interface{}
@@ -522,7 +521,6 @@ func TestMatchesSubset_EmptyValueAbsentEquivalence(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := matchesSubset(tc.desired, tc.observed)

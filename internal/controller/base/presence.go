@@ -67,14 +67,14 @@ func ForProviderPresenceFromObject(obj client.Object) *FieldPresence {
 	if err != nil {
 		return nil
 	}
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return nil
 	}
 	return forProviderPresenceFromUnstructured(raw)
 }
 
-func forProviderPresenceFromUnstructured(raw map[string]interface{}) *FieldPresence {
+func forProviderPresenceFromUnstructured(raw map[string]any) *FieldPresence {
 	fp, ok, _ := unstructured.NestedMap(raw, "spec", "forProvider")
 	if !ok {
 		return nil
@@ -83,7 +83,7 @@ func forProviderPresenceFromUnstructured(raw map[string]interface{}) *FieldPrese
 	return &p
 }
 
-func presenceFromMap(m map[string]interface{}) FieldPresence {
+func presenceFromMap(m map[string]any) FieldPresence {
 	p := FieldPresence{Object: true, Present: true}
 	if len(m) == 0 {
 		return p
@@ -95,8 +95,8 @@ func presenceFromMap(m map[string]interface{}) FieldPresence {
 	return p
 }
 
-func presenceFromValue(v interface{}) FieldPresence {
-	if m, ok := v.(map[string]interface{}); ok {
+func presenceFromValue(v any) FieldPresence {
+	if m, ok := v.(map[string]any); ok {
 		return presenceFromMap(m)
 	}
 	return FieldPresence{Present: true}
@@ -116,7 +116,7 @@ func ProjectByPresence[T any](in *T, presence FieldPresence) T {
 	if !projected.IsValid() {
 		return zero
 	}
-	if out, ok := projected.Interface().(T); ok {
+	if out, ok := reflect.TypeAssert[T](projected); ok {
 		return out
 	}
 	return zero

@@ -24,7 +24,7 @@ func TestForAkuity_FallsBackToDefaultWhenNonPositive(t *testing.T) {
 func TestForAkuity_NoPerItemDelayWhileBucketHasTokens(t *testing.T) {
 	rl := ratelimit.ForAkuity(100)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		assert.Zero(t, rl.When(item), "call %d", i)
 	}
 }

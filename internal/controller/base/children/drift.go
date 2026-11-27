@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -82,16 +83,16 @@ var serverMetaFields = []string{
 // decoded map is retained so Compare can walk the desired tree and
 // look up each path in the observed tree. No digest comparison
 // happens at this layer.
-func Index(raw []runtime.RawExtension) (map[Identity]map[string]interface{}, error) {
+func Index(raw []runtime.RawExtension) (map[Identity]map[string]any, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
-	out := make(map[Identity]map[string]interface{}, len(raw))
+	out := make(map[Identity]map[string]any, len(raw))
 	for i, r := range raw {
 		if len(r.Raw) == 0 {
 			return nil, fmt.Errorf("entry %d: empty payload", i)
 		}
-		obj := map[string]interface{}{}
+		obj := map[string]any{}
 		if err := json.Unmarshal(r.Raw, &obj); err != nil {
 			return nil, fmt.Errorf("entry %d: invalid JSON: %w", i, err)
 		}
@@ -111,11 +112,11 @@ func Index(raw []runtime.RawExtension) (map[Identity]map[string]interface{}, err
 // []*structpb.Struct shape the Akuity gateway returns in its Export*
 // responses. structpb Structs are deterministic on (de)serialization
 // so converting to map[string]interface{} round-trips cleanly.
-func IndexStructs(in []*structpb.Struct) (map[Identity]map[string]interface{}, error) {
+func IndexStructs(in []*structpb.Struct) (map[Identity]map[string]any, error) {
 	if len(in) == 0 {
 		return nil, nil
 	}
-	out := make(map[Identity]map[string]interface{}, len(in))
+	out := make(map[Identity]map[string]any, len(in))
 	for i, s := range in {
 		if s == nil {
 			continue
@@ -172,7 +173,7 @@ func (d DriftReport) Empty() bool {
 // default (e.g. "default" or a project namespace) without introducing
 // cross-namespace ambiguity. Two observed candidates means no match,
 // which falls through to missing as the safe signal.
-func Compare(desired, observed map[Identity]map[string]interface{}) DriftReport {
+func Compare(desired, observed map[Identity]map[string]any) DriftReport {
 	if len(desired) == 0 {
 		return DriftReport{}
 	}
@@ -201,8 +202,8 @@ func Compare(desired, observed map[Identity]map[string]interface{}) DriftReport 
 // Returns ok=false if zero or more than one candidate exists; the
 // latter case is deliberately treated as no-match so a namespace-less
 // desired manifest never silently maps to the "wrong" observed twin.
-func lookupAnyNamespace(observed map[Identity]map[string]interface{}, id Identity) (map[string]interface{}, bool) {
-	var match map[string]interface{}
+func lookupAnyNamespace(observed map[Identity]map[string]any, id Identity) (map[string]any, bool) {
+	var match map[string]any
 	found := 0
 	for k, v := range observed {
 		if k.APIVersion == id.APIVersion && k.Kind == id.Kind && k.Name == id.Name {
@@ -251,10 +252,10 @@ func lookupAnyNamespace(observed map[Identity]map[string]interface{}, id Identit
 //     only when a specific kind forces our hand.
 //
 //nolint:gocyclo // Recursive JSON-shape matching is clearer as one type switch.
-func matchesSubset(desired, observed interface{}) bool {
+func matchesSubset(desired, observed any) bool {
 	switch d := desired.(type) {
-	case map[string]interface{}:
-		o, ok := observed.(map[string]interface{})
+	case map[string]any:
+		o, ok := observed.(map[string]any)
 		if !ok {
 			// A desired empty map matches an absent observed value:
 			// "spec: {}" / "metadata: {}" is the same shape the
@@ -284,8 +285,8 @@ func matchesSubset(desired, observed interface{}) bool {
 			}
 		}
 		return true
-	case []interface{}:
-		o, ok := observed.([]interface{})
+	case []any:
+		o, ok := observed.([]any)
 		if !ok {
 			return len(d) == 0 && observed == nil
 		}
@@ -310,13 +311,13 @@ func matchesSubset(desired, observed interface{}) bool {
 // can spell out a structural placeholder ("spec: {}") without every
 // reconcile flagging drift against a gateway that suppresses empty
 // containers from its export response.
-func isEmptyJSONValue(v interface{}) bool {
+func isEmptyJSONValue(v any) bool {
 	switch t := v.(type) {
 	case nil:
 		return true
-	case map[string]interface{}:
+	case map[string]any:
 		return len(t) == 0
-	case []interface{}:
+	case []any:
 		return len(t) == 0
 	default:
 		return false
@@ -326,10 +327,10 @@ func isEmptyJSONValue(v interface{}) bool {
 // identityOf pulls the apiVersion / kind / metadata.{name, namespace}
 // out of a decoded manifest. metadata.name is required; the other
 // fields default cleanly when absent.
-func identityOf(obj map[string]interface{}) (Identity, error) {
+func identityOf(obj map[string]any) (Identity, error) {
 	apiVersion, _ := obj["apiVersion"].(string)
 	kind, _ := obj["kind"].(string)
-	md, _ := obj["metadata"].(map[string]interface{})
+	md, _ := obj["metadata"].(map[string]any)
 	if md == nil {
 		return Identity{}, fmt.Errorf("missing metadata")
 	}
@@ -349,8 +350,8 @@ func identityOf(obj map[string]interface{}) (Identity, error) {
 // strip returns a copy of obj with server-managed metadata fields and
 // any status sub-tree removed. Operates on a shallow clone so callers
 // can keep using the original map.
-func strip(obj map[string]interface{}) map[string]interface{} {
-	out := make(map[string]interface{}, len(obj))
+func strip(obj map[string]any) map[string]any {
+	out := make(map[string]any, len(obj))
 	for k, v := range obj {
 		if k == "status" {
 			// status is owned by the server; a mismatch there is
@@ -359,7 +360,7 @@ func strip(obj map[string]interface{}) map[string]interface{} {
 			continue
 		}
 		if k == "metadata" {
-			md, ok := v.(map[string]interface{})
+			md, ok := v.(map[string]any)
 			if ok {
 				out[k] = stripMeta(md)
 				continue
@@ -370,8 +371,8 @@ func strip(obj map[string]interface{}) map[string]interface{} {
 	return out
 }
 
-func stripMeta(md map[string]interface{}) map[string]interface{} {
-	out := make(map[string]interface{}, len(md))
+func stripMeta(md map[string]any) map[string]any {
+	out := make(map[string]any, len(md))
 	for k, v := range md {
 		if isServerMetaField(k) {
 			continue
@@ -382,15 +383,10 @@ func stripMeta(md map[string]interface{}) map[string]interface{} {
 }
 
 func isServerMetaField(k string) bool {
-	for _, f := range serverMetaFields {
-		if f == k {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(serverMetaFields, k)
 }
 
-func sortedKeys(m map[Identity]map[string]interface{}) []Identity {
+func sortedKeys(m map[Identity]map[string]any) []Identity {
 	out := make([]Identity, 0, len(m))
 	for k := range m {
 		out = append(out, k)

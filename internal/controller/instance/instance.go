@@ -21,13 +21,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"k8s.io/utils/ptr"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
-
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -35,9 +28,14 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/clients/akuity"
@@ -338,7 +336,7 @@ func (e *external) clearTerminalWrite(ctx context.Context, mg *v1alpha1.Instance
 
 func lateInitializeInstance(in *v1alpha1.InstanceParameters, instance *argocdv1.Instance, exportedInstance *argocdv1.ExportInstanceResponse) error {
 	in.ArgoCD.Spec.InstanceSpec.Subdomain = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.Subdomain, instance.GetSpec().GetSubdomain())
-	in.ArgoCD.Spec.InstanceSpec.DeclarativeManagementEnabled = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.DeclarativeManagementEnabled, ptr.To(instance.GetSpec().GetDeclarativeManagementEnabled()))
+	in.ArgoCD.Spec.InstanceSpec.DeclarativeManagementEnabled = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.DeclarativeManagementEnabled, new(instance.GetSpec().GetDeclarativeManagementEnabled()))
 	in.ArgoCD.Spec.InstanceSpec.AppsetPolicy = pointer.LateInitialize(in.ArgoCD.Spec.InstanceSpec.AppsetPolicy, observation.AppsetPolicy(instance.GetSpec().GetAppsetPolicy()))
 
 	if in.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults == nil || in.ArgoCD.Spec.InstanceSpec.ClusterCustomizationDefaults.Kustomization == "" {

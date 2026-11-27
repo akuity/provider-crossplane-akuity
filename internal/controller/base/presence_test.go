@@ -83,7 +83,7 @@ func TestForProviderPresence_RawReadFailureFailsClosed(t *testing.T) {
 }
 
 func TestProjectByPresence_PreservesExplicitZeroValues(t *testing.T) {
-	presence := presenceFromMap(map[string]interface{}{
+	presence := presenceFromMap(map[string]any{
 		"flag": false,
 		"name": "",
 	})
@@ -100,8 +100,8 @@ func TestProjectByPresence_PreservesExplicitZeroValues(t *testing.T) {
 }
 
 func TestProjectByPresence_NilPointerFieldDoesNotPanic(t *testing.T) {
-	presence := presenceFromMap(map[string]interface{}{
-		"child": map[string]interface{}{"name": "nested"},
+	presence := presenceFromMap(map[string]any{
+		"child": map[string]any{"name": "nested"},
 	})
 	in := presenceSample{}
 
@@ -111,8 +111,8 @@ func TestProjectByPresence_NilPointerFieldDoesNotPanic(t *testing.T) {
 }
 
 func TestProjectByPresence_NonStringMapKeyIsIgnored(t *testing.T) {
-	presence := presenceFromMap(map[string]interface{}{
-		"intMap": map[string]interface{}{"1": "one"},
+	presence := presenceFromMap(map[string]any{
+		"intMap": map[string]any{"1": "one"},
 	})
 	in := presenceOddSample{IntMap: map[int]string{1: "one"}}
 
@@ -122,8 +122,8 @@ func TestProjectByPresence_NonStringMapKeyIsIgnored(t *testing.T) {
 }
 
 func TestProjectByPresence_SliceIsWholeField(t *testing.T) {
-	presence := presenceFromMap(map[string]interface{}{
-		"items": []interface{}{"one"},
+	presence := presenceFromMap(map[string]any{
+		"items": []any{"one"},
 	})
 	in := presenceSample{
 		Items:   []string{"one", "two"},
@@ -137,7 +137,7 @@ func TestProjectByPresence_SliceIsWholeField(t *testing.T) {
 }
 
 func TestProjectByPresence_EmbeddedJSONFields(t *testing.T) {
-	presence := presenceFromMap(map[string]interface{}{
+	presence := presenceFromMap(map[string]any{
 		"promoted": "value",
 	})
 	in := presenceEmbeddedSample{
@@ -156,12 +156,12 @@ func TestProjectByPresence_EmbeddedJSONFields(t *testing.T) {
 }
 
 func TestDriftSpec_PresenceIgnoresUnspecifiedServerDefaults(t *testing.T) {
-	presence := presenceFromMap(map[string]interface{}{
+	presence := presenceFromMap(map[string]any{
 		"name": "user",
-		"child": map[string]interface{}{
+		"child": map[string]any{
 			"name": "nested",
 		},
-		"data": map[string]interface{}{
+		"data": map[string]any{
 			"owned": "v",
 		},
 	})
@@ -186,8 +186,8 @@ func TestDriftSpec_PresenceIgnoresUnspecifiedServerDefaults(t *testing.T) {
 }
 
 func TestDriftSpec_PresenceDetectsOwnedMapKeyDrift(t *testing.T) {
-	presence := presenceFromMap(map[string]interface{}{
-		"data": map[string]interface{}{
+	presence := presenceFromMap(map[string]any{
+		"data": map[string]any{
 			"owned": "v",
 		},
 	})

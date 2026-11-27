@@ -113,7 +113,7 @@ type InstanceIpAllowListList struct {
 
 // InstanceIpAllowList type metadata.
 var (
-	InstanceIpAllowListKind             = reflect.TypeOf(InstanceIpAllowList{}).Name()
+	InstanceIpAllowListKind             = reflect.TypeFor[InstanceIpAllowList]().Name()
 	InstanceIpAllowListGroupKind        = schema.GroupKind{Group: Group, Kind: InstanceIpAllowListKind}.String()
 	InstanceIpAllowListKindAPIVersion   = InstanceIpAllowListKind + "." + SchemeGroupVersion.String()
 	InstanceIpAllowListGroupVersionKind = SchemeGroupVersion.WithKind(InstanceIpAllowListKind)

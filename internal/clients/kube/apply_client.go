@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
-	"k8s.io/apimachinery/pkg/types"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -42,7 +41,7 @@ type ApplyClient struct {
 type applyObject struct {
 	name            string
 	namespace       string
-	unstructuredObj map[string]interface{}
+	unstructuredObj map[string]any
 }
 
 func WithDeleteWaitTimeout(timeout time.Duration) ApplyClientOption {

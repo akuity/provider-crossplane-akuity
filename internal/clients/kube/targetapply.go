@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -31,8 +32,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 )
 
 // TargetKubeConfig describes how a controller should reach the

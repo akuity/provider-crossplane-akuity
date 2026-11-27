@@ -51,7 +51,7 @@ var (
 
 func TestGetAkuityClientFromProviderConfig_ProviderConfigNotFoundErr(t *testing.T) {
 	s := scheme.Scheme
-	apisv1alpha1.SchemeBuilder.AddToScheme(s)
+	require.NoError(t, apisv1alpha1.SchemeBuilder.AddToScheme(s))
 
 	kube := fake.NewClientBuilder().WithScheme(s).Build()
 
@@ -61,7 +61,7 @@ func TestGetAkuityClientFromProviderConfig_ProviderConfigNotFoundErr(t *testing.
 
 func TestGetAkuityClientFromProviderConfig_ProviderConfigSecretNotFoundErr(t *testing.T) {
 	s := scheme.Scheme
-	apisv1alpha1.SchemeBuilder.AddToScheme(s)
+	require.NoError(t, apisv1alpha1.SchemeBuilder.AddToScheme(s))
 
 	kube := fake.NewClientBuilder().WithScheme(s).
 		WithRuntimeObjects(providerConfig).Build()
@@ -75,7 +75,7 @@ func TestGetAkuityClientFromProviderConfig_UnmarshalProviderConfigSecretErr(t *t
 	providerConfigSecretCopy.Data[providerConfig.Spec.CredentialsSecretRef.Key] = []byte("{{{{}")
 
 	s := scheme.Scheme
-	apisv1alpha1.SchemeBuilder.AddToScheme(s)
+	require.NoError(t, apisv1alpha1.SchemeBuilder.AddToScheme(s))
 
 	kube := fake.NewClientBuilder().WithScheme(s).
 		WithRuntimeObjects(providerConfig, providerConfigSecretCopy).Build()
@@ -86,7 +86,7 @@ func TestGetAkuityClientFromProviderConfig_UnmarshalProviderConfigSecretErr(t *t
 
 func TestGetAkuityClientFromProviderConfig_CreateAkuityClientErr(t *testing.T) {
 	s := scheme.Scheme
-	apisv1alpha1.SchemeBuilder.AddToScheme(s)
+	require.NoError(t, apisv1alpha1.SchemeBuilder.AddToScheme(s))
 
 	providerConfigCopy := providerConfig.DeepCopy()
 	providerConfigCopy.Spec.OrganizationID = ""
@@ -100,7 +100,7 @@ func TestGetAkuityClientFromProviderConfig_CreateAkuityClientErr(t *testing.T) {
 
 func TestGetAkuityClientFromProviderConfig(t *testing.T) {
 	s := scheme.Scheme
-	apisv1alpha1.SchemeBuilder.AddToScheme(s)
+	require.NoError(t, apisv1alpha1.SchemeBuilder.AddToScheme(s))
 
 	kube := fake.NewClientBuilder().WithScheme(s).
 		WithRuntimeObjects(providerConfig, providerConfigSecret).Build()

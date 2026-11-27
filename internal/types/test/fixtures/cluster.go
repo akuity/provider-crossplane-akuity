@@ -3,16 +3,15 @@ package fixtures
 import (
 	"encoding/json"
 
-	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
-	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
-	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
+	argocdv1 "github.com/akuity/api-client-go/pkg/api/gen/argocd/v1"
+	health "github.com/akuity/api-client-go/pkg/api/gen/types/status/health/v1"
+	reconciliation "github.com/akuity/api-client-go/pkg/api/gen/types/status/reconciliation/v1"
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	"github.com/akuityio/provider-crossplane-akuity/internal/marshal"
 	akuitytypes "github.com/akuityio/provider-crossplane-akuity/internal/types/generated/akuity/v1alpha1"
@@ -70,14 +69,14 @@ patches:
 		Annotations: Annotations,
 		ClusterSpec: generated.ClusterSpec{
 			Description:     "test-description",
-			NamespaceScoped: ptr.To(true),
+			NamespaceScoped: new(true),
 			Data: generated.ClusterData{
 				Size:                "medium",
-				AutoUpgradeDisabled: ptr.To(AutoUpgradeDisabled),
+				AutoUpgradeDisabled: new(AutoUpgradeDisabled),
 				Kustomization:       KustomizationYAML,
-				AppReplication:      ptr.To(AppReplication),
+				AppReplication:      new(AppReplication),
 				TargetVersion:       "v1.2.3",
-				RedisTunneling:      ptr.To(RedisTunneling),
+				RedisTunneling:      new(RedisTunneling),
 			},
 		},
 		EnableInClusterKubeConfig: true,
@@ -129,7 +128,7 @@ patches:
 		},
 		Spec: akuitytypes.ClusterSpec{
 			Description:     "test-description",
-			NamespaceScoped: ptr.To(true),
+			NamespaceScoped: new(true),
 			Data: akuitytypes.ClusterData{
 				Size:                akuitytypes.ClusterSize("medium"),
 				AutoUpgradeDisabled: &AutoUpgradeDisabled,

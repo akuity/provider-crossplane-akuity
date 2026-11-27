@@ -19,10 +19,9 @@ package v1alpha1
 import (
 	"reflect"
 
+	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 )
 
 // +kubebuilder:object:root=true
@@ -51,12 +50,12 @@ type ProviderConfigUsageList struct {
 
 // ProviderConfigUsage type metadata.
 var (
-	ProviderConfigUsageKind             = reflect.TypeOf(ProviderConfigUsage{}).Name()
+	ProviderConfigUsageKind             = reflect.TypeFor[ProviderConfigUsage]().Name()
 	ProviderConfigUsageGroupKind        = schema.GroupKind{Group: Group, Kind: ProviderConfigUsageKind}.String()
 	ProviderConfigUsageKindAPIVersion   = ProviderConfigUsageKind + "." + SchemeGroupVersion.String()
 	ProviderConfigUsageGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigUsageKind)
 
-	ProviderConfigUsageListKind             = reflect.TypeOf(ProviderConfigUsageList{}).Name()
+	ProviderConfigUsageListKind             = reflect.TypeFor[ProviderConfigUsageList]().Name()
 	ProviderConfigUsageListGroupKind        = schema.GroupKind{Group: Group, Kind: ProviderConfigUsageListKind}.String()
 	ProviderConfigUsageListKindAPIVersion   = ProviderConfigUsageListKind + "." + SchemeGroupVersion.String()
 	ProviderConfigUsageListGroupVersionKind = SchemeGroupVersion.WithKind(ProviderConfigUsageListKind)

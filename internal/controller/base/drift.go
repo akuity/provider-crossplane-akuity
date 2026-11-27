@@ -48,7 +48,7 @@ import (
 // checks against additively-owned children and Secret hash rotation.
 type DriftSpec[T any] struct {
 	Ignore    []cmp.Option
-	Normalize func(desired *T, observed *T)
+	Normalize func(desired, observed *T)
 	Presence  *FieldPresence
 	Side      []func(ctx context.Context) (bool, error)
 }

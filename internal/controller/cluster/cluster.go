@@ -24,11 +24,6 @@ import (
 	"strings"
 	"time"
 
-	k8stypes "k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	sigsyaml "sigs.k8s.io/yaml"
-
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -36,6 +31,10 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	sigsyaml "sigs.k8s.io/yaml"
 
 	"github.com/akuityio/provider-crossplane-akuity/apis/core/v1alpha1"
 	apisv1alpha1 "github.com/akuityio/provider-crossplane-akuity/apis/v1alpha1"
@@ -690,8 +689,7 @@ func driftSpec() base.DriftSpec[v1alpha1.ClusterParameters] {
 			// honored on auto-sized clusters where it actually round-
 			// trips.
 			if !sizeUsesUserAutoscaler(desired.ClusterSpec.Data.Size) {
-				desired.ClusterSpec.Data.AutoscalerConfig =
-					observed.ClusterSpec.Data.AutoscalerConfig
+				desired.ClusterSpec.Data.AutoscalerConfig = observed.ClusterSpec.Data.AutoscalerConfig
 			}
 		},
 	}

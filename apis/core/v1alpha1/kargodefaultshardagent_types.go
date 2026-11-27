@@ -112,7 +112,7 @@ type KargoDefaultShardAgentList struct {
 
 // KargoDefaultShardAgent type metadata.
 var (
-	KargoDefaultShardAgentKind             = reflect.TypeOf(KargoDefaultShardAgent{}).Name()
+	KargoDefaultShardAgentKind             = reflect.TypeFor[KargoDefaultShardAgent]().Name()
 	KargoDefaultShardAgentGroupKind        = schema.GroupKind{Group: Group, Kind: KargoDefaultShardAgentKind}.String()
 	KargoDefaultShardAgentKindAPIVersion   = KargoDefaultShardAgentKind + "." + SchemeGroupVersion.String()
 	KargoDefaultShardAgentGroupVersionKind = SchemeGroupVersion.WithKind(KargoDefaultShardAgentKind)
